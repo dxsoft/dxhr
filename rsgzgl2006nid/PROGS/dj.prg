@@ -1,0 +1,18 @@
+FUNCTION dj
+
+PARAMETERS tczwbm
+
+DO CASE
+CASE tczwbm="1001"
+    RETURN "1004"
+CASE tczwbm="1002"
+    RETURN "1007"
+CASE tczwbm="1003"
+    RETURN "1010"
+CASE tczwbm="1004"
+    RETURN "1012"
+CASE tczwbm="1005"
+    RETURN "1013"
+OTHERWISE
+    RETURN tczwbm
+ENDCASE

@@ -1,0 +1,167 @@
+工资变动下--警员警务技术职级晋升do form jyjs
+           年终一次性奖金审批do form nzjsp
+           调资测算do form tzcs
+           调整警衔津贴补发计算do form jxjtbfjs
+
+网络版
+工资变动下——法检等级晋升do form fjjs
+             未休年休假工资报酬do form nxj
+             年度目标考核奖do form mbkhj
+             精神文明奖do form wmj
+             年终一次性奖金do form nzjsp
+             养老保险数据接口do form upto2014
+             2018警员套改do form jytg
+             法检首次套改do form fjtg
+             警员套改do form tg_jy
+             调整警衔津贴补发计算do form jxjtbfjs
+
+数据交换——导出建库信息do outinfotoxls
+            导入信息proc
+&&判断是否有重名
+
+*!*	oldalias=ALIAS()
+*!*	SELECT xm,SUM(1) FROM lstt GROUP BY xm having(SUM(1))>1 INTO CURSOR tc
+*!*	SELECT tc
+*!*	cexp=""
+*!*	SCAN
+*!*	    cexp=cexp+" "+xm
+*!*	ENDSCAN
+
+*!*	IF !EMPTY(oldalias)
+*!*		SELECT (oldalias)
+*!*	ENDIF
+
+*!*	IF !EMPTY(cexp)
+*!*	    MESSAGEBOX("系统内有以下重复姓名，请修改以姓名区别："+CHR(13)+CHR(10)+cexp,64,"提示")
+*!*	    RETURN
+*!*	ENDIF    
+
+
+v_filename=GETFILE("EXCEL表:XLS,XLSX","打开文件","确定",0,"选择文件")
+
+IF EMPTY(V_FILENAME)
+    RETURN
+ENDIF
+
+IF !INLIST(UPPER(JUSTEXT(v_filename)),"XLS","XLSX")
+    RETURN
+ENDIF
+
+*!*	TRY
+	xlApp = CreateObject("Excel.Application")
+	if error()=1733
+	    messagebox('该功能需要Excel支持，请安装。',0,'系统提示')
+	    return
+	endif
+	xlapp.StandardFontSize = "9"
+	xlapp.SheetsInNewWorkbook = 1
+
+	xlBook = xlApp.Workbooks.open(v_filename)
+
+	xlSheet = xlBook.Worksheets(1)
+
+	cexpr=""
+	i=1
+	DO WHILE .t.
+	    fldname=ALLTRIM(CAST(xlSheet.cells(1,i).value as c(18)))
+	    fldname=STRTRAN(fldname,CHR(13)+CHR(10),'')
+	    fldname=STRTRAN(fldname,CHR(13),'')
+	    fldname=STRTRAN(fldname,CHR(10),'')
+	    fldname=STRTRAN(fldname,' ','')
+	    IF EMPTY(fldname) OR ISNULL(fldname)
+	        EXIT
+	    ELSE
+	        IF ALLTRIM(fldname)='姓名'
+		        cexpr=cexpr+","+ALLTRIM(fldname)+" c(8)"
+		    ELSE
+		        cexpr=cexpr+","+ALLTRIM(fldname)+" c(30)"
+	        ENDIF
+	        i=i+1
+	    ENDIF
+	ENDDO
+	cexpr="CREATE CURSOR lxls ("+SUBSTR(cexpr,2)+",id i autoinc,ryid i)"
+*!*		cexpr="CREATE CURSOR lxls ("+cexpr+")"
+	&cexpr
+
+	fldcnt=i-1
+
+	SET DECIMALS TO 2
+	j=2
+	DO WHILE .t.
+	    cc=""
+	    FOR i=1 TO fldcnt
+	        fldname=ALLTRIM(CAST(xlSheet.cells(1,i).value as c(18)))
+	        aa=xlSheet.cells(j,i).value
+	        IF TYPE("aa")="N"
+	            IF INT(aa)=aa
+	                fldv=CAST(INT(aa) as c(20))
+	            ELSE
+	                fldv=CAST(aa as c(20))
+	                fldv=LEFT(fldv,AT(".",fldv)+2)
+	            ENDIF
+	        ELSE
+	            fldv=ALLTRIM(CAST(xlSheet.cells(j,i).value as c(254)))
+	        ENDIF
+	        IF ISNULL(fldv)
+	            fldv=""
+	        ELSE
+	            fldv=ALLTRIM(fldv)
+	        ENDIF
+	        cc=cc+fldv
+	        STORE fldv TO &fldname
+	    ENDFOR
+	    IF !EMPTY(cc)
+	        INSERT INTO lxls FROM MEMVAR
+	    ELSE
+	        EXIT
+	    ENDIF
+	    i=1
+	    j=j+1
+	ENDDO
+
+	IF FIELD(1,"lxls")<>'单位编码' OR FIELD(2,"lxls")<>'个人编码'
+	    MESSAGEBOX("EXCEL表的第1列标题必须“单位编码”,第2列标题必须“个人编码”。",64,"提示")
+	    USE IN lxls
+	    RETURN
+	ENDIF
+
+
+	DO FORM forms\drbrow WITH V_FILENAME TO v_success
+
+*!*		IF v_success
+*!*			thisform.showdata()
+*!*		ENDIF
+
+	xlBook.close(.f.)
+	RELEASE xlapp
+
+
+
+
+
+查询统计——年度考核结果统计打印do form khjgtj
+            年度考核结果do form ndkh
+            编制情况统计do form bztj
+            生成公务员工资年报中间库proc
+            &&生成公务员工资年报中间库
+
+m.xzgzbt=0
+m.cb=0
+m.txbt=0
+m.wybt=0
+m.nzj=0
+m.wmj=0
+m.mbkhj=0
+m.pajsj=0
+m.nxj=0
+m.pskhj=0
+m.lgbjt=0
+m.wmcsj=0
+m.qt=0
+
+m.pnd="2024"
+
+
+&&国家统一列为合计项
+
+outExcelg("lsk","","公务员中间库.xls","")

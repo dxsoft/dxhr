@@ -1,0 +1,23 @@
+FUNCTION dtoh
+
+PARAMETERS dn
+
+aa=INT(dn/16)
+
+DO case
+CASE dn-aa*16=10
+    RETURN ALLTRIM(STR(aa))+"A"
+CASE dn-aa*16=11
+    RETURN ALLTRIM(STR(aa))+"B"
+CASE dn-aa*16=12
+    RETURN ALLTRIM(STR(aa))+"C"
+CASE dn-aa*16=13
+    RETURN ALLTRIM(STR(aa))+"D"
+CASE dn-aa*16=14
+    RETURN ALLTRIM(STR(aa))+"E"
+CASE dn-aa*16=15
+    RETURN ALLTRIM(STR(aa))+"F"
+OTHERWISE
+    RETURN ALLTRIM(STR(aa))+ALLTRIM(STR(dn-aa*16))
+ENDCASE
+    

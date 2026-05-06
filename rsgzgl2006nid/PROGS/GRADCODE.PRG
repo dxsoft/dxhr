@@ -1,0 +1,7 @@
+PARAMETERS tnGrad
+
+IF tnGrad<0 OR tnGrad>3
+    RETURN ""
+ELSE
+    RETURN RIGHT(STR(INT(YEAR(DATE())+((MONTH(DATE())+1)/10)-tnGrad)),2)
+ENDIF

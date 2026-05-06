@@ -1,0 +1,2 @@
+SELECT zwbm2,zwgw2,rznxd(srny,6,5,16) as rznxd,SUM(IIF(rznxd(cjgzny,6,5,41)=1,1,0)) as a1,SUM(IIF(rznxd(cjgzny,6,5,41)=2,1,0)) as a2,SUM(IIF(rznxd(cjgzny,6,5,41)=3,1,0)) as a3,SUM(IIF(rznxd(cjgzny,6,5,41)=4,1,0)) as a4,SUM(IIF(rznxd(cjgzny,6,5,41)=5,1,0)) as a5,SUM(IIF(rznxd(cjgzny,6,5,41)=6,1,0)) as a6,SUM(IIF(rznxd(cjgzny,6,5,41)=7,1,0)) as a7,SUM(IIF(rznxd(cjgzny,6,5,41)=8,1,0)) as a8,SUM(IIF(rznxd(cjgzny,6,5,41)=9,1,0)) as a9 FROM ryjbxx GROUP BY zwbm2,zwgw2,rznxd INTO CURSOR ll
+
