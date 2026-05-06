@@ -8,21 +8,22 @@
 
 | 路径 | 内容 |
 | --- | --- |
+| `rsgzgl2006nid/dxrsgzgl.pjx` / `dxrsgzgl.PJT` | VFP 项目文件 |
 | `rsgzgl2006nid/PROGS/` | 约 405 个 `.prg` / `.PRG` 程序文件 |
-| `rsgzgl2006nid/LIBS/` | `registry.h` |
+| `rsgzgl2006nid/FORMS/` | 192 个 `.scx` 和 192 个 `.sct` 表单文件 |
+| `rsgzgl2006nid/Menu/` | `gzjsgl.mnx`、`gzjsgl.MNT`、`GZJSGL.MPR` |
+| `rsgzgl2006nid/REPORTS/` | 109 个 `.frx` 和 109 个 `.frt` 报表文件 |
+| `rsgzgl2006nid/LIBS/` | `gzjsgl.vcx`、`_base.vcx`、`registry.vcx` 及对应 `.vct` |
 | `rsgzgl2006nid/` | `db_init.bat`、2 个 CSV、`FOXUSER.DBF`、菜单清理记录文本 |
 
-目前未在仓库中看到以下 VFP 运行资产：
+当前仍需要从运行环境或数据库服务器补充的资料：
 
-- 项目文件：`.pjx` / `.pjt`
-- 表单：`.scx` / `.sct`
-- 菜单：`.mnx` / `.mnt` / `.mpr`
-- 类库：`.vcx` / `.vct`
-- 报表：`.frx` / `.frt`
-- 业务数据目录：`data/`
-- 完整数据库建表 SQL 或存储过程脚本
+- MySQL 数据库 `gzjsgl` 的完整 DDL、索引、视图、触发器和存储过程。
+- `usp_init` 等初始化存储过程定义。
+- 脱敏业务数据样本，尤其是人员、工资、职务、学历、考核和工资标准表。
+- 真实 `sys.ini` 的结构示例，但不要提交生产账号密码。
 
-因此，当前阶段适合先做源码梳理、业务模块拆分、数据访问模式识别和 Spring Boot 目标架构设计。若要实现完整功能迁移，还需要补齐表单、菜单、报表和数据库结构。
+因此，当前阶段已经可以做完整 VFP 源码梳理、菜单到表单映射、报表清单整理、业务模块拆分和 Spring Boot 目标架构设计。若要开始实现可运行的 Spring Boot 服务，下一步重点是导出 MySQL 表结构和脱敏测试数据。
 
 ## 2. 入口和运行方式
 
@@ -35,14 +36,14 @@
 1. 声明大量全局变量。
 2. 设置 VFP 运行环境、默认目录、搜索路径。
 3. 读取 `sys.ini` 中的数据库配置。
-4. 根据 `dbtype` 连接 SQL Server、MySQL 或 SQLite。
+4. 根据 `dbtype` 连接 SQL Server、MySQL 或 SQLite；本项目实际目标数据库确认为 MySQL。
 5. 加载登录表单、菜单并进入 `READ EVENTS`。
 6. 退出时断开数据库连接。
 
 重要特征：
 
-- 当前系统不是纯 DBF 单机应用，代码中大量使用 `SQLSTRINGCONNECT` / `SQLEXEC` 访问数据库。
-- SQL Server 是主路径，MySQL 和 SQLite 分支也存在。
+- 当前系统不是纯 DBF 单机应用，代码中大量使用 `SQLSTRINGCONNECT` / `SQLEXEC` 访问 MySQL 数据库。
+- `rsgzgl.prg` 中仍保留 SQL Server 和 SQLite 分支，但 Spring Boot 迁移应以 MySQL 为准。
 - 连接配置来自 `sys.ini`，可迁移为 Spring Boot 的 `application.yml`。
 - VFP 使用全局变量和可更新游标，迁移时需要改为 Spring Bean、事务边界和显式 Repository/Service。
 
@@ -58,10 +59,10 @@
 
 其中调用：
 
-- SQL Server: `p_init ?@result`
 - MySQL: `call usp_init(@result)`
+- SQL Server 旧分支: `p_init ?@result`
 
-这些存储过程定义当前未上传。数据库迁移前必须从现有数据库导出表结构、索引、视图、存储过程和基础数据。
+这些存储过程定义当前未上传。数据库迁移前必须从现有 MySQL 数据库导出表结构、索引、视图、存储过程和基础数据。
 
 ## 3. 模块划分
 
@@ -175,12 +176,43 @@
 
 - `PROGS/rptpreview.prg`
 - `PROGS/crtvrptinfo.prg`
+- `REPORTS/*.frx` / `REPORTS/*.frt`
 
 迁移建议：
 
 - Excel COM 自动化改为 Apache POI、EasyExcel 或 CSV 导出。
 - VFP 报表预览改为浏览器预览、PDF 或 Excel 模板。
 - 先迁移纯查询导出，再处理带格式、套打和审批流的报表。
+
+### 3.6 菜单和表单
+
+核心文件：
+
+- `Menu/gzjsgl.mnx`
+- `Menu/gzjsgl.MNT`
+- `Menu/GZJSGL.MPR`
+- `FORMS/*.scx` / `FORMS/*.sct`
+
+`GZJSGL.MPR` 中包含大量 `DO FORM ...` 菜单入口，例如：
+
+- `do form gzjshmc`
+- `do form ndkhlr1`
+- `do form zwbhgzjs`
+- `do form jxgz2`
+- `do form drdz`
+- `do form tg2006`
+- `do form dc`
+- `do form dr`
+- `do form dwxx`
+- `do initi`
+- `do infromtemp`
+- `do form login`
+
+迁移建议：
+
+- 先从 `GZJSGL.MPR` 提取菜单项、表单名、调用参数，形成“功能清单”。
+- 再按表单对应的业务域归类到 Spring Boot 模块和前端页面。
+- `.scx/.sct` 是 VFP 表单元数据，不能直接转换为 Web 页面；应读取其中控件、数据源和事件代码，重做为 Vue/React/Thymeleaf 页面。
 
 ## 4. Spring Boot 目标结构建议
 
@@ -226,24 +258,28 @@ src/main/java/com/dxsoft/rsgzgl
 
 数据访问技术建议：
 
+- 目标数据库为 MySQL，优先使用 MySQL Connector/J。
 - 若需要保留大量历史 SQL：优先使用 MyBatis 或 JdbcTemplate。
 - 若后续要重建清晰领域模型：可在稳定表结构上逐步引入 JPA。
 - 工资计算不建议写在 Repository 中，应放在 `payroll.calculator` 或 `payroll.service`。
+- 旧系统连接串中使用 `CHARSET=gbk`，迁移时需确认 MySQL 库表字符集和排序规则；若现库为 GBK/GB2312，需要在 JDBC URL、导出脚本和测试数据中统一处理编码。
 
 ## 5. 推荐迁移顺序
 
-### 阶段 1：补齐资产和逆向数据库
+### 阶段 1：逆向 MySQL 数据库和整理功能清单
 
 必须收集：
 
-- 数据库表结构、索引、视图、存储过程。
-- 菜单、表单、报表和类库文件。
+- MySQL 数据库表结构、索引、视图、触发器、存储过程。
+- 菜单到表单的功能清单。
+- 表单到业务表、`crtv*.prg`、报表文件的对应关系。
 - `sys.ini` 示例配置，但不要提交真实账号密码。
 - 脱敏测试数据，至少覆盖人员、工资、职务、学历、考核。
 
 输出物：
 
 - `schema.sql`
+- `procedures.sql`
 - 表字典
 - 功能菜单清单
 - 核心工资计算样本
@@ -255,7 +291,7 @@ src/main/java/com/dxsoft/rsgzgl
 - Spring Web
 - Spring Validation
 - Spring JDBC 或 MyBatis
-- 数据库驱动
+- MySQL 数据库驱动
 - Flyway 或 Liquibase
 - OpenAPI 文档
 - JUnit 测试
@@ -302,13 +338,12 @@ src/main/java/com/dxsoft/rsgzgl
 
 在继续编码前，需要从现有系统补充以下信息：
 
-1. 当前实际使用的是 SQL Server、MySQL 还是 SQLite？
+1. MySQL 版本、字符集、排序规则是什么？
 2. 现网数据库中 `gzjsgl` 的完整表结构在哪里？
-3. `p_init` / `usp_init` 存储过程定义是否能导出？
-4. 是否还有 `forms/`、`menu/`、`reports/`、`libs/*.vcx` 等源码目录？
-5. 是否允许上传脱敏后的 `dryjbxx`、`fldgz`、工资标准表、历史工资表样本？
-6. 登录、权限、用户表对应哪些表？
-7. 第一阶段要优先替换哪类功能：查询、导出、工资计算，还是完整 Web 系统？
+3. `usp_init` 以及其他存储过程定义是否能导出？
+4. 是否允许上传脱敏后的 `dryjbxx`、`fldgz`、工资标准表、历史工资表样本？
+5. 登录、权限、用户表对应哪些表？
+6. 第一阶段要优先替换哪类功能：查询、导出、工资计算，还是完整 Web 系统？
 
 ## 7. 建议的第一批 Spring Boot API
 
@@ -330,7 +365,7 @@ src/main/java/com/dxsoft/rsgzgl
 
 当前项目已经可以开始做迁移准备，但还不适合直接一次性重写完整系统。最稳妥的路径是：
 
-1. 先补齐数据库结构和缺失 VFP 资产。
+1. 先导出 MySQL 数据库结构、存储过程和脱敏测试数据。
 2. 用 Spring Boot 建立只读查询和导出能力。
 3. 将简单字典、人员、职务、学历模块迁移为服务。
 4. 最后用测试驱动迁移工资计算链。
