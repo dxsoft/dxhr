@@ -303,6 +303,21 @@ src/main/java/com/dxsoft/rsgzgl
 - 通用异常处理
 - 人员基础信息只读查询
 
+当前仓库已经开始搭建 Spring Boot 后端骨架：
+
+- `pom.xml`
+- `src/main/java/com/dxsoft/rsgzgl`
+- `src/main/resources/application.yml`
+
+首批只读接口覆盖：
+
+- `GET /api/organizations`
+- `GET /api/personnel`
+- `GET /api/personnel/{uid}`
+- `GET /api/personnel/{uid}/positions`
+- `GET /api/personnel/{uid}/education`
+- `GET /api/personnel/{uid}/assessments`
+
 ### 阶段 3：迁移基础资料和查询
 
 优先模块：
