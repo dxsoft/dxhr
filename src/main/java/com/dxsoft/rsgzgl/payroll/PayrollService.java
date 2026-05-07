@@ -1,7 +1,10 @@
 package com.dxsoft.rsgzgl.payroll;
 
+import com.dxsoft.rsgzgl.common.NotFoundException;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -39,5 +42,26 @@ public class PayrollService {
                 payrollRepository.findAllowanceStandards(standardYearMonth, item, positionCode, pageRequest),
                 pageRequest,
                 payrollRepository.countAllowanceStandards(standardYearMonth, item, positionCode));
+    }
+
+    public PayrollCalculationContext calculationContext(int uid) {
+        PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        Map<String, Object> historyValues = payrollRepository.findLatestHistoryValues(uid);
+        List<PayrollComponentValue> components = payrollRepository.findCalculationFields().stream()
+                .map(field -> new PayrollComponentValue(
+                        field.fieldName(),
+                        field.caption(),
+                        field.inputMode(),
+                        field.allowance(),
+                        payrollRepository.decimalValue(historyValues, field.fieldName())))
+                .toList();
+
+        return new PayrollCalculationContext(
+                uid,
+                history,
+                components,
+                payrollRepository.findMatchedPositionStandards(history),
+                payrollRepository.findMatchedAllowanceStandards(history));
     }
 }

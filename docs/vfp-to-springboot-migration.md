@@ -320,8 +320,10 @@ src/main/java/com/dxsoft/rsgzgl
 - `GET /api/payroll/fields`
 - `GET /api/payroll/position-standards`
 - `GET /api/payroll/allowance-standards`
+- `GET /api/payroll/personnel/{uid}/calculation-context`
 
 人员接口已先做身份证号脱敏；工资标准接口目前只读，用于后续拆解 `gzjs06.prg` 前准备标准表和字段元数据。
+`calculation-context` 会按人员最新 `hisbase` 记录汇总现有工资项和匹配标准表，作为 Java 侧逐项复刻计算前的对账输入。
 
 ### 阶段 3：迁移基础资料和查询
 

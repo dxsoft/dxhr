@@ -28,5 +28,8 @@ mvn spring-boot:run
 - `GET /api/payroll/fields`
 - `GET /api/payroll/position-standards`
 - `GET /api/payroll/allowance-standards`
+- `GET /api/payroll/personnel/{uid}/calculation-context`
 
 人员接口默认会对身份证号做脱敏处理，避免直接暴露完整证件号码。
+
+`calculation-context` 接口用于工资计算迁移的第一步：读取单人最新工资历史、已保存的工资项金额和匹配到的标准表数据，暂不写入数据库。

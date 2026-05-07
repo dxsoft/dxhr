@@ -3,6 +3,7 @@ package com.dxsoft.rsgzgl.payroll;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,5 +43,10 @@ class PayrollController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return payrollService.allowanceStandards(standardYearMonth, item, positionCode, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/personnel/{uid}/calculation-context")
+    PayrollCalculationContext calculationContext(@PathVariable int uid) {
+        return payrollService.calculationContext(uid);
     }
 }
