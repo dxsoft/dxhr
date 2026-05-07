@@ -1,6 +1,7 @@
 package com.dxsoft.rsgzgl.payroll;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public record PayrollTotalComparison(
         String teachingStartYearMonth,
@@ -12,6 +13,7 @@ public record PayrollTotalComparison(
         BigDecimal storedComponentTotal,
         BigDecimal recalculatedKnownTotal,
         Integer storedTotal,
-        BigDecimal totalDifference
+        BigDecimal totalDifference,
+        List<PayrollComponentDifference> componentDifferences
 ) {
 }

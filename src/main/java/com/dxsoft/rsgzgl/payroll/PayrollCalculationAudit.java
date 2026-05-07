@@ -1,6 +1,7 @@
 package com.dxsoft.rsgzgl.payroll;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public record PayrollCalculationAudit(
         Integer uid,
@@ -11,6 +12,7 @@ public record PayrollCalculationAudit(
         Integer storedTotal,
         BigDecimal recalculatedKnownTotal,
         BigDecimal totalDifference,
-        Boolean matched
+        Boolean matched,
+        List<PayrollComponentDifference> componentDifferences
 ) {
 }

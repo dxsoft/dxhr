@@ -5,6 +5,7 @@ import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -60,12 +61,14 @@ public class PayrollService {
                         payrollRepository.decimalValue(historyValues, field.fieldName())))
                 .toList();
 
+        BasicPayrollCalculation basicCalculation = basicCalculation(history);
+        AllowanceCalculation allowanceCalculation = allowanceCalculation(history);
         return new PayrollCalculationContext(
                 uid,
                 history,
-                basicCalculation(history),
-                allowanceCalculation(history),
-                totalComparison(history, components),
+                basicCalculation,
+                allowanceCalculation,
+                totalComparison(history, components, basicCalculation, allowanceCalculation),
                 components,
                 payrollRepository.findMatchedPositionStandards(history),
                 payrollRepository.findMatchedAllowanceStandards(history));
@@ -157,7 +160,9 @@ public class PayrollService {
                         field.allowance(),
                         payrollRepository.decimalValue(historyValues, field.fieldName())))
                 .toList();
-        PayrollTotalComparison total = totalComparison(history, components);
+        BasicPayrollCalculation basicCalculation = basicCalculation(history);
+        AllowanceCalculation allowanceCalculation = allowanceCalculation(history);
+        PayrollTotalComparison total = totalComparison(history, components, basicCalculation, allowanceCalculation);
         BigDecimal difference = nullToZero(total.totalDifference());
         return new PayrollCalculationAudit(
                 uid,
@@ -168,7 +173,8 @@ public class PayrollService {
                 history.storedTotal(),
                 total.recalculatedKnownTotal(),
                 difference,
-                difference.compareTo(BigDecimal.ZERO) == 0);
+                difference.compareTo(BigDecimal.ZERO) == 0,
+                total.componentDifferences());
     }
 
     private String baseSalarySource(String positionCode) {
@@ -212,11 +218,19 @@ public class PayrollService {
                 history.storedYearAllowance());
     }
 
-    private PayrollTotalComparison totalComparison(PayrollHistorySnapshot history, List<PayrollComponentValue> components) {
-        BasicPayrollCalculation basic = basicCalculation(history);
-        AllowanceCalculation allowance = allowanceCalculation(history);
+    private PayrollTotalComparison totalComparison(
+            PayrollHistorySnapshot history,
+            List<PayrollComponentValue> components,
+            BasicPayrollCalculation basic,
+            AllowanceCalculation allowance) {
         Integer teachingAllowance = teachingAllowance(history);
         Integer salaryIncrease = salaryIncrease(history, basic);
+        List<PayrollComponentDifference> componentDifferences = componentDifferences(
+                history,
+                basic,
+                allowance,
+                teachingAllowance,
+                salaryIncrease);
 
         BigDecimal storedComponentTotal = components.stream()
                 .filter(component -> !"HJ2".equalsIgnoreCase(component.fieldName()))
@@ -253,7 +267,55 @@ public class PayrollService {
                 storedComponentTotal,
                 recalculatedKnownTotal,
                 history.storedTotal(),
-                recalculatedKnownTotal.subtract(BigDecimal.valueOf(history.storedTotal())));
+                recalculatedKnownTotal.subtract(BigDecimal.valueOf(history.storedTotal())),
+                componentDifferences);
+    }
+
+    private List<PayrollComponentDifference> componentDifferences(
+            PayrollHistorySnapshot history,
+            BasicPayrollCalculation basic,
+            AllowanceCalculation allowance,
+            Integer teachingAllowance,
+            Integer salaryIncrease) {
+        List<PayrollComponentDifference> differences = new ArrayList<>();
+        addDifference(differences, "ZWGZSE2", "职务工资", history.storedPositionSalary(), basic.positionSalary());
+        addDifference(differences, "JBGZSE2", "级别/薪级工资", history.storedGradeSalary(), basic.selectedBaseSalary());
+        addDifference(differences, "JSDJGZ2", "技术等级工资", history.storedTechnicalGradeSalary(), basic.technicalGradeSalary());
+        addDifference(differences, "DFBT2", "基础性绩效工资", history.storedPerformanceAllowance(), allowance.performanceAllowance());
+        addDifference(differences, "SDBT", "工作性/生活性补贴", history.storedSubsidyAllowance(), allowance.subsidyAllowance());
+        addDifference(differences, "BLFB2", "保留福补", history.storedRetainedAllowance(), allowance.retainedAllowance());
+        addDifference(differences, "NJBT", "年补贴", history.storedYearAllowance(), allowance.yearAllowance());
+        addDifference(differences, "JHLJT", "教护龄津贴", history.storedTeachingAllowance(), teachingAllowance);
+        addDifference(differences, "JSFSZWTG2", "提高工资", history.storedSalaryIncrease(), salaryIncrease);
+        return differences;
+    }
+
+    private void addDifference(
+            List<PayrollComponentDifference> differences,
+            String fieldName,
+            String caption,
+            Integer storedAmount,
+            Integer calculatedAmount) {
+        addDifference(
+                differences,
+                fieldName,
+                caption,
+                BigDecimal.valueOf(nullToZero(storedAmount)),
+                BigDecimal.valueOf(nullToZero(calculatedAmount)));
+    }
+
+    private void addDifference(
+            List<PayrollComponentDifference> differences,
+            String fieldName,
+            String caption,
+            BigDecimal storedAmount,
+            BigDecimal calculatedAmount) {
+        BigDecimal stored = nullToZero(storedAmount);
+        BigDecimal calculated = nullToZero(calculatedAmount);
+        BigDecimal difference = calculated.subtract(stored);
+        if (difference.compareTo(BigDecimal.ZERO) != 0) {
+            differences.add(new PayrollComponentDifference(fieldName, caption, stored, calculated, difference));
+        }
     }
 
     private Integer teachingAllowance(PayrollHistorySnapshot history) {
