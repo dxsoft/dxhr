@@ -295,6 +295,20 @@ public class PayrollService {
             String fieldName,
             String caption,
             Integer storedAmount,
+            BigDecimal calculatedAmount) {
+        addDifference(
+                differences,
+                fieldName,
+                caption,
+                BigDecimal.valueOf(nullToZero(storedAmount)),
+                calculatedAmount);
+    }
+
+    private void addDifference(
+            List<PayrollComponentDifference> differences,
+            String fieldName,
+            String caption,
+            Integer storedAmount,
             Integer calculatedAmount) {
         addDifference(
                 differences,
