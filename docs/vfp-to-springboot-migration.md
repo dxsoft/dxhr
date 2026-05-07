@@ -331,7 +331,7 @@ src/main/java/com/dxsoft/rsgzgl
 随后加入 `jhljt.prg` 和 `jsfszwtg2` 提高工资的对账值，并在 `totalComparison` 中用已迁移项目替换旧值后计算合计差额。
 批量对账接口会分页遍历有 `hisbase` 历史的人员，复用单人上下文并统计差异人员，作为后续定位未迁移工资项的入口。
 由于远程 MySQL 往返成本较高，批量对账建议先按小分页执行，再根据差异人员继续迁移剩余工资项。
-对账结果会在 `componentDifferences` 中列出字段级差异，便于识别 `DFBT2`（基础性绩效工资）这类具体来源。
+对账结果会在 `componentDifferences` 中列出字段级差异；`DFBT2` 按人员性质区分为机关人员“生活性补贴”和事业单位人员“基础性绩效工资”。
 
 ### 阶段 3：迁移基础资料和查询
 

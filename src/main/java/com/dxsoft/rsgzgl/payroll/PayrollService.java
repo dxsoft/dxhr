@@ -281,7 +281,7 @@ public class PayrollService {
         addDifference(differences, "ZWGZSE2", "职务工资", history.storedPositionSalary(), basic.positionSalary());
         addDifference(differences, "JBGZSE2", "级别/薪级工资", history.storedGradeSalary(), basic.selectedBaseSalary());
         addDifference(differences, "JSDJGZ2", "技术等级工资", history.storedTechnicalGradeSalary(), basic.technicalGradeSalary());
-        addDifference(differences, "DFBT2", "基础性绩效工资", history.storedPerformanceAllowance(), allowance.performanceAllowance());
+        addDifference(differences, "DFBT2", dfbt2Caption(history), history.storedPerformanceAllowance(), allowance.performanceAllowance());
         addDifference(differences, "SDBT", "工作性/生活性补贴", history.storedSubsidyAllowance(), allowance.subsidyAllowance());
         addDifference(differences, "BLFB2", "保留福补", history.storedRetainedAllowance(), allowance.retainedAllowance());
         addDifference(differences, "NJBT", "年补贴", history.storedYearAllowance(), allowance.yearAllowance());
@@ -330,6 +330,14 @@ public class PayrollService {
         if (difference.compareTo(BigDecimal.ZERO) != 0) {
             differences.add(new PayrollComponentDifference(fieldName, caption, stored, calculated, difference));
         }
+    }
+
+    private String dfbt2Caption(PayrollHistorySnapshot history) {
+        String organizationType = history.organizationType();
+        if (organizationType != null && organizationType.compareTo("07") < 0) {
+            return "生活性补贴";
+        }
+        return "基础性绩效工资";
     }
 
     private Integer teachingAllowance(PayrollHistorySnapshot history) {
