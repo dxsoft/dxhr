@@ -25,3 +25,8 @@ mvn spring-boot:run
 - `GET /api/personnel/{uid}/positions`
 - `GET /api/personnel/{uid}/education`
 - `GET /api/personnel/{uid}/assessments`
+- `GET /api/payroll/fields`
+- `GET /api/payroll/position-standards`
+- `GET /api/payroll/allowance-standards`
+
+人员接口默认会对身份证号做脱敏处理，避免直接暴露完整证件号码。

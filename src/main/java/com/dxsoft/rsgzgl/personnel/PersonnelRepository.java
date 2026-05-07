@@ -1,6 +1,7 @@
 package com.dxsoft.rsgzgl.personnel;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
+import com.dxsoft.rsgzgl.common.SensitiveData;
 import com.dxsoft.rsgzgl.common.SqlText;
 import java.util.List;
 import java.util.Optional;
@@ -18,7 +19,7 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("dwmc")),
             SqlText.trim(rs.getString("grbm")),
             SqlText.trim(rs.getString("xm")),
-            SqlText.trim(rs.getString("sfzh")),
+            SensitiveData.maskIdCard(rs.getString("sfzh")),
             SqlText.trim(rs.getString("xb")),
             SqlText.trim(rs.getString("csny")),
             SqlText.trim(rs.getString("ryfl")),
@@ -34,7 +35,7 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("dwmc")),
             SqlText.trim(rs.getString("grbm")),
             SqlText.trim(rs.getString("xm")),
-            SqlText.trim(rs.getString("sfzh")),
+            SensitiveData.maskIdCard(rs.getString("sfzh")),
             SqlText.trim(rs.getString("xb")),
             SqlText.trim(rs.getString("csny")),
             SqlText.trim(rs.getString("ryfl")),
