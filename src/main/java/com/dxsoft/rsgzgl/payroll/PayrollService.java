@@ -5,6 +5,7 @@ import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -70,6 +71,39 @@ public class PayrollService {
                 payrollRepository.findMatchedAllowanceStandards(history));
     }
 
+    public PageResponse<PayrollCalculationAudit> calculationAudits(String organizationCode, PageRequest pageRequest) {
+        List<PayrollCalculationAudit> audits = payrollRepository
+                .findPersonnelUidsWithPayrollHistory(organizationCode, pageRequest)
+                .stream()
+                .map(this::calculationAudit)
+                .toList();
+        return PageResponse.of(
+                audits,
+                pageRequest,
+                payrollRepository.countPersonnelWithPayrollHistory(organizationCode));
+    }
+
+    public PayrollAuditSummary auditSummary(String organizationCode, PageRequest pageRequest) {
+        List<PayrollCalculationAudit> audits = payrollRepository
+                .findPersonnelUidsWithPayrollHistory(organizationCode, pageRequest)
+                .stream()
+                .map(this::calculationAudit)
+                .toList();
+        List<PayrollCalculationAudit> differences = audits.stream()
+                .filter(audit -> !audit.matched())
+                .toList();
+        BigDecimal maxAbsoluteDifference = differences.stream()
+                .map(audit -> audit.totalDifference().abs())
+                .max(Comparator.naturalOrder())
+                .orElse(BigDecimal.ZERO);
+        return new PayrollAuditSummary(
+                payrollRepository.countPersonnelWithPayrollHistory(organizationCode),
+                audits.size(),
+                differences.size(),
+                maxAbsoluteDifference,
+                differences);
+    }
+
     private BasicPayrollCalculation basicCalculation(PayrollHistorySnapshot history) {
         String standardYearMonth = history.salaryStandardYearMonth();
         String positionCode = history.positionCode();
@@ -107,6 +141,23 @@ public class PayrollService {
                 history.storedGradeSalary(),
                 history.storedTechnicalGradeSalary(),
                 history.storedTotal());
+    }
+
+    private PayrollCalculationAudit calculationAudit(int uid) {
+        PayrollCalculationContext context = calculationContext(uid);
+        PayrollHistorySnapshot history = context.latestHistory();
+        PayrollTotalComparison total = context.totalComparison();
+        BigDecimal difference = nullToZero(total.totalDifference());
+        return new PayrollCalculationAudit(
+                uid,
+                history.organizationCode(),
+                history.personCode(),
+                history.name(),
+                history.calculationYear() + history.calculationMonth(),
+                history.storedTotal(),
+                total.recalculatedKnownTotal(),
+                difference,
+                difference.compareTo(BigDecimal.ZERO) == 0);
     }
 
     private String baseSalarySource(String positionCode) {

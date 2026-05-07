@@ -29,6 +29,8 @@ mvn spring-boot:run
 - `GET /api/payroll/position-standards`
 - `GET /api/payroll/allowance-standards`
 - `GET /api/payroll/personnel/{uid}/calculation-context`
+- `GET /api/payroll/calculation-audits`
+- `GET /api/payroll/calculation-audit-summary`
 
 人员接口默认会对身份证号做脱敏处理，避免直接暴露完整证件号码。
 
@@ -36,3 +38,4 @@ mvn spring-boot:run
 该接口已经包含基础标准表计算值：职务工资、级别工资、薪级工资和技术等级工资，用于和 `hisbase` 存量金额对账。
 同时包含部分津补贴计算值：基础绩效、工作性/生活性补贴、保留福补和年补贴，用于继续对齐 `gzjs06.prg` 的津补贴段。
 `totalComparison` 会进一步计算教护龄津贴、提高工资，并替换当前已迁移项目后给出合计差额。
+批量对账接口会分页执行同一套只读计算，返回每个人的合计差额和差异汇总。

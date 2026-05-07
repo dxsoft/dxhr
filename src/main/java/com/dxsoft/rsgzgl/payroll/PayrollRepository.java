@@ -190,6 +190,39 @@ class PayrollRepository {
                 """, new MapSqlParameterSource("uid", uid), HISTORY_MAPPER).stream().findFirst();
     }
 
+    List<Integer> findPersonnelUidsWithPayrollHistory(String organizationCode, PageRequest pageRequest) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.queryForList("""
+                SELECT p.uid
+                FROM dryjbxx p
+                WHERE (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND EXISTS (
+                      SELECT 1
+                      FROM hisbase h
+                      WHERE h.dwbm = p.dwbm AND h.grbm = p.grbm
+                  )
+                ORDER BY p.dwbm, p.grbm
+                LIMIT :limit OFFSET :offset
+                """, parameters, Integer.class);
+    }
+
+    long countPersonnelWithPayrollHistory(String organizationCode) {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM dryjbxx p
+                WHERE (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND EXISTS (
+                      SELECT 1
+                      FROM hisbase h
+                      WHERE h.dwbm = p.dwbm AND h.grbm = p.grbm
+                  )
+                """, new MapSqlParameterSource("organizationCode", emptyToNull(organizationCode)), Long.class);
+        return count == null ? 0 : count;
+    }
+
     Map<String, Object> findLatestHistoryValues(int uid) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT h.*

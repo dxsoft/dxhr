@@ -321,12 +321,15 @@ src/main/java/com/dxsoft/rsgzgl
 - `GET /api/payroll/position-standards`
 - `GET /api/payroll/allowance-standards`
 - `GET /api/payroll/personnel/{uid}/calculation-context`
+- `GET /api/payroll/calculation-audits`
+- `GET /api/payroll/calculation-audit-summary`
 
 人员接口已先做身份证号脱敏；工资标准接口目前只读，用于后续拆解 `gzjs06.prg` 前准备标准表和字段元数据。
 `calculation-context` 会按人员最新 `hisbase` 记录汇总现有工资项和匹配标准表，作为 Java 侧逐项复刻计算前的对账输入。
 其中已先复刻 `zwgz06.prg`、`jbgz06.prg`、`xjgz06.prg`、`jsdjgz06.prg` 对应的基础标准表计算，暂不执行整条 `gzjs06.prg` 工资重算链。
 当前还加入了 `jcjx.prg`、`sdbt.prg`、`blfb.prg`、`njbt.prg` 的只读计算结果，覆盖基础绩效、工作性/生活性补贴、保留福补和年补贴，仍以和 `hisbase` 存量金额对账为主。
 随后加入 `jhljt.prg` 和 `jsfszwtg2` 提高工资的对账值，并在 `totalComparison` 中用已迁移项目替换旧值后计算合计差额。
+批量对账接口会分页遍历有 `hisbase` 历史的人员，复用单人上下文并统计差异人员，作为后续定位未迁移工资项的入口。
 
 ### 阶段 3：迁移基础资料和查询
 

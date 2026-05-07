@@ -49,4 +49,20 @@ class PayrollController {
     PayrollCalculationContext calculationContext(@PathVariable int uid) {
         return payrollService.calculationContext(uid);
     }
+
+    @GetMapping("/calculation-audits")
+    PageResponse<PayrollCalculationAudit> calculationAudits(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.calculationAudits(organizationCode, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/calculation-audit-summary")
+    PayrollAuditSummary calculationAuditSummary(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.auditSummary(organizationCode, PageRequest.of(page, size));
+    }
 }
