@@ -72,6 +72,19 @@ public class PayrollService {
         String gradeStep = String.valueOf(
                 payrollRepository.intValue(history.positionSalaryGrade())
                         + payrollRepository.intValue(history.gradeSalaryStep()));
+        Integer gradeSalary = payrollRepository.gradeSalary(history.gradeSalaryLevel(), gradeStep, standardYearMonth);
+        Integer salaryLevelSalary = payrollRepository.salaryLevelSalary(
+                history.positionSalaryGrade(),
+                history.gradeSalaryStep(),
+                standardYearMonth,
+                positionCode);
+        Integer technicalGradeSalary = payrollRepository.technicalGradeSalary(positionCode, standardYearMonth);
+        String baseSalarySource = baseSalarySource(positionCode);
+        Integer selectedBaseSalary = switch (baseSalarySource) {
+            case "GRADE" -> gradeSalary;
+            case "TECHNICAL_GRADE" -> technicalGradeSalary;
+            default -> salaryLevelSalary;
+        };
 
         return new BasicPayrollCalculation(
                 standardYearMonth,
@@ -81,16 +94,25 @@ public class PayrollService {
                 history.gradeSalaryLevel(),
                 history.gradeSalaryStep(),
                 payrollRepository.positionSalary(positionCode, standardYearMonth),
-                payrollRepository.gradeSalary(history.gradeSalaryLevel(), gradeStep, standardYearMonth),
-                payrollRepository.salaryLevelSalary(
-                        history.positionSalaryGrade(),
-                        history.gradeSalaryStep(),
-                        standardYearMonth,
-                        positionCode),
-                payrollRepository.technicalGradeSalary(positionCode, standardYearMonth),
+                gradeSalary,
+                salaryLevelSalary,
+                technicalGradeSalary,
+                baseSalarySource,
+                selectedBaseSalary,
                 history.storedPositionSalary(),
                 history.storedGradeSalary(),
                 history.storedTechnicalGradeSalary(),
                 history.storedTotal());
+    }
+
+    private String baseSalarySource(String positionCode) {
+        if (positionCode == null || positionCode.length() < 2) {
+            return "SALARY_LEVEL";
+        }
+        return switch (positionCode.substring(0, 2)) {
+            case "01", "02", "04", "23", "24", "25", "26", "27", "28" -> "GRADE";
+            case "21", "22" -> "TECHNICAL_GRADE";
+            default -> "SALARY_LEVEL";
+        };
     }
 }

@@ -11,6 +11,8 @@ public record BasicPayrollCalculation(
         Integer gradeSalary,
         Integer salaryLevelSalary,
         Integer technicalGradeSalary,
+        String baseSalarySource,
+        Integer selectedBaseSalary,
         Integer storedPositionSalary,
         Integer storedGradeSalary,
         Integer storedTechnicalGradeSalary,
