@@ -60,8 +60,37 @@ public class PayrollService {
         return new PayrollCalculationContext(
                 uid,
                 history,
+                basicCalculation(history),
                 components,
                 payrollRepository.findMatchedPositionStandards(history),
                 payrollRepository.findMatchedAllowanceStandards(history));
+    }
+
+    private BasicPayrollCalculation basicCalculation(PayrollHistorySnapshot history) {
+        String standardYearMonth = history.salaryStandardYearMonth();
+        String positionCode = history.positionCode();
+        String gradeStep = String.valueOf(
+                payrollRepository.intValue(history.positionSalaryGrade())
+                        + payrollRepository.intValue(history.gradeSalaryStep()));
+
+        return new BasicPayrollCalculation(
+                standardYearMonth,
+                positionCode,
+                payrollRepository.mapPositionSalaryCode(positionCode),
+                history.positionSalaryGrade(),
+                history.gradeSalaryLevel(),
+                history.gradeSalaryStep(),
+                payrollRepository.positionSalary(positionCode, standardYearMonth),
+                payrollRepository.gradeSalary(history.gradeSalaryLevel(), gradeStep, standardYearMonth),
+                payrollRepository.salaryLevelSalary(
+                        history.positionSalaryGrade(),
+                        history.gradeSalaryStep(),
+                        standardYearMonth,
+                        positionCode),
+                payrollRepository.technicalGradeSalary(positionCode, standardYearMonth),
+                history.storedPositionSalary(),
+                history.storedGradeSalary(),
+                history.storedTechnicalGradeSalary(),
+                history.storedTotal());
     }
 }

@@ -73,6 +73,9 @@ class PayrollRepository {
             SqlText.trim(rs.getString("djc2")),
             SqlText.trim(rs.getString("tbnd")),
             SqlText.trim(rs.getString("jbtbz")),
+            rs.getInt("zwgzse2"),
+            rs.getInt("jbgzse2"),
+            rs.getInt("jsdjgz2"),
             rs.getInt("hj2"));
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -165,7 +168,8 @@ class PayrollRepository {
     Optional<PayrollHistorySnapshot> findLatestHistory(int uid) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
-                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz, h.hj2
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.hj2
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 WHERE p.uid = :uid
@@ -224,6 +228,98 @@ class PayrollRepository {
                 .addValue("positionCode", history.positionCode()), ALLOWANCE_STANDARD_MAPPER);
     }
 
+    int positionSalary(String positionCode, String standardYearMonth) {
+        return queryInteger("""
+                SELECT bz
+                FROM bz06_zwgz
+                WHERE tbnd = :standardYearMonth AND zwbm = :positionCode
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("positionCode", mapPositionSalaryCode(positionCode)));
+    }
+
+    int gradeSalary(String gradeLevel, String gradeStep, String standardYearMonth) {
+        int step = intValue(gradeStep);
+        if (step <= 0 || emptyToNull(gradeLevel) == null) {
+            return 0;
+        }
+        String column = "dc" + Math.min(step, 20);
+        Integer direct = queryInteger("""
+                SELECT %s
+                FROM bz06_jbgz
+                WHERE tbnd = :standardYearMonth AND CAST(jb AS UNSIGNED) = :gradeLevel
+                LIMIT 1
+                """.formatted(column), new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("gradeLevel", intValue(gradeLevel)));
+
+        if (direct == null) {
+            return 0;
+        }
+
+        int highestStep = highestGradeStep(gradeLevel);
+        if (step <= highestStep || highestStep <= 1 || highestStep > 20) {
+            return direct;
+        }
+
+        Integer highest = gradeSalaryAtStep(gradeLevel, highestStep, standardYearMonth);
+        Integer previous = gradeSalaryAtStep(gradeLevel, highestStep - 1, standardYearMonth);
+        if (highest == null || previous == null) {
+            return direct;
+        }
+        return highest + (highest - previous) * (step - highestStep);
+    }
+
+    int salaryLevelSalary(String salaryLevel, String inversionStep, String standardYearMonth, String positionCode) {
+        String normalizedLevel = leftPadTwo(salaryLevel);
+        if (normalizedLevel == null || emptyToNull(positionCode) == null) {
+            return 0;
+        }
+
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("salaryLevel", normalizedLevel)
+                .addValue("jobCategory", positionCode.substring(0, Math.min(2, positionCode.length())));
+        Integer base = queryInteger("""
+                SELECT bz
+                FROM bz06_xjgz
+                WHERE tbnd = :standardYearMonth AND xj = :salaryLevel AND gwflbm = :jobCategory
+                LIMIT 1
+                """, parameters);
+        if (base == null) {
+            return 0;
+        }
+
+        int inversion = intValue(inversionStep);
+        if (inversion <= 0) {
+            return base;
+        }
+
+        List<Integer> topAmounts = jdbcTemplate.queryForList("""
+                SELECT DISTINCT bz
+                FROM bz06_xjgz
+                WHERE tbnd = :standardYearMonth AND gwflbm = :jobCategory
+                ORDER BY bz DESC
+                LIMIT 2
+                """, parameters, Integer.class);
+        if (topAmounts.size() < 2) {
+            return base;
+        }
+        return inversion * (topAmounts.get(0) - topAmounts.get(1)) + base;
+    }
+
+    int technicalGradeSalary(String positionCode, String standardYearMonth) {
+        return queryInteger("""
+                SELECT jsdjgz
+                FROM bz06_zwgz_gr
+                WHERE tbnd = :standardYearMonth AND zwbm = :positionCode
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("positionCode", emptyToNull(positionCode)));
+    }
+
     BigDecimal decimalValue(Map<String, Object> row, String fieldName) {
         Object value = row.get(fieldName);
         if (value == null) {
@@ -241,6 +337,31 @@ class PayrollRepository {
         return BigDecimal.ZERO;
     }
 
+    String mapPositionSalaryCode(String positionCode) {
+        return switch (emptyToNull(positionCode) == null ? "" : positionCode.trim()) {
+            case "0416", "0426" -> "0161";
+            case "0417", "0427", "0437" -> "0171";
+            case "0418", "0428", "0438" -> "0181";
+            case "0419", "0429", "0439" -> "0191";
+            case "041A", "042A", "043A" -> "01A1";
+            case "041B", "042B", "043B" -> "01B0";
+            case "043C" -> "01C0";
+            default -> emptyToNull(positionCode);
+        };
+    }
+
+    int intValue(String value) {
+        String trimmed = emptyToNull(value);
+        if (trimmed == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(trimmed);
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
     private MapSqlParameterSource standardParameters(String standardYearMonth, String positionCode) {
         return new MapSqlParameterSource()
                 .addValue("standardYearMonth", emptyToNull(standardYearMonth))
@@ -250,5 +371,52 @@ class PayrollRepository {
     private String emptyToNull(String value) {
         String trimmed = SqlText.trim(value);
         return trimmed == null || trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private Integer gradeSalaryAtStep(String gradeLevel, int step, String standardYearMonth) {
+        if (step <= 0 || step > 20) {
+            return null;
+        }
+        return queryInteger("""
+                SELECT dc%s
+                FROM bz06_jbgz
+                WHERE tbnd = :standardYearMonth AND CAST(jb AS UNSIGNED) = :gradeLevel
+                LIMIT 1
+                """.formatted(step), new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("gradeLevel", intValue(gradeLevel)));
+    }
+
+    private Integer queryInteger(String sql, MapSqlParameterSource parameters) {
+        List<Integer> values = jdbcTemplate.queryForList(sql, parameters, Integer.class);
+        if (values.isEmpty() || values.getFirst() == null) {
+            return 0;
+        }
+        return values.getFirst();
+    }
+
+    private int highestGradeStep(String gradeLevel) {
+        return switch (String.valueOf(intValue(gradeLevel))) {
+            case "1" -> 6;
+            case "2" -> 7;
+            case "3", "23", "24" -> 8;
+            case "4", "22" -> 9;
+            case "5", "21" -> 10;
+            case "6", "7", "8", "9", "10", "20" -> 11;
+            case "11", "19" -> 12;
+            case "12", "17", "18" -> 13;
+            case "13", "14", "15", "16" -> 14;
+            case "25" -> 7;
+            case "26", "27" -> 6;
+            default -> 99;
+        };
+    }
+
+    private String leftPadTwo(String value) {
+        String trimmed = emptyToNull(value);
+        if (trimmed == null) {
+            return null;
+        }
+        return trimmed.length() >= 2 ? trimmed : "0" + trimmed;
     }
 }
