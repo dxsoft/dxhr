@@ -72,10 +72,11 @@ public class PayrollService {
     }
 
     public PageResponse<PayrollCalculationAudit> calculationAudits(String organizationCode, PageRequest pageRequest) {
+        List<PayrollFieldMetadata> calculationFields = payrollRepository.findCalculationFields();
         List<PayrollCalculationAudit> audits = payrollRepository
                 .findPersonnelUidsWithPayrollHistory(organizationCode, pageRequest)
                 .stream()
-                .map(this::calculationAudit)
+                .map(uid -> calculationAudit(uid, calculationFields))
                 .toList();
         return PageResponse.of(
                 audits,
@@ -84,10 +85,11 @@ public class PayrollService {
     }
 
     public PayrollAuditSummary auditSummary(String organizationCode, PageRequest pageRequest) {
+        List<PayrollFieldMetadata> calculationFields = payrollRepository.findCalculationFields();
         List<PayrollCalculationAudit> audits = payrollRepository
                 .findPersonnelUidsWithPayrollHistory(organizationCode, pageRequest)
                 .stream()
-                .map(this::calculationAudit)
+                .map(uid -> calculationAudit(uid, calculationFields))
                 .toList();
         List<PayrollCalculationAudit> differences = audits.stream()
                 .filter(audit -> !audit.matched())
@@ -143,10 +145,19 @@ public class PayrollService {
                 history.storedTotal());
     }
 
-    private PayrollCalculationAudit calculationAudit(int uid) {
-        PayrollCalculationContext context = calculationContext(uid);
-        PayrollHistorySnapshot history = context.latestHistory();
-        PayrollTotalComparison total = context.totalComparison();
+    private PayrollCalculationAudit calculationAudit(int uid, List<PayrollFieldMetadata> calculationFields) {
+        PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        Map<String, Object> historyValues = payrollRepository.findLatestHistoryValues(uid);
+        List<PayrollComponentValue> components = calculationFields.stream()
+                .map(field -> new PayrollComponentValue(
+                        field.fieldName(),
+                        field.caption(),
+                        field.inputMode(),
+                        field.allowance(),
+                        payrollRepository.decimalValue(historyValues, field.fieldName())))
+                .toList();
+        PayrollTotalComparison total = totalComparison(history, components);
         BigDecimal difference = nullToZero(total.totalDifference());
         return new PayrollCalculationAudit(
                 uid,
