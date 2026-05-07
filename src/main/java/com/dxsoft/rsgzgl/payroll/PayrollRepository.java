@@ -66,6 +66,10 @@ class PayrollRepository {
             SqlText.trim(rs.getString("jsnf")),
             SqlText.trim(rs.getString("jsyf")),
             SqlText.trim(rs.getString("jslb")),
+            SqlText.trim(rs.getString("dwsx")),
+            SqlText.trim(rs.getString("jhlqsny")),
+            rs.getInt("zdjhlnx"),
+            rs.getInt("tgbl"),
             SqlText.trim(rs.getString("zwbm2")),
             SqlText.trim(rs.getString("zwgw2")),
             SqlText.trim(rs.getString("zwgzdc2")),
@@ -79,6 +83,8 @@ class PayrollRepository {
             rs.getInt("dfbt2"),
             rs.getInt("sdbt"),
             rs.getInt("blfb2"),
+            rs.getInt("jhljt"),
+            rs.getInt("jsfszwtg2"),
             rs.getBigDecimal("njbt"),
             rs.getInt("hj2"));
 
@@ -172,8 +178,10 @@ class PayrollRepository {
     Optional<PayrollHistorySnapshot> findLatestHistory(int uid) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.dwsx, h.jhlqsny, h.zdjhlnx, h.tgbl,
                        h.zwbm2, h.zwgw2, h.zwgzdc2, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
-                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2, h.njbt, h.hj2
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                       h.jhljt, h.jsfszwtg2, h.njbt, h.hj2
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 WHERE p.uid = :uid

@@ -4,6 +4,7 @@ import com.dxsoft.rsgzgl.common.NotFoundException;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -63,6 +64,7 @@ public class PayrollService {
                 history,
                 basicCalculation(history),
                 allowanceCalculation(history),
+                totalComparison(history, components),
                 components,
                 payrollRepository.findMatchedPositionStandards(history),
                 payrollRepository.findMatchedAllowanceStandards(history));
@@ -146,5 +148,110 @@ public class PayrollService {
                 history.storedSubsidyAllowance(),
                 history.storedRetainedAllowance(),
                 history.storedYearAllowance());
+    }
+
+    private PayrollTotalComparison totalComparison(PayrollHistorySnapshot history, List<PayrollComponentValue> components) {
+        BasicPayrollCalculation basic = basicCalculation(history);
+        AllowanceCalculation allowance = allowanceCalculation(history);
+        Integer teachingAllowance = teachingAllowance(history);
+        Integer salaryIncrease = salaryIncrease(history, basic);
+
+        BigDecimal storedComponentTotal = components.stream()
+                .filter(component -> !"HJ2".equalsIgnoreCase(component.fieldName()))
+                .map(PayrollComponentValue::storedAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal recalculatedKnownTotal = storedComponentTotal
+                .subtract(BigDecimal.valueOf(history.storedPositionSalary()))
+                .add(BigDecimal.valueOf(nullToZero(basic.positionSalary())))
+                .subtract(BigDecimal.valueOf(history.storedGradeSalary()))
+                .add(BigDecimal.valueOf(nullToZero(basic.selectedBaseSalary())))
+                .subtract(BigDecimal.valueOf(history.storedTechnicalGradeSalary()))
+                .add(BigDecimal.valueOf(nullToZero(basic.technicalGradeSalary())))
+                .subtract(BigDecimal.valueOf(history.storedPerformanceAllowance()))
+                .add(nullToZero(allowance.performanceAllowance()))
+                .subtract(BigDecimal.valueOf(history.storedSubsidyAllowance()))
+                .add(BigDecimal.valueOf(nullToZero(allowance.subsidyAllowance())))
+                .subtract(BigDecimal.valueOf(history.storedRetainedAllowance()))
+                .add(BigDecimal.valueOf(nullToZero(allowance.retainedAllowance())))
+                .subtract(BigDecimal.valueOf(history.storedTeachingAllowance()))
+                .add(BigDecimal.valueOf(teachingAllowance))
+                .subtract(BigDecimal.valueOf(history.storedSalaryIncrease()))
+                .add(BigDecimal.valueOf(salaryIncrease))
+                .subtract(nullToZero(history.storedYearAllowance()))
+                .add(nullToZero(allowance.yearAllowance()));
+
+        return new PayrollTotalComparison(
+                history.teachingStartYearMonth(),
+                history.teachingInterruptedYears(),
+                teachingAllowance,
+                salaryIncrease,
+                history.storedTeachingAllowance(),
+                history.storedSalaryIncrease(),
+                storedComponentTotal,
+                recalculatedKnownTotal,
+                history.storedTotal(),
+                recalculatedKnownTotal.subtract(BigDecimal.valueOf(history.storedTotal())));
+    }
+
+    private Integer teachingAllowance(PayrollHistorySnapshot history) {
+        String positionCode = history.positionCode();
+        String teachingStart = history.teachingStartYearMonth();
+        if (!isEducationPosition(positionCode) || teachingStart == null || teachingStart.replace(".", "").isBlank()) {
+            return 0;
+        }
+        int teachingYears = yearOf(history.calculationYear()) - yearOf(teachingStart) - history.teachingInterruptedYears();
+        if (teachingYears < 5) {
+            return 0;
+        }
+        if (teachingYears < 10) {
+            return 3;
+        }
+        if (teachingYears < 15) {
+            return 5;
+        }
+        if (teachingYears < 20) {
+            return 7;
+        }
+        return 10;
+    }
+
+    private Integer salaryIncrease(PayrollHistorySnapshot history, BasicPayrollCalculation basic) {
+        String positionCode = history.positionCode();
+        int percentage = history.raisePercentage();
+        if (!isEducationPosition(positionCode) || percentage <= 0) {
+            return 0;
+        }
+        int effectivePercentage = percentage;
+        if (history.salaryStandardYearMonth() != null && history.salaryStandardYearMonth().compareTo("201807") >= 0
+                && payrollRepository.organizationPerformanceCategory(history.organizationCode()) == 2
+                && positionCode != null && positionCode.startsWith("10")) {
+            effectivePercentage = percentage - 10;
+        }
+        BigDecimal base = BigDecimal.valueOf(nullToZero(basic.positionSalary()) + nullToZero(basic.selectedBaseSalary()));
+        return base.multiply(BigDecimal.valueOf(effectivePercentage))
+                .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP)
+                .intValue();
+    }
+
+    private boolean isEducationPosition(String positionCode) {
+        return positionCode != null && positionCode.length() >= 2
+                && positionCode.substring(0, 2).compareTo("07") >= 0
+                && positionCode.substring(0, 2).compareTo("20") < 0;
+    }
+
+    private int yearOf(String yearOrYearMonth) {
+        if (yearOrYearMonth == null || yearOrYearMonth.length() < 4) {
+            return 0;
+        }
+        return payrollRepository.intValue(yearOrYearMonth.substring(0, 4));
+    }
+
+    private int nullToZero(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    private BigDecimal nullToZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 }
