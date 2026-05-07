@@ -76,6 +76,10 @@ class PayrollRepository {
             rs.getInt("zwgzse2"),
             rs.getInt("jbgzse2"),
             rs.getInt("jsdjgz2"),
+            rs.getInt("dfbt2"),
+            rs.getInt("sdbt"),
+            rs.getInt("blfb2"),
+            rs.getBigDecimal("njbt"),
             rs.getInt("hj2"));
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -169,7 +173,7 @@ class PayrollRepository {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
                        h.zwbm2, h.zwgw2, h.zwgzdc2, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
-                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.hj2
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2, h.njbt, h.hj2
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 WHERE p.uid = :uid
@@ -320,6 +324,160 @@ class PayrollRepository {
                 .addValue("positionCode", emptyToNull(positionCode)));
     }
 
+    String performancePositionCode(String positionCode, String standardYearMonth) {
+        String normalized = emptyToNull(positionCode);
+        if (normalized == null) {
+            return null;
+        }
+        if (normalized.startsWith("03") && normalized.length() >= 4) {
+            String rank = normalized.substring(3, 4)
+                    .replace("B", "A")
+                    .replace("C", "B")
+                    .replace("D", "B");
+            normalized = "01" + rank + "0";
+        }
+        if (normalized.startsWith("04") && normalized.length() >= 5) {
+            normalized = "01" + normalized.substring(3, 5);
+        }
+        if (normalized.contains("F") && emptyToNull(standardYearMonth) != null
+                && standardYearMonth.length() >= 4 && standardYearMonth.substring(0, 4).compareTo("2009") <= 0) {
+            normalized = normalized.substring(0, Math.min(3, normalized.length())) + "F";
+        }
+        return normalized;
+    }
+
+    String subsidyPositionCode(String positionCode) {
+        return switch (emptyToNull(positionCode) == null ? "" : positionCode.trim()) {
+            case "0427" -> "2707";
+            case "0428" -> "2708";
+            case "0429" -> "2709";
+            case "042A" -> "2710";
+            case "042B" -> "2711";
+            case "0417" -> "2607";
+            case "0418" -> "2608";
+            case "0419" -> "2609";
+            case "041A" -> "2610";
+            case "041B" -> "2611";
+            case "0437" -> "2807";
+            case "0438" -> "2808";
+            case "0439" -> "2809";
+            case "043A" -> "2810";
+            case "043B" -> "2811";
+            default -> emptyToNull(positionCode);
+        };
+    }
+
+    int organizationPerformanceCategory(String organizationCode) {
+        return queryInteger("""
+                SELECT jxlb
+                FROM dwbm
+                WHERE dwbm = :organizationCode
+                LIMIT 1
+                """, new MapSqlParameterSource("organizationCode", emptyToNull(organizationCode)));
+    }
+
+    String organizationPerformanceRatio(String organizationCode) {
+        List<String> values = jdbcTemplate.queryForList("""
+                SELECT jxbl
+                FROM dwbm
+                WHERE dwbm = :organizationCode
+                LIMIT 1
+                """, new MapSqlParameterSource("organizationCode", emptyToNull(organizationCode)), String.class);
+        if (values.isEmpty()) {
+            return null;
+        }
+        return SqlText.trim(values.getFirst());
+    }
+
+    int organizationYearAllowanceCategory(String organizationCode) {
+        Integer value = queryInteger("""
+                SELECT njbt
+                FROM dwbm
+                WHERE dwbm = :organizationCode AND gzczbz = '事业管理'
+                LIMIT 1
+                """, new MapSqlParameterSource("organizationCode", emptyToNull(organizationCode)));
+        return Math.max(value - 1, 0);
+    }
+
+    BigDecimal performanceAllowance(String organizationCode, String positionCode, String standardYearMonth) {
+        String normalizedPositionCode = performancePositionCode(positionCode, standardYearMonth);
+        int category = performanceCategoryFor(organizationCode, normalizedPositionCode, standardYearMonth);
+        Integer amount = queryInteger("""
+                SELECT bz
+                FROM bz06_jbt
+                WHERE UPPER(item) = 'DFBT2' AND zwbm = :positionCode AND tbnd = :standardYearMonth AND jxlb = :category
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("positionCode", normalizedPositionCode)
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("category", category));
+        if (isProbationPosition(normalizedPositionCode) || isCivilServantPosition(normalizedPositionCode)) {
+            return BigDecimal.valueOf(amount);
+        }
+
+        String ratio = organizationPerformanceRatio(organizationCode);
+        if (ratio == null || !ratio.contains(":")) {
+            return BigDecimal.ZERO;
+        }
+        String normalizedRatio = ratio.replace("：", ":");
+        BigDecimal left = new BigDecimal(normalizedRatio.substring(0, normalizedRatio.indexOf(':')).trim());
+        BigDecimal right = new BigDecimal(normalizedRatio.substring(normalizedRatio.indexOf(':') + 1).trim());
+        if (left.add(right).compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        return BigDecimal.valueOf(amount)
+                .multiply(BigDecimal.TEN)
+                .multiply(left)
+                .divide(left.add(right), 8, java.math.RoundingMode.HALF_UP)
+                .divide(BigDecimal.valueOf(7), 8, java.math.RoundingMode.HALF_UP);
+    }
+
+    int subsidyAllowance(String positionCode, String standardYearMonth) {
+        String normalizedPositionCode = subsidyPositionCode(positionCode);
+        if (isProbationPosition(normalizedPositionCode)) {
+            return 0;
+        }
+        return queryInteger("""
+                SELECT bz
+                FROM bz06_jbt
+                WHERE UPPER(item) = 'SDBT' AND zwbm = :positionCode AND tbnd = :standardYearMonth
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("positionCode", normalizedPositionCode)
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth)));
+    }
+
+    int retainedAllowance(String positionCode) {
+        String normalizedPositionCode = emptyToNull(positionCode);
+        if (isProbationPosition(normalizedPositionCode)) {
+            normalizedPositionCode = normalizedPositionCode.substring(0, Math.min(3, normalizedPositionCode.length())) + "F";
+        }
+        return queryInteger("""
+                SELECT bz
+                FROM bz06_blfb
+                WHERE zwbm = :positionCode
+                LIMIT 1
+                """, new MapSqlParameterSource("positionCode", normalizedPositionCode));
+    }
+
+    BigDecimal yearAllowance(String organizationCode, String standardYearMonth) {
+        int category = organizationYearAllowanceCategory(organizationCode);
+        if (category <= 0 || category > 4) {
+            return BigDecimal.ZERO;
+        }
+        String column = "a" + category;
+        List<BigDecimal> values = jdbcTemplate.queryForList("""
+                SELECT %s
+                FROM njbt
+                WHERE tbnd = :standardYearMonth
+                LIMIT 1
+                """.formatted(column), new MapSqlParameterSource("standardYearMonth", emptyToNull(standardYearMonth)), BigDecimal.class);
+        if (values.isEmpty() || values.getFirst() == null) {
+            return BigDecimal.ZERO;
+        }
+        return values.getFirst();
+    }
+
     BigDecimal decimalValue(Map<String, Object> row, String fieldName) {
         Object value = row.get(fieldName);
         if (value == null) {
@@ -418,5 +576,32 @@ class PayrollRepository {
             return null;
         }
         return trimmed.length() >= 2 ? trimmed : "0" + trimmed;
+    }
+
+    private int performanceCategoryFor(String organizationCode, String positionCode, String standardYearMonth) {
+        if (emptyToNull(positionCode) == null) {
+            return 1;
+        }
+        if (emptyToNull(standardYearMonth) != null
+                && standardYearMonth.compareTo("201410") >= 0
+                && List.of("07", "08", "09", "10", "11").contains(positionCode.substring(0, Math.min(2, positionCode.length())))) {
+            return 5;
+        }
+        if (List.of("07", "08", "09", "10", "11").contains(positionCode.substring(0, Math.min(2, positionCode.length())))) {
+            return organizationPerformanceCategory(organizationCode);
+        }
+        return 1;
+    }
+
+    private boolean isProbationPosition(String positionCode) {
+        return emptyToNull(positionCode) != null && positionCode.contains("F");
+    }
+
+    private boolean isCivilServantPosition(String positionCode) {
+        if (emptyToNull(positionCode) == null || positionCode.length() < 2) {
+            return false;
+        }
+        return List.of("01", "02", "03", "04", "05", "06", "21", "22", "23", "24", "25", "26", "27", "28", "29")
+                .contains(positionCode.substring(0, 2));
     }
 }

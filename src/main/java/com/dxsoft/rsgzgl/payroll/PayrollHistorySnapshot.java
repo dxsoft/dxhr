@@ -1,5 +1,7 @@
 package com.dxsoft.rsgzgl.payroll;
 
+import java.math.BigDecimal;
+
 public record PayrollHistorySnapshot(
         String id,
         String organizationCode,
@@ -18,6 +20,10 @@ public record PayrollHistorySnapshot(
         Integer storedPositionSalary,
         Integer storedGradeSalary,
         Integer storedTechnicalGradeSalary,
+        Integer storedPerformanceAllowance,
+        Integer storedSubsidyAllowance,
+        Integer storedRetainedAllowance,
+        BigDecimal storedYearAllowance,
         Integer storedTotal
 ) {
 }

@@ -3,6 +3,7 @@ package com.dxsoft.rsgzgl.payroll;
 import com.dxsoft.rsgzgl.common.NotFoundException;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -61,6 +62,7 @@ public class PayrollService {
                 uid,
                 history,
                 basicCalculation(history),
+                allowanceCalculation(history),
                 components,
                 payrollRepository.findMatchedPositionStandards(history),
                 payrollRepository.findMatchedAllowanceStandards(history));
@@ -114,5 +116,35 @@ public class PayrollService {
             case "21", "22" -> "TECHNICAL_GRADE";
             default -> "SALARY_LEVEL";
         };
+    }
+
+    private AllowanceCalculation allowanceCalculation(PayrollHistorySnapshot history) {
+        BigDecimal performanceAllowance = payrollRepository.performanceAllowance(
+                history.organizationCode(),
+                history.positionCode(),
+                history.allowanceStandardYearMonth());
+        int subsidyAllowance = payrollRepository.subsidyAllowance(
+                history.positionCode(),
+                history.allowanceStandardYearMonth());
+        int retainedAllowance = payrollRepository.retainedAllowance(history.positionCode());
+        BigDecimal yearAllowance = payrollRepository.yearAllowance(
+                history.organizationCode(),
+                history.allowanceStandardYearMonth());
+
+        return new AllowanceCalculation(
+                history.allowanceStandardYearMonth(),
+                history.positionCode(),
+                payrollRepository.performancePositionCode(history.positionCode(), history.allowanceStandardYearMonth()),
+                payrollRepository.subsidyPositionCode(history.positionCode()),
+                payrollRepository.organizationPerformanceCategory(history.organizationCode()),
+                payrollRepository.organizationPerformanceRatio(history.organizationCode()),
+                performanceAllowance,
+                subsidyAllowance,
+                retainedAllowance,
+                yearAllowance,
+                history.storedPerformanceAllowance(),
+                history.storedSubsidyAllowance(),
+                history.storedRetainedAllowance(),
+                history.storedYearAllowance());
     }
 }

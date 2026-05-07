@@ -6,6 +6,7 @@ public record PayrollCalculationContext(
         Integer uid,
         PayrollHistorySnapshot latestHistory,
         BasicPayrollCalculation basicCalculation,
+        AllowanceCalculation allowanceCalculation,
         List<PayrollComponentValue> storedComponents,
         List<PositionSalaryStandard> matchedPositionStandards,
         List<AllowanceStandard> matchedAllowanceStandards
