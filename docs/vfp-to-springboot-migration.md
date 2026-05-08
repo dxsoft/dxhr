@@ -327,6 +327,7 @@ src/main/java/com/dxsoft/rsgzgl
 人员接口已先做身份证号脱敏；工资标准接口目前只读，用于后续拆解 `gzjs06.prg` 前准备标准表和字段元数据。
 `calculation-context` 会按人员最新 `hisbase` 记录汇总现有工资项和匹配标准表，作为 Java 侧逐项复刻计算前的对账输入。
 其中已先复刻 `zwgz06.prg`、`jbgz06.prg`、`xjgz06.prg`、`jsdjgz06.prg` 对应的基础标准表计算，暂不执行整条 `gzjs06.prg` 工资重算链。
+`ZWGZSE2` 已按主链组合 `zwgz06_gr + zwgz06` 对账，覆盖机关技师/工人等依赖 `bz06_zwgz_gr` 档次工资的岗位。
 当前还加入了 `jcjx.prg`、`sdbt.prg`、`blfb.prg`、`njbt.prg` 的只读计算结果，覆盖基础绩效、工作性/生活性补贴、保留福补和年补贴，仍以和 `hisbase` 存量金额对账为主。
 基础绩效/生活性补贴还按 `dwbm.dfbt` 和个人 `jzgb` 发放审批状态执行置零逻辑。
 随后加入 `jhljt.prg` 和 `jsfszwtg2` 提高工资的对账值，并在 `totalComparison` 中用已迁移项目替换旧值后计算合计差额。

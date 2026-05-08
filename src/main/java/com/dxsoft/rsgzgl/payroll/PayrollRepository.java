@@ -304,6 +304,33 @@ class PayrollRepository {
                 .addValue("positionCode", mapPositionSalaryCode(positionCode)));
     }
 
+    int positionGradeSalary(String positionCode, String positionSalaryGrade, String invertedStep, String standardYearMonth) {
+        int grade = intValue(positionSalaryGrade);
+        if (emptyToNull(positionCode) == null || emptyToNull(standardYearMonth) == null || grade <= 0 || grade > 20) {
+            return 0;
+        }
+        Integer amount = queryInteger("""
+                SELECT dc%s
+                FROM bz06_zwgz_gr
+                WHERE tbnd = :standardYearMonth AND zwbm = :positionCode
+                LIMIT 1
+                """.formatted(grade), new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("positionCode", emptyToNull(positionCode)));
+        if (intValue(invertedStep) <= 0 || grade <= 1) {
+            return amount;
+        }
+        Integer previous = queryInteger("""
+                SELECT dc%s
+                FROM bz06_zwgz_gr
+                WHERE tbnd = :standardYearMonth AND zwbm = :positionCode
+                LIMIT 1
+                """.formatted(grade - 1), new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("positionCode", emptyToNull(positionCode)));
+        return amount + amount - previous;
+    }
+
     int gradeSalary(String gradeLevel, String gradeStep, String standardYearMonth) {
         int step = intValue(gradeStep);
         if (step <= 0 || emptyToNull(gradeLevel) == null) {

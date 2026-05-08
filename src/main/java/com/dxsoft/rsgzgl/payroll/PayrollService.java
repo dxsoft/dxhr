@@ -127,6 +127,12 @@ public class PayrollService {
                 standardYearMonth,
                 positionCode);
         Integer technicalGradeSalary = payrollRepository.technicalGradeSalary(positionCode, standardYearMonth);
+        Integer positionSalary = payrollRepository.positionSalary(positionCode, standardYearMonth)
+                + payrollRepository.positionGradeSalary(
+                positionCode,
+                history.positionSalaryGrade(),
+                history.gradeSalaryStep(),
+                standardYearMonth);
         String baseSalarySource = baseSalarySource(positionCode);
         Integer selectedBaseSalary = switch (baseSalarySource) {
             case "GRADE" -> gradeSalary;
@@ -141,7 +147,7 @@ public class PayrollService {
                 history.positionSalaryGrade(),
                 history.gradeSalaryLevel(),
                 history.gradeSalaryStep(),
-                payrollRepository.positionSalary(positionCode, standardYearMonth),
+                positionSalary,
                 gradeSalary,
                 salaryLevelSalary,
                 technicalGradeSalary,
