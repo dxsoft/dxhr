@@ -18,6 +18,7 @@ class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/login.html", "/auth.css", "/actuator/health").permitAll()
                         .requestMatchers("/api/auth/me").authenticated()
+                        .requestMatchers("/api/security/**").hasAuthority("SECURITY_ADMIN")
                         .requestMatchers("/api/organizations/**").hasAuthority("ORG_READ")
                         .requestMatchers("/api/personnel/**").hasAuthority("PERSONNEL_READ")
                         .requestMatchers("/api/payroll/calculation-audits", "/api/payroll/calculation-audit-summary").hasAuthority("AUDIT_READ")

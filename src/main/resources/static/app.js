@@ -1,5 +1,11 @@
 const state = {
     selectedPersonnel: null,
+    currentUser: null,
+    security: {
+        users: [],
+        roles: [],
+        permissions: [],
+    },
 };
 
 const yuanFormatter = new Intl.NumberFormat("zh-CN", {
@@ -10,6 +16,8 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
+    document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
+    document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("logout-button").addEventListener("click", () => {
         window.location.href = "/logout";
     });
@@ -19,11 +27,40 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initializeAuth() {
     try {
         const user = await getJson("/api/auth/me");
+        state.currentUser = user;
         document.getElementById("current-user").textContent = `${user.displayName} (${user.username})`;
+        if (user.permissions.includes("SECURITY_ADMIN")) {
+            document.getElementById("security-nav").classList.remove("hidden");
+            document.getElementById("security").classList.remove("hidden");
+            await loadSecurityAdmin();
+        }
         await loadPersonnel();
     } catch (error) {
         window.location.href = "/login.html";
     }
+}
+
+async function onCreateUser(event) {
+    event.preventDefault();
+    await postJson("/api/security/users", {
+        username: document.getElementById("new-username").value.trim(),
+        displayName: document.getElementById("new-display-name").value.trim(),
+        password: document.getElementById("new-password").value,
+        enabled: true,
+    });
+    event.target.reset();
+    await loadSecurityAdmin();
+}
+
+async function onCreateRole(event) {
+    event.preventDefault();
+    await postJson("/api/security/roles", {
+        code: document.getElementById("new-role-code").value.trim(),
+        name: document.getElementById("new-role-name").value.trim(),
+        dataScope: document.getElementById("new-role-scope").value,
+    });
+    event.target.reset();
+    await loadSecurityAdmin();
 }
 
 async function onPersonnelSearch(event) {
@@ -170,6 +207,87 @@ async function loadAudit() {
     }
 }
 
+async function loadSecurityAdmin() {
+    const status = document.getElementById("security-status");
+    status.className = "status";
+    status.textContent = "正在加载权限配置...";
+    try {
+        const [users, roles, permissions] = await Promise.all([
+            getJson("/api/security/users"),
+            getJson("/api/security/roles"),
+            getJson("/api/security/permissions"),
+        ]);
+        state.security = { users, roles, permissions };
+        renderSecurityAdmin();
+        status.textContent = "权限配置已加载";
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function renderSecurityAdmin() {
+    document.getElementById("security-user-rows").innerHTML = state.security.users.map(user => `
+        <tr>
+            <td>${escapeHtml(user.id)}</td>
+            <td>${escapeHtml(user.username)}</td>
+            <td>${escapeHtml(user.displayName)}</td>
+            <td>${user.enabled ? "是" : "否"}</td>
+            <td><input class="inline-input" id="user-roles-${user.id}" value="${escapeHtml((user.roleCodes || []).join(","))}"></td>
+            <td>
+                <button class="row-action" data-user-save="${user.id}">保存角色</button>
+                <button class="row-action" data-user-toggle="${user.id}" data-enabled="${!user.enabled}">${user.enabled ? "停用" : "启用"}</button>
+            </td>
+        </tr>
+    `).join("");
+
+    document.getElementById("security-role-rows").innerHTML = state.security.roles.map(role => `
+        <tr>
+            <td>${escapeHtml(role.id)}</td>
+            <td>${escapeHtml(role.code)}</td>
+            <td>${escapeHtml(role.name)}</td>
+            <td>${escapeHtml(role.dataScope)}</td>
+            <td><input class="inline-input" id="role-permissions-${role.id}" value="${escapeHtml((role.permissionCodes || []).join(","))}"></td>
+            <td><input class="inline-input" id="role-organizations-${role.id}" value="${escapeHtml((role.organizationCodes || []).join(","))}" placeholder="ALL 时可留空"></td>
+            <td>
+                <button class="row-action" data-role-permissions="${role.id}">保存权限</button>
+                <button class="row-action" data-role-organizations="${role.id}">保存单位</button>
+            </td>
+        </tr>
+    `).join("");
+
+    document.getElementById("permission-list").innerHTML = state.security.permissions.map(permission => `
+        <span><strong>${escapeHtml(permission.code)}</strong>${escapeHtml(permission.name)}</span>
+    `).join("");
+
+    document.querySelectorAll("[data-user-save]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const id = button.dataset.userSave;
+            await putJson(`/api/security/users/${id}/roles`, { codes: splitCodes(document.getElementById(`user-roles-${id}`).value) });
+            await loadSecurityAdmin();
+        });
+    });
+    document.querySelectorAll("[data-user-toggle]").forEach(button => {
+        button.addEventListener("click", async () => {
+            await putJson(`/api/security/users/${button.dataset.userToggle}/enabled`, { enabled: button.dataset.enabled === "true" });
+            await loadSecurityAdmin();
+        });
+    });
+    document.querySelectorAll("[data-role-permissions]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const id = button.dataset.rolePermissions;
+            await putJson(`/api/security/roles/${id}/permissions`, { codes: splitCodes(document.getElementById(`role-permissions-${id}`).value) });
+            await loadSecurityAdmin();
+        });
+    });
+    document.querySelectorAll("[data-role-organizations]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const id = button.dataset.roleOrganizations;
+            await putJson(`/api/security/roles/${id}/organizations`, { codes: splitCodes(document.getElementById(`role-organizations-${id}`).value) });
+            await loadSecurityAdmin();
+        });
+    });
+}
+
 async function getJson(url) {
     const response = await fetch(url, { headers: { Accept: "application/json" } });
     if (response.redirected && response.url.includes("/login.html")) {
@@ -186,6 +304,38 @@ async function getJson(url) {
         throw new Error("需要登录");
     }
     return response.json();
+}
+
+async function postJson(url, body) {
+    return writeJson("POST", url, body);
+}
+
+async function putJson(url, body) {
+    return writeJson("PUT", url, body);
+}
+
+async function writeJson(method, url, body) {
+    const response = await fetch(url, {
+        method,
+        headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+    }
+    const contentType = response.headers.get("content-type") || "";
+    return contentType.includes("application/json") ? response.json() : null;
+}
+
+function splitCodes(value) {
+    return String(value || "")
+        .split(",")
+        .map(item => item.trim())
+        .filter(Boolean);
 }
 
 function money(value) {

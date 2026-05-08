@@ -16,6 +16,7 @@
         <a href="#personnel">人员查询</a>
         <a href="#payroll">工资试算</a>
         <a href="#audit">批量对账</a>
+        <a id="security-nav" class="hidden" href="#security">权限管理</a>
     </nav>
     <div class="user-bar">
         <span id="current-user">正在验证登录...</span>
@@ -187,6 +188,87 @@
                 <tbody id="audit-rows"></tbody>
             </table>
         </div>
+    </section>
+
+    <section id="security" class="panel hidden">
+        <div class="panel-title">
+            <div>
+                <h2>权限管理</h2>
+                <p>维护用户、角色、功能权限和角色单位范围。</p>
+            </div>
+        </div>
+        <div id="security-status" class="status"></div>
+
+        <h3>创建用户</h3>
+        <form id="create-user-form" class="toolbar">
+            <label>
+                用户名
+                <input id="new-username" required>
+            </label>
+            <label>
+                显示名
+                <input id="new-display-name" required>
+            </label>
+            <label>
+                初始密码
+                <input id="new-password" type="password" required>
+            </label>
+            <button type="submit">创建用户</button>
+        </form>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>用户名</th>
+                    <th>显示名</th>
+                    <th>启用</th>
+                    <th>角色编码（逗号分隔）</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="security-user-rows"></tbody>
+            </table>
+        </div>
+
+        <h3>创建角色</h3>
+        <form id="create-role-form" class="toolbar">
+            <label>
+                角色编码
+                <input id="new-role-code" placeholder="例如 HR_VIEWER" required>
+            </label>
+            <label>
+                角色名称
+                <input id="new-role-name" required>
+            </label>
+            <label>
+                数据范围
+                <select id="new-role-scope">
+                    <option value="CUSTOM">指定单位</option>
+                    <option value="ALL">全部单位</option>
+                </select>
+            </label>
+            <button type="submit">创建角色</button>
+        </form>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>角色编码</th>
+                    <th>名称</th>
+                    <th>数据范围</th>
+                    <th>功能权限编码</th>
+                    <th>单位编码范围</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="security-role-rows"></tbody>
+            </table>
+        </div>
+
+        <h3>可用功能权限</h3>
+        <div id="permission-list" class="permission-list"></div>
     </section>
 </main>
 
