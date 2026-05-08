@@ -320,10 +320,17 @@ public class PayrollService {
                         history.positionCode(),
                         history.positionSalaryGrade(),
                         history.floatingStep()),
-                payrollRepository.bonusBalance(history),
+                selectedBonusBalance(history),
                 history.storedRankAllowance(),
                 history.storedFloatingSalary(),
                 history.storedBonusBalance());
+    }
+
+    private Integer selectedBonusBalance(PayrollHistorySnapshot history) {
+        if (history.storedBonusBalance() != null && history.storedBonusBalance() > 0) {
+            return history.storedBonusBalance();
+        }
+        return payrollRepository.bonusBalance(history);
     }
 
     private void addDifference(

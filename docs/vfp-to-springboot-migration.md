@@ -330,7 +330,7 @@ src/main/java/com/dxsoft/rsgzgl
 当前还加入了 `jcjx.prg`、`sdbt.prg`、`blfb.prg`、`njbt.prg` 的只读计算结果，覆盖基础绩效、工作性/生活性补贴、保留福补和年补贴，仍以和 `hisbase` 存量金额对账为主。
 随后加入 `jhljt.prg` 和 `jsfszwtg2` 提高工资的对账值，并在 `totalComparison` 中用已迁移项目替换旧值后计算合计差额。
 继续加入 `jxjt.prg` 和 `FDGZ06.PRG` 的对账值，覆盖警衔/警务津贴和浮动工资。
-`JJJY2` 奖金结余已按 `jjjy06.prg` 规则加入，包含 `cyxx.jjjy` 模式、1993 年前职务和 `bz06_jjjy` 标准表。
+`JJJY2` 奖金结余按旧系统主链口径加入：已有旧值时保留，旧值为 0 时再按 `jjjy06.prg` 规则试算，包含 `cyxx.jjjy` 模式、1993 年前职务和 `bz06_jjjy` 标准表。
 批量对账接口会分页遍历有 `hisbase` 历史的人员，复用单人上下文并统计差异人员，作为后续定位未迁移工资项的入口。
 由于远程 MySQL 往返成本较高，批量对账建议先按小分页执行，再根据差异人员继续迁移剩余工资项。
 对账结果会在 `componentDifferences` 中列出字段级差异；`DFBT2` 按人员性质区分为机关人员“生活性补贴”和事业单位人员“基础性绩效工资”。
