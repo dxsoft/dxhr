@@ -20,11 +20,37 @@
     </nav>
     <div class="user-bar">
         <span id="current-user">正在验证登录...</span>
+        <button id="change-password-button" type="button">修改密码</button>
         <button id="logout-button" type="button">退出</button>
     </div>
 </header>
 
 <main>
+    <section id="password-panel" class="panel hidden">
+        <div class="panel-title">
+            <div>
+                <h2>修改密码</h2>
+                <p>请输入当前密码和新密码，新密码至少 8 位。</p>
+            </div>
+        </div>
+        <form id="change-password-form" class="toolbar">
+            <label>
+                当前密码
+                <input id="current-password" type="password" autocomplete="current-password" required>
+            </label>
+            <label>
+                新密码
+                <input id="new-own-password" type="password" autocomplete="new-password" required>
+            </label>
+            <label>
+                确认新密码
+                <input id="confirm-own-password" type="password" autocomplete="new-password" required>
+            </label>
+            <button type="submit">保存新密码</button>
+        </form>
+        <div id="password-status" class="status"></div>
+    </section>
+
     <section id="personnel" class="panel">
         <div class="panel-title">
             <div>

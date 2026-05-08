@@ -20,6 +20,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
+    document.getElementById("change-password-form").addEventListener("submit", onChangePassword);
+    document.getElementById("change-password-button").addEventListener("click", () => {
+        document.getElementById("password-panel").classList.toggle("hidden");
+    });
     document.getElementById("logout-button").addEventListener("click", () => {
         window.location.href = "/logout";
     });
@@ -63,6 +67,30 @@ async function onCreateRole(event) {
     });
     event.target.reset();
     await loadSecurityAdmin();
+}
+
+async function onChangePassword(event) {
+    event.preventDefault();
+    const status = document.getElementById("password-status");
+    const currentPassword = document.getElementById("current-password").value;
+    const newPassword = document.getElementById("new-own-password").value;
+    const confirmPassword = document.getElementById("confirm-own-password").value;
+    status.className = "status";
+    if (newPassword !== confirmPassword) {
+        showError(status, new Error("两次输入的新密码不一致"));
+        return;
+    }
+    if (newPassword.length < 8) {
+        showError(status, new Error("新密码长度至少 8 位"));
+        return;
+    }
+    try {
+        await putJson("/api/auth/password", { currentPassword, newPassword });
+        event.target.reset();
+        status.textContent = "密码修改成功，请妥善保存新密码。";
+    } catch (error) {
+        showError(status, error);
+    }
 }
 
 async function onPersonnelSearch(event) {
