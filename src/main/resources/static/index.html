@@ -12,12 +12,7 @@
         <h1>人事工资管理系统</h1>
         <p>VFP 迁移版 · Spring Boot 只读试算</p>
     </div>
-    <nav>
-        <a href="#personnel">人员查询</a>
-        <a href="#payroll">工资试算</a>
-        <a href="#audit">批量对账</a>
-        <a id="security-nav" class="hidden" href="#security">权限管理</a>
-    </nav>
+    <nav id="main-nav"></nav>
     <div class="user-bar">
         <span id="current-user">正在验证登录...</span>
         <button id="change-password-button" type="button">修改密码</button>
@@ -51,7 +46,7 @@
         <div id="password-status" class="status"></div>
     </section>
 
-    <section id="personnel" class="panel">
+    <section id="personnel" class="panel hidden" data-menu-code="PERSONNEL">
         <div class="panel-title">
             <div>
                 <h2>人员查询</h2>
@@ -92,7 +87,7 @@
         </div>
     </section>
 
-    <section id="payroll" class="panel">
+    <section id="payroll" class="panel hidden" data-menu-code="PAYROLL">
         <div class="panel-title">
             <div>
                 <h2>工资试算</h2>
@@ -157,7 +152,7 @@
         </div>
     </section>
 
-    <section id="audit" class="panel">
+    <section id="audit" class="panel hidden" data-menu-code="AUDIT">
         <div class="panel-title">
             <div>
                 <h2>批量对账</h2>
@@ -216,7 +211,7 @@
         </div>
     </section>
 
-    <section id="security" class="panel hidden">
+    <section id="security" class="panel hidden" data-menu-code="SECURITY">
         <div class="panel-title">
             <div>
                 <h2>权限管理</h2>

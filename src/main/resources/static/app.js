@@ -1,6 +1,7 @@
 const state = {
     selectedPersonnel: null,
     currentUser: null,
+    menus: [],
     security: {
         users: [],
         roles: [],
@@ -40,17 +41,34 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initializeAuth() {
     try {
         const user = await getJson("/api/auth/me");
+        const menus = await getJson("/api/auth/menus");
         state.currentUser = user;
+        state.menus = menus;
         document.getElementById("current-user").textContent = `${user.displayName} (${user.username})`;
-        if (user.permissions.includes("SECURITY_ADMIN")) {
-            document.getElementById("security-nav").classList.remove("hidden");
-            document.getElementById("security").classList.remove("hidden");
+        renderMenus();
+        if (hasMenu("SECURITY")) {
             await loadSecurityAdmin();
         }
-        await loadPersonnel();
+        if (hasMenu("PERSONNEL")) {
+            await loadPersonnel();
+        }
     } catch (error) {
         window.location.href = "/login.html";
     }
+}
+
+function renderMenus() {
+    const nav = document.getElementById("main-nav");
+    nav.innerHTML = state.menus.map(menu => `
+        <a href="${escapeHtml(menu.path)}" data-menu-link="${escapeHtml(menu.code)}">${escapeHtml(menu.title)}</a>
+    `).join("");
+    document.querySelectorAll("[data-menu-code]").forEach(section => {
+        section.classList.toggle("hidden", !hasMenu(section.dataset.menuCode));
+    });
+}
+
+function hasMenu(code) {
+    return state.menus.some(menu => menu.code === code);
 }
 
 async function onCreateUser(event) {

@@ -38,6 +38,7 @@ class SecuritySchemaInitializer {
         }
         createTables();
         seedPermissions();
+        seedMenus();
         seedAdmin();
     }
 
@@ -100,6 +101,17 @@ class SecuritySchemaInitializer {
                     summary VARCHAR(500) NOT NULL,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS app_menu (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    code VARCHAR(80) NOT NULL UNIQUE,
+                    title VARCHAR(80) NOT NULL,
+                    path VARCHAR(120) NOT NULL,
+                    permission_code VARCHAR(120) NOT NULL,
+                    sort_order INT NOT NULL DEFAULT 0,
+                    enabled TINYINT(1) NOT NULL DEFAULT 1
+                )
                 """).forEach(jdbcTemplate::execute);
     }
 
@@ -109,6 +121,13 @@ class SecuritySchemaInitializer {
         upsertPermission("PAYROLL_READ", "工资试算查询", "PAYROLL");
         upsertPermission("AUDIT_READ", "工资批量对账", "PAYROLL");
         upsertPermission("SECURITY_ADMIN", "权限管理", "SYSTEM");
+    }
+
+    private void seedMenus() {
+        upsertMenu("PERSONNEL", "人员查询", "#personnel", "PERSONNEL_READ", 10);
+        upsertMenu("PAYROLL", "工资试算", "#payroll", "PAYROLL_READ", 20);
+        upsertMenu("AUDIT", "批量对账", "#audit", "AUDIT_READ", 30);
+        upsertMenu("SECURITY", "权限管理", "#security", "SECURITY_ADMIN", 90);
     }
 
     private void seedAdmin() {
@@ -150,5 +169,13 @@ class SecuritySchemaInitializer {
                 SELECT ?, ?, ?
                 WHERE NOT EXISTS (SELECT 1 FROM app_permission WHERE code = ?)
                 """, code, name, category, code);
+    }
+
+    private void upsertMenu(String code, String title, String path, String permissionCode, int sortOrder) {
+        jdbcTemplate.update("""
+                INSERT INTO app_menu (code, title, path, permission_code, sort_order, enabled)
+                SELECT ?, ?, ?, ?, ?, 1
+                WHERE NOT EXISTS (SELECT 1 FROM app_menu WHERE code = ?)
+                """, code, title, path, permissionCode, sortOrder, code);
     }
 }

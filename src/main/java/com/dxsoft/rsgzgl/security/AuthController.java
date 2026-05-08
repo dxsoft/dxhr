@@ -1,6 +1,7 @@
 package com.dxsoft.rsgzgl.security;
 
 import java.util.Set;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -13,10 +14,15 @@ class AuthController {
 
     private final AccessControlService accessControlService;
     private final PasswordChangeService passwordChangeService;
+    private final AppMenuService appMenuService;
 
-    AuthController(AccessControlService accessControlService, PasswordChangeService passwordChangeService) {
+    AuthController(
+            AccessControlService accessControlService,
+            PasswordChangeService passwordChangeService,
+            AppMenuService appMenuService) {
         this.accessControlService = accessControlService;
         this.passwordChangeService = passwordChangeService;
+        this.appMenuService = appMenuService;
     }
 
     @GetMapping("/me")
@@ -33,6 +39,11 @@ class AuthController {
     @PutMapping("/password")
     void changePassword(@RequestBody ChangePasswordRequest request) {
         passwordChangeService.changeCurrentUserPassword(request.currentPassword(), request.newPassword());
+    }
+
+    @GetMapping("/menus")
+    List<AppMenuService.MenuItem> menus() {
+        return appMenuService.currentUserMenus();
     }
 
     record CurrentUserResponse(
