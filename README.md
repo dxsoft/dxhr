@@ -43,6 +43,8 @@ mvn spring-boot:run
 奖金结余 `JJJY2` 按旧系统主链口径处理：已有旧值时保留，旧值为 0 时再按 `cyxx.jjjy`、1993 年前职务和 `bz06_jjjy` 标准表试算。
 岗位津贴 `GWJT2` 会按 `gwjtbz/gwjtlb` 查询 `bz_gwjt` 标准表进行对账。
 套改/特岗保留 `TGBLBF` 按主链规则处理：机关人员清零，事业单位人员保留旧值。
+`QTBT/SIDBT/ZWJT/ZFBT/JZMCBT` 已作为手工或暂不考虑字段列入 `excludedComponents`，只保留旧值。
+`PGBC` 已作为特殊工资变动保留项列入 `pgbcComparison`，当前只读对账保留旧值。
 批量对账接口会分页执行同一套只读计算，返回每个人的合计差额和差异汇总。
 远程数据库对账建议先使用较小分页，例如 `size=5` 或 `size=10`，再逐步扩大范围。
 对账结果中的 `componentDifferences` 会标明具体差异字段；`DFBT2` 会按人员性质显示为机关人员“生活性补贴”或事业单位人员“基础性绩效工资”。

@@ -9,6 +9,8 @@ public record PayrollCalculationContext(
         AllowanceCalculation allowanceCalculation,
         AdditionalPayrollCalculation additionalCalculation,
         PayrollTotalComparison totalComparison,
+        PgbcComparison pgbcComparison,
+        List<ExcludedPayrollComponent> excludedComponents,
         List<PayrollComponentValue> storedComponents,
         List<PositionSalaryStandard> matchedPositionStandards,
         List<AllowanceStandard> matchedAllowanceStandards

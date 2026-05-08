@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -71,6 +72,8 @@ public class PayrollService {
                 allowanceCalculation,
                 additionalCalculation,
                 totalComparison(history, components, basicCalculation, allowanceCalculation, additionalCalculation),
+                pgbcComparison(history),
+                excludedComponents(components),
                 components,
                 payrollRepository.findMatchedPositionStandards(history),
                 payrollRepository.findMatchedAllowanceStandards(history));
@@ -361,6 +364,44 @@ public class PayrollService {
             return 0;
         }
         return history.storedRetainedSpecialPostAllowance();
+    }
+
+    private PgbcComparison pgbcComparison(PayrollHistorySnapshot history) {
+        return new PgbcComparison(
+                history.storedPgbc(),
+                history.storedPgbc(),
+                "PRESERVE",
+                "特殊人员工资变动保留项：工资总额减少时形成，后续增资时从增资额中冲销；当前只读对账保留旧值。");
+    }
+
+    private List<ExcludedPayrollComponent> excludedComponents(List<PayrollComponentValue> components) {
+        Set<String> excludedFieldNames = Set.of("QTBT", "SIDBT", "ZWJT", "ZFBT", "JZMCBT");
+        return components.stream()
+                .filter(component -> excludedFieldNames.contains(component.fieldName().toUpperCase()))
+                .map(component -> new ExcludedPayrollComponent(
+                        component.fieldName(),
+                        excludedCaption(component.fieldName()),
+                        component.storedAmount(),
+                        excludedReason(component.fieldName())))
+                .toList();
+    }
+
+    private String excludedCaption(String fieldName) {
+        return switch (fieldName.toUpperCase()) {
+            case "QTBT" -> "其他补贴";
+            case "SIDBT" -> "不参与迁移补贴";
+            case "ZWJT" -> "职务津贴";
+            case "ZFBT" -> "住房补贴";
+            case "JZMCBT" -> "津补贴保留项";
+            default -> fieldName;
+        };
+    }
+
+    private String excludedReason(String fieldName) {
+        if ("QTBT".equalsIgnoreCase(fieldName)) {
+            return "手工录入项，保留旧值，不做自动计算。";
+        }
+        return "已确认暂不考虑迁移，保留旧值，不作为自动计算差异。";
     }
 
     private Integer selectedBonusBalance(PayrollHistorySnapshot history) {
