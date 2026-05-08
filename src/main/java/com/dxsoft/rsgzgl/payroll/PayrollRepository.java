@@ -187,7 +187,7 @@ class PayrollRepository {
     Optional<PayrollHistorySnapshot> findLatestHistory(int uid) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
-                       h.dwsx, h.cjgzny, h.gznx, h.zdgznx, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.dwsx, p.cjgzny, p.gznx, p.zdgznx, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
                        h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
                        h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.njbt, h.hj2
