@@ -5,6 +5,8 @@ const state = {
         users: [],
         roles: [],
         permissions: [],
+        organizations: [],
+        auditLogs: [],
     },
 };
 
@@ -212,13 +214,14 @@ async function loadSecurityAdmin() {
     status.className = "status";
     status.textContent = "正在加载权限配置...";
     try {
-        const [users, roles, permissions, auditLogs] = await Promise.all([
+        const [users, roles, permissions, organizations, auditLogs] = await Promise.all([
             getJson("/api/security/users"),
             getJson("/api/security/roles"),
             getJson("/api/security/permissions"),
+            getJson("/api/organizations?size=200"),
             getJson("/api/security/audit-logs?limit=20"),
         ]);
-        state.security = { users, roles, permissions, auditLogs };
+        state.security = { users, roles, permissions, organizations: organizations.content || [], auditLogs };
         renderSecurityAdmin();
         status.textContent = "权限配置已加载";
     } catch (error) {
@@ -247,8 +250,8 @@ function renderSecurityAdmin() {
             <td>${escapeHtml(role.code)}</td>
             <td>${escapeHtml(role.name)}</td>
             <td>${escapeHtml(role.dataScope)}</td>
-            <td><input class="inline-input" id="role-permissions-${role.id}" value="${escapeHtml((role.permissionCodes || []).join(","))}"></td>
-            <td><input class="inline-input" id="role-organizations-${role.id}" value="${escapeHtml((role.organizationCodes || []).join(","))}" placeholder="ALL 时可留空"></td>
+            <td>${renderPermissionChoices(role)}</td>
+            <td>${renderOrganizationChoices(role)}</td>
             <td>
                 <button class="row-action" data-role-permissions="${role.id}">保存权限</button>
                 <button class="row-action" data-role-organizations="${role.id}">保存单位</button>
@@ -287,17 +290,53 @@ function renderSecurityAdmin() {
     document.querySelectorAll("[data-role-permissions]").forEach(button => {
         button.addEventListener("click", async () => {
             const id = button.dataset.rolePermissions;
-            await putJson(`/api/security/roles/${id}/permissions`, { codes: splitCodes(document.getElementById(`role-permissions-${id}`).value) });
+            await putJson(`/api/security/roles/${id}/permissions`, { codes: checkedValues(`role-permissions-${id}`) });
             await loadSecurityAdmin();
         });
     });
     document.querySelectorAll("[data-role-organizations]").forEach(button => {
         button.addEventListener("click", async () => {
             const id = button.dataset.roleOrganizations;
-            await putJson(`/api/security/roles/${id}/organizations`, { codes: splitCodes(document.getElementById(`role-organizations-${id}`).value) });
+            await putJson(`/api/security/roles/${id}/organizations`, { codes: checkedValues(`role-organizations-${id}`) });
             await loadSecurityAdmin();
         });
     });
+}
+
+function renderPermissionChoices(role) {
+    const selected = new Set(role.permissionCodes || []);
+    return `<div class="checkbox-grid" id="role-permissions-${role.id}">
+        ${state.security.permissions.map(permission => `
+            <label class="checkbox-item" title="${escapeHtml(permission.name)}">
+                <input type="checkbox" value="${escapeHtml(permission.code)}" ${selected.has(permission.code) ? "checked" : ""}>
+                <span>${escapeHtml(permission.code)}</span>
+            </label>
+        `).join("")}
+    </div>`;
+}
+
+function renderOrganizationChoices(role) {
+    if (role.dataScope === "ALL") {
+        return `<div class="scope-all">全部单位</div>`;
+    }
+    const selected = new Set(role.organizationCodes || []);
+    return `<div class="checkbox-grid organization-grid" id="role-organizations-${role.id}">
+        ${state.security.organizations.map(org => `
+            <label class="checkbox-item" title="${escapeHtml(org.name || "")}">
+                <input type="checkbox" value="${escapeHtml(org.organizationCode)}" ${selected.has(org.organizationCode) ? "checked" : ""}>
+                <span>${escapeHtml(org.organizationCode)} ${escapeHtml(org.name || "")}</span>
+            </label>
+        `).join("")}
+    </div>`;
+}
+
+function checkedValues(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        return [];
+    }
+    return Array.from(container.querySelectorAll("input[type='checkbox']:checked"))
+        .map(input => input.value);
 }
 
 async function getJson(url) {
