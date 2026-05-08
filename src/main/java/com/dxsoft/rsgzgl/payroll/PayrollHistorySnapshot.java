@@ -41,6 +41,7 @@ public record PayrollHistorySnapshot(
         Integer storedFloatingSalary,
         Integer storedBonusBalance,
         Integer storedPostAllowance,
+        Integer storedRetainedSpecialPostAllowance,
         BigDecimal storedYearAllowance,
         Integer storedTotal
 ) {

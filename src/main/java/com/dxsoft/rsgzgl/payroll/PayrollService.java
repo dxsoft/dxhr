@@ -269,7 +269,9 @@ public class PayrollService {
                 .subtract(BigDecimal.valueOf(history.storedBonusBalance()))
                 .add(BigDecimal.valueOf(nullToZero(additional.bonusBalance())))
                 .subtract(BigDecimal.valueOf(history.storedPostAllowance()))
-                .add(BigDecimal.valueOf(nullToZero(additional.postAllowance())));
+                .add(BigDecimal.valueOf(nullToZero(additional.postAllowance())))
+                .subtract(BigDecimal.valueOf(history.storedRetainedSpecialPostAllowance()))
+                .add(BigDecimal.valueOf(nullToZero(additional.retainedSpecialPostAllowance())));
 
         return new PayrollTotalComparison(
                 history.teachingStartYearMonth(),
@@ -304,6 +306,7 @@ public class PayrollService {
         addDifference(differences, "FDGZ2", "浮动工资", history.storedFloatingSalary(), additional.floatingSalary());
         addDifference(differences, "JJJY2", "奖金结余", history.storedBonusBalance(), additional.bonusBalance());
         addDifference(differences, "GWJT2", "岗位津贴", history.storedPostAllowance(), additional.postAllowance());
+        addDifference(differences, "TGBLBF", "套改/特岗保留", history.storedRetainedSpecialPostAllowance(), additional.retainedSpecialPostAllowance());
         addDifference(differences, "JHLJT", "教护龄津贴", history.storedTeachingAllowance(), teachingAllowance);
         addDifference(differences, "JSFSZWTG2", "提高工资", history.storedSalaryIncrease(), salaryIncrease);
         return differences;
@@ -329,10 +332,19 @@ public class PayrollService {
                 payrollRepository.postAllowance(
                         history.postAllowanceStandardYearMonth(),
                         history.postAllowanceCategory()),
+                retainedSpecialPostAllowance(history),
                 history.storedRankAllowance(),
                 history.storedFloatingSalary(),
                 history.storedBonusBalance(),
-                history.storedPostAllowance());
+                history.storedPostAllowance(),
+                history.storedRetainedSpecialPostAllowance());
+    }
+
+    private Integer retainedSpecialPostAllowance(PayrollHistorySnapshot history) {
+        if (history.organizationType() != null && history.organizationType().compareTo("07") < 0) {
+            return 0;
+        }
+        return history.storedRetainedSpecialPostAllowance();
     }
 
     private Integer selectedBonusBalance(PayrollHistorySnapshot history) {

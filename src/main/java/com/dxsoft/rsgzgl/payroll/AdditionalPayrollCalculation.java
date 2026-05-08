@@ -10,9 +10,11 @@ public record AdditionalPayrollCalculation(
         String postAllowanceStandardYearMonth,
         String postAllowanceCategory,
         Integer postAllowance,
+        Integer retainedSpecialPostAllowance,
         Integer storedRankAllowance,
         Integer storedFloatingSalary,
         Integer storedBonusBalance,
-        Integer storedPostAllowance
+        Integer storedPostAllowance,
+        Integer storedRetainedSpecialPostAllowance
 ) {
 }

@@ -97,6 +97,7 @@ class PayrollRepository {
             rs.getInt("fdgz2"),
             rs.getInt("jjjy2"),
             rs.getInt("gwjt2"),
+            rs.getInt("tgblbf"),
             rs.getBigDecimal("njbt"),
             rs.getInt("hj2"));
 
@@ -194,7 +195,7 @@ class PayrollRepository {
                        h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
                        h.gwjtbz, h.gwjtlb,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
-                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.njbt, h.hj2
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf, h.njbt, h.hj2
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 WHERE p.uid = :uid
