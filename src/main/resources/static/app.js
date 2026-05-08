@@ -21,6 +21,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("change-password-form").addEventListener("submit", onChangePassword);
+    ["security-user-filter", "security-role-filter", "security-organization-filter", "security-audit-filter"].forEach(id => {
+        document.getElementById(id).addEventListener("input", renderSecurityAdmin);
+    });
     document.getElementById("change-password-button").addEventListener("click", () => {
         document.getElementById("password-panel").classList.toggle("hidden");
     });
@@ -258,7 +261,17 @@ async function loadSecurityAdmin() {
 }
 
 function renderSecurityAdmin() {
-    document.getElementById("security-user-rows").innerHTML = state.security.users.map(user => `
+    const userFilter = normalizedFilter("security-user-filter");
+    const roleFilter = normalizedFilter("security-role-filter");
+    const auditFilter = normalizedFilter("security-audit-filter");
+    const users = state.security.users.filter(user =>
+        matchesFilter(userFilter, user.username, user.displayName, (user.roleCodes || []).join(",")));
+    const roles = state.security.roles.filter(role =>
+        matchesFilter(roleFilter, role.code, role.name, role.dataScope));
+    const auditLogs = (state.security.auditLogs || []).filter(log =>
+        matchesFilter(auditFilter, log.actorUsername, log.action, log.targetType, log.targetId, log.summary));
+
+    document.getElementById("security-user-rows").innerHTML = users.map(user => `
         <tr>
             <td>${escapeHtml(user.id)}</td>
             <td>${escapeHtml(user.username)}</td>
@@ -272,7 +285,7 @@ function renderSecurityAdmin() {
         </tr>
     `).join("");
 
-    document.getElementById("security-role-rows").innerHTML = state.security.roles.map(role => `
+    document.getElementById("security-role-rows").innerHTML = roles.map(role => `
         <tr>
             <td>${escapeHtml(role.id)}</td>
             <td>${escapeHtml(role.code)}</td>
@@ -291,7 +304,7 @@ function renderSecurityAdmin() {
         <span><strong>${escapeHtml(permission.code)}</strong>${escapeHtml(permission.name)}</span>
     `).join("");
 
-    document.getElementById("security-audit-rows").innerHTML = (state.security.auditLogs || []).map(log => `
+    document.getElementById("security-audit-rows").innerHTML = auditLogs.map(log => `
         <tr>
             <td>${escapeHtml(log.id)}</td>
             <td>${escapeHtml(log.actorUsername)}</td>
@@ -348,14 +361,29 @@ function renderOrganizationChoices(role) {
         return `<div class="scope-all">全部单位</div>`;
     }
     const selected = new Set(role.organizationCodes || []);
+    const filter = normalizedFilter("security-organization-filter");
+    const organizations = state.security.organizations.filter(org =>
+        selected.has(org.organizationCode) || matchesFilter(filter, org.organizationCode, org.name));
     return `<div class="checkbox-grid organization-grid" id="role-organizations-${role.id}">
-        ${state.security.organizations.map(org => `
+        ${organizations.map(org => `
             <label class="checkbox-item" title="${escapeHtml(org.name || "")}">
                 <input type="checkbox" value="${escapeHtml(org.organizationCode)}" ${selected.has(org.organizationCode) ? "checked" : ""}>
                 <span>${escapeHtml(org.organizationCode)} ${escapeHtml(org.name || "")}</span>
             </label>
         `).join("")}
     </div>`;
+}
+
+function normalizedFilter(inputId) {
+    const element = document.getElementById(inputId);
+    return element ? element.value.trim().toLowerCase() : "";
+}
+
+function matchesFilter(filter, ...values) {
+    if (!filter) {
+        return true;
+    }
+    return values.some(value => String(value || "").toLowerCase().includes(filter));
 }
 
 function checkedValues(containerId) {
