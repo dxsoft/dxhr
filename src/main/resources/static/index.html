@@ -241,6 +241,14 @@
                 <input id="security-organization-filter" placeholder="单位编码 / 名称">
             </label>
             <label>
+                搜索菜单
+                <input id="security-menu-filter" placeholder="菜单编码 / 标题 / 权限">
+            </label>
+            <label>
+                菜单页码
+                <input id="security-menu-page" type="number" min="0" value="0">
+            </label>
+            <label>
                 搜索审计日志
                 <input id="security-audit-filter" placeholder="操作者 / 动作 / 摘要">
             </label>
@@ -327,6 +335,49 @@
 
         <h3>可用功能权限</h3>
         <div id="permission-list" class="permission-list"></div>
+
+        <h3>创建菜单</h3>
+        <form id="create-menu-form" class="toolbar">
+            <label>
+                菜单编码
+                <input id="new-menu-code" placeholder="例如 REPORTS" required>
+            </label>
+            <label>
+                菜单标题
+                <input id="new-menu-title" required>
+            </label>
+            <label>
+                前端路径
+                <input id="new-menu-path" placeholder="#reports" required>
+            </label>
+            <label>
+                权限编码
+                <input id="new-menu-permission" placeholder="例如 REPORT_READ" required>
+            </label>
+            <label>
+                排序
+                <input id="new-menu-sort" type="number" value="100">
+            </label>
+            <button type="submit">创建菜单</button>
+        </form>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>编码</th>
+                    <th>标题</th>
+                    <th>路径</th>
+                    <th>权限</th>
+                    <th>排序</th>
+                    <th>启用</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="security-menu-rows"></tbody>
+            </table>
+        </div>
+        <div id="security-menu-page-info" class="status"></div>
 
         <h3>最近权限操作日志</h3>
         <div class="table-wrap">

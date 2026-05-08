@@ -88,6 +88,24 @@ class SecurityAdminController {
         return service.permissions();
     }
 
+    @GetMapping("/menus-page")
+    PageResponse<SecurityAdminService.MenuAdminView> menusPage(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return service.menus(keyword, PageRequest.of(page, size));
+    }
+
+    @PostMapping("/menus")
+    SecurityAdminService.MenuAdminView createMenu(@RequestBody SecurityAdminService.CreateMenuRequest request) {
+        return service.createMenu(request);
+    }
+
+    @PutMapping("/menus/{menuId}")
+    void updateMenu(@PathVariable Long menuId, @RequestBody SecurityAdminService.UpdateMenuRequest request) {
+        service.updateMenu(menuId, request);
+    }
+
     @GetMapping("/audit-logs")
     List<SecurityAuditLog> auditLogs(@RequestParam(required = false) Integer limit) {
         return service.auditLogs(limit);

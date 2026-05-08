@@ -107,6 +107,41 @@ class SecurityAdminRepository {
                 rs.getString("category")));
     }
 
+    List<SecurityAdminService.MenuAdminView> menus(String keyword, PageRequest pageRequest) {
+        MapSqlParameterSource parameters = pagingParameters(keyword, pageRequest);
+        return namedJdbcTemplate.query("""
+                SELECT id, code, title, path, permission_code, sort_order, enabled
+                FROM app_menu
+                WHERE (:keyword IS NULL
+                   OR code LIKE :keywordLike
+                   OR title LIKE :keywordLike
+                   OR path LIKE :keywordLike
+                   OR permission_code LIKE :keywordLike)
+                ORDER BY sort_order, id
+                LIMIT :limit OFFSET :offset
+                """, parameters, (rs, rowNum) -> new SecurityAdminService.MenuAdminView(
+                rs.getLong("id"),
+                rs.getString("code"),
+                rs.getString("title"),
+                rs.getString("path"),
+                rs.getString("permission_code"),
+                rs.getInt("sort_order"),
+                rs.getBoolean("enabled")));
+    }
+
+    long countMenus(String keyword) {
+        Long count = namedJdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM app_menu
+                WHERE (:keyword IS NULL
+                   OR code LIKE :keywordLike
+                   OR title LIKE :keywordLike
+                   OR path LIKE :keywordLike
+                   OR permission_code LIKE :keywordLike)
+                """, keywordParameters(keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
     Long createUser(String username, String passwordHash, String displayName, boolean enabled) {
         jdbcTemplate.update("""
                 INSERT INTO app_user (username, password_hash, display_name, enabled)
@@ -137,6 +172,22 @@ class SecurityAdminRepository {
                 VALUES (?, ?, ?)
                 """, code, name, dataScope);
         return jdbcTemplate.queryForObject("SELECT id FROM app_role WHERE code = ?", Long.class, code);
+    }
+
+    Long createMenu(String code, String title, String path, String permissionCode, Integer sortOrder, boolean enabled) {
+        jdbcTemplate.update("""
+                INSERT INTO app_menu (code, title, path, permission_code, sort_order, enabled)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, code, title, path, permissionCode, sortOrder == null ? 0 : sortOrder, enabled ? 1 : 0);
+        return jdbcTemplate.queryForObject("SELECT id FROM app_menu WHERE code = ?", Long.class, code);
+    }
+
+    void updateMenu(Long menuId, String title, String path, String permissionCode, Integer sortOrder, boolean enabled) {
+        jdbcTemplate.update("""
+                UPDATE app_menu
+                SET title = ?, path = ?, permission_code = ?, sort_order = ?, enabled = ?
+                WHERE id = ?
+                """, title, path, permissionCode, sortOrder == null ? 0 : sortOrder, enabled ? 1 : 0, menuId);
     }
 
     void replaceRolePermissions(Long roleId, List<String> permissionCodes) {

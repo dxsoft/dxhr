@@ -48,6 +48,13 @@ class SecurityAdminService {
         return repository.permissions();
     }
 
+    PageResponse<MenuAdminView> menus(String keyword, PageRequest pageRequest) {
+        return PageResponse.of(
+                repository.menus(keyword, pageRequest),
+                pageRequest,
+                repository.countMenus(keyword));
+    }
+
     UserAdminView createUser(CreateUserRequest request) {
         Long id = repository.createUser(
                 normalize(request.username()),
@@ -81,6 +88,29 @@ class SecurityAdminService {
                 normalize(request.dataScope()).toUpperCase());
         auditService.record("CREATE_ROLE", "ROLE", id, "创建角色 " + request.code());
         return repository.roles().stream().filter(role -> role.id().equals(id)).findFirst().orElseThrow();
+    }
+
+    MenuAdminView createMenu(CreateMenuRequest request) {
+        Long id = repository.createMenu(
+                normalize(request.code()).toUpperCase(),
+                normalize(request.title()),
+                normalize(request.path()),
+                normalize(request.permissionCode()).toUpperCase(),
+                request.sortOrder(),
+                request.enabled() == null || request.enabled());
+        auditService.record("CREATE_MENU", "MENU", id, "创建菜单 " + request.code());
+        return repository.menus(request.code(), PageRequest.of(0, 1)).stream().findFirst().orElseThrow();
+    }
+
+    void updateMenu(Long menuId, UpdateMenuRequest request) {
+        repository.updateMenu(
+                menuId,
+                normalize(request.title()),
+                normalize(request.path()),
+                normalize(request.permissionCode()).toUpperCase(),
+                request.sortOrder(),
+                request.enabled() == null || request.enabled());
+        auditService.record("UPDATE_MENU", "MENU", menuId, "更新菜单 " + request.title());
     }
 
     void updateRolePermissions(Long roleId, CodesRequest request) {
@@ -130,10 +160,19 @@ class SecurityAdminService {
     record PermissionView(String code, String name, String category) {
     }
 
+    record MenuAdminView(Long id, String code, String title, String path, String permissionCode, Integer sortOrder, Boolean enabled) {
+    }
+
     record CreateUserRequest(String username, String password, String displayName, Boolean enabled) {
     }
 
     record CreateRoleRequest(String code, String name, String dataScope) {
+    }
+
+    record CreateMenuRequest(String code, String title, String path, String permissionCode, Integer sortOrder, Boolean enabled) {
+    }
+
+    record UpdateMenuRequest(String title, String path, String permissionCode, Integer sortOrder, Boolean enabled) {
     }
 
     record CodesRequest(List<String> codes) {

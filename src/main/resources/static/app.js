@@ -21,11 +21,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
+    document.getElementById("create-menu-form").addEventListener("submit", onCreateMenu);
     document.getElementById("change-password-form").addEventListener("submit", onChangePassword);
-    ["security-user-filter", "security-role-filter", "security-organization-filter", "security-audit-filter"].forEach(id => {
+    ["security-user-filter", "security-role-filter", "security-organization-filter", "security-menu-filter", "security-audit-filter"].forEach(id => {
         document.getElementById(id).addEventListener("input", debounceSecurityReload);
     });
-    ["security-user-page", "security-role-page", "security-audit-page", "security-page-size"].forEach(id => {
+    ["security-user-page", "security-role-page", "security-menu-page", "security-audit-page", "security-page-size"].forEach(id => {
         document.getElementById(id).addEventListener("change", loadSecurityAdmin);
     });
     document.getElementById("security-refresh-button").addEventListener("click", loadSecurityAdmin);
@@ -89,6 +90,20 @@ async function onCreateRole(event) {
         code: document.getElementById("new-role-code").value.trim(),
         name: document.getElementById("new-role-name").value.trim(),
         dataScope: document.getElementById("new-role-scope").value,
+    });
+    event.target.reset();
+    await loadSecurityAdmin();
+}
+
+async function onCreateMenu(event) {
+    event.preventDefault();
+    await postJson("/api/security/menus", {
+        code: document.getElementById("new-menu-code").value.trim(),
+        title: document.getElementById("new-menu-title").value.trim(),
+        path: document.getElementById("new-menu-path").value.trim(),
+        permissionCode: document.getElementById("new-menu-permission").value.trim(),
+        sortOrder: Number(document.getElementById("new-menu-sort").value || 0),
+        enabled: true,
     });
     event.target.reset();
     await loadSecurityAdmin();
@@ -283,11 +298,17 @@ async function loadSecurityAdmin() {
             page: document.getElementById("security-audit-page").value || "0",
             size: pageSize,
         });
-        const [users, roles, permissions, organizations, auditLogs] = await Promise.all([
+        const menuParams = new URLSearchParams({
+            keyword: document.getElementById("security-menu-filter").value.trim(),
+            page: document.getElementById("security-menu-page").value || "0",
+            size: pageSize,
+        });
+        const [users, roles, permissions, organizations, menus, auditLogs] = await Promise.all([
             getJson(`/api/security/users-page?${userParams}`),
             getJson(`/api/security/roles-page?${roleParams}`),
             getJson("/api/security/permissions"),
             getJson("/api/organizations?size=200"),
+            getJson(`/api/security/menus-page?${menuParams}`),
             getJson(`/api/security/audit-logs-page?${auditParams}`),
         ]);
         state.security = {
@@ -297,6 +318,8 @@ async function loadSecurityAdmin() {
             rolePage: roles,
             permissions,
             organizations: organizations.content || [],
+            menus: menus.content || [],
+            menuPage: menus,
             auditLogs: auditLogs.content || [],
             auditPage: auditLogs,
         };
@@ -314,6 +337,7 @@ function renderSecurityAdmin() {
         matchesFilter(userFilter, user.username, user.displayName, (user.roleCodes || []).join(",")));
     const roles = state.security.roles.filter(role =>
         matchesFilter(roleFilter, role.code, role.name, role.dataScope));
+    const menus = state.security.menus || [];
     const auditLogs = state.security.auditLogs || [];
 
     document.getElementById("security-user-rows").innerHTML = users.map(user => `
@@ -350,6 +374,20 @@ function renderSecurityAdmin() {
     document.getElementById("permission-list").innerHTML = state.security.permissions.map(permission => `
         <span><strong>${escapeHtml(permission.code)}</strong>${escapeHtml(permission.name)}</span>
     `).join("");
+
+    document.getElementById("security-menu-rows").innerHTML = menus.map(menu => `
+        <tr>
+            <td>${escapeHtml(menu.id)}</td>
+            <td>${escapeHtml(menu.code)}</td>
+            <td><input class="inline-input" id="menu-title-${menu.id}" value="${escapeHtml(menu.title)}"></td>
+            <td><input class="inline-input" id="menu-path-${menu.id}" value="${escapeHtml(menu.path)}"></td>
+            <td><input class="inline-input" id="menu-permission-${menu.id}" value="${escapeHtml(menu.permissionCode)}"></td>
+            <td><input class="inline-number" id="menu-sort-${menu.id}" type="number" value="${escapeHtml(menu.sortOrder)}"></td>
+            <td><input id="menu-enabled-${menu.id}" type="checkbox" ${menu.enabled ? "checked" : ""}></td>
+            <td><button class="row-action" data-menu-save="${menu.id}">保存菜单</button></td>
+        </tr>
+    `).join("");
+    renderPageInfo("security-menu-page-info", state.security.menuPage);
 
     document.getElementById("security-audit-rows").innerHTML = auditLogs.map(log => `
         <tr>
@@ -390,6 +428,19 @@ function renderSecurityAdmin() {
             await loadSecurityAdmin();
         });
     });
+    document.querySelectorAll("[data-menu-save]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const id = button.dataset.menuSave;
+            await putJson(`/api/security/menus/${id}`, {
+                title: document.getElementById(`menu-title-${id}`).value.trim(),
+                path: document.getElementById(`menu-path-${id}`).value.trim(),
+                permissionCode: document.getElementById(`menu-permission-${id}`).value.trim(),
+                sortOrder: Number(document.getElementById(`menu-sort-${id}`).value || 0),
+                enabled: document.getElementById(`menu-enabled-${id}`).checked,
+            });
+            await loadSecurityAdmin();
+        });
+    });
 }
 
 let securityReloadTimer = null;
@@ -399,6 +450,7 @@ function debounceSecurityReload() {
     securityReloadTimer = setTimeout(() => {
         document.getElementById("security-user-page").value = "0";
         document.getElementById("security-role-page").value = "0";
+        document.getElementById("security-menu-page").value = "0";
         document.getElementById("security-audit-page").value = "0";
         loadSecurityAdmin();
     }, 350);
