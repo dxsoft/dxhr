@@ -67,6 +67,9 @@ class PayrollRepository {
             SqlText.trim(rs.getString("jsyf")),
             SqlText.trim(rs.getString("jslb")),
             SqlText.trim(rs.getString("dwsx")),
+            rs.getInt("dfbt"),
+            SqlText.trim(rs.getString("jzgb")),
+            SqlText.trim(rs.getString("spdw")),
             SqlText.trim(rs.getString("cjgzny")),
             rs.getInt("gznx"),
             rs.getInt("zdgznx"),
@@ -191,13 +194,14 @@ class PayrollRepository {
     Optional<PayrollHistorySnapshot> findLatestHistory(int uid) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
-                       h.dwsx, p.cjgzny, p.gznx, p.zdgznx, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, p.gznx, p.zdgznx, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
                        h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
                        h.gwjtbz, h.gwjtlb,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
                        h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf, h.njbt, h.hj2
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
                 WHERE p.uid = :uid
                 ORDER BY h.jsnf DESC, h.jsyf DESC, h.id DESC
                 LIMIT 1

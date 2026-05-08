@@ -328,6 +328,7 @@ src/main/java/com/dxsoft/rsgzgl
 `calculation-context` 会按人员最新 `hisbase` 记录汇总现有工资项和匹配标准表，作为 Java 侧逐项复刻计算前的对账输入。
 其中已先复刻 `zwgz06.prg`、`jbgz06.prg`、`xjgz06.prg`、`jsdjgz06.prg` 对应的基础标准表计算，暂不执行整条 `gzjs06.prg` 工资重算链。
 当前还加入了 `jcjx.prg`、`sdbt.prg`、`blfb.prg`、`njbt.prg` 的只读计算结果，覆盖基础绩效、工作性/生活性补贴、保留福补和年补贴，仍以和 `hisbase` 存量金额对账为主。
+基础绩效/生活性补贴还按 `dwbm.dfbt` 和个人 `jzgb` 发放审批状态执行置零逻辑。
 随后加入 `jhljt.prg` 和 `jsfszwtg2` 提高工资的对账值，并在 `totalComparison` 中用已迁移项目替换旧值后计算合计差额。
 继续加入 `jxjt.prg` 和 `FDGZ06.PRG` 的对账值，覆盖警衔/警务津贴和浮动工资。
 `JJJY2` 奖金结余按旧系统主链口径加入：已有旧值时保留，旧值为 0 时再按 `jjjy06.prg` 规则试算，包含 `cyxx.jjjy` 模式、1993 年前职务和 `bz06_jjjy` 标准表。

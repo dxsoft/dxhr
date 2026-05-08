@@ -192,13 +192,20 @@ public class PayrollService {
     }
 
     private AllowanceCalculation allowanceCalculation(PayrollHistorySnapshot history) {
-        BigDecimal performanceAllowance = payrollRepository.performanceAllowance(
-                history.organizationCode(),
-                history.positionCode(),
-                history.allowanceStandardYearMonth());
-        int subsidyAllowance = payrollRepository.subsidyAllowance(
-                history.positionCode(),
-                history.allowanceStandardYearMonth());
+        BigDecimal performanceAllowance;
+        int subsidyAllowance;
+        if (performanceAndSubsidyDisabled(history)) {
+            performanceAllowance = BigDecimal.ZERO;
+            subsidyAllowance = 0;
+        } else {
+            performanceAllowance = payrollRepository.performanceAllowance(
+                    history.organizationCode(),
+                    history.positionCode(),
+                    history.allowanceStandardYearMonth());
+            subsidyAllowance = payrollRepository.subsidyAllowance(
+                    history.positionCode(),
+                    history.allowanceStandardYearMonth());
+        }
         int retainedAllowance = payrollRepository.retainedAllowance(history.positionCode());
         BigDecimal yearAllowance = payrollRepository.yearAllowance(
                 history.organizationCode(),
@@ -219,6 +226,15 @@ public class PayrollService {
                 history.storedSubsidyAllowance(),
                 history.storedRetainedAllowance(),
                 history.storedYearAllowance());
+    }
+
+    private boolean performanceAndSubsidyDisabled(PayrollHistorySnapshot history) {
+        String approved = history.individualPerformanceApproved();
+        boolean organizationDisabled = history.organizationPerformanceEnabled() == null
+                || history.organizationPerformanceEnabled() == 0;
+        boolean individualNotApproved = !"是".equals(approved);
+        boolean individualExplicitlyRejected = approved != null && !approved.isBlank() && "否".equals(approved);
+        return (organizationDisabled && individualNotApproved) || individualExplicitlyRejected;
     }
 
     private PayrollTotalComparison totalComparison(
