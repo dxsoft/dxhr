@@ -293,8 +293,6 @@ public class PayrollService {
                 .add(BigDecimal.valueOf(nullToZero(additional.floatingSalary())))
                 .subtract(BigDecimal.valueOf(history.storedBonusBalance()))
                 .add(BigDecimal.valueOf(nullToZero(additional.bonusBalance())))
-                .subtract(BigDecimal.valueOf(history.storedPostAllowance()))
-                .add(BigDecimal.valueOf(nullToZero(additional.postAllowance())))
                 .subtract(BigDecimal.valueOf(history.storedRetainedSpecialPostAllowance()))
                 .add(BigDecimal.valueOf(nullToZero(additional.retainedSpecialPostAllowance())));
 
@@ -330,7 +328,6 @@ public class PayrollService {
         addDifference(differences, "JXJT", "警衔/警务津贴", history.storedRankAllowance(), additional.rankAllowance());
         addDifference(differences, "FDGZ2", "浮动工资", history.storedFloatingSalary(), additional.floatingSalary());
         addDifference(differences, "JJJY2", "奖金结余", history.storedBonusBalance(), additional.bonusBalance());
-        addDifference(differences, "GWJT2", "岗位津贴", history.storedPostAllowance(), additional.postAllowance());
         addDifference(differences, "TGBLBF", "套改/特岗保留", history.storedRetainedSpecialPostAllowance(), additional.retainedSpecialPostAllowance());
         addDifference(differences, "JHLJT", "教护龄津贴", history.storedTeachingAllowance(), teachingAllowance);
         addDifference(differences, "JSFSZWTG2", "提高工资", history.storedSalaryIncrease(), salaryIncrease);
@@ -354,26 +351,13 @@ public class PayrollService {
                 selectedBonusBalance(history),
                 history.postAllowanceStandardYearMonth(),
                 history.postAllowanceCategory(),
-                selectedPostAllowance(history),
+                history.storedPostAllowance(),
                 retainedSpecialPostAllowance(history),
                 history.storedRankAllowance(),
                 history.storedFloatingSalary(),
                 history.storedBonusBalance(),
                 history.storedPostAllowance(),
                 history.storedRetainedSpecialPostAllowance());
-    }
-
-    private Integer selectedPostAllowance(PayrollHistorySnapshot history) {
-        boolean missingStandard = history.postAllowanceStandardYearMonth() == null
-                || history.postAllowanceStandardYearMonth().isBlank()
-                || history.postAllowanceCategory() == null
-                || history.postAllowanceCategory().isBlank();
-        if (missingStandard && history.storedPostAllowance() != null && history.storedPostAllowance() > 0) {
-            return history.storedPostAllowance();
-        }
-        return payrollRepository.postAllowance(
-                history.postAllowanceStandardYearMonth(),
-                history.postAllowanceCategory());
     }
 
     private Integer retainedSpecialPostAllowance(PayrollHistorySnapshot history) {
@@ -392,7 +376,7 @@ public class PayrollService {
     }
 
     private List<ExcludedPayrollComponent> excludedComponents(List<PayrollComponentValue> components) {
-        Set<String> excludedFieldNames = Set.of("QTBT", "SIDBT", "ZWJT", "ZFBT", "JZMCBT");
+        Set<String> excludedFieldNames = Set.of("QTBT", "SIDBT", "ZWJT", "ZFBT", "JZMCBT", "GWJT2");
         return components.stream()
                 .filter(component -> excludedFieldNames.contains(component.fieldName().toUpperCase()))
                 .map(component -> new ExcludedPayrollComponent(
@@ -410,6 +394,7 @@ public class PayrollService {
             case "ZWJT" -> "职务津贴";
             case "ZFBT" -> "住房补贴";
             case "JZMCBT" -> "津补贴保留项";
+            case "GWJT2" -> "岗位津贴";
             default -> fieldName;
         };
     }
@@ -417,6 +402,9 @@ public class PayrollService {
     private String excludedReason(String fieldName) {
         if ("QTBT".equalsIgnoreCase(fieldName)) {
             return "手工录入项，保留旧值，不做自动计算。";
+        }
+        if ("GWJT2".equalsIgnoreCase(fieldName)) {
+            return "已确认不考虑迁移，保留旧值，不作为自动计算差异。";
         }
         return "已确认暂不考虑迁移，保留旧值，不作为自动计算差异。";
     }

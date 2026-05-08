@@ -42,10 +42,9 @@ mvn spring-boot:run
 `totalComparison` 会进一步计算教护龄津贴、提高工资，并替换当前已迁移项目后给出合计差额。
 当前也会对比警衔/警务津贴和浮动工资，对应 `JXJT`、`FDGZ2`。
 奖金结余 `JJJY2` 按旧系统主链口径处理：已有旧值时保留，旧值为 0 时再按 `cyxx.jjjy`、1993 年前职务和 `bz06_jjjy` 标准表试算。
-岗位津贴 `GWJT2` 会按 `gwjtbz/gwjtlb` 查询 `bz_gwjt` 标准表进行对账。
-若 `gwjtbz/gwjtlb` 为空但已有旧值，则按旧系统数据保留，不作为自动计算差异。
+岗位津贴 `GWJT2` 已确认不考虑迁移，列入 `excludedComponents`，只保留旧值。
 套改/特岗保留 `TGBLBF` 按主链规则处理：机关人员清零，事业单位人员保留旧值。
-`QTBT/SIDBT/ZWJT/ZFBT/JZMCBT` 已作为手工或暂不考虑字段列入 `excludedComponents`，只保留旧值。
+`QTBT/SIDBT/ZWJT/ZFBT/JZMCBT/GWJT2` 已作为手工或暂不考虑字段列入 `excludedComponents`，只保留旧值。
 `PGBC` 已作为特殊工资变动保留项列入 `pgbcComparison`，当前只读对账保留旧值。
 批量对账接口会分页执行同一套只读计算，返回每个人的合计差额和差异汇总。
 远程数据库对账建议先使用较小分页，例如 `size=5` 或 `size=10`，再逐步扩大范围。
