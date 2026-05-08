@@ -7,8 +7,12 @@ public record AdditionalPayrollCalculation(
         String floatingStep,
         Integer floatingSalary,
         Integer bonusBalance,
+        String postAllowanceStandardYearMonth,
+        String postAllowanceCategory,
+        Integer postAllowance,
         Integer storedRankAllowance,
         Integer storedFloatingSalary,
-        Integer storedBonusBalance
+        Integer storedBonusBalance,
+        Integer storedPostAllowance
 ) {
 }

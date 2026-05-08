@@ -267,7 +267,9 @@ public class PayrollService {
                 .subtract(BigDecimal.valueOf(history.storedFloatingSalary()))
                 .add(BigDecimal.valueOf(nullToZero(additional.floatingSalary())))
                 .subtract(BigDecimal.valueOf(history.storedBonusBalance()))
-                .add(BigDecimal.valueOf(nullToZero(additional.bonusBalance())));
+                .add(BigDecimal.valueOf(nullToZero(additional.bonusBalance())))
+                .subtract(BigDecimal.valueOf(history.storedPostAllowance()))
+                .add(BigDecimal.valueOf(nullToZero(additional.postAllowance())));
 
         return new PayrollTotalComparison(
                 history.teachingStartYearMonth(),
@@ -301,6 +303,7 @@ public class PayrollService {
         addDifference(differences, "JXJT", "警衔/警务津贴", history.storedRankAllowance(), additional.rankAllowance());
         addDifference(differences, "FDGZ2", "浮动工资", history.storedFloatingSalary(), additional.floatingSalary());
         addDifference(differences, "JJJY2", "奖金结余", history.storedBonusBalance(), additional.bonusBalance());
+        addDifference(differences, "GWJT2", "岗位津贴", history.storedPostAllowance(), additional.postAllowance());
         addDifference(differences, "JHLJT", "教护龄津贴", history.storedTeachingAllowance(), teachingAllowance);
         addDifference(differences, "JSFSZWTG2", "提高工资", history.storedSalaryIncrease(), salaryIncrease);
         return differences;
@@ -321,9 +324,15 @@ public class PayrollService {
                         history.positionSalaryGrade(),
                         history.floatingStep()),
                 selectedBonusBalance(history),
+                history.postAllowanceStandardYearMonth(),
+                history.postAllowanceCategory(),
+                payrollRepository.postAllowance(
+                        history.postAllowanceStandardYearMonth(),
+                        history.postAllowanceCategory()),
                 history.storedRankAllowance(),
                 history.storedFloatingSalary(),
-                history.storedBonusBalance());
+                history.storedBonusBalance(),
+                history.storedPostAllowance());
     }
 
     private Integer selectedBonusBalance(PayrollHistorySnapshot history) {

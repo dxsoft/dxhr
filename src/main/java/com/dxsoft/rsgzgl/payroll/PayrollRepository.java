@@ -83,6 +83,8 @@ class PayrollRepository {
             SqlText.trim(rs.getString("djc2")),
             SqlText.trim(rs.getString("tbnd")),
             SqlText.trim(rs.getString("jbtbz")),
+            SqlText.trim(rs.getString("gwjtbz")),
+            SqlText.trim(rs.getString("gwjtlb")),
             rs.getInt("zwgzse2"),
             rs.getInt("jbgzse2"),
             rs.getInt("jsdjgz2"),
@@ -94,6 +96,7 @@ class PayrollRepository {
             rs.getInt("jxjt"),
             rs.getInt("fdgz2"),
             rs.getInt("jjjy2"),
+            rs.getInt("gwjt2"),
             rs.getBigDecimal("njbt"),
             rs.getInt("hj2"));
 
@@ -189,8 +192,9 @@ class PayrollRepository {
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
                        h.dwsx, p.cjgzny, p.gznx, p.zdgznx, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
                        h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.gwjtbz, h.gwjtlb,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
-                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.njbt, h.hj2
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.njbt, h.hj2
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 WHERE p.uid = :uid
@@ -443,6 +447,20 @@ class PayrollRepository {
                 ORDER BY ID
                 LIMIT 1
                 """, new MapSqlParameterSource());
+    }
+
+    int postAllowance(String standardYearMonth, String category) {
+        if (emptyToNull(standardYearMonth) == null || emptyToNull(category) == null) {
+            return 0;
+        }
+        return queryInteger("""
+                SELECT bz
+                FROM bz_gwjt
+                WHERE tbnd = :standardYearMonth AND lb = :category
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("category", emptyToNull(category)));
     }
 
     String performancePositionCode(String positionCode, String standardYearMonth) {
