@@ -47,3 +47,13 @@ CREATE TABLE IF NOT EXISTS app_role_org_scope (
     PRIMARY KEY (role_id, organization_code),
     CONSTRAINT fk_app_role_org_scope_role FOREIGN KEY (role_id) REFERENCES app_role(id)
 );
+
+CREATE TABLE IF NOT EXISTS app_security_audit_log (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    actor_username VARCHAR(80) NOT NULL,
+    action VARCHAR(80) NOT NULL,
+    target_type VARCHAR(40) NOT NULL,
+    target_id VARCHAR(80) NOT NULL,
+    summary VARCHAR(500) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

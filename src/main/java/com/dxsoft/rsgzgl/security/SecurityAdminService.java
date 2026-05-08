@@ -9,10 +9,15 @@ class SecurityAdminService {
 
     private final SecurityAdminRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final SecurityAuditService auditService;
 
-    SecurityAdminService(SecurityAdminRepository repository, PasswordEncoder passwordEncoder) {
+    SecurityAdminService(
+            SecurityAdminRepository repository,
+            PasswordEncoder passwordEncoder,
+            SecurityAuditService auditService) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
+        this.auditService = auditService;
     }
 
     List<UserAdminView> users() {
@@ -33,19 +38,24 @@ class SecurityAdminService {
                 passwordEncoder.encode(request.password()),
                 normalize(request.displayName()),
                 request.enabled() == null || request.enabled());
+        auditService.record("CREATE_USER", "USER", id, "创建用户 " + request.username());
         return repository.users().stream().filter(user -> user.id().equals(id)).findFirst().orElseThrow();
     }
 
     void updateUserRoles(Long userId, CodesRequest request) {
-        repository.replaceUserRoles(userId, normalizeCodes(request.codes()));
+        List<String> codes = normalizeCodes(request.codes());
+        repository.replaceUserRoles(userId, codes);
+        auditService.record("UPDATE_USER_ROLES", "USER", userId, "更新用户角色 " + codes);
     }
 
     void updateUserEnabled(Long userId, EnabledRequest request) {
         repository.updateUserEnabled(userId, request.enabled());
+        auditService.record("UPDATE_USER_ENABLED", "USER", userId, "更新用户启用状态为 " + request.enabled());
     }
 
     void updateUserPassword(Long userId, PasswordRequest request) {
         repository.updateUserPassword(userId, passwordEncoder.encode(request.password()));
+        auditService.record("UPDATE_USER_PASSWORD", "USER", userId, "重置用户密码");
     }
 
     RoleAdminView createRole(CreateRoleRequest request) {
@@ -53,15 +63,24 @@ class SecurityAdminService {
                 normalize(request.code()).toUpperCase(),
                 normalize(request.name()),
                 normalize(request.dataScope()).toUpperCase());
+        auditService.record("CREATE_ROLE", "ROLE", id, "创建角色 " + request.code());
         return repository.roles().stream().filter(role -> role.id().equals(id)).findFirst().orElseThrow();
     }
 
     void updateRolePermissions(Long roleId, CodesRequest request) {
-        repository.replaceRolePermissions(roleId, normalizeCodes(request.codes()));
+        List<String> codes = normalizeCodes(request.codes());
+        repository.replaceRolePermissions(roleId, codes);
+        auditService.record("UPDATE_ROLE_PERMISSIONS", "ROLE", roleId, "更新角色功能权限 " + codes);
     }
 
     void updateRoleOrganizations(Long roleId, CodesRequest request) {
-        repository.replaceRoleOrganizations(roleId, normalizeCodes(request.codes()));
+        List<String> codes = normalizeCodes(request.codes());
+        repository.replaceRoleOrganizations(roleId, codes);
+        auditService.record("UPDATE_ROLE_ORGANIZATIONS", "ROLE", roleId, "更新角色单位范围 " + codes);
+    }
+
+    List<SecurityAuditLog> auditLogs(Integer limit) {
+        return auditService.recent(limit == null ? 50 : limit);
     }
 
     private String normalize(String value) {

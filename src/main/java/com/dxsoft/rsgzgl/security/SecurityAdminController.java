@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -67,5 +68,10 @@ class SecurityAdminController {
     @GetMapping("/permissions")
     List<SecurityAdminService.PermissionView> permissions() {
         return service.permissions();
+    }
+
+    @GetMapping("/audit-logs")
+    List<SecurityAuditLog> auditLogs(@RequestParam(required = false) Integer limit) {
+        return service.auditLogs(limit);
     }
 }

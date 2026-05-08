@@ -80,6 +80,17 @@ class SecuritySchemaInitializer {
                     organization_code CHAR(9) NOT NULL,
                     PRIMARY KEY (role_id, organization_code)
                 )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS app_security_audit_log (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    actor_username VARCHAR(80) NOT NULL,
+                    action VARCHAR(80) NOT NULL,
+                    target_type VARCHAR(40) NOT NULL,
+                    target_id VARCHAR(80) NOT NULL,
+                    summary VARCHAR(500) NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
                 """).forEach(jdbcTemplate::execute);
     }
 

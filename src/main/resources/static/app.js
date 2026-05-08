@@ -212,12 +212,13 @@ async function loadSecurityAdmin() {
     status.className = "status";
     status.textContent = "正在加载权限配置...";
     try {
-        const [users, roles, permissions] = await Promise.all([
+        const [users, roles, permissions, auditLogs] = await Promise.all([
             getJson("/api/security/users"),
             getJson("/api/security/roles"),
             getJson("/api/security/permissions"),
+            getJson("/api/security/audit-logs?limit=20"),
         ]);
-        state.security = { users, roles, permissions };
+        state.security = { users, roles, permissions, auditLogs };
         renderSecurityAdmin();
         status.textContent = "权限配置已加载";
     } catch (error) {
@@ -257,6 +258,17 @@ function renderSecurityAdmin() {
 
     document.getElementById("permission-list").innerHTML = state.security.permissions.map(permission => `
         <span><strong>${escapeHtml(permission.code)}</strong>${escapeHtml(permission.name)}</span>
+    `).join("");
+
+    document.getElementById("security-audit-rows").innerHTML = (state.security.auditLogs || []).map(log => `
+        <tr>
+            <td>${escapeHtml(log.id)}</td>
+            <td>${escapeHtml(log.actorUsername)}</td>
+            <td>${escapeHtml(log.action)}</td>
+            <td>${escapeHtml(log.targetType)}:${escapeHtml(log.targetId)}</td>
+            <td>${escapeHtml(log.summary)}</td>
+            <td>${escapeHtml(log.createdAt)}</td>
+        </tr>
     `).join("");
 
     document.querySelectorAll("[data-user-save]").forEach(button => {
