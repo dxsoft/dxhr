@@ -63,12 +63,14 @@ public class PayrollService {
 
         BasicPayrollCalculation basicCalculation = basicCalculation(history);
         AllowanceCalculation allowanceCalculation = allowanceCalculation(history);
+        AdditionalPayrollCalculation additionalCalculation = additionalCalculation(history);
         return new PayrollCalculationContext(
                 uid,
                 history,
                 basicCalculation,
                 allowanceCalculation,
-                totalComparison(history, components, basicCalculation, allowanceCalculation),
+                additionalCalculation,
+                totalComparison(history, components, basicCalculation, allowanceCalculation, additionalCalculation),
                 components,
                 payrollRepository.findMatchedPositionStandards(history),
                 payrollRepository.findMatchedAllowanceStandards(history));
@@ -162,7 +164,8 @@ public class PayrollService {
                 .toList();
         BasicPayrollCalculation basicCalculation = basicCalculation(history);
         AllowanceCalculation allowanceCalculation = allowanceCalculation(history);
-        PayrollTotalComparison total = totalComparison(history, components, basicCalculation, allowanceCalculation);
+        AdditionalPayrollCalculation additionalCalculation = additionalCalculation(history);
+        PayrollTotalComparison total = totalComparison(history, components, basicCalculation, allowanceCalculation, additionalCalculation);
         BigDecimal difference = nullToZero(total.totalDifference());
         return new PayrollCalculationAudit(
                 uid,
@@ -222,13 +225,15 @@ public class PayrollService {
             PayrollHistorySnapshot history,
             List<PayrollComponentValue> components,
             BasicPayrollCalculation basic,
-            AllowanceCalculation allowance) {
+            AllowanceCalculation allowance,
+            AdditionalPayrollCalculation additional) {
         Integer teachingAllowance = teachingAllowance(history);
         Integer salaryIncrease = salaryIncrease(history, basic);
         List<PayrollComponentDifference> componentDifferences = componentDifferences(
                 history,
                 basic,
                 allowance,
+                additional,
                 teachingAllowance,
                 salaryIncrease);
 
@@ -256,6 +261,11 @@ public class PayrollService {
                 .add(BigDecimal.valueOf(salaryIncrease))
                 .subtract(nullToZero(history.storedYearAllowance()))
                 .add(nullToZero(allowance.yearAllowance()));
+        recalculatedKnownTotal = recalculatedKnownTotal
+                .subtract(BigDecimal.valueOf(history.storedRankAllowance()))
+                .add(BigDecimal.valueOf(nullToZero(additional.rankAllowance())))
+                .subtract(BigDecimal.valueOf(history.storedFloatingSalary()))
+                .add(BigDecimal.valueOf(nullToZero(additional.floatingSalary())));
 
         return new PayrollTotalComparison(
                 history.teachingStartYearMonth(),
@@ -275,6 +285,7 @@ public class PayrollService {
             PayrollHistorySnapshot history,
             BasicPayrollCalculation basic,
             AllowanceCalculation allowance,
+            AdditionalPayrollCalculation additional,
             Integer teachingAllowance,
             Integer salaryIncrease) {
         List<PayrollComponentDifference> differences = new ArrayList<>();
@@ -285,9 +296,29 @@ public class PayrollService {
         addDifference(differences, "SDBT", "工作性/生活性补贴", history.storedSubsidyAllowance(), allowance.subsidyAllowance());
         addDifference(differences, "BLFB2", "保留福补", history.storedRetainedAllowance(), allowance.retainedAllowance());
         addDifference(differences, "NJBT", "年补贴", history.storedYearAllowance(), allowance.yearAllowance());
+        addDifference(differences, "JXJT", "警衔/警务津贴", history.storedRankAllowance(), additional.rankAllowance());
+        addDifference(differences, "FDGZ2", "浮动工资", history.storedFloatingSalary(), additional.floatingSalary());
         addDifference(differences, "JHLJT", "教护龄津贴", history.storedTeachingAllowance(), teachingAllowance);
         addDifference(differences, "JSFSZWTG2", "提高工资", history.storedSalaryIncrease(), salaryIncrease);
         return differences;
+    }
+
+    private AdditionalPayrollCalculation additionalCalculation(PayrollHistorySnapshot history) {
+        return new AdditionalPayrollCalculation(
+                history.rankAllowanceStandardYearMonth(),
+                history.rankName(),
+                payrollRepository.rankAllowance(
+                        history.positionCode(),
+                        history.rankAllowanceStandardYearMonth(),
+                        history.rankName()),
+                history.floatingStep(),
+                payrollRepository.floatingSalary(
+                        history.salaryStandardYearMonth(),
+                        history.positionCode(),
+                        history.positionSalaryGrade(),
+                        history.floatingStep()),
+                history.storedRankAllowance(),
+                history.storedFloatingSalary());
     }
 
     private void addDifference(

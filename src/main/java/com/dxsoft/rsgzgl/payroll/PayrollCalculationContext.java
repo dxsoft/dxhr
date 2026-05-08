@@ -7,6 +7,7 @@ public record PayrollCalculationContext(
         PayrollHistorySnapshot latestHistory,
         BasicPayrollCalculation basicCalculation,
         AllowanceCalculation allowanceCalculation,
+        AdditionalPayrollCalculation additionalCalculation,
         PayrollTotalComparison totalComparison,
         List<PayrollComponentValue> storedComponents,
         List<PositionSalaryStandard> matchedPositionStandards,

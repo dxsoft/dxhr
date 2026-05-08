@@ -70,9 +70,12 @@ class PayrollRepository {
             SqlText.trim(rs.getString("jhlqsny")),
             rs.getInt("zdjhlnx"),
             rs.getInt("tgbl"),
+            SqlText.trim(rs.getString("jxjtbz")),
+            SqlText.trim(rs.getString("jx")),
             SqlText.trim(rs.getString("zwbm2")),
             SqlText.trim(rs.getString("zwgw2")),
             SqlText.trim(rs.getString("zwgzdc2")),
+            SqlText.trim(rs.getString("fddc")),
             SqlText.trim(rs.getString("jbgzjb2")),
             SqlText.trim(rs.getString("djc2")),
             SqlText.trim(rs.getString("tbnd")),
@@ -85,6 +88,8 @@ class PayrollRepository {
             rs.getInt("blfb2"),
             rs.getInt("jhljt"),
             rs.getInt("jsfszwtg2"),
+            rs.getInt("jxjt"),
+            rs.getInt("fdgz2"),
             rs.getBigDecimal("njbt"),
             rs.getInt("hj2"));
 
@@ -178,10 +183,10 @@ class PayrollRepository {
     Optional<PayrollHistorySnapshot> findLatestHistory(int uid) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
-                       h.dwsx, h.jhlqsny, h.zdjhlnx, h.tgbl,
-                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.dwsx, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
-                       h.jhljt, h.jsfszwtg2, h.njbt, h.hj2
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.njbt, h.hj2
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 WHERE p.uid = :uid
@@ -363,6 +368,53 @@ class PayrollRepository {
                 """, new MapSqlParameterSource()
                 .addValue("standardYearMonth", emptyToNull(standardYearMonth))
                 .addValue("positionCode", emptyToNull(positionCode)));
+    }
+
+    int rankAllowance(String positionCode, String rankAllowanceStandardYearMonth, String rankName) {
+        if (!isRankAllowanceEligible(positionCode) || emptyToNull(rankAllowanceStandardYearMonth) == null || emptyToNull(rankName) == null) {
+            return 0;
+        }
+        return queryInteger("""
+                SELECT jtbz
+                FROM jxjtbz
+                WHERE tbnd = :standardYearMonth AND jx = :rankName AND (lb = '' OR lb = 'jx')
+                ORDER BY CASE WHEN lb = '' THEN 0 ELSE 1 END
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(rankAllowanceStandardYearMonth))
+                .addValue("rankName", emptyToNull(rankName)));
+    }
+
+    int floatingSalary(String standardYearMonth, String positionCode, String salaryLevel, String floatingStep) {
+        if (emptyToNull(standardYearMonth) == null || emptyToNull(positionCode) == null
+                || emptyToNull(salaryLevel) == null || intValue(floatingStep) == 0) {
+            return 0;
+        }
+        int baseLevel = intValue(salaryLevel);
+        int targetLevel = baseLevel + intValue(floatingStep);
+        if (baseLevel <= 0 || targetLevel <= 0) {
+            return 0;
+        }
+        String jobCategory = positionCode.substring(0, Math.min(2, positionCode.length()));
+        Integer base = queryInteger("""
+                SELECT bz
+                FROM bz06_xjgz
+                WHERE tbnd = :standardYearMonth AND gwflbm = :jobCategory AND xj = :salaryLevel
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("jobCategory", jobCategory)
+                .addValue("salaryLevel", leftPadTwo(salaryLevel)));
+        Integer target = queryInteger("""
+                SELECT bz
+                FROM bz06_xjgz
+                WHERE tbnd = :standardYearMonth AND gwflbm = :jobCategory AND xj = :salaryLevel
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("jobCategory", jobCategory)
+                .addValue("salaryLevel", leftPadTwo(String.valueOf(targetLevel))));
+        return Math.max(target - base, 0);
     }
 
     String performancePositionCode(String positionCode, String standardYearMonth) {
@@ -643,6 +695,14 @@ class PayrollRepository {
             return false;
         }
         return List.of("01", "02", "03", "04", "05", "06", "21", "22", "23", "24", "25", "26", "27", "28", "29")
+                .contains(positionCode.substring(0, 2));
+    }
+
+    private boolean isRankAllowanceEligible(String positionCode) {
+        if (emptyToNull(positionCode) == null || positionCode.length() < 2) {
+            return false;
+        }
+        return List.of("01", "02", "03", "21", "22", "23", "24", "25", "26", "27", "28")
                 .contains(positionCode.substring(0, 2));
     }
 }
