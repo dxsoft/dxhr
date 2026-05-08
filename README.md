@@ -17,6 +17,14 @@ export RSGZGL_DB_PASSWORD="你的密码"
 mvn spring-boot:run
 ```
 
+首次启动会自动创建 Spring Boot 权限表，详见 `docs/security-rbac-schema.sql`。默认测试账号：
+
+```text
+admin / admin123
+```
+
+当前权限模型采用用户、角色、功能权限、角色单位数据范围。人员和工资接口会按用户可访问单位限制数据范围。
+
 ### 首批接口
 
 - `GET /api/organizations`

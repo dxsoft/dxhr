@@ -3,6 +3,7 @@ package com.dxsoft.rsgzgl.personnel;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.SensitiveData;
 import com.dxsoft.rsgzgl.common.SqlText;
+import com.dxsoft.rsgzgl.security.OrganizationScope;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.RowMapper;
@@ -97,8 +98,11 @@ class PersonnelRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    List<PersonnelSummary> findAll(String organizationCode, String keyword, PageRequest pageRequest) {
-        MapSqlParameterSource params = parameters(organizationCode, keyword)
+    List<PersonnelSummary> findAll(OrganizationScope organizationScope, String keyword, PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource params = parameters(organizationScope, keyword)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
@@ -106,20 +110,23 @@ class PersonnelRepository {
                        p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
-                WHERE (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
                   AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
                 ORDER BY p.dwbm, p.grbm
                 LIMIT :limit OFFSET :offset
                 """, params, SUMMARY_MAPPER);
     }
 
-    long countAll(String organizationCode, String keyword) {
+    long countAll(OrganizationScope organizationScope, String keyword) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM dryjbxx p
-                WHERE (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
                   AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
-                """, parameters(organizationCode, keyword), Long.class);
+                """, parameters(organizationScope, keyword), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -170,11 +177,11 @@ class PersonnelRepository {
                 """, keyParameters(key), ASSESSMENT_MAPPER);
     }
 
-    private MapSqlParameterSource parameters(String organizationCode, String keyword) {
-        String trimmedOrganizationCode = SqlText.trim(organizationCode);
+    private MapSqlParameterSource parameters(OrganizationScope organizationScope, String keyword) {
         String trimmedKeyword = SqlText.trim(keyword);
         return new MapSqlParameterSource()
-                .addValue("organizationCode", trimmedOrganizationCode == null || trimmedOrganizationCode.isEmpty() ? null : trimmedOrganizationCode)
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
     }

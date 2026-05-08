@@ -411,3 +411,23 @@ src/main/java/com/dxsoft/rsgzgl
 4. 最后用测试驱动迁移工资计算链。
 
 工资计算是项目核心风险点，必须以旧系统结果为金标准做自动化回归，不能只凭代码人工翻译。
+
+## 9. 权限模型
+
+Spring Boot 迁移版不复用 VFP 的简化登录表单作为最终权限体系，而采用独立 RBAC 模型：
+
+- `app_user`：用户
+- `app_role`：角色，包含数据范围类型
+- `app_permission`：系统功能权限
+- `app_user_role`：用户角色
+- `app_role_permission`：角色功能权限
+- `app_role_org_scope`：角色可访问单位范围
+
+权限脚本见 `docs/security-rbac-schema.sql`。当前已接入：
+
+- 表单登录与会话退出
+- 默认测试账号 `admin / admin123`
+- 功能权限：单位查询、人员查询、工资试算、批量对账、权限管理
+- 人员信息和工资接口的单位数据范围控制
+
+人员信息权限以单位为最小范围。角色的数据范围为 `ALL` 时可访问所有单位；为 `CUSTOM` 时只能访问 `app_role_org_scope` 中配置的单位。

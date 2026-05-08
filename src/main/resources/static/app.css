@@ -57,6 +57,23 @@ body {
     border-radius: 999px;
 }
 
+.user-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-bar span {
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+}
+
+.user-bar button {
+    padding: 8px 12px;
+    color: #12387f;
+    background: #fff;
+}
+
 main {
     width: min(1320px, calc(100% - 32px));
     margin: 24px auto 56px;

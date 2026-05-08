@@ -3,6 +3,7 @@ package com.dxsoft.rsgzgl.payroll;
 import com.dxsoft.rsgzgl.common.NotFoundException;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.SqlText;
+import com.dxsoft.rsgzgl.security.OrganizationScope;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -210,15 +211,19 @@ class PayrollRepository {
                 """, new MapSqlParameterSource("uid", uid), HISTORY_MAPPER).stream().findFirst();
     }
 
-    List<Integer> findPersonnelUidsWithPayrollHistory(String organizationCode, PageRequest pageRequest) {
+    List<Integer> findPersonnelUidsWithPayrollHistory(OrganizationScope organizationScope, PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
         MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.queryForList("""
                 SELECT p.uid
                 FROM dryjbxx p
-                WHERE (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
                   AND EXISTS (
                       SELECT 1
                       FROM hisbase h
@@ -229,17 +234,22 @@ class PayrollRepository {
                 """, parameters, Integer.class);
     }
 
-    long countPersonnelWithPayrollHistory(String organizationCode) {
+    long countPersonnelWithPayrollHistory(OrganizationScope organizationScope) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM dryjbxx p
-                WHERE (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
                   AND EXISTS (
                       SELECT 1
                       FROM hisbase h
                       WHERE h.dwbm = p.dwbm AND h.grbm = p.grbm
                   )
-                """, new MapSqlParameterSource("organizationCode", emptyToNull(organizationCode)), Long.class);
+                """, new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes()), Long.class);
         return count == null ? 0 : count;
     }
 

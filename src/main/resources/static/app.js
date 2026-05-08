@@ -10,8 +10,21 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
-    loadPersonnel();
+    document.getElementById("logout-button").addEventListener("click", () => {
+        window.location.href = "/logout";
+    });
+    initializeAuth();
 });
+
+async function initializeAuth() {
+    try {
+        const user = await getJson("/api/auth/me");
+        document.getElementById("current-user").textContent = `${user.displayName} (${user.username})`;
+        await loadPersonnel();
+    } catch (error) {
+        window.location.href = "/login.html";
+    }
+}
 
 async function onPersonnelSearch(event) {
     event.preventDefault();
@@ -159,9 +172,18 @@ async function loadAudit() {
 
 async function getJson(url) {
     const response = await fetch(url, { headers: { Accept: "application/json" } });
+    if (response.redirected && response.url.includes("/login.html")) {
+        window.location.href = "/login.html";
+        throw new Error("需要登录");
+    }
     if (!response.ok) {
         const text = await response.text();
         throw new Error(text || `HTTP ${response.status}`);
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+        window.location.href = "/login.html";
+        throw new Error("需要登录");
     }
     return response.json();
 }

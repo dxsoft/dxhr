@@ -3,12 +3,14 @@ package com.dxsoft.rsgzgl.payroll;
 import com.dxsoft.rsgzgl.common.NotFoundException;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import com.dxsoft.rsgzgl.security.AccessControlService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 
@@ -16,9 +18,11 @@ import org.springframework.stereotype.Service;
 public class PayrollService {
 
     private final PayrollRepository payrollRepository;
+    private final AccessControlService accessControlService;
 
-    PayrollService(PayrollRepository payrollRepository) {
+    PayrollService(PayrollRepository payrollRepository, AccessControlService accessControlService) {
         this.payrollRepository = payrollRepository;
+        this.accessControlService = accessControlService;
     }
 
     public PageResponse<PayrollFieldMetadata> fields(Boolean enabledIn2006Policy, PageRequest pageRequest) {
@@ -52,6 +56,7 @@ public class PayrollService {
     public PayrollCalculationContext calculationContext(int uid) {
         PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        accessControlService.requireOrganization(history.organizationCode());
         Map<String, Object> historyValues = payrollRepository.findLatestHistoryValues(uid);
         List<PayrollComponentValue> components = payrollRepository.findCalculationFields().stream()
                 .map(field -> new PayrollComponentValue(
@@ -99,21 +104,23 @@ public class PayrollService {
 
     public PageResponse<PayrollCalculationAudit> calculationAudits(String organizationCode, PageRequest pageRequest) {
         List<PayrollFieldMetadata> calculationFields = payrollRepository.findCalculationFields();
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
         List<PayrollCalculationAudit> audits = payrollRepository
-                .findPersonnelUidsWithPayrollHistory(organizationCode, pageRequest)
+                .findPersonnelUidsWithPayrollHistory(scope, pageRequest)
                 .stream()
                 .map(uid -> calculationAudit(uid, calculationFields))
                 .toList();
         return PageResponse.of(
                 audits,
                 pageRequest,
-                payrollRepository.countPersonnelWithPayrollHistory(organizationCode));
+                payrollRepository.countPersonnelWithPayrollHistory(scope));
     }
 
     public PayrollAuditSummary auditSummary(String organizationCode, PageRequest pageRequest) {
         List<PayrollFieldMetadata> calculationFields = payrollRepository.findCalculationFields();
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
         List<PayrollCalculationAudit> audits = payrollRepository
-                .findPersonnelUidsWithPayrollHistory(organizationCode, pageRequest)
+                .findPersonnelUidsWithPayrollHistory(scope, pageRequest)
                 .stream()
                 .map(uid -> calculationAudit(uid, calculationFields))
                 .toList();
@@ -125,7 +132,7 @@ public class PayrollService {
                 .max(Comparator.naturalOrder())
                 .orElse(BigDecimal.ZERO);
         return new PayrollAuditSummary(
-                payrollRepository.countPersonnelWithPayrollHistory(organizationCode),
+                payrollRepository.countPersonnelWithPayrollHistory(scope),
                 audits.size(),
                 differences.size(),
                 maxAbsoluteDifference,
@@ -209,6 +216,7 @@ public class PayrollService {
     private PayrollCalculationAudit calculationAudit(int uid, List<PayrollFieldMetadata> calculationFields) {
         PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        accessControlService.requireOrganization(history.organizationCode());
         Map<String, Object> historyValues = payrollRepository.findLatestHistoryValues(uid);
         List<PayrollComponentValue> components = calculationFields.stream()
                 .map(field -> new PayrollComponentValue(
@@ -572,5 +580,9 @@ public class PayrollService {
 
     private BigDecimal nullToZero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private String emptyToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

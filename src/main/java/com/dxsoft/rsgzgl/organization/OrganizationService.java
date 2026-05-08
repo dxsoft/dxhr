@@ -2,21 +2,27 @@ package com.dxsoft.rsgzgl.organization;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import com.dxsoft.rsgzgl.security.AccessControlService;
+import com.dxsoft.rsgzgl.security.OrganizationScope;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OrganizationService {
 
     private final OrganizationRepository organizationRepository;
+    private final AccessControlService accessControlService;
 
-    OrganizationService(OrganizationRepository organizationRepository) {
+    OrganizationService(OrganizationRepository organizationRepository, AccessControlService accessControlService) {
         this.organizationRepository = organizationRepository;
+        this.accessControlService = accessControlService;
     }
 
     public PageResponse<OrganizationSummary> list(String keyword, PageRequest pageRequest) {
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
         return PageResponse.of(
-                organizationRepository.findAll(keyword, pageRequest),
+                organizationRepository.findAll(keyword, scope, pageRequest),
                 pageRequest,
-                organizationRepository.count(keyword));
+                organizationRepository.count(keyword, scope));
     }
 }
