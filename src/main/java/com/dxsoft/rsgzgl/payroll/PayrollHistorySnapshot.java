@@ -11,6 +11,9 @@ public record PayrollHistorySnapshot(
         String calculationMonth,
         String calculationType,
         String organizationType,
+        String workStartYearMonth,
+        Integer salaryYears,
+        Integer interruptedSalaryYears,
         String teachingStartYearMonth,
         Integer teachingInterruptedYears,
         Integer raisePercentage,
@@ -34,6 +37,7 @@ public record PayrollHistorySnapshot(
         Integer storedSalaryIncrease,
         Integer storedRankAllowance,
         Integer storedFloatingSalary,
+        Integer storedBonusBalance,
         BigDecimal storedYearAllowance,
         Integer storedTotal
 ) {

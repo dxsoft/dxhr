@@ -67,6 +67,9 @@ class PayrollRepository {
             SqlText.trim(rs.getString("jsyf")),
             SqlText.trim(rs.getString("jslb")),
             SqlText.trim(rs.getString("dwsx")),
+            SqlText.trim(rs.getString("cjgzny")),
+            rs.getInt("gznx"),
+            rs.getInt("zdgznx"),
             SqlText.trim(rs.getString("jhlqsny")),
             rs.getInt("zdjhlnx"),
             rs.getInt("tgbl"),
@@ -90,6 +93,7 @@ class PayrollRepository {
             rs.getInt("jsfszwtg2"),
             rs.getInt("jxjt"),
             rs.getInt("fdgz2"),
+            rs.getInt("jjjy2"),
             rs.getBigDecimal("njbt"),
             rs.getInt("hj2"));
 
@@ -183,10 +187,10 @@ class PayrollRepository {
     Optional<PayrollHistorySnapshot> findLatestHistory(int uid) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
-                       h.dwsx, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.dwsx, h.cjgzny, h.gznx, h.zdgznx, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
                        h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
-                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.njbt, h.hj2
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.njbt, h.hj2
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 WHERE p.uid = :uid
@@ -415,6 +419,30 @@ class PayrollRepository {
                 .addValue("jobCategory", jobCategory)
                 .addValue("salaryLevel", leftPadTwo(String.valueOf(targetLevel))));
         return Math.max(target - base, 0);
+    }
+
+    int bonusBalance(PayrollHistorySnapshot history) {
+        String positionCode = bonusBalancePositionCode(history);
+        if (emptyToNull(positionCode) == null) {
+            return 0;
+        }
+        int workYears = bonusBalanceWorkYears(history);
+        int tier = bonusBalanceTier(positionCode, workYears);
+        return queryInteger("""
+                SELECT a%s
+                FROM bz06_jjjy
+                WHERE zwbm = :positionCode
+                LIMIT 1
+                """.formatted(tier), new MapSqlParameterSource("positionCode", normalizeBonusBalancePositionCode(positionCode)));
+    }
+
+    int bonusBalanceMode() {
+        return queryInteger("""
+                SELECT jjjy
+                FROM cyxx
+                ORDER BY ID
+                LIMIT 1
+                """, new MapSqlParameterSource());
     }
 
     String performancePositionCode(String positionCode, String standardYearMonth) {
@@ -704,5 +732,66 @@ class PayrollRepository {
         }
         return List.of("01", "02", "03", "21", "22", "23", "24", "25", "26", "27", "28")
                 .contains(positionCode.substring(0, 2));
+    }
+
+    private String bonusBalancePositionCode(PayrollHistorySnapshot history) {
+        if (bonusBalanceMode() == 1) {
+            List<String> values = jdbcTemplate.queryForList("""
+                    SELECT zwbm
+                    FROM dryzwbh
+                    WHERE dwbm = :organizationCode
+                      AND grbm = :personCode
+                      AND LEFT(zwbm, 2) = :organizationType
+                      AND srny <= '1993.09'
+                    ORDER BY srny DESC, id DESC
+                    LIMIT 1
+                    """, new MapSqlParameterSource()
+                    .addValue("organizationCode", history.organizationCode())
+                    .addValue("personCode", history.personCode())
+                    .addValue("organizationType", history.organizationType()), String.class);
+            if (!values.isEmpty()) {
+                return SqlText.trim(values.getFirst());
+            }
+            return null;
+        }
+        return history.positionCode();
+    }
+
+    private int bonusBalanceWorkYears(PayrollHistorySnapshot history) {
+        if (bonusBalanceMode() == 3) {
+            return history.salaryYears();
+        }
+        int workYears = 1993 - yearOf(history.workStartYearMonth()) + 1;
+        if (workYears > history.interruptedSalaryYears() + 1) {
+            workYears -= history.interruptedSalaryYears();
+        }
+        if (workYears < 1 || emptyToNull(history.workStartYearMonth()) == null || history.workStartYearMonth().compareTo("1993.10.01") > 0) {
+            return 1;
+        }
+        return workYears;
+    }
+
+    private int bonusBalanceTier(String positionCode, int workYears) {
+        String normalized = normalizeBonusBalancePositionCode(positionCode);
+        if (normalized != null && normalized.length() >= 2
+                && List.of("05", "06", "08", "09").contains(normalized.substring(0, 2))) {
+            return Math.min((workYears + 5) / 10 + 1, 5);
+        }
+        return Math.min(workYears / 10 + 1, 4);
+    }
+
+    private String normalizeBonusBalancePositionCode(String positionCode) {
+        String normalized = emptyToNull(positionCode);
+        if (normalized != null && normalized.compareTo("1000") > 0 && normalized.length() >= 2) {
+            return "10" + normalized.substring(normalized.length() - 2);
+        }
+        return normalized;
+    }
+
+    private int yearOf(String yearOrYearMonth) {
+        if (yearOrYearMonth == null || yearOrYearMonth.length() < 4) {
+            return 0;
+        }
+        return intValue(yearOrYearMonth.substring(0, 4));
     }
 }

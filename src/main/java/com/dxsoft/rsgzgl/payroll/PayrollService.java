@@ -265,7 +265,9 @@ public class PayrollService {
                 .subtract(BigDecimal.valueOf(history.storedRankAllowance()))
                 .add(BigDecimal.valueOf(nullToZero(additional.rankAllowance())))
                 .subtract(BigDecimal.valueOf(history.storedFloatingSalary()))
-                .add(BigDecimal.valueOf(nullToZero(additional.floatingSalary())));
+                .add(BigDecimal.valueOf(nullToZero(additional.floatingSalary())))
+                .subtract(BigDecimal.valueOf(history.storedBonusBalance()))
+                .add(BigDecimal.valueOf(nullToZero(additional.bonusBalance())));
 
         return new PayrollTotalComparison(
                 history.teachingStartYearMonth(),
@@ -298,6 +300,7 @@ public class PayrollService {
         addDifference(differences, "NJBT", "年补贴", history.storedYearAllowance(), allowance.yearAllowance());
         addDifference(differences, "JXJT", "警衔/警务津贴", history.storedRankAllowance(), additional.rankAllowance());
         addDifference(differences, "FDGZ2", "浮动工资", history.storedFloatingSalary(), additional.floatingSalary());
+        addDifference(differences, "JJJY2", "奖金结余", history.storedBonusBalance(), additional.bonusBalance());
         addDifference(differences, "JHLJT", "教护龄津贴", history.storedTeachingAllowance(), teachingAllowance);
         addDifference(differences, "JSFSZWTG2", "提高工资", history.storedSalaryIncrease(), salaryIncrease);
         return differences;
@@ -317,8 +320,10 @@ public class PayrollService {
                         history.positionCode(),
                         history.positionSalaryGrade(),
                         history.floatingStep()),
+                payrollRepository.bonusBalance(history),
                 history.storedRankAllowance(),
-                history.storedFloatingSalary());
+                history.storedFloatingSalary(),
+                history.storedBonusBalance());
     }
 
     private void addDifference(
