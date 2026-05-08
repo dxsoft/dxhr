@@ -321,6 +321,7 @@ src/main/java/com/dxsoft/rsgzgl
 - `GET /api/payroll/position-standards`
 - `GET /api/payroll/allowance-standards`
 - `GET /api/payroll/personnel/{uid}/calculation-context`
+- `GET /api/payroll/personnel/{uid}/calculation-preview`
 - `GET /api/payroll/calculation-audits`
 - `GET /api/payroll/calculation-audit-summary`
 
@@ -337,6 +338,7 @@ src/main/java/com/dxsoft/rsgzgl
 `TGBLBF` 套改/特岗保留按主链规则加入字段级对账：机关人员清零，事业单位人员保留旧值。
 `QTBT/SIDBT/ZWJT/ZFBT/JZMCBT/GWJT2` 作为手工或暂不考虑字段列入 `excludedComponents`，仅保留旧值。
 `PGBC` 作为特殊工资变动保留项列入 `pgbcComparison`，当前只读对账保留旧值，后续如实现写入再处理冲销。
+`calculation-preview` 基于同一套上下文输出更适合前端展示的只读试算结果，包含已迁移工资项、排除字段、PGBC 和合计差额。
 批量对账接口会分页遍历有 `hisbase` 历史的人员，复用单人上下文并统计差异人员，作为后续定位未迁移工资项的入口。
 由于远程 MySQL 往返成本较高，批量对账建议先按小分页执行，再根据差异人员继续迁移剩余工资项。
 对账结果会在 `componentDifferences` 中列出字段级差异；`DFBT2` 按人员性质区分为机关人员“生活性补贴”和事业单位人员“基础性绩效工资”。

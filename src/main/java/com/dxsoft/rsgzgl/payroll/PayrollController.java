@@ -50,6 +50,11 @@ class PayrollController {
         return payrollService.calculationContext(uid);
     }
 
+    @GetMapping("/personnel/{uid}/calculation-preview")
+    PayrollCalculationPreview calculationPreview(@PathVariable int uid) {
+        return payrollService.calculationPreview(uid);
+    }
+
     @GetMapping("/calculation-audits")
     PageResponse<PayrollCalculationAudit> calculationAudits(
             @RequestParam(required = false) String organizationCode,

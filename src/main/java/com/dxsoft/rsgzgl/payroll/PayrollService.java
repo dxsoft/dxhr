@@ -79,6 +79,24 @@ public class PayrollService {
                 payrollRepository.findMatchedAllowanceStandards(history));
     }
 
+    public PayrollCalculationPreview calculationPreview(int uid) {
+        PayrollCalculationContext context = calculationContext(uid);
+        PayrollHistorySnapshot history = context.latestHistory();
+        PayrollTotalComparison total = context.totalComparison();
+        return new PayrollCalculationPreview(
+                uid,
+                history.organizationCode(),
+                history.personCode(),
+                history.name(),
+                history.calculationYear() + history.calculationMonth(),
+                previewComponents(context),
+                context.excludedComponents(),
+                context.pgbcComparison(),
+                total.recalculatedKnownTotal(),
+                total.storedTotal(),
+                total.totalDifference());
+    }
+
     public PageResponse<PayrollCalculationAudit> calculationAudits(String organizationCode, PageRequest pageRequest) {
         List<PayrollFieldMetadata> calculationFields = payrollRepository.findCalculationFields();
         List<PayrollCalculationAudit> audits = payrollRepository
@@ -157,6 +175,35 @@ public class PayrollService {
                 history.storedGradeSalary(),
                 history.storedTechnicalGradeSalary(),
                 history.storedTotal());
+    }
+
+    private List<PayrollPreviewComponent> previewComponents(PayrollCalculationContext context) {
+        BasicPayrollCalculation basic = context.basicCalculation();
+        AllowanceCalculation allowance = context.allowanceCalculation();
+        AdditionalPayrollCalculation additional = context.additionalCalculation();
+        PayrollTotalComparison total = context.totalComparison();
+        return List.of(
+                preview("ZWGZSE2", "职务工资", basic.positionSalary(), "AUTO"),
+                preview("JBGZSE2", "级别/薪级工资", basic.selectedBaseSalary(), "AUTO"),
+                preview("JSDJGZ2", "技术等级工资", basic.technicalGradeSalary(), "AUTO"),
+                preview("DFBT2", dfbt2Caption(context.latestHistory()), allowance.performanceAllowance(), "AUTO"),
+                preview("SDBT", "工作性/生活性补贴", allowance.subsidyAllowance(), "AUTO"),
+                preview("BLFB2", "保留福补", allowance.retainedAllowance(), "AUTO"),
+                preview("NJBT", "年补贴", allowance.yearAllowance(), "AUTO"),
+                preview("JXJT", "警衔/警务津贴", additional.rankAllowance(), "AUTO"),
+                preview("FDGZ2", "浮动工资", additional.floatingSalary(), "AUTO"),
+                preview("JJJY2", "奖金结余", additional.bonusBalance(), "AUTO_OR_PRESERVE"),
+                preview("TGBLBF", "套改/特岗保留", additional.retainedSpecialPostAllowance(), "AUTO_OR_PRESERVE"),
+                preview("JHLJT", "教护龄津贴", total.teachingAllowance(), "AUTO"),
+                preview("JSFSZWTG2", "提高工资", total.salaryIncrease(), "AUTO"));
+    }
+
+    private PayrollPreviewComponent preview(String fieldName, String caption, Integer amount, String source) {
+        return preview(fieldName, caption, BigDecimal.valueOf(nullToZero(amount)), source);
+    }
+
+    private PayrollPreviewComponent preview(String fieldName, String caption, BigDecimal amount, String source) {
+        return new PayrollPreviewComponent(fieldName, caption, nullToZero(amount), source);
     }
 
     private PayrollCalculationAudit calculationAudit(int uid, List<PayrollFieldMetadata> calculationFields) {
