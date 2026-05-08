@@ -426,7 +426,7 @@ Spring Boot 迁移版不复用 VFP 的简化登录表单作为最终权限体系
 权限脚本见 `docs/security-rbac-schema.sql`。当前已接入：
 
 - 表单登录与会话退出
-- 默认测试账号 `admin / admin123`
+- 可通过 `RSGZGL_ADMIN_USERNAME`、`RSGZGL_ADMIN_PASSWORD`、`RSGZGL_ADMIN_DISPLAY_NAME` 初始化管理员账号；只在账号不存在时创建，不覆盖已有密码
 - 功能权限：单位查询、人员查询、工资试算、批量对账、权限管理
 - 人员信息和工资接口的单位数据范围控制
 - 权限管理页面：用户、角色、功能权限绑定、角色单位范围维护

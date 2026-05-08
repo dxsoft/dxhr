@@ -18,3 +18,11 @@ management:
     web:
       exposure:
         include: health,info
+
+rsgzgl:
+  security:
+    initialize-schema: ${RSGZGL_SECURITY_INITIALIZE_SCHEMA:true}
+    admin:
+      username: ${RSGZGL_ADMIN_USERNAME:admin}
+      password: ${RSGZGL_ADMIN_PASSWORD:}
+      display-name: ${RSGZGL_ADMIN_DISPLAY_NAME:系统管理员}

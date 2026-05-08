@@ -12,14 +12,23 @@ class SecuritySchemaInitializer {
     private final JdbcTemplate jdbcTemplate;
     private final PasswordEncoder passwordEncoder;
     private final boolean initializeSchema;
+    private final String adminUsername;
+    private final String adminPassword;
+    private final String adminDisplayName;
 
     SecuritySchemaInitializer(
             JdbcTemplate jdbcTemplate,
             PasswordEncoder passwordEncoder,
-            @Value("${rsgzgl.security.initialize-schema:true}") boolean initializeSchema) {
+            @Value("${rsgzgl.security.initialize-schema:true}") boolean initializeSchema,
+            @Value("${rsgzgl.security.admin.username:admin}") String adminUsername,
+            @Value("${rsgzgl.security.admin.password:}") String adminPassword,
+            @Value("${rsgzgl.security.admin.display-name:系统管理员}") String adminDisplayName) {
         this.jdbcTemplate = jdbcTemplate;
         this.passwordEncoder = passwordEncoder;
         this.initializeSchema = initializeSchema;
+        this.adminUsername = adminUsername;
+        this.adminPassword = adminPassword;
+        this.adminDisplayName = adminDisplayName;
         initialize();
     }
 
@@ -108,26 +117,25 @@ class SecuritySchemaInitializer {
                 SELECT 'ADMIN', '系统管理员', 'ALL'
                 WHERE NOT EXISTS (SELECT 1 FROM app_role WHERE code = 'ADMIN')
                 """);
+        if (adminPassword == null || adminPassword.isBlank()) {
+            return;
+        }
         Integer userCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM app_user WHERE username = 'admin'",
-                Integer.class);
+                "SELECT COUNT(*) FROM app_user WHERE username = ?",
+                Integer.class,
+                adminUsername);
         if (userCount == null || userCount == 0) {
             jdbcTemplate.update("""
                     INSERT INTO app_user (username, password_hash, display_name, enabled)
                     VALUES (?, ?, ?, 1)
-                    """, "admin", passwordEncoder.encode("admin123"), "系统管理员");
+                    """, adminUsername, passwordEncoder.encode(adminPassword), adminDisplayName);
         }
-        jdbcTemplate.update("""
-                UPDATE app_user
-                SET password_hash = ?, display_name = '系统管理员', enabled = 1
-                WHERE username = 'admin'
-                """, passwordEncoder.encode("admin123"));
         jdbcTemplate.update("""
                 INSERT IGNORE INTO app_user_role (user_id, role_id)
                 SELECT u.id, r.id
                 FROM app_user u, app_role r
-                WHERE u.username = 'admin' AND r.code = 'ADMIN'
-                """);
+                WHERE u.username = ? AND r.code = 'ADMIN'
+                """, adminUsername);
         jdbcTemplate.update("""
                 INSERT IGNORE INTO app_role_permission (role_id, permission_id)
                 SELECT r.id, p.id
