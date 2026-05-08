@@ -2,6 +2,7 @@ package com.dxsoft.rsgzgl.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -10,6 +11,12 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 class SecurityConfig {
+
+    private final SecurityAuditService auditService;
+
+    SecurityConfig(SecurityAuditService auditService) {
+        this.auditService = auditService;
+    }
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -32,6 +39,7 @@ class SecurityConfig {
                         .permitAll())
                 .logout(logout -> logout
                         .logoutUrl("/logout")
+                        .addLogoutHandler((request, response, authentication) -> recordLogout(authentication))
                         .logoutSuccessUrl("/login.html?logout")
                         .permitAll());
         return http.build();
@@ -40,5 +48,17 @@ class SecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    private void recordLogout(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            return;
+        }
+        auditService.recordAs(
+                authentication.getName(),
+                "LOGOUT",
+                "USER",
+                authentication.getName(),
+                "用户退出登录");
     }
 }

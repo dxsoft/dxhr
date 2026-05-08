@@ -16,11 +16,15 @@ class SecurityAuditService {
     }
 
     void record(String action, String targetType, Object targetId, String summary) {
+        recordAs(accessControlService.currentUser().getUsername(), action, targetType, targetId, summary);
+    }
+
+    void recordAs(String actorUsername, String action, String targetType, Object targetId, String summary) {
         jdbcTemplate.update("""
                 INSERT INTO app_security_audit_log (actor_username, action, target_type, target_id, summary)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                accessControlService.currentUser().getUsername(),
+                actorUsername,
                 action,
                 targetType,
                 String.valueOf(targetId),
