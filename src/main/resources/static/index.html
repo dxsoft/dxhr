@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>人事工资管理系统</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="app-header">
+    <div>
+        <h1>人事工资管理系统</h1>
+        <p>VFP 迁移版 · Spring Boot 只读试算</p>
+    </div>
+    <nav>
+        <a href="#personnel">人员查询</a>
+        <a href="#payroll">工资试算</a>
+        <a href="#audit">批量对账</a>
+    </nav>
+</header>
+
+<main>
+    <section id="personnel" class="panel">
+        <div class="panel-title">
+            <div>
+                <h2>人员查询</h2>
+                <p>按单位编码、姓名、人员编码或身份证号搜索。</p>
+            </div>
+        </div>
+        <form id="personnel-search" class="toolbar">
+            <label>
+                单位编码
+                <input id="organization-code" name="organizationCode" placeholder="例如 001">
+            </label>
+            <label>
+                关键词
+                <input id="keyword" name="keyword" placeholder="姓名 / 编码 / 证件号">
+            </label>
+            <label>
+                每页数量
+                <input id="page-size" name="size" type="number" min="1" max="50" value="10">
+            </label>
+            <button type="submit">查询</button>
+        </form>
+        <div id="personnel-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>UID</th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>身份证</th>
+                    <th>岗位</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="personnel-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="payroll" class="panel">
+        <div class="panel-title">
+            <div>
+                <h2>工资试算</h2>
+                <p>展示已迁移工资项、手工/排除字段、PGBC 特殊保留项和合计差额。</p>
+            </div>
+            <div class="selected-person" id="selected-person">未选择人员</div>
+        </div>
+        <div id="preview-status" class="status"></div>
+        <div id="preview-empty" class="empty-state">请先在“人员查询”中选择一名人员。</div>
+        <div id="preview-content" class="hidden">
+            <div class="summary-grid">
+                <div>
+                    <span>试算年月</span>
+                    <strong id="preview-period">-</strong>
+                </div>
+                <div>
+                    <span>试算合计</span>
+                    <strong id="preview-total">-</strong>
+                </div>
+                <div>
+                    <span>旧系统合计</span>
+                    <strong id="stored-total">-</strong>
+                </div>
+                <div>
+                    <span>差额</span>
+                    <strong id="total-difference">-</strong>
+                </div>
+            </div>
+
+            <h3>已迁移工资项</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>字段</th>
+                        <th>名称</th>
+                        <th>金额</th>
+                        <th>来源</th>
+                    </tr>
+                    </thead>
+                    <tbody id="component-rows"></tbody>
+                </table>
+            </div>
+
+            <h3>手工/暂不迁移字段</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>字段</th>
+                        <th>名称</th>
+                        <th>旧值</th>
+                        <th>说明</th>
+                    </tr>
+                    </thead>
+                    <tbody id="excluded-rows"></tbody>
+                </table>
+            </div>
+
+            <h3>PGBC 特殊保留项</h3>
+            <div id="pgbc-card" class="note-card"></div>
+        </div>
+    </section>
+
+    <section id="audit" class="panel">
+        <div class="panel-title">
+            <div>
+                <h2>批量对账</h2>
+                <p>按分页抽样执行只读工资试算，统计差异人员。</p>
+            </div>
+        </div>
+        <form id="audit-form" class="toolbar">
+            <label>
+                单位编码
+                <input id="audit-organization-code" name="organizationCode" placeholder="可选">
+            </label>
+            <label>
+                页码
+                <input id="audit-page" name="page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="audit-size" name="size" type="number" min="1" max="20" value="5">
+            </label>
+            <button type="submit">开始对账</button>
+        </form>
+        <div id="audit-status" class="status"></div>
+        <div class="summary-grid">
+            <div>
+                <span>有历史人员</span>
+                <strong id="audit-total">-</strong>
+            </div>
+            <div>
+                <span>本次比较</span>
+                <strong id="audit-compared">-</strong>
+            </div>
+            <div>
+                <span>差异人数</span>
+                <strong id="audit-difference-count">-</strong>
+            </div>
+            <div>
+                <span>最大差额</span>
+                <strong id="audit-max-difference">-</strong>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>UID</th>
+                    <th>姓名</th>
+                    <th>年月</th>
+                    <th>旧合计</th>
+                    <th>试算合计</th>
+                    <th>差额</th>
+                    <th>差异字段</th>
+                </tr>
+                </thead>
+                <tbody id="audit-rows"></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
