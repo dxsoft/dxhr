@@ -121,6 +121,10 @@ class SecuritySchemaInitializer {
         upsertPermission("PAYROLL_READ", "工资试算查询", "PAYROLL");
         upsertPermission("AUDIT_READ", "工资批量对账", "PAYROLL");
         upsertPermission("SECURITY_ADMIN", "权限管理", "SYSTEM");
+        upsertPermission("DATA_EXCHANGE_READ", "数据交换", "DATA");
+        upsertPermission("REPORT_READ", "报表打印与查询统计", "REPORT");
+        upsertPermission("SYSTEM_CONFIG", "系统初始化与基础设置", "SYSTEM");
+        upsertPermission("HELP_READ", "系统帮助", "SYSTEM");
     }
 
     private void seedMenus() {
@@ -128,6 +132,14 @@ class SecuritySchemaInitializer {
         upsertMenu("PAYROLL", "工资试算", "#payroll", "PAYROLL_READ", 20);
         upsertMenu("AUDIT", "批量对账", "#audit", "AUDIT_READ", 30);
         upsertMenu("SECURITY", "权限管理", "#security", "SECURITY_ADMIN", 90);
+        upsertMenu("LEGACY_INFO_MAINTENANCE", "VFP-信息维护（待迁移）", "#legacy-info", "PERSONNEL_READ", 110, false);
+        upsertMenu("LEGACY_PAYROLL_CHANGE", "VFP-工资变动（待迁移）", "#legacy-payroll-change", "PAYROLL_READ", 120, false);
+        upsertMenu("LEGACY_DATA_EXCHANGE", "VFP-数据交换（待迁移）", "#legacy-data-exchange", "DATA_EXCHANGE_READ", 130, false);
+        upsertMenu("LEGACY_REPORT_PRINT", "VFP-报表打印（待迁移）", "#legacy-report-print", "REPORT_READ", 140, false);
+        upsertMenu("LEGACY_QUERY_STATISTICS", "VFP-查询统计（待迁移）", "#legacy-query-statistics", "REPORT_READ", 150, false);
+        upsertMenu("LEGACY_INITIAL_SETTINGS", "VFP-初始设置（待迁移）", "#legacy-initial-settings", "SYSTEM_CONFIG", 160, false);
+        upsertMenu("LEGACY_SYSTEM_MAINTENANCE", "VFP-系统维护（待迁移）", "#legacy-system-maintenance", "SECURITY_ADMIN", 170, false);
+        upsertMenu("LEGACY_HELP", "VFP-系统帮助（待迁移）", "#legacy-help", "HELP_READ", 180, false);
     }
 
     private void seedAdmin() {
@@ -172,10 +184,14 @@ class SecuritySchemaInitializer {
     }
 
     private void upsertMenu(String code, String title, String path, String permissionCode, int sortOrder) {
+        upsertMenu(code, title, path, permissionCode, sortOrder, true);
+    }
+
+    private void upsertMenu(String code, String title, String path, String permissionCode, int sortOrder, boolean enabled) {
         jdbcTemplate.update("""
                 INSERT INTO app_menu (code, title, path, permission_code, sort_order, enabled)
-                SELECT ?, ?, ?, ?, ?, 1
+                SELECT ?, ?, ?, ?, ?, ?
                 WHERE NOT EXISTS (SELECT 1 FROM app_menu WHERE code = ?)
-                """, code, title, path, permissionCode, sortOrder, code);
+                """, code, title, path, permissionCode, sortOrder, enabled ? 1 : 0, code);
     }
 }
