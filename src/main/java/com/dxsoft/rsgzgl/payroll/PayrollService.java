@@ -354,15 +354,26 @@ public class PayrollService {
                 selectedBonusBalance(history),
                 history.postAllowanceStandardYearMonth(),
                 history.postAllowanceCategory(),
-                payrollRepository.postAllowance(
-                        history.postAllowanceStandardYearMonth(),
-                        history.postAllowanceCategory()),
+                selectedPostAllowance(history),
                 retainedSpecialPostAllowance(history),
                 history.storedRankAllowance(),
                 history.storedFloatingSalary(),
                 history.storedBonusBalance(),
                 history.storedPostAllowance(),
                 history.storedRetainedSpecialPostAllowance());
+    }
+
+    private Integer selectedPostAllowance(PayrollHistorySnapshot history) {
+        boolean missingStandard = history.postAllowanceStandardYearMonth() == null
+                || history.postAllowanceStandardYearMonth().isBlank()
+                || history.postAllowanceCategory() == null
+                || history.postAllowanceCategory().isBlank();
+        if (missingStandard && history.storedPostAllowance() != null && history.storedPostAllowance() > 0) {
+            return history.storedPostAllowance();
+        }
+        return payrollRepository.postAllowance(
+                history.postAllowanceStandardYearMonth(),
+                history.postAllowanceCategory());
     }
 
     private Integer retainedSpecialPostAllowance(PayrollHistorySnapshot history) {
