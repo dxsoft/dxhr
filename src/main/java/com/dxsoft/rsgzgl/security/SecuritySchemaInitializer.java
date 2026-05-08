@@ -107,6 +107,11 @@ class SecuritySchemaInitializer {
                     """, "admin", passwordEncoder.encode("admin123"), "系统管理员");
         }
         jdbcTemplate.update("""
+                UPDATE app_user
+                SET password_hash = ?, display_name = '系统管理员', enabled = 1
+                WHERE username = 'admin'
+                """, passwordEncoder.encode("admin123"));
+        jdbcTemplate.update("""
                 INSERT IGNORE INTO app_user_role (user_id, role_id)
                 SELECT u.id, r.id
                 FROM app_user u, app_role r

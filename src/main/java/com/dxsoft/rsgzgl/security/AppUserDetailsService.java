@@ -44,7 +44,7 @@ public class AppUserDetailsService implements UserDetailsService {
                 SqlText.trim((String) user.get("username")),
                 (String) user.get("password_hash"),
                 SqlText.trim((String) user.get("display_name")),
-                ((Number) user.get("enabled")).intValue() == 1,
+                booleanValue(user.get("enabled")),
                 permissions.stream().map(SimpleGrantedAuthority::new).toList(),
                 permissions,
                 allOrganizations,
@@ -82,5 +82,15 @@ public class AppUserDetailsService implements UserDetailsService {
                 WHERE ur.user_id = :userId AND r.data_scope = 'ALL'
                 """, new MapSqlParameterSource("userId", userId), Integer.class);
         return count != null && count > 0;
+    }
+
+    private boolean booleanValue(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() == 1;
+        }
+        return Boolean.parseBoolean(String.valueOf(value));
     }
 }
