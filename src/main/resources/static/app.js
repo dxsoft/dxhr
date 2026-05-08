@@ -22,8 +22,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("change-password-form").addEventListener("submit", onChangePassword);
     ["security-user-filter", "security-role-filter", "security-organization-filter", "security-audit-filter"].forEach(id => {
-        document.getElementById(id).addEventListener("input", renderSecurityAdmin);
+        document.getElementById(id).addEventListener("input", debounceSecurityReload);
     });
+    ["security-user-page", "security-role-page", "security-audit-page", "security-page-size"].forEach(id => {
+        document.getElementById(id).addEventListener("change", loadSecurityAdmin);
+    });
+    document.getElementById("security-refresh-button").addEventListener("click", loadSecurityAdmin);
     document.getElementById("change-password-button").addEventListener("click", () => {
         document.getElementById("password-panel").classList.toggle("hidden");
     });
@@ -245,14 +249,39 @@ async function loadSecurityAdmin() {
     status.className = "status";
     status.textContent = "正在加载权限配置...";
     try {
+        const pageSize = document.getElementById("security-page-size").value || "20";
+        const userParams = new URLSearchParams({
+            keyword: document.getElementById("security-user-filter").value.trim(),
+            page: document.getElementById("security-user-page").value || "0",
+            size: pageSize,
+        });
+        const roleParams = new URLSearchParams({
+            keyword: document.getElementById("security-role-filter").value.trim(),
+            page: document.getElementById("security-role-page").value || "0",
+            size: pageSize,
+        });
+        const auditParams = new URLSearchParams({
+            keyword: document.getElementById("security-audit-filter").value.trim(),
+            page: document.getElementById("security-audit-page").value || "0",
+            size: pageSize,
+        });
         const [users, roles, permissions, organizations, auditLogs] = await Promise.all([
-            getJson("/api/security/users"),
-            getJson("/api/security/roles"),
+            getJson(`/api/security/users-page?${userParams}`),
+            getJson(`/api/security/roles-page?${roleParams}`),
             getJson("/api/security/permissions"),
             getJson("/api/organizations?size=200"),
-            getJson("/api/security/audit-logs?limit=20"),
+            getJson(`/api/security/audit-logs-page?${auditParams}`),
         ]);
-        state.security = { users, roles, permissions, organizations: organizations.content || [], auditLogs };
+        state.security = {
+            users: users.content || [],
+            userPage: users,
+            roles: roles.content || [],
+            rolePage: roles,
+            permissions,
+            organizations: organizations.content || [],
+            auditLogs: auditLogs.content || [],
+            auditPage: auditLogs,
+        };
         renderSecurityAdmin();
         status.textContent = "权限配置已加载";
     } catch (error) {
@@ -263,13 +292,11 @@ async function loadSecurityAdmin() {
 function renderSecurityAdmin() {
     const userFilter = normalizedFilter("security-user-filter");
     const roleFilter = normalizedFilter("security-role-filter");
-    const auditFilter = normalizedFilter("security-audit-filter");
     const users = state.security.users.filter(user =>
         matchesFilter(userFilter, user.username, user.displayName, (user.roleCodes || []).join(",")));
     const roles = state.security.roles.filter(role =>
         matchesFilter(roleFilter, role.code, role.name, role.dataScope));
-    const auditLogs = (state.security.auditLogs || []).filter(log =>
-        matchesFilter(auditFilter, log.actorUsername, log.action, log.targetType, log.targetId, log.summary));
+    const auditLogs = state.security.auditLogs || [];
 
     document.getElementById("security-user-rows").innerHTML = users.map(user => `
         <tr>
@@ -284,6 +311,7 @@ function renderSecurityAdmin() {
             </td>
         </tr>
     `).join("");
+    renderPageInfo("security-user-page-info", state.security.userPage);
 
     document.getElementById("security-role-rows").innerHTML = roles.map(role => `
         <tr>
@@ -299,6 +327,7 @@ function renderSecurityAdmin() {
             </td>
         </tr>
     `).join("");
+    renderPageInfo("security-role-page-info", state.security.rolePage);
 
     document.getElementById("permission-list").innerHTML = state.security.permissions.map(permission => `
         <span><strong>${escapeHtml(permission.code)}</strong>${escapeHtml(permission.name)}</span>
@@ -314,6 +343,7 @@ function renderSecurityAdmin() {
             <td>${escapeHtml(log.createdAt)}</td>
         </tr>
     `).join("");
+    renderPageInfo("security-audit-page-info", state.security.auditPage);
 
     document.querySelectorAll("[data-user-save]").forEach(button => {
         button.addEventListener("click", async () => {
@@ -342,6 +372,27 @@ function renderSecurityAdmin() {
             await loadSecurityAdmin();
         });
     });
+}
+
+let securityReloadTimer = null;
+
+function debounceSecurityReload() {
+    clearTimeout(securityReloadTimer);
+    securityReloadTimer = setTimeout(() => {
+        document.getElementById("security-user-page").value = "0";
+        document.getElementById("security-role-page").value = "0";
+        document.getElementById("security-audit-page").value = "0";
+        loadSecurityAdmin();
+    }, 350);
+}
+
+function renderPageInfo(elementId, page) {
+    const element = document.getElementById(elementId);
+    if (!page) {
+        element.textContent = "";
+        return;
+    }
+    element.textContent = `第 ${page.page + 1} / ${Math.max(page.totalPages, 1)} 页，共 ${page.totalElements} 条`;
 }
 
 function renderPermissionChoices(role) {

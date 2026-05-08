@@ -1,5 +1,7 @@
 package com.dxsoft.rsgzgl.security;
 
+import com.dxsoft.rsgzgl.common.PageRequest;
+import com.dxsoft.rsgzgl.common.PageResponse;
 import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,8 +26,22 @@ class SecurityAdminService {
         return repository.users();
     }
 
+    PageResponse<UserAdminView> users(String keyword, PageRequest pageRequest) {
+        return PageResponse.of(
+                repository.users(keyword, pageRequest),
+                pageRequest,
+                repository.countUsers(keyword));
+    }
+
     List<RoleAdminView> roles() {
         return repository.roles();
+    }
+
+    PageResponse<RoleAdminView> roles(String keyword, PageRequest pageRequest) {
+        return PageResponse.of(
+                repository.roles(keyword, pageRequest),
+                pageRequest,
+                repository.countRoles(keyword));
     }
 
     List<PermissionView> permissions() {
@@ -81,6 +97,10 @@ class SecurityAdminService {
 
     List<SecurityAuditLog> auditLogs(Integer limit) {
         return auditService.recent(limit == null ? 50 : limit);
+    }
+
+    PageResponse<SecurityAuditLog> auditLogs(String keyword, PageRequest pageRequest) {
+        return auditService.search(keyword, pageRequest);
     }
 
     private String normalize(String value) {

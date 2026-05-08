@@ -1,5 +1,7 @@
 package com.dxsoft.rsgzgl.security;
 
+import com.dxsoft.rsgzgl.common.PageRequest;
+import com.dxsoft.rsgzgl.common.PageResponse;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +25,14 @@ class SecurityAdminController {
     @GetMapping("/users")
     List<SecurityAdminService.UserAdminView> users() {
         return service.users();
+    }
+
+    @GetMapping("/users-page")
+    PageResponse<SecurityAdminService.UserAdminView> usersPage(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return service.users(keyword, PageRequest.of(page, size));
     }
 
     @PostMapping("/users")
@@ -50,6 +60,14 @@ class SecurityAdminController {
         return service.roles();
     }
 
+    @GetMapping("/roles-page")
+    PageResponse<SecurityAdminService.RoleAdminView> rolesPage(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return service.roles(keyword, PageRequest.of(page, size));
+    }
+
     @PostMapping("/roles")
     SecurityAdminService.RoleAdminView createRole(@RequestBody SecurityAdminService.CreateRoleRequest request) {
         return service.createRole(request);
@@ -73,5 +91,13 @@ class SecurityAdminController {
     @GetMapping("/audit-logs")
     List<SecurityAuditLog> auditLogs(@RequestParam(required = false) Integer limit) {
         return service.auditLogs(limit);
+    }
+
+    @GetMapping("/audit-logs-page")
+    PageResponse<SecurityAuditLog> auditLogsPage(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return service.auditLogs(keyword, PageRequest.of(page, size));
     }
 }

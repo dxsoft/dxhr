@@ -230,8 +230,16 @@
                 <input id="security-user-filter" placeholder="用户名 / 显示名">
             </label>
             <label>
+                用户页码
+                <input id="security-user-page" type="number" min="0" value="0">
+            </label>
+            <label>
                 搜索角色
                 <input id="security-role-filter" placeholder="角色编码 / 名称">
+            </label>
+            <label>
+                角色页码
+                <input id="security-role-page" type="number" min="0" value="0">
             </label>
             <label>
                 搜索单位范围
@@ -241,6 +249,15 @@
                 搜索审计日志
                 <input id="security-audit-filter" placeholder="操作者 / 动作 / 摘要">
             </label>
+            <label>
+                审计页码
+                <input id="security-audit-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="security-page-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button id="security-refresh-button" type="button">刷新权限数据</button>
         </div>
 
         <h3>创建用户</h3>
@@ -274,6 +291,7 @@
                 <tbody id="security-user-rows"></tbody>
             </table>
         </div>
+        <div id="security-user-page-info" class="status"></div>
 
         <h3>创建角色</h3>
         <form id="create-role-form" class="toolbar">
@@ -310,6 +328,7 @@
                 <tbody id="security-role-rows"></tbody>
             </table>
         </div>
+        <div id="security-role-page-info" class="status"></div>
 
         <h3>可用功能权限</h3>
         <div id="permission-list" class="permission-list"></div>
@@ -330,6 +349,7 @@
                 <tbody id="security-audit-rows"></tbody>
             </table>
         </div>
+        <div id="security-audit-page-info" class="status"></div>
     </section>
 </main>
 

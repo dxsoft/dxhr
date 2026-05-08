@@ -1,16 +1,21 @@
 package com.dxsoft.rsgzgl.security;
 
+import com.dxsoft.rsgzgl.common.PageRequest;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
 class SecurityAdminRepository {
 
     private final JdbcTemplate jdbcTemplate;
+    private final NamedParameterJdbcTemplate namedJdbcTemplate;
 
-    SecurityAdminRepository(JdbcTemplate jdbcTemplate) {
+    SecurityAdminRepository(JdbcTemplate jdbcTemplate, NamedParameterJdbcTemplate namedJdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+        this.namedJdbcTemplate = namedJdbcTemplate;
     }
 
     List<SecurityAdminService.UserAdminView> users() {
@@ -26,6 +31,31 @@ class SecurityAdminRepository {
                 rolesForUser(rs.getLong("id"))));
     }
 
+    List<SecurityAdminService.UserAdminView> users(String keyword, PageRequest pageRequest) {
+        MapSqlParameterSource parameters = pagingParameters(keyword, pageRequest);
+        return namedJdbcTemplate.query("""
+                SELECT id, username, display_name, enabled
+                FROM app_user
+                WHERE (:keyword IS NULL OR username LIKE :keywordLike OR display_name LIKE :keywordLike)
+                ORDER BY username
+                LIMIT :limit OFFSET :offset
+                """, parameters, (rs, rowNum) -> new SecurityAdminService.UserAdminView(
+                rs.getLong("id"),
+                rs.getString("username"),
+                rs.getString("display_name"),
+                rs.getBoolean("enabled"),
+                rolesForUser(rs.getLong("id"))));
+    }
+
+    long countUsers(String keyword) {
+        Long count = namedJdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM app_user
+                WHERE (:keyword IS NULL OR username LIKE :keywordLike OR display_name LIKE :keywordLike)
+                """, keywordParameters(keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
     List<SecurityAdminService.RoleAdminView> roles() {
         return jdbcTemplate.query("""
                 SELECT id, code, name, data_scope
@@ -38,6 +68,32 @@ class SecurityAdminRepository {
                 rs.getString("data_scope"),
                 permissionsForRole(rs.getLong("id")),
                 organizationCodesForRole(rs.getLong("id"))));
+    }
+
+    List<SecurityAdminService.RoleAdminView> roles(String keyword, PageRequest pageRequest) {
+        MapSqlParameterSource parameters = pagingParameters(keyword, pageRequest);
+        return namedJdbcTemplate.query("""
+                SELECT id, code, name, data_scope
+                FROM app_role
+                WHERE (:keyword IS NULL OR code LIKE :keywordLike OR name LIKE :keywordLike OR data_scope LIKE :keywordLike)
+                ORDER BY code
+                LIMIT :limit OFFSET :offset
+                """, parameters, (rs, rowNum) -> new SecurityAdminService.RoleAdminView(
+                rs.getLong("id"),
+                rs.getString("code"),
+                rs.getString("name"),
+                rs.getString("data_scope"),
+                permissionsForRole(rs.getLong("id")),
+                organizationCodesForRole(rs.getLong("id"))));
+    }
+
+    long countRoles(String keyword) {
+        Long count = namedJdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM app_role
+                WHERE (:keyword IS NULL OR code LIKE :keywordLike OR name LIKE :keywordLike OR data_scope LIKE :keywordLike)
+                """, keywordParameters(keyword), Long.class);
+        return count == null ? 0 : count;
     }
 
     List<SecurityAdminService.PermissionView> permissions() {
@@ -129,5 +185,18 @@ class SecurityAdminRepository {
                 WHERE role_id = ?
                 ORDER BY organization_code
                 """, String.class, roleId);
+    }
+
+    private MapSqlParameterSource pagingParameters(String keyword, PageRequest pageRequest) {
+        return keywordParameters(keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+    }
+
+    private MapSqlParameterSource keywordParameters(String keyword) {
+        String trimmedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        return new MapSqlParameterSource()
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%");
     }
 }
