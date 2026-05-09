@@ -59,6 +59,14 @@ class PayrollRepository {
             rs.getInt("bz"),
             rs.getInt("jxlb"));
 
+    private static final RowMapper<RankAllowanceStandard> RANK_ALLOWANCE_STANDARD_MAPPER = (rs, rowNum) -> new RankAllowanceStandard(
+            rs.getInt("id"),
+            SqlText.trim(rs.getString("tbnd")),
+            SqlText.trim(rs.getString("jxbm")),
+            SqlText.trim(rs.getString("jx")),
+            rs.getInt("jtbz"),
+            SqlText.trim(rs.getString("lb")));
+
     private static final RowMapper<PayrollHistorySnapshot> HISTORY_MAPPER = (rs, rowNum) -> new PayrollHistorySnapshot(
             SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("dwbm")),
@@ -189,6 +197,46 @@ class PayrollRepository {
                 WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
                   AND (:item IS NULL OR item = :item)
                   AND (:positionCode IS NULL OR zwbm = :positionCode)
+                """, parameters, Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<RankAllowanceStandard> findRankAllowanceStandards(
+            String standardYearMonth,
+            String rankName,
+            String category,
+            PageRequest pageRequest) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("rankName", emptyToNull(rankName))
+                .addValue("rankNameLike", emptyToNull(rankName) == null ? null : "%" + rankName.trim() + "%")
+                .addValue("category", emptyToNull(category))
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT id, tbnd, jxbm, jx, jtbz, lb
+                FROM jxjtbz
+                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
+                  AND (:rankName IS NULL OR jx LIKE :rankNameLike OR jxbm = :rankName)
+                  AND (:category IS NULL OR lb = :category)
+                ORDER BY tbnd DESC, lb, jxbm, jx
+                LIMIT :limit OFFSET :offset
+                """, parameters, RANK_ALLOWANCE_STANDARD_MAPPER);
+    }
+
+    long countRankAllowanceStandards(String standardYearMonth, String rankName, String category) {
+        String trimmedRank = emptyToNull(rankName);
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("rankName", trimmedRank)
+                .addValue("rankNameLike", trimmedRank == null ? null : "%" + trimmedRank + "%")
+                .addValue("category", emptyToNull(category));
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM jxjtbz
+                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
+                  AND (:rankName IS NULL OR jx LIKE :rankNameLike OR jxbm = :rankName)
+                  AND (:category IS NULL OR lb = :category)
                 """, parameters, Long.class);
         return count == null ? 0 : count;
     }

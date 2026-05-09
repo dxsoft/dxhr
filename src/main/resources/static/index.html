@@ -306,6 +306,54 @@
         </div>
     </section>
 
+    <section id="rank-allowance-standards" class="panel hidden" data-menu-code="RANK_ALLOWANCE_STANDARDS">
+        <div class="panel-title">
+            <div>
+                <h2>警衔津贴标准</h2>
+                <p>查询 `jxjtbz` 中的警衔、检察、审判、监察等津贴标准。</p>
+            </div>
+        </div>
+        <form id="rank-allowance-standards-form" class="toolbar">
+            <label>
+                标准年月
+                <input id="rank-standard-year-month" placeholder="例如 202407">
+            </label>
+            <label>
+                警衔/编码
+                <input id="rank-standard-name" placeholder="名称或编码">
+            </label>
+            <label>
+                类别
+                <input id="rank-standard-category" placeholder="例如 jx / jc / sp">
+            </label>
+            <label>
+                页码
+                <input id="rank-standard-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="rank-standard-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询标准</button>
+        </form>
+        <div id="rank-standards-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>标准年月</th>
+                    <th>编码</th>
+                    <th>名称</th>
+                    <th>金额</th>
+                    <th>类别</th>
+                </tr>
+                </thead>
+                <tbody id="rank-standards-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="security" class="panel hidden" data-menu-code="SECURITY">
         <div class="panel-title">
             <div>

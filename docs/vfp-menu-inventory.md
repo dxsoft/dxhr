@@ -22,6 +22,7 @@
 | `AUDIT` | 批量对账 | `#audit` | `AUDIT_READ` | 当前 Spring Boot 已实现 |
 | `BASIC_STANDARDS` | 基本工资标准 | `#basic-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `ALLOWANCE_STANDARDS` | 津贴补贴标准 | `#allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
+| `RANK_ALLOWANCE_STANDARDS` | 警衔津贴标准 | `#rank-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `SECURITY` | 权限管理 | `#security` | `SECURITY_ADMIN` | 当前 Spring Boot 已实现 |
 
 ## VFP 顶级菜单种子

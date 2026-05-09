@@ -64,6 +64,17 @@ public class PayrollService {
                 payrollRepository.countBasicStandards(standardType, standardYearMonth, code));
     }
 
+    public PageResponse<RankAllowanceStandard> rankAllowanceStandards(
+            String standardYearMonth,
+            String rankName,
+            String category,
+            PageRequest pageRequest) {
+        return PageResponse.of(
+                payrollRepository.findRankAllowanceStandards(standardYearMonth, rankName, category, pageRequest),
+                pageRequest,
+                payrollRepository.countRankAllowanceStandards(standardYearMonth, rankName, category));
+    }
+
     public PayrollCalculationContext calculationContext(int uid) {
         PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
