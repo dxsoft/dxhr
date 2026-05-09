@@ -22,6 +22,7 @@ public record LevelPromotionPreview(
         Integer qualifiedYearsForStep,
         Boolean levelPromotionDue,
         Boolean stepPromotionDue,
+        Boolean gradeIncreaseExceedsStepDifference,
         Integer currentGradeSalary,
         Integer promotedGradeSalary,
         Integer increaseAmount,

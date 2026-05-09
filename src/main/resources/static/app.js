@@ -1040,6 +1040,7 @@ async function loadLevelPromotions() {
                 <td>${escapeHtml(row.qualifiedYearsForStep)}</td>
                 <td>${row.levelPromotionDue ? "是" : "否"}</td>
                 <td>${row.stepPromotionDue ? "是" : "否"}</td>
+                <td>${row.gradeIncreaseExceedsStepDifference ? "是" : "否"}</td>
                 <td>${money(row.currentGradeSalary)}</td>
                 <td>${money(row.promotedGradeSalary)}</td>
                 <td>${money(row.increaseAmount)}</td>
@@ -1099,6 +1100,8 @@ async function loadPositionChangePromotions() {
                 <td>${money(row.gradeSalaryIncrease)}</td>
                 <td>${money(row.totalIncrease)}</td>
                 <td>${escapeHtml(row.nextLevelAssessmentStartYear || "")}</td>
+                <td>${escapeHtml(row.nextStepAssessmentStartYear || "")}</td>
+                <td>${row.gradeIncreaseExceedsStepDifference ? "是" : "否"}</td>
                 <td>${row.eligible ? "是" : "否"}</td>
                 <td>${escapeHtml(row.note || "")}</td>
             </tr>

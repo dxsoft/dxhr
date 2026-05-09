@@ -26,6 +26,8 @@ public record PositionChangePromotionPreview(
         Integer gradeSalaryIncrease,
         Integer totalIncrease,
         String nextLevelAssessmentStartYear,
+        String nextStepAssessmentStartYear,
+        Boolean gradeIncreaseExceedsStepDifference,
         Boolean eligible,
         String note
 ) {

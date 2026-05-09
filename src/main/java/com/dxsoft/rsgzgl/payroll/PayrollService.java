@@ -794,8 +794,16 @@ public class PayrollService {
             promotedStep = String.valueOf(payrollRepository.intValue(promotedStep) + 1);
             promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
         }
+        boolean gradeIncreaseExceedsStepDifference = eligible && levelPromotionDue
+                && gradeIncreaseExceedsStepDifference(
+                history.gradeSalaryLevel(),
+                currentStep,
+                promotedLevel,
+                history.salaryStandardYearMonth());
         String nextLevelAssessmentStartYear = levelPromotionDue ? history.calculationYear() : String.valueOf(levelStartYear);
-        String nextStepAssessmentStartYear = stepPromotionDue ? history.calculationYear() : String.valueOf(stepStartYear);
+        String nextStepAssessmentStartYear = stepPromotionDue || gradeIncreaseExceedsStepDifference
+                ? history.calculationYear()
+                : String.valueOf(stepStartYear);
         return new LevelPromotionPreview(
                 history.id(),
                 history.organizationCode(),
@@ -818,11 +826,12 @@ public class PayrollService {
                 qualifiedYearsForStep,
                 levelPromotionDue,
                 stepPromotionDue,
+                gradeIncreaseExceedsStepDifference,
                 currentGradeSalary,
                 promotedGradeSalary,
                 nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
                 eligible,
-                levelPromotionNote(eligible, levelPromotionDue, stepPromotionDue));
+                levelPromotionNote(eligible, levelPromotionDue, stepPromotionDue, gradeIncreaseExceedsStepDifference));
     }
 
     private PositionChangePromotionPreview positionChangePromotionPreview(int uid) {
@@ -859,6 +868,15 @@ public class PayrollService {
         }
         int promotedLevels = Math.max(0, currentLevel - payrollRepository.intValue(promotedLevel));
         String nextLevelAssessmentStartYear = promotedLevels >= 2 ? history.calculationYear() : history.levelAssessmentStartYear();
+        boolean gradeIncreaseExceedsStepDifference = eligible && promotedLevels > 0
+                && gradeIncreaseExceedsStepDifference(
+                history.gradeSalaryLevel(),
+                currentStep,
+                promotedLevel,
+                history.salaryStandardYearMonth());
+        String nextStepAssessmentStartYear = gradeIncreaseExceedsStepDifference
+                ? history.calculationYear()
+                : history.stepAssessmentStartYear();
         return new PositionChangePromotionPreview(
                 history.id(),
                 history.organizationCode(),
@@ -886,8 +904,45 @@ public class PayrollService {
                 nullToZero(newPositionSalary) - nullToZero(currentPositionSalary)
                         + nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
                 nextLevelAssessmentStartYear,
+                nextStepAssessmentStartYear,
+                gradeIncreaseExceedsStepDifference,
                 eligible,
-                positionChangePromotionNote(history, candidate, levelRange, eligible, promotedLevels));
+                positionChangePromotionNote(history, candidate, levelRange, eligible, promotedLevels, gradeIncreaseExceedsStepDifference));
+    }
+
+    private boolean gradeIncreaseExceedsStepDifference(
+            String currentLevel,
+            String currentStep,
+            String promotedLevel,
+            String standardYearMonth) {
+        int sourceLevel = payrollRepository.intValue(currentLevel);
+        int targetLevel = payrollRepository.intValue(promotedLevel);
+        int sourceStep = payrollRepository.intValue(currentStep);
+        int previousSalary = payrollRepository.gradeSalary(String.valueOf(sourceLevel), String.valueOf(sourceStep), standardYearMonth);
+        for (int level = sourceLevel - 1; level >= targetLevel; level--) {
+            String nextLevel = String.valueOf(level);
+            String nextStep = firstHigherGradeStep(nextLevel, previousSalary, standardYearMonth);
+            int nextSalary = payrollRepository.gradeSalary(nextLevel, nextStep, standardYearMonth);
+            int increase = nextSalary - previousSalary;
+            int oneStepDifference = gradeStepDifference(nextLevel, nextStep, standardYearMonth);
+            if (increase > oneStepDifference) {
+                return true;
+            }
+            previousSalary = nextSalary;
+        }
+        return false;
+    }
+
+    private int gradeStepDifference(String level, String step, String standardYearMonth) {
+        int stepValue = payrollRepository.intValue(step);
+        if (stepValue > 1) {
+            int current = payrollRepository.gradeSalary(level, String.valueOf(stepValue), standardYearMonth);
+            int previous = payrollRepository.gradeSalary(level, String.valueOf(stepValue - 1), standardYearMonth);
+            return Math.max(0, current - previous);
+        }
+        int current = payrollRepository.gradeSalary(level, "1", standardYearMonth);
+        int next = payrollRepository.gradeSalary(level, "2", standardYearMonth);
+        return Math.max(0, next - current);
     }
 
     private boolean isCivilServantForPositionChange(String positionCode) {
@@ -916,7 +971,8 @@ public class PayrollService {
             PositionChangeCandidate candidate,
             PositionLevelRange levelRange,
             boolean eligible,
-            int promotedLevels) {
+            int promotedLevels,
+            boolean gradeIncreaseExceedsStepDifference) {
         if (!eligible) {
             return "仅公务员/参公岗位且存在新任职务级别范围时参与职务变化晋升试算。";
         }
@@ -924,10 +980,14 @@ public class PayrollService {
             return "未发现不同于当前工资记录的新任职务，按当前任职务预览。";
         }
         if (promotedLevels >= 2) {
-            return "晋升职务相应晋升级别达到两级及以上，xckhndjb 应从职务变动级别当年重新计算。";
+            return gradeIncreaseExceedsStepDifference
+                    ? "晋升职务相应晋升级别达到两级及以上，xckhndjb 应从职务变动级别当年重新计算；逐级计算增资额超过下一级别一个档差，xckhndzw 也应从本次晋升年度重新计算。"
+                    : "晋升职务相应晋升级别达到两级及以上，xckhndjb 应从职务变动级别当年重新计算；逐级计算增资额未超过下一级别一个档差，xckhndzw 沿用原起算年。";
         }
         if (promotedLevels == 1) {
-            return "晋升职务相应晋升一个级别，xckhndjb 继续从上一次按考核结果晋升级别当年计算。";
+            return gradeIncreaseExceedsStepDifference
+                    ? "晋升职务相应晋升一个级别，xckhndjb 继续从上一次按考核结果晋升级别当年计算；增资额超过下一级别一个档差，xckhndzw 应从本次晋升年度重新计算。"
+                    : "晋升职务相应晋升一个级别，xckhndjb 继续从上一次按考核结果晋升级别当年计算；增资额未超过下一级别一个档差，xckhndzw 沿用原起算年。";
         }
         return "新任职务级别范围未导致级别晋升，仅试算职务工资变化。";
     }
@@ -960,15 +1020,23 @@ public class PayrollService {
                 && LEVEL_PROMOTION_POSITION_PREFIXES.contains(positionCode.substring(0, 2));
     }
 
-    private String levelPromotionNote(boolean eligible, boolean levelPromotionDue, boolean stepPromotionDue) {
+    private String levelPromotionNote(
+            boolean eligible,
+            boolean levelPromotionDue,
+            boolean stepPromotionDue,
+            boolean gradeIncreaseExceedsStepDifference) {
         if (!eligible) {
             return "当前岗位前缀或工资类型暂不参与级别晋升试算。";
         }
         if (levelPromotionDue && stepPromotionDue) {
-            return "同年满足晋升级别和晋升档次条件，已按先晋升级别、再晋升档次试算。";
+            return gradeIncreaseExceedsStepDifference
+                    ? "同年满足晋升级别和晋升档次条件，已按先晋升级别、再晋升档次试算；级别晋升增资额超过下一级别一个档差，xckhndzw 从本次晋升年度重新计算。"
+                    : "同年满足晋升级别和晋升档次条件，已按先晋升级别、再晋升档次试算。";
         }
         if (levelPromotionDue) {
-            return "累计5年考核称职及以上，按次年1月晋升1个级别试算。";
+            return gradeIncreaseExceedsStepDifference
+                    ? "累计5年考核称职及以上，按次年1月晋升1个级别试算；级别晋升增资额超过下一级别一个档差，xckhndzw 从本次晋升年度重新计算。"
+                    : "累计5年考核称职及以上，按次年1月晋升1个级别试算；级别晋升增资额未超过下一级别一个档差，xckhndzw 沿用原起算年。";
         }
         if (stepPromotionDue) {
             return "累计2年考核称职及以上，按晋升1个档次试算。";
