@@ -138,6 +138,49 @@
         </div>
     </section>
 
+    <section id="dictionary-maintenance" class="panel hidden" data-menu-code="DICTIONARY_MAINTENANCE">
+        <div class="panel-title">
+            <div>
+                <h2>设置常用值</h2>
+                <p>只读查询 `dmb` 字典表，支持按编码前缀和关键词筛选。</p>
+            </div>
+        </div>
+        <form id="dictionary-maintenance-form" class="toolbar">
+            <label>
+                编码前缀
+                <input id="dictionary-prefix" placeholder="例如 001 / 026 / 051">
+            </label>
+            <label>
+                关键词
+                <input id="dictionary-keyword" placeholder="编码 / 名称 / 操作编码">
+            </label>
+            <label>
+                页码
+                <input id="dictionary-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="dictionary-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询字典</button>
+        </form>
+        <div id="dictionary-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>编码</th>
+                    <th>名称</th>
+                    <th>操作编码</th>
+                    <th>系统项</th>
+                    <th>使用中</th>
+                </tr>
+                </thead>
+                <tbody id="dictionary-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="payroll" class="panel hidden" data-menu-code="PAYROLL">
         <div class="panel-title">
             <div>

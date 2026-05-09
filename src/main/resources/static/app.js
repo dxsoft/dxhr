@@ -19,6 +19,7 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("organization-maintenance-form").addEventListener("submit", onOrganizationMaintenanceSearch);
+    document.getElementById("dictionary-maintenance-form").addEventListener("submit", onDictionarySearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
@@ -63,6 +64,9 @@ async function initializeAuth() {
         }
         if (hasMenu("ORGANIZATION_MAINTENANCE")) {
             await loadOrganizationMaintenance();
+        }
+        if (hasMenu("DICTIONARY_MAINTENANCE")) {
+            await loadDictionaries();
         }
         if (hasMenu("BASIC_STANDARDS")) {
             await loadBasicStandards();
@@ -174,6 +178,12 @@ async function onOrganizationMaintenanceSearch(event) {
     event.preventDefault();
     document.getElementById("organization-maintenance-page").value = "0";
     await loadOrganizationMaintenance();
+}
+
+async function onDictionarySearch(event) {
+    event.preventDefault();
+    document.getElementById("dictionary-page").value = "0";
+    await loadDictionaries();
 }
 
 async function onAudit(event) {
@@ -302,6 +312,42 @@ async function loadOrganizationMaintenance() {
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 个单位`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadDictionaries() {
+    const prefix = document.getElementById("dictionary-prefix").value.trim();
+    const keyword = document.getElementById("dictionary-keyword").value.trim();
+    const page = document.getElementById("dictionary-page").value || "0";
+    const size = document.getElementById("dictionary-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (prefix) {
+        params.set("prefix", prefix);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("dictionary-status");
+    const rows = document.getElementById("dictionary-rows");
+    status.className = "status";
+    status.textContent = "正在查询字典...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/dictionaries?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.code)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.parentCode)}</td>
+                <td>${escapeHtml(row.systemFlag)}</td>
+                <td>${escapeHtml(row.enabledFlag)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条字典`;
     } catch (error) {
         showError(status, error);
     }
