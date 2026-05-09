@@ -18,7 +18,6 @@
 | 菜单编码 | 标题 | 路径 | 权限码 | 说明 |
 | --- | --- | --- | --- | --- |
 | `PERSONNEL` | 人员查询 | `#personnel` | `PERSONNEL_READ` | 当前 Spring Boot 已实现 |
-| `PERSONNEL_STRUCTURE_SUMMARY` | 人员结构统计 | `#personnel-structure-summary` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读统计 |
 | `ANNUAL_ASSESSMENTS` | 年度考核结果 | `#annual-assessments` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `ASSESSMENT_SUMMARY` | 年度考核统计 | `#assessment-summary` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读统计 |
 | `CHANGED_PERSONNEL` | 变动人员信息 | `#changed-personnel` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询，来源 `dryjbxxb` / `hisbaseb` |

@@ -87,49 +87,6 @@
         </div>
     </section>
 
-    <section id="personnel-structure-summary" class="panel hidden" data-menu-code="PERSONNEL_STRUCTURE_SUMMARY">
-        <div class="panel-title">
-            <div>
-                <h2>人员结构统计</h2>
-                <p>按单位、人员类别、单位属性和岗位分类汇总 `dryjbxx` 人员数量。</p>
-            </div>
-        </div>
-        <form id="personnel-structure-summary-form" class="toolbar">
-            <label>
-                单位编码
-                <input id="personnel-structure-organization-code" placeholder="例如 001">
-            </label>
-            <label>
-                关键词
-                <input id="personnel-structure-keyword" placeholder="单位名称 / 人员类别 / 单位属性 / 岗位分类">
-            </label>
-            <label>
-                页码
-                <input id="personnel-structure-page" type="number" min="0" value="0">
-            </label>
-            <label>
-                每页数量
-                <input id="personnel-structure-size" type="number" min="1" max="100" value="20">
-            </label>
-            <button type="submit">查询统计</button>
-        </form>
-        <div id="personnel-structure-status" class="status"></div>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                <tr>
-                    <th>单位</th>
-                    <th>人员类别</th>
-                    <th>单位属性</th>
-                    <th>岗位分类</th>
-                    <th>人数</th>
-                </tr>
-                </thead>
-                <tbody id="personnel-structure-rows"></tbody>
-            </table>
-        </div>
-    </section>
-
     <section id="annual-assessments" class="panel hidden" data-menu-code="ANNUAL_ASSESSMENTS">
         <div class="panel-title">
             <div>

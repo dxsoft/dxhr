@@ -18,7 +18,6 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
-    document.getElementById("personnel-structure-summary-form").addEventListener("submit", onPersonnelStructureSearch);
     document.getElementById("annual-assessments-form").addEventListener("submit", onAnnualAssessmentsSearch);
     document.getElementById("assessment-summary-form").addEventListener("submit", onAssessmentSummarySearch);
     document.getElementById("changed-personnel-form").addEventListener("submit", onChangedPersonnelSearch);
@@ -69,9 +68,6 @@ async function initializeAuth() {
         }
         if (hasMenu("PERSONNEL")) {
             await loadPersonnel();
-        }
-        if (hasMenu("PERSONNEL_STRUCTURE_SUMMARY")) {
-            await loadPersonnelStructureSummary();
         }
         if (hasMenu("ANNUAL_ASSESSMENTS")) {
             await loadAnnualAssessments();
@@ -204,12 +200,6 @@ async function onChangePassword(event) {
 async function onPersonnelSearch(event) {
     event.preventDefault();
     await loadPersonnel();
-}
-
-async function onPersonnelStructureSearch(event) {
-    event.preventDefault();
-    document.getElementById("personnel-structure-page").value = "0";
-    await loadPersonnelStructureSummary();
 }
 
 async function onAnnualAssessmentsSearch(event) {
@@ -348,42 +338,6 @@ async function loadPersonnel() {
         rows.querySelectorAll("button[data-uid]").forEach(button => {
             button.addEventListener("click", () => loadPreview(button.dataset.uid));
         });
-    } catch (error) {
-        showError(status, error);
-    }
-}
-
-async function loadPersonnelStructureSummary() {
-    const organizationCode = document.getElementById("personnel-structure-organization-code").value.trim();
-    const keyword = document.getElementById("personnel-structure-keyword").value.trim();
-    const page = document.getElementById("personnel-structure-page").value || "0";
-    const size = document.getElementById("personnel-structure-size").value || "20";
-    const params = new URLSearchParams({ page, size });
-    if (organizationCode) {
-        params.set("organizationCode", organizationCode);
-    }
-    if (keyword) {
-        params.set("keyword", keyword);
-    }
-
-    const status = document.getElementById("personnel-structure-status");
-    const rows = document.getElementById("personnel-structure-rows");
-    status.className = "status";
-    status.textContent = "正在查询人员结构统计...";
-    rows.innerHTML = "";
-
-    try {
-        const result = await getJson(`/api/personnel/structure-summary?${params}`);
-        rows.innerHTML = (result.content || []).map(row => `
-            <tr>
-                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
-                <td>${escapeHtml(row.personnelCategory || "")}</td>
-                <td>${escapeHtml(row.organizationType || "")}</td>
-                <td>${escapeHtml(row.postCategory || "")}</td>
-                <td>${escapeHtml(row.personnelCount)}</td>
-            </tr>
-        `).join("");
-        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 组统计`;
     } catch (error) {
         showError(status, error);
     }
