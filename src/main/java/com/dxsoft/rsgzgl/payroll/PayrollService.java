@@ -17,6 +17,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class PayrollService {
 
+    private static final Set<String> LEVEL_PROMOTION_POSITION_PREFIXES = Set.of(
+            "01", "02", "04", "21", "22", "23", "24", "25", "26", "27", "28");
+
     private final PayrollRepository payrollRepository;
     private final AccessControlService accessControlService;
 
@@ -737,14 +740,29 @@ public class PayrollService {
                 history.gradeSalaryLevel(),
                 currentStep,
                 history.salaryStandardYearMonth());
-        String promotedLevel = null;
-        String promotedStep = null;
-        Integer promotedGradeSalary = 0;
-        boolean eligible = "GRADE".equals(baseSalarySource(history.positionCode()))
-                && payrollRepository.intValue(history.gradeSalaryLevel()) > 1;
-        if (eligible) {
+        int calculationYear = yearOf(history.calculationYear());
+        int levelStartYear = assessmentStartYear(history.levelAssessmentStartYear(), history.positionStartYearMonth());
+        int stepStartYear = assessmentStartYear(history.stepAssessmentStartYear(), history.positionStartYearMonth());
+        int qualifiedYearsForLevel = payrollRepository.countQualifiedAssessmentYears(
+                history.organizationCode(), history.personCode(), levelStartYear, calculationYear - 1);
+        int qualifiedYearsForStep = payrollRepository.countQualifiedAssessmentYears(
+                history.organizationCode(), history.personCode(), stepStartYear, calculationYear - 1);
+        boolean eligible = isLevelPromotionPosition(history.positionCode())
+                && "GRADE".equals(baseSalarySource(history.positionCode()))
+                && payrollRepository.intValue(history.gradeSalaryLevel()) > 1
+                && calculationYear >= 2007;
+        boolean levelPromotionDue = eligible && qualifiedYearsForLevel >= 5;
+        boolean stepPromotionDue = eligible && qualifiedYearsForStep >= 2;
+        String promotedLevel = history.gradeSalaryLevel();
+        String promotedStep = currentStep;
+        Integer promotedGradeSalary = currentGradeSalary;
+        if (eligible && levelPromotionDue) {
             promotedLevel = String.valueOf(payrollRepository.intValue(history.gradeSalaryLevel()) - 1);
             promotedStep = firstHigherGradeStep(promotedLevel, currentGradeSalary, history.salaryStandardYearMonth());
+            promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
+        }
+        if (eligible && stepPromotionDue) {
+            promotedStep = String.valueOf(payrollRepository.intValue(promotedStep) + 1);
             promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
         }
         return new LevelPromotionPreview(
@@ -761,11 +779,17 @@ public class PayrollService {
                 currentStep,
                 promotedLevel,
                 promotedStep,
+                String.valueOf(levelStartYear),
+                String.valueOf(stepStartYear),
+                qualifiedYearsForLevel,
+                qualifiedYearsForStep,
+                levelPromotionDue,
+                stepPromotionDue,
                 currentGradeSalary,
                 promotedGradeSalary,
                 nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
                 eligible,
-                eligible ? "按级别晋升一级，选择晋升级别中高于旧工资的最低档次。" : "当前岗位不使用级别工资或级别无效，暂不参与级别晋升试算。");
+                levelPromotionNote(eligible, levelPromotionDue, stepPromotionDue));
     }
 
     private String firstHigherGradeStep(String gradeLevel, Integer currentGradeSalary, String standardYearMonth) {
@@ -776,6 +800,40 @@ public class PayrollService {
             }
         }
         return "20";
+    }
+
+    private int assessmentStartYear(String storedStartYear, String positionStartYearMonth) {
+        int stored = yearOf(storedStartYear);
+        int minimumStartYear = 2007;
+        String normalizedPositionStart = positionStartYearMonth == null ? "" : positionStartYearMonth.replace(".", "");
+        if (normalizedPositionStart.compareTo("200607") > 0) {
+            minimumStartYear = yearOf(normalizedPositionStart);
+        }
+        if (stored > 0) {
+            return Math.max(stored, minimumStartYear);
+        }
+        return minimumStartYear;
+    }
+
+    private boolean isLevelPromotionPosition(String positionCode) {
+        return positionCode != null && positionCode.length() >= 2
+                && LEVEL_PROMOTION_POSITION_PREFIXES.contains(positionCode.substring(0, 2));
+    }
+
+    private String levelPromotionNote(boolean eligible, boolean levelPromotionDue, boolean stepPromotionDue) {
+        if (!eligible) {
+            return "当前岗位前缀或工资类型暂不参与级别晋升试算。";
+        }
+        if (levelPromotionDue && stepPromotionDue) {
+            return "同年满足晋升级别和晋升档次条件，已按先晋升级别、再晋升档次试算。";
+        }
+        if (levelPromotionDue) {
+            return "累计5年考核称职及以上，按次年1月晋升1个级别试算。";
+        }
+        if (stepPromotionDue) {
+            return "累计2年考核称职及以上，按晋升1个档次试算。";
+        }
+        return "尚未满足累计5年晋升级别或累计2年晋升档次条件。";
     }
 
     private boolean isEducationPosition(String positionCode) {

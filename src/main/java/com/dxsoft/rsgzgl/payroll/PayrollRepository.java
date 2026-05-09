@@ -121,8 +121,11 @@ class PayrollRepository {
             SqlText.trim(rs.getString("jzgb")),
             SqlText.trim(rs.getString("spdw")),
             SqlText.trim(rs.getString("cjgzny")),
+            SqlText.trim(rs.getString("srny")),
             rs.getInt("gznx"),
             rs.getInt("zdgznx"),
+            SqlText.trim(rs.getString("xckhndjb")),
+            SqlText.trim(rs.getString("xckhndzw")),
             SqlText.trim(rs.getString("jhlqsny")),
             rs.getInt("zdjhlnx"),
             rs.getInt("tgbl"),
@@ -508,7 +511,8 @@ class PayrollRepository {
     Optional<PayrollHistorySnapshot> findLatestHistory(int uid) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
-                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, p.gznx, p.zdgznx, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                       h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
                        h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
                        h.gwjtbz, h.gwjtlb,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
@@ -713,6 +717,25 @@ class PayrollRepository {
                   AND (:keyword IS NULL OR p.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
                 """, payrollChangeParameters(organizationScope, organizationCode, keyword), Long.class);
         return count == null ? 0 : count;
+    }
+
+    int countQualifiedAssessmentYears(String organizationCode, String personCode, int startYear, int endYear) {
+        if (emptyToNull(organizationCode) == null || emptyToNull(personCode) == null || startYear <= 0 || endYear < startYear) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(DISTINCT khnd)
+                FROM dndkh
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND khnd BETWEEN :startYear AND :endYear
+                  AND khjg IN ('优秀', '称职', '合格')
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("startYear", String.valueOf(startYear))
+                .addValue("endYear", String.valueOf(endYear)), Long.class);
+        return count == null ? 0 : count.intValue();
     }
 
     long countPersonnelWithPayrollHistory(OrganizationScope organizationScope) {
