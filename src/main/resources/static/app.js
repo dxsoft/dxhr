@@ -411,9 +411,6 @@ async function loadChangedPersonnel() {
                 <td>${escapeHtml(row.organizationType || "")}</td>
                 <td>${escapeHtml(row.changeYear || "")}${escapeHtml(row.changeMonth || "")}</td>
                 <td>${escapeHtml(row.changeType || "")}</td>
-                <td>${escapeHtml(row.oldPositionCode || "")}</td>
-                <td>${escapeHtml(row.oldPositionName || "")}</td>
-                <td>${money(row.oldTotalAmount)}</td>
                 <td>${escapeHtml(row.newPositionCode || "")}</td>
                 <td>${escapeHtml(row.newPositionName || "")}</td>
                 <td>${money(row.newTotalAmount)}</td>

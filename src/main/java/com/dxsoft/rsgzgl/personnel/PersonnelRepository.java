@@ -151,9 +151,9 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("jsnf")),
             SqlText.trim(rs.getString("jsyf")),
             SqlText.trim(rs.getString("jslb")),
-            SqlText.trim(rs.getString("zwbm1")),
-            SqlText.trim(rs.getString("zwgw1")),
-            rs.getBigDecimal("hj1"),
+            null,
+            null,
+            null,
             SqlText.trim(rs.getString("zwbm2")),
             SqlText.trim(rs.getString("zwgw2")),
             rs.getBigDecimal("hj2"),
@@ -336,16 +336,16 @@ class PersonnelRepository {
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
                 SELECT b.dwbm, dw.dwmc, b.grbm, b.xm, b.sfzh, b.xb, b.csny, b.ryfl, b.dwsx, b.gwfl,
-                       b.jsnf, b.jsyf, b.jslb, b.zwbm1, b.zwgw1, b.hj1, b.zwbm2, b.zwgw2, b.hj2,
-                       b.tbnd, b.jbtbz, b.bz
-                FROM bdry b
+                       h.jsnf, h.jsyf, h.jslb, h.zwbm2, h.zwgw2, h.hj2, h.tbnd, h.jbtbz, b.bz
+                FROM dryjbxxb b
                 LEFT JOIN dwbm dw ON dw.dwbm = b.dwbm
+                LEFT JOIN hisbaseb h ON h.dwbm = b.dwbm AND h.grbm = b.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 WHERE (:allOrganizations = TRUE OR b.dwbm IN (:organizationCodes))
                   AND (:organizationCode IS NULL OR b.dwbm = :organizationCode)
-                  AND (:period IS NULL OR CONCAT(b.jsnf, b.jsyf) = :period)
+                  AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
                   AND (:keyword IS NULL OR b.grbm LIKE :keywordLike OR b.xm LIKE :keywordLike
-                       OR b.sfzh LIKE :keywordLike OR b.jslb LIKE :keywordLike OR b.zwgw2 LIKE :keywordLike)
-                ORDER BY b.dwbm, b.grbm, b.jsnf DESC, b.jsyf DESC, b.jslb
+                       OR b.sfzh LIKE :keywordLike OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                ORDER BY b.dwbm, b.grbm, h.jsnf DESC, h.jsyf DESC, h.jslb
                 LIMIT :limit OFFSET :offset
                 """, params, CHANGED_PERSONNEL_MAPPER);
     }
@@ -356,12 +356,13 @@ class PersonnelRepository {
         }
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
-                FROM bdry b
+                FROM dryjbxxb b
+                LEFT JOIN hisbaseb h ON h.dwbm = b.dwbm AND h.grbm = b.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 WHERE (:allOrganizations = TRUE OR b.dwbm IN (:organizationCodes))
                   AND (:organizationCode IS NULL OR b.dwbm = :organizationCode)
-                  AND (:period IS NULL OR CONCAT(b.jsnf, b.jsyf) = :period)
+                  AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
                   AND (:keyword IS NULL OR b.grbm LIKE :keywordLike OR b.xm LIKE :keywordLike
-                       OR b.sfzh LIKE :keywordLike OR b.jslb LIKE :keywordLike OR b.zwgw2 LIKE :keywordLike)
+                       OR b.sfzh LIKE :keywordLike OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
                 """, changedPersonnelParameters(organizationScope, organizationCode, period, keyword), Long.class);
         return count == null ? 0 : count;
     }
