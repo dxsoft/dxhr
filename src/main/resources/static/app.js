@@ -25,6 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("dictionary-maintenance-form").addEventListener("submit", onDictionarySearch);
     document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
+    document.getElementById("payroll-history-form").addEventListener("submit", onPayrollHistorySearch);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
     document.getElementById("rank-allowance-standards-form").addEventListener("submit", onRankAllowanceStandardsSearch);
@@ -83,6 +84,9 @@ async function initializeAuth() {
         }
         if (hasMenu("LOCAL_POLICY_CONFIG")) {
             await loadLocalPolicies();
+        }
+        if (hasMenu("PAYROLL_HISTORY")) {
+            await loadPayrollHistory();
         }
         if (hasMenu("BASIC_STANDARDS")) {
             await loadBasicStandards();
@@ -229,6 +233,12 @@ async function onLocalPolicySearch(event) {
 async function onAudit(event) {
     event.preventDefault();
     await loadAudit();
+}
+
+async function onPayrollHistorySearch(event) {
+    event.preventDefault();
+    document.getElementById("payroll-history-page").value = "0";
+    await loadPayrollHistory();
 }
 
 async function onBasicStandardsSearch(event) {
@@ -672,6 +682,62 @@ async function loadAudit() {
             </tr>
         `).join("");
         status.textContent = `已比较 ${summary.comparedPersonnel} 人，差异 ${summary.differenceCount} 人`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadPayrollHistory() {
+    const organizationCode = document.getElementById("payroll-history-organization-code").value.trim();
+    const period = document.getElementById("payroll-history-period").value.trim();
+    const keyword = document.getElementById("payroll-history-keyword").value.trim();
+    const page = document.getElementById("payroll-history-page").value || "0";
+    const size = document.getElementById("payroll-history-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (period) {
+        params.set("period", period);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("payroll-history-status");
+    const rows = document.getElementById("payroll-history-rows");
+    status.className = "status";
+    status.textContent = "正在查询工资变动历史...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/payroll/histories?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.id)}</td>
+                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.calculationYear)}${escapeHtml(row.calculationMonth)}</td>
+                <td>${escapeHtml(row.changeType)}</td>
+                <td>${escapeHtml(row.positionCode)}</td>
+                <td>${escapeHtml(row.positionName)}</td>
+                <td>${money(row.positionSalary)}</td>
+                <td>${money(row.gradeSalary)}</td>
+                <td>${money(row.technicalGradeSalary)}</td>
+                <td>${money(row.performanceAllowance)}</td>
+                <td>${money(row.retainedAllowance)}</td>
+                <td>${money(row.rankAllowance)}</td>
+                <td>${money(row.floatingSalary)}</td>
+                <td>${money(row.bonusBalance)}</td>
+                <td>${money(row.teachingAllowance)}</td>
+                <td>${money(row.salaryIncrease)}</td>
+                <td>${money(row.yearAllowance)}</td>
+                <td>${money(row.payGradeRetention)}</td>
+                <td>${money(row.totalAmount)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条工资历史`;
     } catch (error) {
         showError(status, error);
     }

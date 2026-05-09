@@ -466,6 +466,69 @@
         </div>
     </section>
 
+    <section id="payroll-history" class="panel hidden" data-menu-code="PAYROLL_HISTORY">
+        <div class="panel-title">
+            <div>
+                <h2>工资变动历史</h2>
+                <p>只读查询 `hisbase` 工资历史和变动记录，按当前用户单位数据范围限制可见人员。</p>
+            </div>
+        </div>
+        <form id="payroll-history-form" class="toolbar">
+            <label>
+                单位编码
+                <input id="payroll-history-organization-code" placeholder="例如 001">
+            </label>
+            <label>
+                变动年月
+                <input id="payroll-history-period" placeholder="例如 202407">
+            </label>
+            <label>
+                关键词
+                <input id="payroll-history-keyword" placeholder="人员编码 / 姓名 / 变动类别 / 岗位">
+            </label>
+            <label>
+                页码
+                <input id="payroll-history-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="payroll-history-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询历史</button>
+        </form>
+        <div id="payroll-history-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>年月</th>
+                    <th>变动类别</th>
+                    <th>岗位编码</th>
+                    <th>岗位名称</th>
+                    <th>职务工资</th>
+                    <th>级别/薪级工资</th>
+                    <th>技术等级工资</th>
+                    <th>绩效/生活补贴</th>
+                    <th>保留福补</th>
+                    <th>警衔津贴</th>
+                    <th>浮动工资</th>
+                    <th>奖金结余</th>
+                    <th>教护龄津贴</th>
+                    <th>提高工资</th>
+                    <th>年补贴</th>
+                    <th>PGBC</th>
+                    <th>合计</th>
+                </tr>
+                </thead>
+                <tbody id="payroll-history-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="audit" class="panel hidden" data-menu-code="AUDIT">
         <div class="panel-title">
             <div>

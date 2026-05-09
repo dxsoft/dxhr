@@ -98,6 +98,16 @@ class PayrollController {
         return payrollService.wageReformStandards(positionCode, PageRequest.of(page, size));
     }
 
+    @GetMapping("/histories")
+    PageResponse<PayrollHistoryRecord> payrollHistories(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.payrollHistories(organizationCode, period, keyword, PageRequest.of(page, size));
+    }
+
     @GetMapping("/personnel/{uid}/calculation-context")
     PayrollCalculationContext calculationContext(@PathVariable int uid) {
         return payrollService.calculationContext(uid);

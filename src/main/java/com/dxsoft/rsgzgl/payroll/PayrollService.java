@@ -198,6 +198,18 @@ public class PayrollService {
                 differences);
     }
 
+    public PageResponse<PayrollHistoryRecord> payrollHistories(
+            String organizationCode,
+            String period,
+            String keyword,
+            PageRequest pageRequest) {
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        return PageResponse.of(
+                payrollRepository.findPayrollHistories(scope, emptyToNull(organizationCode), period, keyword, pageRequest),
+                pageRequest,
+                payrollRepository.countPayrollHistories(scope, emptyToNull(organizationCode), period, keyword));
+    }
+
     private BasicPayrollCalculation basicCalculation(PayrollHistorySnapshot history) {
         String standardYearMonth = history.salaryStandardYearMonth();
         String positionCode = history.positionCode();

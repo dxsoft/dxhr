@@ -146,6 +146,37 @@ class PayrollRepository {
             rs.getBigDecimal("njbt"),
             rs.getInt("hj2"));
 
+    private static final RowMapper<PayrollHistoryRecord> PAYROLL_HISTORY_MAPPER = (rs, rowNum) -> new PayrollHistoryRecord(
+            SqlText.trim(rs.getString("id")),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("jsnf")),
+            SqlText.trim(rs.getString("jsyf")),
+            SqlText.trim(rs.getString("jslb")),
+            SqlText.trim(rs.getString("ryfl")),
+            SqlText.trim(rs.getString("dwsx")),
+            SqlText.trim(rs.getString("zwbm2")),
+            SqlText.trim(rs.getString("zwgw2")),
+            SqlText.trim(rs.getString("zwgzdc2")),
+            SqlText.trim(rs.getString("jbgzjb2")),
+            SqlText.trim(rs.getString("tbnd")),
+            SqlText.trim(rs.getString("jbtbz")),
+            rs.getInt("zwgzse2"),
+            rs.getInt("jbgzse2"),
+            rs.getInt("jsdjgz2"),
+            rs.getInt("dfbt2"),
+            rs.getInt("blfb2"),
+            rs.getInt("jxjt"),
+            rs.getInt("fdgz2"),
+            rs.getInt("jjjy2"),
+            rs.getInt("jhljt"),
+            rs.getInt("jsfszwtg2"),
+            rs.getBigDecimal("njbt"),
+            rs.getInt("pgbc"),
+            rs.getInt("hj2"));
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     PayrollRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -432,6 +463,56 @@ class PayrollRepository {
                 ORDER BY h.jsnf DESC, h.jsyf DESC, h.id DESC
                 LIMIT 1
                 """, new MapSqlParameterSource("uid", uid), HISTORY_MAPPER).stream().findFirst();
+    }
+
+    List<PayrollHistoryRecord> findPayrollHistories(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String period,
+            String keyword,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource parameters = payrollHistoryParameters(organizationScope, organizationCode, period, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.ryfl, h.dwsx, h.zwbm2, h.zwgw2, h.zwgzdc2, h.jbgzjb2,
+                       h.tbnd, h.jbtbz, h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2,
+                       h.blfb2, h.jxjt, h.fdgz2, h.jjjy2, h.jhljt, h.jsfszwtg2,
+                       h.njbt, h.pgbc, h.hj2
+                FROM hisbase h
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
+                  AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
+                  AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
+                       OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                ORDER BY h.dwbm, h.grbm, h.jsnf DESC, h.jsyf DESC, h.id DESC
+                LIMIT :limit OFFSET :offset
+                """, parameters, PAYROLL_HISTORY_MAPPER);
+    }
+
+    long countPayrollHistories(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String period,
+            String keyword) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM hisbase h
+                WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
+                  AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
+                  AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
+                       OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                """, payrollHistoryParameters(organizationScope, organizationCode, period, keyword), Long.class);
+        return count == null ? 0 : count;
     }
 
     List<Integer> findPersonnelUidsWithPayrollHistory(OrganizationScope organizationScope, PageRequest pageRequest) {
@@ -930,6 +1011,21 @@ class PayrollRepository {
         return new MapSqlParameterSource()
                 .addValue("standardYearMonth", emptyToNull(standardYearMonth))
                 .addValue("positionCode", emptyToNull(positionCode));
+    }
+
+    private MapSqlParameterSource payrollHistoryParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String period,
+            String keyword) {
+        String trimmedKeyword = emptyToNull(keyword);
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("period", emptyToNull(period))
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%");
     }
 
     private MapSqlParameterSource basicStandardParameters(String standardYearMonth, String code) {
