@@ -31,6 +31,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 登录后拥有 `SECURITY_ADMIN` 权限的用户可在首页“权限管理”区域维护用户、角色、功能权限绑定和角色单位范围。
 登录成功、登录失败、退出登录、修改密码和权限管理操作都会写入安全审计日志。
 前端导航由 `app_menu` 和 `/api/auth/menus` 动态生成，只显示当前用户具备权限的菜单。
+“人员结构统计”页面提供 `dryjbxx` 按单位、人员类别、单位属性和岗位分类的人数汇总查询。
 “年度考核结果”页面提供 `dndkh` 只读查询，按用户单位数据范围限制可见人员。
 “年度考核统计”页面提供 `dndkh` 按年度、单位、考核结果的汇总查询。
 “变动人员信息”页面提供 `dryjbxxb` 只读查询，并关联 `hisbaseb` 中 `sid` 为空的当前变动工资，按用户单位数据范围限制可见人员。
@@ -53,6 +54,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/organizations`
 - `GET /api/personnel`
 - `GET /api/personnel/{uid}`
+- `GET /api/personnel/structure-summary`
 - `GET /api/personnel/{uid}/positions`
 - `GET /api/personnel/positions`
 - `GET /api/personnel/{uid}/education`

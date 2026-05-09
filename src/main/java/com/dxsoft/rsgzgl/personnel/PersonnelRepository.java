@@ -170,6 +170,15 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("bz"))
     );
 
+    private static final RowMapper<PersonnelStructureSummaryRecord> PERSONNEL_STRUCTURE_SUMMARY_MAPPER = (rs, rowNum) -> new PersonnelStructureSummaryRecord(
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("ryfl")),
+            SqlText.trim(rs.getString("dwsx")),
+            SqlText.trim(rs.getString("gwfl")),
+            rs.getLong("personnel_count")
+    );
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     PersonnelRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -205,6 +214,54 @@ class PersonnelRepository {
                 WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
                   AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
                 """, parameters(organizationScope, keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<PersonnelStructureSummaryRecord> findPersonnelStructureSummary(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource params = personnelStructureParameters(organizationScope, organizationCode, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT p.dwbm, dw.dwmc, p.ryfl, p.dwsx, p.gwfl, COUNT(*) AS personnel_count
+                FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND (:keyword IS NULL OR p.ryfl LIKE :keywordLike OR p.dwsx LIKE :keywordLike
+                       OR p.gwfl LIKE :keywordLike OR dw.dwmc LIKE :keywordLike)
+                GROUP BY p.dwbm, dw.dwmc, p.ryfl, p.dwsx, p.gwfl
+                ORDER BY p.dwbm, p.ryfl, p.dwsx, p.gwfl
+                LIMIT :limit OFFSET :offset
+                """, params, PERSONNEL_STRUCTURE_SUMMARY_MAPPER);
+    }
+
+    long countPersonnelStructureSummary(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM (
+                    SELECT 1
+                    FROM dryjbxx p
+                    LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                    WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                      AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                      AND (:keyword IS NULL OR p.ryfl LIKE :keywordLike OR p.dwsx LIKE :keywordLike
+                           OR p.gwfl LIKE :keywordLike OR dw.dwmc LIKE :keywordLike)
+                    GROUP BY p.dwbm, p.ryfl, p.dwsx, p.gwfl
+                ) grouped_personnel
+                """, personnelStructureParameters(organizationScope, organizationCode, keyword), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -484,6 +541,19 @@ class PersonnelRepository {
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private MapSqlParameterSource personnelStructureParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword) {
+        String trimmedKeyword = SqlText.trim(keyword);
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationCode", emptyToNull(organizationCode))
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
     }

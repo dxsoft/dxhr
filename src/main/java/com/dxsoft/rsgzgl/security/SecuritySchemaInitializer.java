@@ -130,6 +130,7 @@ class SecuritySchemaInitializer {
 
     private void seedMenus() {
         upsertMenu("PERSONNEL", "人员查询", "#personnel", "PERSONNEL_READ", 10);
+        upsertMenu("PERSONNEL_STRUCTURE_SUMMARY", "人员结构统计", "#personnel-structure-summary", "PERSONNEL_READ", 12);
         upsertMenu("ANNUAL_ASSESSMENTS", "年度考核结果", "#annual-assessments", "PERSONNEL_READ", 15);
         upsertMenu("ASSESSMENT_SUMMARY", "年度考核统计", "#assessment-summary", "PERSONNEL_READ", 16);
         upsertMenu("CHANGED_PERSONNEL", "变动人员信息", "#changed-personnel", "PERSONNEL_READ", 17);

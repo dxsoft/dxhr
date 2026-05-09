@@ -33,6 +33,15 @@ class PersonnelController {
         return personnelService.get(uid);
     }
 
+    @GetMapping("/structure-summary")
+    PageResponse<PersonnelStructureSummaryRecord> personnelStructureSummary(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return personnelService.personnelStructureSummary(organizationCode, keyword, PageRequest.of(page, size));
+    }
+
     @GetMapping("/{uid}/positions")
     List<PositionRecord> positions(@PathVariable int uid) {
         return personnelService.positions(uid);
