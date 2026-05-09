@@ -38,6 +38,15 @@ class PersonnelController {
         return personnelService.positions(uid);
     }
 
+    @GetMapping("/positions")
+    PageResponse<PersonnelPositionHistoryRecord> positionHistories(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return personnelService.positionHistories(organizationCode, keyword, PageRequest.of(page, size));
+    }
+
     @GetMapping("/{uid}/education")
     List<EducationRecord> education(@PathVariable int uid) {
         return personnelService.education(uid);

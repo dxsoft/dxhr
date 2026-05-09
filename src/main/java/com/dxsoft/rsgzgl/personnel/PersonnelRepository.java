@@ -70,6 +70,25 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("jsbz"))
     );
 
+    private static final RowMapper<PersonnelPositionHistoryRecord> POSITION_HISTORY_MAPPER = (rs, rowNum) -> new PersonnelPositionHistoryRecord(
+            rs.getInt("id"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("xrzwbm")),
+            SqlText.trim(rs.getString("xrzw")),
+            SqlText.trim(rs.getString("zwjb")),
+            SqlText.trim(rs.getString("zjbm")),
+            SqlText.trim(rs.getString("zwbm")),
+            SqlText.trim(rs.getString("xzzw")),
+            SqlText.trim(rs.getString("zwlb")),
+            SqlText.trim(rs.getString("srny")),
+            rs.getInt("kjnx"),
+            SqlText.trim(rs.getString("xrzwbz")),
+            SqlText.trim(rs.getString("jsbz"))
+    );
+
     private static final RowMapper<EducationRecord> EDUCATION_MAPPER = (rs, rowNum) -> new EducationRecord(
             rs.getInt("id"),
             SqlText.trim(rs.getString("dwbm")),
@@ -169,6 +188,48 @@ class PersonnelRepository {
                 """, keyParameters(key), POSITION_MAPPER);
     }
 
+    List<PersonnelPositionHistoryRecord> findPositionHistories(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource params = personnelHistoryParameters(organizationScope, organizationCode, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT z.id, z.dwbm, dw.dwmc, z.grbm, p.xm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm,
+                       z.zwbm, z.xzzw, z.zwlb, z.srny, z.kjnx, z.xrzwbz, z.jsbz
+                FROM dryzwbh z
+                LEFT JOIN dryjbxx p ON p.dwbm = z.dwbm AND p.grbm = z.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = z.dwbm
+                WHERE (:allOrganizations = TRUE OR z.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR z.dwbm = :organizationCode)
+                  AND (:keyword IS NULL OR z.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
+                       OR z.xrzw LIKE :keywordLike OR z.xzzw LIKE :keywordLike OR z.zwbm = :keyword)
+                ORDER BY z.dwbm, z.grbm, z.srny DESC, z.id DESC
+                LIMIT :limit OFFSET :offset
+                """, params, POSITION_HISTORY_MAPPER);
+    }
+
+    long countPositionHistories(OrganizationScope organizationScope, String organizationCode, String keyword) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM dryzwbh z
+                LEFT JOIN dryjbxx p ON p.dwbm = z.dwbm AND p.grbm = z.grbm
+                WHERE (:allOrganizations = TRUE OR z.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR z.dwbm = :organizationCode)
+                  AND (:keyword IS NULL OR z.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
+                       OR z.xrzw LIKE :keywordLike OR z.xzzw LIKE :keywordLike OR z.zwbm = :keyword)
+                """, personnelHistoryParameters(organizationScope, organizationCode, keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
     List<EducationRecord> findEducation(PersonKey key) {
         return jdbcTemplate.query("""
                 SELECT id, dwbm, grbm, xlbm, xl, byyx, rxsj, bysj, xz, xllb, bz
@@ -259,6 +320,19 @@ class PersonnelRepository {
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("organizationCode", emptyToNull(organizationCode))
                 .addValue("year", emptyToNull(year))
+                .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private MapSqlParameterSource personnelHistoryParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword) {
+        String trimmedKeyword = SqlText.trim(keyword);
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationCode", emptyToNull(organizationCode))
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
     }

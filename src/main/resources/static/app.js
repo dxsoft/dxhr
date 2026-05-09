@@ -19,6 +19,7 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("annual-assessments-form").addEventListener("submit", onAnnualAssessmentsSearch);
+    document.getElementById("position-history-form").addEventListener("submit", onPositionHistorySearch);
     document.getElementById("organization-maintenance-form").addEventListener("submit", onOrganizationMaintenanceSearch);
     document.getElementById("dictionary-maintenance-form").addEventListener("submit", onDictionarySearch);
     document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
@@ -66,6 +67,9 @@ async function initializeAuth() {
         }
         if (hasMenu("ANNUAL_ASSESSMENTS")) {
             await loadAnnualAssessments();
+        }
+        if (hasMenu("POSITION_HISTORY")) {
+            await loadPositionHistory();
         }
         if (hasMenu("ORGANIZATION_MAINTENANCE")) {
             await loadOrganizationMaintenance();
@@ -186,6 +190,12 @@ async function onAnnualAssessmentsSearch(event) {
     event.preventDefault();
     document.getElementById("assessment-page").value = "0";
     await loadAnnualAssessments();
+}
+
+async function onPositionHistorySearch(event) {
+    event.preventDefault();
+    document.getElementById("position-history-page").value = "0";
+    await loadPositionHistory();
 }
 
 async function onOrganizationMaintenanceSearch(event) {
@@ -329,6 +339,52 @@ async function loadAnnualAssessments() {
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条考核记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadPositionHistory() {
+    const organizationCode = document.getElementById("position-history-organization-code").value.trim();
+    const keyword = document.getElementById("position-history-keyword").value.trim();
+    const page = document.getElementById("position-history-page").value || "0";
+    const size = document.getElementById("position-history-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("position-history-status");
+    const rows = document.getElementById("position-history-rows");
+    status.className = "status";
+    status.textContent = "正在查询任职岗位信息...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/personnel/positions?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.id)}</td>
+                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name || "")}</td>
+                <td>${escapeHtml(row.currentPositionCode)}</td>
+                <td>${escapeHtml(row.currentPosition)}</td>
+                <td>${escapeHtml(row.positionLevel)}</td>
+                <td>${escapeHtml(row.rankCode)}</td>
+                <td>${escapeHtml(row.positionCode)}</td>
+                <td>${escapeHtml(row.positionName)}</td>
+                <td>${escapeHtml(row.positionType)}</td>
+                <td>${escapeHtml(row.startYearMonth)}</td>
+                <td>${escapeHtml(row.intervalYears)}</td>
+                <td>${escapeHtml(row.activeFlag)}</td>
+                <td>${escapeHtml(row.calculationStandard)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条任职记录`;
     } catch (error) {
         showError(status, error);
     }

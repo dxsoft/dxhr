@@ -19,6 +19,7 @@
 | --- | --- | --- | --- | --- |
 | `PERSONNEL` | 人员查询 | `#personnel` | `PERSONNEL_READ` | 当前 Spring Boot 已实现 |
 | `ANNUAL_ASSESSMENTS` | 年度考核结果 | `#annual-assessments` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
+| `POSITION_HISTORY` | 任职岗位信息 | `#position-history` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `PAYROLL` | 工资试算 | `#payroll` | `PAYROLL_READ` | 当前 Spring Boot 已实现 |
 | `AUDIT` | 批量对账 | `#audit` | `AUDIT_READ` | 当前 Spring Boot 已实现 |
 | `BASIC_STANDARDS` | 基本工资标准 | `#basic-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |

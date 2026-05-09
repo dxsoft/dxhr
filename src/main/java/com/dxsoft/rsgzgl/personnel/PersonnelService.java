@@ -39,6 +39,17 @@ public class PersonnelService {
         return personnelRepository.findPositions(personKey);
     }
 
+    public PageResponse<PersonnelPositionHistoryRecord> positionHistories(
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        return PageResponse.of(
+                personnelRepository.findPositionHistories(scope, emptyToNull(organizationCode), keyword, pageRequest),
+                pageRequest,
+                personnelRepository.countPositionHistories(scope, emptyToNull(organizationCode), keyword));
+    }
+
     public List<EducationRecord> education(int uid) {
         PersonKey personKey = getPersonKey(uid);
         return personnelRepository.findEducation(personKey);
