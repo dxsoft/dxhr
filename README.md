@@ -31,6 +31,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 登录后拥有 `SECURITY_ADMIN` 权限的用户可在首页“权限管理”区域维护用户、角色、功能权限绑定和角色单位范围。
 登录成功、登录失败、退出登录、修改密码和权限管理操作都会写入安全审计日志。
 前端导航由 `app_menu` 和 `/api/auth/menus` 动态生成，只显示当前用户具备权限的菜单。
+“基本工资标准”页面提供 `bz06_zwgz`、`bz06_zwgz_gr`、`bz06_jbgz`、`bz06_xjgz` 四类标准表只读查询。
 
 ### 首批接口
 
@@ -42,6 +43,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/personnel/{uid}/assessments`
 - `GET /api/payroll/fields`
 - `GET /api/payroll/position-standards`
+- `GET /api/payroll/basic-standards`
 - `GET /api/payroll/allowance-standards`
 - `GET /api/payroll/personnel/{uid}/calculation-context`
 - `GET /api/payroll/personnel/{uid}/calculation-preview`

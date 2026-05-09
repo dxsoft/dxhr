@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS app_permission (
     category VARCHAR(40) NOT NULL
 );
 
+-- Seeded permission codes include STANDARD_READ for basic wage standard pages.
+
 CREATE TABLE IF NOT EXISTS app_user_role (
     user_id BIGINT NOT NULL,
     role_id BIGINT NOT NULL,

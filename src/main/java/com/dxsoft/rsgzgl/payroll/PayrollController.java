@@ -45,6 +45,16 @@ class PayrollController {
         return payrollService.allowanceStandards(standardYearMonth, item, positionCode, PageRequest.of(page, size));
     }
 
+    @GetMapping("/basic-standards")
+    PageResponse<BasicStandardRecord> basicStandards(
+            @RequestParam String standardType,
+            @RequestParam(required = false) String standardYearMonth,
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.basicStandards(standardType, standardYearMonth, code, PageRequest.of(page, size));
+    }
+
     @GetMapping("/personnel/{uid}/calculation-context")
     PayrollCalculationContext calculationContext(@PathVariable int uid) {
         return payrollService.calculationContext(uid);

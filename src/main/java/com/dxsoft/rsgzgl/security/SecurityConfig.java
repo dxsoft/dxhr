@@ -29,6 +29,7 @@ class SecurityConfig {
                         .requestMatchers("/api/organizations/**").hasAuthority("ORG_READ")
                         .requestMatchers("/api/personnel/**").hasAuthority("PERSONNEL_READ")
                         .requestMatchers("/api/payroll/calculation-audits", "/api/payroll/calculation-audit-summary").hasAuthority("AUDIT_READ")
+                        .requestMatchers("/api/payroll/basic-standards").hasAuthority("STANDARD_READ")
                         .requestMatchers("/api/payroll/**").hasAuthority("PAYROLL_READ")
                         .anyRequest().authenticated())
                 .formLogin(form -> form

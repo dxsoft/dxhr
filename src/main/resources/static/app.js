@@ -19,6 +19,7 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
+    document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("create-menu-form").addEventListener("submit", onCreateMenu);
@@ -52,6 +53,9 @@ async function initializeAuth() {
         }
         if (hasMenu("PERSONNEL")) {
             await loadPersonnel();
+        }
+        if (hasMenu("BASIC_STANDARDS")) {
+            await loadBasicStandards();
         }
     } catch (error) {
         window.location.href = "/login.html";
@@ -141,6 +145,12 @@ async function onPersonnelSearch(event) {
 async function onAudit(event) {
     event.preventDefault();
     await loadAudit();
+}
+
+async function onBasicStandardsSearch(event) {
+    event.preventDefault();
+    document.getElementById("basic-standard-page").value = "0";
+    await loadBasicStandards();
 }
 
 async function loadPersonnel() {
@@ -275,6 +285,48 @@ async function loadAudit() {
     } catch (error) {
         showError(status, error);
     }
+}
+
+async function loadBasicStandards() {
+    const standardType = document.getElementById("basic-standard-type").value;
+    const standardYearMonth = document.getElementById("basic-standard-year-month").value.trim();
+    const code = document.getElementById("basic-standard-code").value.trim();
+    const page = document.getElementById("basic-standard-page").value || "0";
+    const size = document.getElementById("basic-standard-size").value || "20";
+    const params = new URLSearchParams({ standardType, page, size });
+    if (standardYearMonth) {
+        params.set("standardYearMonth", standardYearMonth);
+    }
+    if (code) {
+        params.set("code", code);
+    }
+    const status = document.getElementById("basic-standards-status");
+    status.className = "status";
+    status.textContent = "正在查询工资标准...";
+    document.getElementById("basic-standards-head").innerHTML = "";
+    document.getElementById("basic-standards-rows").innerHTML = "";
+    try {
+        const result = await getJson(`/api/payroll/basic-standards?${params}`);
+        renderBasicStandards(result.content || []);
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function renderBasicStandards(records) {
+    const head = document.getElementById("basic-standards-head");
+    const body = document.getElementById("basic-standards-rows");
+    if (!records.length) {
+        head.innerHTML = "<tr><th>结果</th></tr>";
+        body.innerHTML = "<tr><td>没有查询到标准数据</td></tr>";
+        return;
+    }
+    const columns = Object.keys(records[0].values);
+    head.innerHTML = `<tr>${columns.map(column => `<th>${escapeHtml(column)}</th>`).join("")}</tr>`;
+    body.innerHTML = records.map(record => `
+        <tr>${columns.map(column => `<td>${escapeHtml(record.values[column] ?? "")}</td>`).join("")}</tr>
+    `).join("");
 }
 
 async function loadSecurityAdmin() {

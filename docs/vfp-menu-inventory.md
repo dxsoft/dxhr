@@ -20,6 +20,7 @@
 | `PERSONNEL` | 人员查询 | `#personnel` | `PERSONNEL_READ` | 当前 Spring Boot 已实现 |
 | `PAYROLL` | 工资试算 | `#payroll` | `PAYROLL_READ` | 当前 Spring Boot 已实现 |
 | `AUDIT` | 批量对账 | `#audit` | `AUDIT_READ` | 当前 Spring Boot 已实现 |
+| `BASIC_STANDARDS` | 基本工资标准 | `#basic-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `SECURITY` | 权限管理 | `#security` | `SECURITY_ADMIN` | 当前 Spring Boot 已实现 |
 
 ## VFP 顶级菜单种子

@@ -211,6 +211,50 @@
         </div>
     </section>
 
+    <section id="basic-standards" class="panel hidden" data-menu-code="BASIC_STANDARDS">
+        <div class="panel-title">
+            <div>
+                <h2>基本工资标准</h2>
+                <p>查询职务工资、岗位档次工资、级别工资和薪级工资标准表。</p>
+            </div>
+        </div>
+        <form id="basic-standards-form" class="toolbar">
+            <label>
+                标准类型
+                <select id="basic-standard-type">
+                    <option value="position">职务工资 bz06_zwgz</option>
+                    <option value="position-grade">岗位档次工资 bz06_zwgz_gr</option>
+                    <option value="grade">级别工资 bz06_jbgz</option>
+                    <option value="salary-level">薪级工资 bz06_xjgz</option>
+                </select>
+            </label>
+            <label>
+                标准年月
+                <input id="basic-standard-year-month" placeholder="例如 202407">
+            </label>
+            <label>
+                编码
+                <input id="basic-standard-code" placeholder="职务/级别/岗位分类/薪级">
+            </label>
+            <label>
+                页码
+                <input id="basic-standard-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="basic-standard-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询标准</button>
+        </form>
+        <div id="basic-standards-status" class="status"></div>
+        <div class="table-wrap">
+            <table id="basic-standards-table">
+                <thead id="basic-standards-head"></thead>
+                <tbody id="basic-standards-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="security" class="panel hidden" data-menu-code="SECURITY">
         <div class="panel-title">
             <div>

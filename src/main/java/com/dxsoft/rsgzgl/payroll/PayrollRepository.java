@@ -193,6 +193,39 @@ class PayrollRepository {
         return count == null ? 0 : count;
     }
 
+    List<BasicStandardRecord> findBasicStandards(
+            String standardType,
+            String standardYearMonth,
+            String code,
+            PageRequest pageRequest) {
+        BasicStandardQuery query = basicStandardQuery(standardType);
+        MapSqlParameterSource parameters = basicStandardParameters(standardYearMonth, code)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.queryForList("""
+                SELECT %s
+                FROM %s
+                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
+                  AND (:code IS NULL OR %s)
+                ORDER BY %s
+                LIMIT :limit OFFSET :offset
+                """.formatted(query.columns(), query.tableName(), query.codePredicate(), query.orderBy()), parameters)
+                .stream()
+                .map(row -> new BasicStandardRecord(standardType, new LinkedHashMap<>(row)))
+                .toList();
+    }
+
+    long countBasicStandards(String standardType, String standardYearMonth, String code) {
+        BasicStandardQuery query = basicStandardQuery(standardType);
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM %s
+                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
+                  AND (:code IS NULL OR %s)
+                """.formatted(query.tableName(), query.codePredicate()), basicStandardParameters(standardYearMonth, code), Long.class);
+        return count == null ? 0 : count;
+    }
+
     Optional<PayrollHistorySnapshot> findLatestHistory(int uid) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
@@ -707,6 +740,41 @@ class PayrollRepository {
         return new MapSqlParameterSource()
                 .addValue("standardYearMonth", emptyToNull(standardYearMonth))
                 .addValue("positionCode", emptyToNull(positionCode));
+    }
+
+    private MapSqlParameterSource basicStandardParameters(String standardYearMonth, String code) {
+        return new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("code", emptyToNull(code));
+    }
+
+    private BasicStandardQuery basicStandardQuery(String standardType) {
+        return switch (emptyToNull(standardType) == null ? "" : standardType.trim().toLowerCase()) {
+            case "position" -> new BasicStandardQuery(
+                    "bz06_zwgz",
+                    "tbnd, zwbm, bz",
+                    "zwbm = :code",
+                    "tbnd DESC, zwbm");
+            case "position-grade" -> new BasicStandardQuery(
+                    "bz06_zwgz_gr",
+                    "tbnd, zwbm, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10, dc11, dc12, dc13, dc14, dc15, dc16, dc17, dc18, dc19, dc20, jsdjgz",
+                    "zwbm = :code",
+                    "tbnd DESC, zwbm");
+            case "grade" -> new BasicStandardQuery(
+                    "bz06_jbgz",
+                    "tbnd, jb, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10, dc11, dc12, dc13, dc14, dc15, dc16, dc17, dc18, dc19, dc20",
+                    "jb = :code",
+                    "tbnd DESC, CAST(jb AS UNSIGNED)");
+            case "salary-level" -> new BasicStandardQuery(
+                    "bz06_xjgz",
+                    "tbnd, gwflbm, xj, bz, jc, jce",
+                    "gwflbm = :code OR xj = :code",
+                    "tbnd DESC, gwflbm, xj");
+            default -> throw new IllegalArgumentException("Unsupported basic standard type: " + standardType);
+        };
+    }
+
+    private record BasicStandardQuery(String tableName, String columns, String codePredicate, String orderBy) {
     }
 
     private String emptyToNull(String value) {

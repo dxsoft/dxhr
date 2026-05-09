@@ -120,6 +120,7 @@ class SecuritySchemaInitializer {
         upsertPermission("PERSONNEL_READ", "人员信息查询", "PERSONNEL");
         upsertPermission("PAYROLL_READ", "工资试算查询", "PAYROLL");
         upsertPermission("AUDIT_READ", "工资批量对账", "PAYROLL");
+        upsertPermission("STANDARD_READ", "工资标准维护", "PAYROLL");
         upsertPermission("SECURITY_ADMIN", "权限管理", "SYSTEM");
         upsertPermission("DATA_EXCHANGE_READ", "数据交换", "DATA");
         upsertPermission("REPORT_READ", "报表打印与查询统计", "REPORT");
@@ -131,6 +132,7 @@ class SecuritySchemaInitializer {
         upsertMenu("PERSONNEL", "人员查询", "#personnel", "PERSONNEL_READ", 10);
         upsertMenu("PAYROLL", "工资试算", "#payroll", "PAYROLL_READ", 20);
         upsertMenu("AUDIT", "批量对账", "#audit", "AUDIT_READ", 30);
+        upsertMenu("BASIC_STANDARDS", "基本工资标准", "#basic-standards", "STANDARD_READ", 40);
         upsertMenu("SECURITY", "权限管理", "#security", "SECURITY_ADMIN", 90);
         upsertMenu("LEGACY_INFO_MAINTENANCE", "VFP-信息维护（待迁移）", "#legacy-info", "PERSONNEL_READ", 110, false);
         upsertMenu("LEGACY_PAYROLL_CHANGE", "VFP-工资变动（待迁移）", "#legacy-payroll-change", "PAYROLL_READ", 120, false);
@@ -148,14 +150,11 @@ class SecuritySchemaInitializer {
                 SELECT 'ADMIN', '系统管理员', 'ALL'
                 WHERE NOT EXISTS (SELECT 1 FROM app_role WHERE code = 'ADMIN')
                 """);
-        if (adminPassword == null || adminPassword.isBlank()) {
-            return;
-        }
         Integer userCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM app_user WHERE username = ?",
                 Integer.class,
                 adminUsername);
-        if (userCount == null || userCount == 0) {
+        if ((userCount == null || userCount == 0) && adminPassword != null && !adminPassword.isBlank()) {
             jdbcTemplate.update("""
                     INSERT INTO app_user (username, password_hash, display_name, enabled)
                     VALUES (?, ?, ?, 1)
