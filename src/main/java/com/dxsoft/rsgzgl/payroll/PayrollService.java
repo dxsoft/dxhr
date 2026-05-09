@@ -290,6 +290,22 @@ public class PayrollService {
                 payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
     }
 
+    public PageResponse<EducationPromotionPreview> educationPromotionPreviews(
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        List<EducationPromotionPreview> previews = payrollRepository
+                .findPersonnelUidsWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword, pageRequest)
+                .stream()
+                .map(this::educationPromotionPreview)
+                .toList();
+        return PageResponse.of(
+                previews,
+                pageRequest,
+                payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
+    }
+
     private BasicPayrollCalculation basicCalculation(PayrollHistorySnapshot history) {
         String standardYearMonth = history.salaryStandardYearMonth();
         String positionCode = history.positionCode();
@@ -908,6 +924,117 @@ public class PayrollService {
                 gradeIncreaseExceedsStepDifference,
                 eligible,
                 positionChangePromotionNote(history, candidate, levelRange, eligible, promotedLevels, gradeIncreaseExceedsStepDifference));
+    }
+
+    private EducationPromotionPreview educationPromotionPreview(int uid) {
+        PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        EducationPromotionSource education = payrollRepository
+                .findLatestEducationForPromotion(history.organizationCode(), history.personCode(), history.calculationYear() + history.calculationMonth())
+                .orElse(null);
+        EducationRegularizationStandard standard = education == null ? null : payrollRepository
+                .findEducationRegularizationStandard(history.positionCode(), education.educationCode())
+                .orElse(null);
+        String currentStep = String.valueOf(
+                payrollRepository.intValue(history.positionSalaryGrade())
+                        + payrollRepository.intValue(history.gradeSalaryStep()));
+        String promotedPositionCode = history.positionCode();
+        String promotedLevel = history.gradeSalaryLevel();
+        String promotedStep = currentStep;
+        boolean eligible = education != null && standard != null;
+        if (eligible) {
+            if (standard.positionCode().compareTo(history.positionCode()) <= 0) {
+                promotedPositionCode = normalizeEducationPromotionPositionCode(standard.positionCode());
+            }
+            promotedLevel = educationPromotionLevel(history, standard, currentStep);
+            promotedStep = educationPromotionStep(history, standard, promotedLevel, currentStep);
+        }
+        Integer currentPositionSalary = payrollRepository.positionSalary(history.positionCode(), history.salaryStandardYearMonth());
+        Integer promotedPositionSalary = payrollRepository.positionSalary(promotedPositionCode, history.salaryStandardYearMonth());
+        Integer currentGradeSalary = payrollRepository.gradeSalary(history.gradeSalaryLevel(), currentStep, history.salaryStandardYearMonth());
+        Integer promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
+        return new EducationPromotionPreview(
+                history.id(),
+                history.organizationCode(),
+                history.personCode(),
+                history.name(),
+                history.calculationYear() + history.calculationMonth(),
+                history.positionCode(),
+                history.positionName(),
+                education == null ? null : education.educationCode(),
+                education == null ? null : education.educationName(),
+                education == null ? null : education.graduationDate(),
+                standard == null ? null : standard.positionCode(),
+                standard == null ? null : standard.positionName(),
+                standard == null ? null : standard.gradeLevel(),
+                standard == null ? null : standard.gradeStep(),
+                promotedPositionCode,
+                promotedLevel,
+                promotedStep,
+                currentPositionSalary,
+                promotedPositionSalary,
+                currentGradeSalary,
+                promotedGradeSalary,
+                nullToZero(promotedPositionSalary) - nullToZero(currentPositionSalary),
+                nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
+                nullToZero(promotedPositionSalary) - nullToZero(currentPositionSalary)
+                        + nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
+                eligible,
+                educationPromotionNote(education, standard));
+    }
+
+    private String educationPromotionLevel(
+            PayrollHistorySnapshot history,
+            EducationRegularizationStandard standard,
+            String currentStep) {
+        int standardLevel = payrollRepository.intValue(standard.gradeLevel());
+        int currentLevel = payrollRepository.intValue(history.gradeSalaryLevel());
+        if (standardLevel > 0 && currentLevel > 0 && standardLevel < currentLevel) {
+            return standard.gradeLevel();
+        }
+        return history.gradeSalaryLevel();
+    }
+
+    private String educationPromotionStep(
+            PayrollHistorySnapshot history,
+            EducationRegularizationStandard standard,
+            String promotedLevel,
+            String currentStep) {
+        int standardLevel = payrollRepository.intValue(standard.gradeLevel());
+        int currentLevel = payrollRepository.intValue(history.gradeSalaryLevel());
+        int standardStep = payrollRepository.intValue(standard.gradeStep());
+        int currentSalary = payrollRepository.gradeSalary(history.gradeSalaryLevel(), currentStep, history.salaryStandardYearMonth());
+        int standardSalary = payrollRepository.gradeSalary(standard.gradeLevel(), standard.gradeStep(), history.salaryStandardYearMonth());
+        if (standardLevel > 0 && currentLevel > 0 && standardLevel < currentLevel) {
+            if (standardSalary >= currentSalary) {
+                return standard.gradeStep();
+            }
+            return firstHigherGradeStep(standard.gradeLevel(), currentSalary, history.salaryStandardYearMonth());
+        }
+        if (standardLevel == currentLevel) {
+            return String.valueOf(Math.max(standardStep, payrollRepository.intValue(currentStep)));
+        }
+        if (standardSalary > currentSalary) {
+            return firstHigherGradeStep(promotedLevel, standardSalary, history.salaryStandardYearMonth());
+        }
+        return currentStep;
+    }
+
+    private String normalizeEducationPromotionPositionCode(String positionCode) {
+        if (positionCode != null && positionCode.startsWith("07") && positionCode.length() >= 4 && "0".equals(positionCode.substring(3, 4))) {
+            return "070" + positionCode.substring(2, 3);
+        }
+        return positionCode;
+    }
+
+    private String educationPromotionNote(EducationPromotionSource education, EducationRegularizationStandard standard) {
+        if (education == null) {
+            return "未找到可用于学历晋升的学历记录。";
+        }
+        if (standard == null) {
+            return "未找到当前岗位前缀和学历编码对应的转正定级标准。";
+        }
+        return "按最高学历和 bz06_zzdz 转正定级标准试算，暂不写入数据库。";
     }
 
     private boolean gradeIncreaseExceedsStepDifference(

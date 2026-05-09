@@ -42,6 +42,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 “级别晋升”页面提供当前工资记录级别/档次晋升只读试算，按 `xckhndjb`、`xckhndzw` 和年度考核结果判断符合晋升条件的人员；累计 5 年考核称职及以上晋升级别，累计 2 年考核称职及以上晋升档次；2006 年 7 月前已转正的人员从 2006 年开始考核，同年同时满足时先晋升级别再晋升档次。
 级别晋升发生时，下次晋升级别起算年 `xckhndjb` 应更新为本次晋升年度；无论级别晋升来自年度考核还是职务晋升，如级别工资增资额超过下一级别一个工资档差，`xckhndzw` 也应从本次晋升年度重新计算。
 “职务变化晋升”页面提供公务员职务变化后的职务工资和级别工资只读试算，并给出 `xckhndjb`、`xckhndzw` 更新建议；职务晋升带动多级级别晋升时，会逐级比较增资额是否超过下一级别一个工资档差。
+“学历晋升”页面提供当前工资记录和最高学历对照 `bz06_zzdz` 转正定级标准的岗位、级别、档次和工资差额只读试算。
 “单位信息维护”页面提供 `dwbm` 只读查询，按用户单位数据范围限制可见单位。
 “设置常用值”页面提供 `dmb` 字典表只读查询，支持编码前缀和关键词筛选。
 “本地工资政策”页面提供 `cyxx` 和 `xtcs` 只读查询，用于核对影响工资计算的全局参数。
@@ -77,6 +78,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/payroll/normal-promotions`
 - `GET /api/payroll/level-promotions`
 - `GET /api/payroll/position-change-promotions`
+- `GET /api/payroll/education-promotions`
 - `GET /api/payroll/position-standards`
 - `GET /api/payroll/basic-standards`
 - `GET /api/payroll/intern-salary-standards`

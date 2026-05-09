@@ -32,6 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("normal-promotion-form").addEventListener("submit", onNormalPromotionSearch);
     document.getElementById("level-promotion-form").addEventListener("submit", onLevelPromotionSearch);
     document.getElementById("position-change-promotion-form").addEventListener("submit", onPositionChangePromotionSearch);
+    document.getElementById("education-promotion-form").addEventListener("submit", onEducationPromotionSearch);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
     document.getElementById("rank-allowance-standards-form").addEventListener("submit", onRankAllowanceStandardsSearch);
@@ -112,6 +113,9 @@ async function initializeAuth() {
         }
         if (hasMenu("POSITION_CHANGE_PROMOTION")) {
             await loadPositionChangePromotions();
+        }
+        if (hasMenu("EDUCATION_PROMOTION")) {
+            await loadEducationPromotions();
         }
         if (hasMenu("BASIC_STANDARDS")) {
             await loadBasicStandards();
@@ -303,6 +307,12 @@ async function onPositionChangePromotionSearch(event) {
     event.preventDefault();
     document.getElementById("position-change-page").value = "0";
     await loadPositionChangePromotions();
+}
+
+async function onEducationPromotionSearch(event) {
+    event.preventDefault();
+    document.getElementById("education-promotion-page").value = "0";
+    await loadEducationPromotions();
 }
 
 async function onBasicStandardsSearch(event) {
@@ -1102,6 +1112,62 @@ async function loadPositionChangePromotions() {
                 <td>${escapeHtml(row.nextLevelAssessmentStartYear || "")}</td>
                 <td>${escapeHtml(row.nextStepAssessmentStartYear || "")}</td>
                 <td>${row.gradeIncreaseExceedsStepDifference ? "是" : "否"}</td>
+                <td>${row.eligible ? "是" : "否"}</td>
+                <td>${escapeHtml(row.note || "")}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条试算记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadEducationPromotions() {
+    const organizationCode = document.getElementById("education-promotion-organization-code").value.trim();
+    const keyword = document.getElementById("education-promotion-keyword").value.trim();
+    const page = document.getElementById("education-promotion-page").value || "0";
+    const size = document.getElementById("education-promotion-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("education-promotion-status");
+    const rows = document.getElementById("education-promotion-rows");
+    status.className = "status";
+    status.textContent = "正在查询学历晋升试算...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/payroll/education-promotions?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.organizationCode)}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.calculationPeriod)}</td>
+                <td>${escapeHtml(row.currentPositionCode || "")}</td>
+                <td>${escapeHtml(row.currentPositionName || "")}</td>
+                <td>${escapeHtml(row.educationCode || "")}</td>
+                <td>${escapeHtml(row.educationName || "")}</td>
+                <td>${escapeHtml(row.graduationDate || "")}</td>
+                <td>${escapeHtml(row.standardPositionCode || "")}</td>
+                <td>${escapeHtml(row.standardPositionName || "")}</td>
+                <td>${escapeHtml(row.standardLevel || "")}</td>
+                <td>${escapeHtml(row.standardStep || "")}</td>
+                <td>${escapeHtml(row.promotedPositionCode || "")}</td>
+                <td>${escapeHtml(row.promotedLevel || "")}</td>
+                <td>${escapeHtml(row.promotedStep || "")}</td>
+                <td>${money(row.currentPositionSalary)}</td>
+                <td>${money(row.promotedPositionSalary)}</td>
+                <td>${money(row.currentGradeSalary)}</td>
+                <td>${money(row.promotedGradeSalary)}</td>
+                <td>${money(row.positionSalaryIncrease)}</td>
+                <td>${money(row.gradeSalaryIncrease)}</td>
+                <td>${money(row.totalIncrease)}</td>
                 <td>${row.eligible ? "是" : "否"}</td>
                 <td>${escapeHtml(row.note || "")}</td>
             </tr>

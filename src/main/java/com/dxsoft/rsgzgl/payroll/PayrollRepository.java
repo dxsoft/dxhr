@@ -218,6 +218,19 @@ class PayrollRepository {
             rs.getInt("min"),
             rs.getInt("max"));
 
+    private static final RowMapper<EducationPromotionSource> EDUCATION_PROMOTION_SOURCE_MAPPER = (rs, rowNum) -> new EducationPromotionSource(
+            SqlText.trim(rs.getString("xlbm")),
+            SqlText.trim(rs.getString("xl")),
+            SqlText.trim(rs.getString("bysj")));
+
+    private static final RowMapper<EducationRegularizationStandard> EDUCATION_REGULARIZATION_STANDARD_MAPPER = (rs, rowNum) -> new EducationRegularizationStandard(
+            SqlText.trim(rs.getString("xlbm")),
+            SqlText.trim(rs.getString("xlmc")),
+            SqlText.trim(rs.getString("zzzwbm")),
+            SqlText.trim(rs.getString("zzzwmc")),
+            SqlText.trim(rs.getString("zzjb")),
+            SqlText.trim(rs.getString("zzdc")));
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     PayrollRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -869,6 +882,42 @@ class PayrollRepository {
                 """, new MapSqlParameterSource("positionCode", emptyToNull(positionCode)), POSITION_LEVEL_RANGE_MAPPER).stream().findFirst();
     }
 
+    Optional<EducationPromotionSource> findLatestEducationForPromotion(
+            String organizationCode,
+            String personCode,
+            String currentPeriod) {
+        return jdbcTemplate.query("""
+                SELECT xlbm, xl, bysj
+                FROM dxl
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND xllb <> '后取'
+                  AND bysj IS NOT NULL
+                  AND TRIM(REPLACE(bysj, '.', '')) <> ''
+                  AND REPLACE(bysj, '.', '') <= :currentPeriod
+                ORDER BY xlbm ASC, bysj DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("currentPeriod", currentPeriod), EDUCATION_PROMOTION_SOURCE_MAPPER).stream().findFirst();
+    }
+
+    Optional<EducationRegularizationStandard> findEducationRegularizationStandard(
+            String positionCode,
+            String educationCode) {
+        return jdbcTemplate.query("""
+                SELECT xlbm, xlmc, zzzwbm, zzzwmc, zzjb, zzdc
+                FROM bz06_zzdz
+                WHERE LEFT(zzzwbm, 2) = LEFT(:positionCode, 2)
+                  AND xlbm = :educationCode
+                ORDER BY zzzwbm
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("positionCode", normalizeEducationStandardPositionCode(positionCode))
+                .addValue("educationCode", emptyToNull(educationCode)), EDUCATION_REGULARIZATION_STANDARD_MAPPER).stream().findFirst();
+    }
+
     int positionGradeSalary(String positionCode, String positionSalaryGrade, String invertedStep, String standardYearMonth) {
         int grade = intValue(positionSalaryGrade);
         if (emptyToNull(positionCode) == null || emptyToNull(standardYearMonth) == null || grade <= 0 || grade > 20) {
@@ -1508,6 +1557,23 @@ class PayrollRepository {
         String normalized = emptyToNull(positionCode);
         if (normalized != null && normalized.compareTo("1000") > 0 && normalized.length() >= 2) {
             return "10" + normalized.substring(normalized.length() - 2);
+        }
+        return normalized;
+    }
+
+    private String normalizeEducationStandardPositionCode(String positionCode) {
+        String normalized = emptyToNull(positionCode);
+        if (normalized == null || normalized.length() < 2) {
+            return normalized;
+        }
+        String prefix = normalized.substring(0, 2);
+        if (normalized.compareTo("10") > 0 && !List.of("21", "22", "23", "24", "25", "26", "27", "28").contains(prefix)
+                && normalized.length() >= 4) {
+            normalized = "10" + normalized.substring(2);
+            prefix = normalized.substring(0, 2);
+        }
+        if (("03".equals(prefix) || "04".equals(prefix)) && normalized.length() >= 4) {
+            normalized = "01" + normalized.substring(2);
         }
         return normalized;
     }
