@@ -805,6 +805,69 @@
         </div>
     </section>
 
+    <section id="position-change-promotion" class="panel hidden" data-menu-code="POSITION_CHANGE_PROMOTION">
+        <div class="panel-title">
+            <div>
+                <h2>职务变化晋升</h2>
+                <p>基于当前执行工资和 `dryzwbh` 现任职务记录，试算职务变化后的职务工资和相应级别工资。</p>
+            </div>
+        </div>
+        <form id="position-change-promotion-form" class="toolbar">
+            <label>
+                单位编码
+                <input id="position-change-organization-code" placeholder="例如 001">
+            </label>
+            <label>
+                关键词
+                <input id="position-change-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>
+                页码
+                <input id="position-change-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="position-change-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="position-change-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位编码</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>原职务编码</th>
+                    <th>原职务</th>
+                    <th>新职务编码</th>
+                    <th>新职务</th>
+                    <th>新任年月</th>
+                    <th>执行年月</th>
+                    <th>原级别</th>
+                    <th>原档次</th>
+                    <th>新职务最低级别</th>
+                    <th>新职务最高级别</th>
+                    <th>试算级别</th>
+                    <th>试算档次</th>
+                    <th>原职务工资</th>
+                    <th>新职务工资</th>
+                    <th>原级别工资</th>
+                    <th>新级别工资</th>
+                    <th>职务增资</th>
+                    <th>级别增资</th>
+                    <th>合计增资</th>
+                    <th>更新后xckhndjb</th>
+                    <th>是否适用</th>
+                    <th>说明</th>
+                </tr>
+                </thead>
+                <tbody id="position-change-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="audit" class="panel hidden" data-menu-code="AUDIT">
         <div class="panel-title">
             <div>

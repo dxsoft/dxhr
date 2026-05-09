@@ -274,6 +274,22 @@ public class PayrollService {
                 payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
     }
 
+    public PageResponse<PositionChangePromotionPreview> positionChangePromotionPreviews(
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        List<PositionChangePromotionPreview> previews = payrollRepository
+                .findPersonnelUidsWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword, pageRequest)
+                .stream()
+                .map(this::positionChangePromotionPreview)
+                .toList();
+        return PageResponse.of(
+                previews,
+                pageRequest,
+                payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
+    }
+
     private BasicPayrollCalculation basicCalculation(PayrollHistorySnapshot history) {
         String standardYearMonth = history.salaryStandardYearMonth();
         String positionCode = history.positionCode();
@@ -807,6 +823,113 @@ public class PayrollService {
                 nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
                 eligible,
                 levelPromotionNote(eligible, levelPromotionDue, stepPromotionDue));
+    }
+
+    private PositionChangePromotionPreview positionChangePromotionPreview(int uid) {
+        PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        PositionChangeCandidate candidate = payrollRepository
+                .findCurrentPositionChangeCandidate(history.organizationCode(), history.personCode())
+                .orElse(new PositionChangeCandidate(history.positionCode(), history.positionName(), history.positionStartYearMonth()));
+        PositionLevelRange levelRange = payrollRepository.findPositionLevelRange(candidate.positionCode()).orElse(null);
+        int currentLevel = payrollRepository.intValue(history.gradeSalaryLevel());
+        String currentStep = String.valueOf(
+                payrollRepository.intValue(history.positionSalaryGrade())
+                        + payrollRepository.intValue(history.gradeSalaryStep()));
+        Integer currentPositionSalary = payrollRepository.positionSalary(history.positionCode(), history.salaryStandardYearMonth());
+        Integer newPositionSalary = payrollRepository.positionSalary(candidate.positionCode(), history.salaryStandardYearMonth());
+        Integer currentGradeSalary = payrollRepository.gradeSalary(history.gradeSalaryLevel(), currentStep, history.salaryStandardYearMonth());
+        boolean eligible = isCivilServantForPositionChange(history.positionCode())
+                && isCivilServantForPositionChange(candidate.positionCode())
+                && levelRange != null
+                && currentLevel > 0;
+        String promotedLevel = history.gradeSalaryLevel();
+        if (eligible) {
+            if (currentLevel > levelRange.minimumLevel()) {
+                promotedLevel = String.valueOf(levelRange.minimumLevel());
+            } else if (currentLevel >= levelRange.maximumLevel()) {
+                promotedLevel = String.valueOf(Math.max(1, currentLevel - 1));
+            }
+        }
+        String promotedStep = currentStep;
+        Integer promotedGradeSalary = currentGradeSalary;
+        if (eligible && !promotedLevel.equals(history.gradeSalaryLevel())) {
+            promotedStep = firstHigherGradeStep(promotedLevel, currentGradeSalary, history.salaryStandardYearMonth());
+            promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
+        }
+        int promotedLevels = Math.max(0, currentLevel - payrollRepository.intValue(promotedLevel));
+        String nextLevelAssessmentStartYear = promotedLevels >= 2 ? history.calculationYear() : history.levelAssessmentStartYear();
+        return new PositionChangePromotionPreview(
+                history.id(),
+                history.organizationCode(),
+                history.personCode(),
+                history.name(),
+                history.positionCode(),
+                history.positionName(),
+                candidate.positionCode(),
+                candidate.positionName(),
+                candidate.startYearMonth(),
+                nextMonth(candidate.startYearMonth()),
+                history.salaryStandardYearMonth(),
+                history.gradeSalaryLevel(),
+                currentStep,
+                levelRange == null ? null : String.valueOf(levelRange.minimumLevel()),
+                levelRange == null ? null : String.valueOf(levelRange.maximumLevel()),
+                promotedLevel,
+                promotedStep,
+                currentPositionSalary,
+                newPositionSalary,
+                currentGradeSalary,
+                promotedGradeSalary,
+                nullToZero(newPositionSalary) - nullToZero(currentPositionSalary),
+                nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
+                nullToZero(newPositionSalary) - nullToZero(currentPositionSalary)
+                        + nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
+                nextLevelAssessmentStartYear,
+                eligible,
+                positionChangePromotionNote(history, candidate, levelRange, eligible, promotedLevels));
+    }
+
+    private boolean isCivilServantForPositionChange(String positionCode) {
+        if (positionCode == null || positionCode.length() < 2) {
+            return false;
+        }
+        return Set.of("01", "02", "04", "23", "24", "25", "26", "27", "28").contains(positionCode.substring(0, 2));
+    }
+
+    private String nextMonth(String yearMonth) {
+        String normalized = yearMonth == null ? "" : yearMonth.replace(".", "");
+        if (normalized.length() < 6) {
+            return "";
+        }
+        int year = payrollRepository.intValue(normalized.substring(0, 4));
+        int month = payrollRepository.intValue(normalized.substring(4, 6)) + 1;
+        if (month > 12) {
+            year++;
+            month = 1;
+        }
+        return "%04d%02d".formatted(year, month);
+    }
+
+    private String positionChangePromotionNote(
+            PayrollHistorySnapshot history,
+            PositionChangeCandidate candidate,
+            PositionLevelRange levelRange,
+            boolean eligible,
+            int promotedLevels) {
+        if (!eligible) {
+            return "仅公务员/参公岗位且存在新任职务级别范围时参与职务变化晋升试算。";
+        }
+        if (candidate.positionCode() == null || candidate.positionCode().equals(history.positionCode())) {
+            return "未发现不同于当前工资记录的新任职务，按当前任职务预览。";
+        }
+        if (promotedLevels >= 2) {
+            return "晋升职务相应晋升级别达到两级及以上，xckhndjb 应从职务变动级别当年重新计算。";
+        }
+        if (promotedLevels == 1) {
+            return "晋升职务相应晋升一个级别，xckhndjb 继续从上一次按考核结果晋升级别当年计算。";
+        }
+        return "新任职务级别范围未导致级别晋升，仅试算职务工资变化。";
     }
 
     private String firstHigherGradeStep(String gradeLevel, Integer currentGradeSalary, String standardYearMonth) {

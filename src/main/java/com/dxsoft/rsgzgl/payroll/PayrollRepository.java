@@ -208,6 +208,16 @@ class PayrollRepository {
             rs.getInt("difference_amount"),
             rs.getBoolean("eligible"));
 
+    private static final RowMapper<PositionChangeCandidate> POSITION_CHANGE_CANDIDATE_MAPPER = (rs, rowNum) -> new PositionChangeCandidate(
+            SqlText.trim(rs.getString("zwbm")),
+            SqlText.trim(rs.getString("xzzw")),
+            SqlText.trim(rs.getString("srny")));
+
+    private static final RowMapper<PositionLevelRange> POSITION_LEVEL_RANGE_MAPPER = (rs, rowNum) -> new PositionLevelRange(
+            SqlText.trim(rs.getString("zwbm")),
+            rs.getInt("min"),
+            rs.getInt("max"));
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     PayrollRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -836,6 +846,27 @@ class PayrollRepository {
                 """, new MapSqlParameterSource()
                 .addValue("standardYearMonth", emptyToNull(standardYearMonth))
                 .addValue("positionCode", mapPositionSalaryCode(positionCode)));
+    }
+
+    Optional<PositionChangeCandidate> findCurrentPositionChangeCandidate(String organizationCode, String personCode) {
+        return jdbcTemplate.query("""
+                SELECT zwbm, xzzw, srny
+                FROM dryzwbh
+                WHERE dwbm = :organizationCode AND grbm = :personCode
+                ORDER BY CASE WHEN xrzwbz = '1' THEN 0 ELSE 1 END, srny DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode), POSITION_CHANGE_CANDIDATE_MAPPER).stream().findFirst();
+    }
+
+    Optional<PositionLevelRange> findPositionLevelRange(String positionCode) {
+        return jdbcTemplate.query("""
+                SELECT zwbm, `min`, `max`
+                FROM bz06_zw_jb_xj
+                WHERE zwbm = :positionCode
+                LIMIT 1
+                """, new MapSqlParameterSource("positionCode", emptyToNull(positionCode)), POSITION_LEVEL_RANGE_MAPPER).stream().findFirst();
     }
 
     int positionGradeSalary(String positionCode, String positionSalaryGrade, String invertedStep, String standardYearMonth) {

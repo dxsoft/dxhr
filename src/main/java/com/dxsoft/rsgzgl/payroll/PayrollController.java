@@ -146,6 +146,15 @@ class PayrollController {
         return payrollService.levelPromotionPreviews(organizationCode, keyword, dueOnly, PageRequest.of(page, size));
     }
 
+    @GetMapping("/position-change-promotions")
+    PageResponse<PositionChangePromotionPreview> positionChangePromotions(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.positionChangePromotionPreviews(organizationCode, keyword, PageRequest.of(page, size));
+    }
+
     @GetMapping("/personnel/{uid}/calculation-context")
     PayrollCalculationContext calculationContext(@PathVariable int uid) {
         return payrollService.calculationContext(uid);

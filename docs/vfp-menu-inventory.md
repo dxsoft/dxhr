@@ -28,6 +28,7 @@
 | `TEACHING_ALLOWANCE_ADJUSTMENT` | 调整教护龄津贴 | `#teaching-allowance-adjustment` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
 | `NORMAL_PROMOTION` | 正常档次/薪级晋升 | `#normal-promotion` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
 | `LEVEL_PROMOTION` | 级别晋升 | `#level-promotion` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
+| `POSITION_CHANGE_PROMOTION` | 职务变化晋升 | `#position-change-promotion` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
 | `AUDIT` | 批量对账 | `#audit` | `AUDIT_READ` | 当前 Spring Boot 已实现 |
 | `BASIC_STANDARDS` | 基本工资标准 | `#basic-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `INTERN_SALARY_STANDARDS` | 见习工资标准 | `#intern-salary-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |

@@ -140,6 +140,7 @@ class SecuritySchemaInitializer {
         upsertMenu("TEACHING_ALLOWANCE_ADJUSTMENT", "调整教护龄津贴", "#teaching-allowance-adjustment", "PAYROLL_READ", 28);
         upsertMenu("NORMAL_PROMOTION", "正常档次/薪级晋升", "#normal-promotion", "PAYROLL_READ", 29);
         upsertMenu("LEVEL_PROMOTION", "级别晋升", "#level-promotion", "PAYROLL_READ", 30);
+        upsertMenu("POSITION_CHANGE_PROMOTION", "职务变化晋升", "#position-change-promotion", "PAYROLL_READ", 31);
         upsertMenu("AUDIT", "批量对账", "#audit", "AUDIT_READ", 35);
         upsertMenu("BASIC_STANDARDS", "基本工资标准", "#basic-standards", "STANDARD_READ", 40);
         upsertMenu("INTERN_SALARY_STANDARDS", "见习工资标准", "#intern-salary-standards", "STANDARD_READ", 45);
