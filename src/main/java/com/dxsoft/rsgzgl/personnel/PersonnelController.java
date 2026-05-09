@@ -47,4 +47,14 @@ class PersonnelController {
     List<AssessmentRecord> assessments(@PathVariable int uid) {
         return personnelService.assessments(uid);
     }
+
+    @GetMapping("/assessments")
+    PageResponse<AnnualAssessmentRecord> annualAssessments(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return personnelService.annualAssessments(organizationCode, year, keyword, PageRequest.of(page, size));
+    }
 }

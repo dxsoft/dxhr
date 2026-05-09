@@ -92,6 +92,16 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("khjg"))
     );
 
+    private static final RowMapper<AnnualAssessmentRecord> ANNUAL_ASSESSMENT_MAPPER = (rs, rowNum) -> new AnnualAssessmentRecord(
+            rs.getInt("id"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("khnd")),
+            SqlText.trim(rs.getString("khjg"))
+    );
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     PersonnelRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -177,6 +187,52 @@ class PersonnelRepository {
                 """, keyParameters(key), ASSESSMENT_MAPPER);
     }
 
+    List<AnnualAssessmentRecord> findAnnualAssessments(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String year,
+            String keyword,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource params = assessmentParameters(organizationScope, organizationCode, year, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT a.id, a.dwbm, dw.dwmc, a.grbm, p.xm, a.khnd, a.khjg
+                FROM dndkh a
+                LEFT JOIN dryjbxx p ON p.dwbm = a.dwbm AND p.grbm = a.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
+                WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
+                  AND (:year IS NULL OR a.khnd = :year)
+                  AND (:keyword IS NULL OR a.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR a.khjg LIKE :keywordLike)
+                ORDER BY a.khnd DESC, a.dwbm, a.grbm
+                LIMIT :limit OFFSET :offset
+                """, params, ANNUAL_ASSESSMENT_MAPPER);
+    }
+
+    long countAnnualAssessments(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String year,
+            String keyword) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM dndkh a
+                LEFT JOIN dryjbxx p ON p.dwbm = a.dwbm AND p.grbm = a.grbm
+                WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
+                  AND (:year IS NULL OR a.khnd = :year)
+                  AND (:keyword IS NULL OR a.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR a.khjg LIKE :keywordLike)
+                """, assessmentParameters(organizationScope, organizationCode, year, keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
     private MapSqlParameterSource parameters(OrganizationScope organizationScope, String keyword) {
         String trimmedKeyword = SqlText.trim(keyword);
         return new MapSqlParameterSource()
@@ -190,5 +246,24 @@ class PersonnelRepository {
         return new MapSqlParameterSource()
                 .addValue("dwbm", key.organizationCode())
                 .addValue("grbm", key.personCode());
+    }
+
+    private MapSqlParameterSource assessmentParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String year,
+            String keyword) {
+        String trimmedKeyword = SqlText.trim(keyword);
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("year", emptyToNull(year))
+                .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private String emptyToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

@@ -49,6 +49,18 @@ public class PersonnelService {
         return personnelRepository.findAssessments(personKey);
     }
 
+    public PageResponse<AnnualAssessmentRecord> annualAssessments(
+            String organizationCode,
+            String year,
+            String keyword,
+            PageRequest pageRequest) {
+        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        return PageResponse.of(
+                personnelRepository.findAnnualAssessments(scope, emptyToNull(organizationCode), year, keyword, pageRequest),
+                pageRequest,
+                personnelRepository.countAnnualAssessments(scope, emptyToNull(organizationCode), year, keyword));
+    }
+
     private PersonKey getPersonKey(int uid) {
         PersonKey key = personnelRepository.findKeyByUid(uid)
                 .orElseThrow(() -> new NotFoundException("Personnel record not found: " + uid));

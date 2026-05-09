@@ -18,6 +18,7 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
+    document.getElementById("annual-assessments-form").addEventListener("submit", onAnnualAssessmentsSearch);
     document.getElementById("organization-maintenance-form").addEventListener("submit", onOrganizationMaintenanceSearch);
     document.getElementById("dictionary-maintenance-form").addEventListener("submit", onDictionarySearch);
     document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
@@ -62,6 +63,9 @@ async function initializeAuth() {
         }
         if (hasMenu("PERSONNEL")) {
             await loadPersonnel();
+        }
+        if (hasMenu("ANNUAL_ASSESSMENTS")) {
+            await loadAnnualAssessments();
         }
         if (hasMenu("ORGANIZATION_MAINTENANCE")) {
             await loadOrganizationMaintenance();
@@ -178,6 +182,12 @@ async function onPersonnelSearch(event) {
     await loadPersonnel();
 }
 
+async function onAnnualAssessmentsSearch(event) {
+    event.preventDefault();
+    document.getElementById("assessment-page").value = "0";
+    await loadAnnualAssessments();
+}
+
 async function onOrganizationMaintenanceSearch(event) {
     event.preventDefault();
     document.getElementById("organization-maintenance-page").value = "0";
@@ -278,6 +288,47 @@ async function loadPersonnel() {
         rows.querySelectorAll("button[data-uid]").forEach(button => {
             button.addEventListener("click", () => loadPreview(button.dataset.uid));
         });
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadAnnualAssessments() {
+    const organizationCode = document.getElementById("assessment-organization-code").value.trim();
+    const year = document.getElementById("assessment-year").value.trim();
+    const keyword = document.getElementById("assessment-keyword").value.trim();
+    const page = document.getElementById("assessment-page").value || "0";
+    const size = document.getElementById("assessment-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (year) {
+        params.set("year", year);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("assessment-status");
+    const rows = document.getElementById("assessment-rows");
+    status.className = "status";
+    status.textContent = "正在查询年度考核结果...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/personnel/assessments?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.id)}</td>
+                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name || "")}</td>
+                <td>${escapeHtml(row.year)}</td>
+                <td>${escapeHtml(row.result)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条考核记录`;
     } catch (error) {
         showError(status, error);
     }

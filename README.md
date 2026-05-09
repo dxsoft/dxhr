@@ -31,6 +31,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 登录后拥有 `SECURITY_ADMIN` 权限的用户可在首页“权限管理”区域维护用户、角色、功能权限绑定和角色单位范围。
 登录成功、登录失败、退出登录、修改密码和权限管理操作都会写入安全审计日志。
 前端导航由 `app_menu` 和 `/api/auth/menus` 动态生成，只显示当前用户具备权限的菜单。
+“年度考核结果”页面提供 `dndkh` 只读查询，按用户单位数据范围限制可见人员。
 “单位信息维护”页面提供 `dwbm` 只读查询，按用户单位数据范围限制可见单位。
 “设置常用值”页面提供 `dmb` 字典表只读查询，支持编码前缀和关键词筛选。
 “本地工资政策”页面提供 `cyxx` 和 `xtcs` 只读查询，用于核对影响工资计算的全局参数。
@@ -50,6 +51,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/personnel/{uid}/positions`
 - `GET /api/personnel/{uid}/education`
 - `GET /api/personnel/{uid}/assessments`
+- `GET /api/personnel/assessments`
 - `GET /api/organizations/maintenance`
 - `GET /api/dictionaries`
 - `GET /api/system-config/local-policies`
