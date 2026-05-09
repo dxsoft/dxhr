@@ -477,29 +477,29 @@
         </div>
     </section>
 
-    <section id="raise-grade-standards" class="panel hidden" data-menu-code="RAISE_GRADE_STANDARDS">
+    <section id="wage-reform-standards" class="panel hidden" data-menu-code="WAGE_REFORM_STANDARDS">
         <div class="panel-title">
             <div>
-                <h2>提高工资标准</h2>
-                <p>查询 `bz06_tgb` 中的提高工资级别、档次判定标准。</p>
+                <h2>2006套改标准</h2>
+                <p>查询 `bz06_tgb` 中的 2006 年 7 月工资制度改革套改级别、档次标准。</p>
             </div>
         </div>
-        <form id="raise-grade-standards-form" class="toolbar">
+        <form id="wage-reform-standards-form" class="toolbar">
             <label>
                 职务编码
-                <input id="raise-standard-position-code" placeholder="例如 0709">
+                <input id="wage-reform-position-code" placeholder="例如 0709">
             </label>
             <label>
                 页码
-                <input id="raise-standard-page" type="number" min="0" value="0">
+                <input id="wage-reform-page" type="number" min="0" value="0">
             </label>
             <label>
                 每页数量
-                <input id="raise-standard-size" type="number" min="1" max="100" value="20">
+                <input id="wage-reform-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询标准</button>
         </form>
-        <div id="raise-standards-status" class="status"></div>
+        <div id="wage-reform-standards-status" class="status"></div>
         <div class="table-wrap">
             <table>
                 <thead>
@@ -507,13 +507,13 @@
                     <th>职务编码</th>
                     <th>任职年限起</th>
                     <th>任职年限止</th>
-                    <th>提高年限起</th>
-                    <th>提高年限止</th>
-                    <th>级别</th>
-                    <th>档次</th>
+                    <th>套改年限起</th>
+                    <th>套改年限止</th>
+                    <th>套改级别</th>
+                    <th>套改档次</th>
                 </tr>
                 </thead>
-                <tbody id="raise-standards-rows"></tbody>
+                <tbody id="wage-reform-standards-rows"></tbody>
             </table>
         </div>
     </section>

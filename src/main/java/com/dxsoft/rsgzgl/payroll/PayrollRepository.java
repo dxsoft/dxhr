@@ -90,7 +90,7 @@ class PayrollRepository {
             rs.getInt("gz1"),
             rs.getInt("gz2"));
 
-    private static final RowMapper<RaiseGradeStandard> RAISE_GRADE_STANDARD_MAPPER = (rs, rowNum) -> new RaiseGradeStandard(
+    private static final RowMapper<WageReformStandard> WAGE_REFORM_STANDARD_MAPPER = (rs, rowNum) -> new WageReformStandard(
             SqlText.trim(rs.getString("zwbm")),
             rs.getInt("rzns"),
             rs.getInt("rznz"),
@@ -360,7 +360,7 @@ class PayrollRepository {
         return count == null ? 0 : count;
     }
 
-    List<RaiseGradeStandard> findRaiseGradeStandards(String positionCode, PageRequest pageRequest) {
+    List<WageReformStandard> findWageReformStandards(String positionCode, PageRequest pageRequest) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("positionCode", emptyToNull(positionCode))
                 .addValue("limit", pageRequest.size())
@@ -371,10 +371,10 @@ class PayrollRepository {
                 WHERE (:positionCode IS NULL OR zwbm = :positionCode)
                 ORDER BY zwbm, rzns, rznz, tgns, tgnz
                 LIMIT :limit OFFSET :offset
-                """, parameters, RAISE_GRADE_STANDARD_MAPPER);
+                """, parameters, WAGE_REFORM_STANDARD_MAPPER);
     }
 
-    long countRaiseGradeStandards(String positionCode) {
+    long countWageReformStandards(String positionCode) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM bz06_tgb

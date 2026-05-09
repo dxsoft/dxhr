@@ -26,7 +26,7 @@
 | `RANK_ALLOWANCE_STANDARDS` | 警衔津贴标准 | `#rank-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `RETAINED_ALLOWANCE_STANDARDS` | 保留福补标准 | `#retained-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `YEAR_ALLOWANCE_STANDARDS` | 年补贴标准 | `#year-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
-| `RAISE_GRADE_STANDARDS` | 提高工资标准 | `#raise-grade-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
+| `WAGE_REFORM_STANDARDS` | 2006套改标准 | `#wage-reform-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `SECURITY` | 权限管理 | `#security` | `SECURITY_ADMIN` | 当前 Spring Boot 已实现 |
 
 ## VFP 顶级菜单种子

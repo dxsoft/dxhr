@@ -103,13 +103,13 @@ public class PayrollService {
                 payrollRepository.countInternSalaryStandards(standardYearMonth, keyword));
     }
 
-    public PageResponse<RaiseGradeStandard> raiseGradeStandards(
+    public PageResponse<WageReformStandard> wageReformStandards(
             String positionCode,
             PageRequest pageRequest) {
         return PageResponse.of(
-                payrollRepository.findRaiseGradeStandards(positionCode, pageRequest),
+                payrollRepository.findWageReformStandards(positionCode, pageRequest),
                 pageRequest,
-                payrollRepository.countRaiseGradeStandards(positionCode));
+                payrollRepository.countWageReformStandards(positionCode));
     }
 
     public PayrollCalculationContext calculationContext(int uid) {

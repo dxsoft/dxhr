@@ -90,12 +90,12 @@ class PayrollController {
         return payrollService.internSalaryStandards(standardYearMonth, keyword, PageRequest.of(page, size));
     }
 
-    @GetMapping("/raise-grade-standards")
-    PageResponse<RaiseGradeStandard> raiseGradeStandards(
+    @GetMapping("/wage-reform-standards")
+    PageResponse<WageReformStandard> wageReformStandards(
             @RequestParam(required = false) String positionCode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.raiseGradeStandards(positionCode, PageRequest.of(page, size));
+        return payrollService.wageReformStandards(positionCode, PageRequest.of(page, size));
     }
 
     @GetMapping("/personnel/{uid}/calculation-context")
