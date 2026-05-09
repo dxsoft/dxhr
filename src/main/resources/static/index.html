@@ -354,6 +354,43 @@
         </div>
     </section>
 
+    <section id="retained-allowance-standards" class="panel hidden" data-menu-code="RETAINED_ALLOWANCE_STANDARDS">
+        <div class="panel-title">
+            <div>
+                <h2>保留福补标准</h2>
+                <p>查询 `bz06_blfb` 中的保留福补标准。</p>
+            </div>
+        </div>
+        <form id="retained-allowance-standards-form" class="toolbar">
+            <label>
+                关键词
+                <input id="retained-standard-keyword" placeholder="职务编码 / 名称">
+            </label>
+            <label>
+                页码
+                <input id="retained-standard-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="retained-standard-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询标准</button>
+        </form>
+        <div id="retained-standards-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>职务编码</th>
+                    <th>名称</th>
+                    <th>金额</th>
+                </tr>
+                </thead>
+                <tbody id="retained-standards-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="security" class="panel hidden" data-menu-code="SECURITY">
         <div class="panel-title">
             <div>

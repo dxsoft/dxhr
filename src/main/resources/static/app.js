@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
     document.getElementById("rank-allowance-standards-form").addEventListener("submit", onRankAllowanceStandardsSearch);
+    document.getElementById("retained-allowance-standards-form").addEventListener("submit", onRetainedAllowanceStandardsSearch);
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("create-menu-form").addEventListener("submit", onCreateMenu);
@@ -64,6 +65,9 @@ async function initializeAuth() {
         }
         if (hasMenu("RANK_ALLOWANCE_STANDARDS")) {
             await loadRankAllowanceStandards();
+        }
+        if (hasMenu("RETAINED_ALLOWANCE_STANDARDS")) {
+            await loadRetainedAllowanceStandards();
         }
     } catch (error) {
         window.location.href = "/login.html";
@@ -171,6 +175,12 @@ async function onRankAllowanceStandardsSearch(event) {
     event.preventDefault();
     document.getElementById("rank-standard-page").value = "0";
     await loadRankAllowanceStandards();
+}
+
+async function onRetainedAllowanceStandardsSearch(event) {
+    event.preventDefault();
+    document.getElementById("retained-standard-page").value = "0";
+    await loadRetainedAllowanceStandards();
 }
 
 async function loadPersonnel() {
@@ -422,6 +432,34 @@ async function loadRankAllowanceStandards() {
                 <td>${escapeHtml(row.rankName)}</td>
                 <td>${money(row.amount)}</td>
                 <td>${escapeHtml(row.category)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadRetainedAllowanceStandards() {
+    const keyword = document.getElementById("retained-standard-keyword").value.trim();
+    const page = document.getElementById("retained-standard-page").value || "0";
+    const size = document.getElementById("retained-standard-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+    const status = document.getElementById("retained-standards-status");
+    const rows = document.getElementById("retained-standards-rows");
+    status.className = "status";
+    status.textContent = "正在查询保留福补标准...";
+    rows.innerHTML = "";
+    try {
+        const result = await getJson(`/api/payroll/retained-allowance-standards?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.positionCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${money(row.amount)}</td>
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;

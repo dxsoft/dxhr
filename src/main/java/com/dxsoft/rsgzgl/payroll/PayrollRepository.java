@@ -67,6 +67,11 @@ class PayrollRepository {
             rs.getInt("jtbz"),
             SqlText.trim(rs.getString("lb")));
 
+    private static final RowMapper<RetainedAllowanceStandard> RETAINED_ALLOWANCE_STANDARD_MAPPER = (rs, rowNum) -> new RetainedAllowanceStandard(
+            SqlText.trim(rs.getString("zwbm")),
+            SqlText.trim(rs.getString("mc")),
+            rs.getInt("bz"));
+
     private static final RowMapper<PayrollHistorySnapshot> HISTORY_MAPPER = (rs, rowNum) -> new PayrollHistorySnapshot(
             SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("dwbm")),
@@ -237,6 +242,34 @@ class PayrollRepository {
                 WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
                   AND (:rankName IS NULL OR jx LIKE :rankNameLike OR jxbm = :rankName)
                   AND (:category IS NULL OR lb = :category)
+                """, parameters, Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<RetainedAllowanceStandard> findRetainedAllowanceStandards(String keyword, PageRequest pageRequest) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("keyword", emptyToNull(keyword))
+                .addValue("keywordLike", emptyToNull(keyword) == null ? null : "%" + keyword.trim() + "%")
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT zwbm, mc, bz
+                FROM bz06_blfb
+                WHERE (:keyword IS NULL OR zwbm = :keyword OR mc LIKE :keywordLike)
+                ORDER BY zwbm
+                LIMIT :limit OFFSET :offset
+                """, parameters, RETAINED_ALLOWANCE_STANDARD_MAPPER);
+    }
+
+    long countRetainedAllowanceStandards(String keyword) {
+        String trimmedKeyword = emptyToNull(keyword);
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%");
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM bz06_blfb
+                WHERE (:keyword IS NULL OR zwbm = :keyword OR mc LIKE :keywordLike)
                 """, parameters, Long.class);
         return count == null ? 0 : count;
     }

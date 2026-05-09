@@ -135,6 +135,7 @@ class SecuritySchemaInitializer {
         upsertMenu("BASIC_STANDARDS", "基本工资标准", "#basic-standards", "STANDARD_READ", 40);
         upsertMenu("ALLOWANCE_STANDARDS", "津贴补贴标准", "#allowance-standards", "STANDARD_READ", 45);
         upsertMenu("RANK_ALLOWANCE_STANDARDS", "警衔津贴标准", "#rank-allowance-standards", "STANDARD_READ", 50);
+        upsertMenu("RETAINED_ALLOWANCE_STANDARDS", "保留福补标准", "#retained-allowance-standards", "STANDARD_READ", 55);
         upsertMenu("SECURITY", "权限管理", "#security", "SECURITY_ADMIN", 90);
         upsertMenu("LEGACY_INFO_MAINTENANCE", "VFP-信息维护（待迁移）", "#legacy-info", "PERSONNEL_READ", 110, false);
         upsertMenu("LEGACY_PAYROLL_CHANGE", "VFP-工资变动（待迁移）", "#legacy-payroll-change", "PAYROLL_READ", 120, false);

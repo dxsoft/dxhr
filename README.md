@@ -34,6 +34,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 “基本工资标准”页面提供 `bz06_zwgz`、`bz06_zwgz_gr`、`bz06_jbgz`、`bz06_xjgz` 四类标准表只读查询。
 “津贴补贴标准”页面提供 `bz06_jbt` 只读查询，支持标准年月、项目和职务编码筛选。
 “警衔津贴标准”页面提供 `jxjtbz` 只读查询，支持标准年月、警衔名称/编码和类别筛选。
+“保留福补标准”页面提供 `bz06_blfb` 只读查询，支持职务编码/名称筛选。
 
 ### 首批接口
 
@@ -48,6 +49,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/payroll/basic-standards`
 - `GET /api/payroll/allowance-standards`
 - `GET /api/payroll/rank-allowance-standards`
+- `GET /api/payroll/retained-allowance-standards`
 - `GET /api/payroll/personnel/{uid}/calculation-context`
 - `GET /api/payroll/personnel/{uid}/calculation-preview`
 - `GET /api/payroll/calculation-audits`
