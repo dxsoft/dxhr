@@ -23,6 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
     document.getElementById("rank-allowance-standards-form").addEventListener("submit", onRankAllowanceStandardsSearch);
     document.getElementById("retained-allowance-standards-form").addEventListener("submit", onRetainedAllowanceStandardsSearch);
+    document.getElementById("year-allowance-standards-form").addEventListener("submit", onYearAllowanceStandardsSearch);
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("create-menu-form").addEventListener("submit", onCreateMenu);
@@ -68,6 +69,9 @@ async function initializeAuth() {
         }
         if (hasMenu("RETAINED_ALLOWANCE_STANDARDS")) {
             await loadRetainedAllowanceStandards();
+        }
+        if (hasMenu("YEAR_ALLOWANCE_STANDARDS")) {
+            await loadYearAllowanceStandards();
         }
     } catch (error) {
         window.location.href = "/login.html";
@@ -181,6 +185,12 @@ async function onRetainedAllowanceStandardsSearch(event) {
     event.preventDefault();
     document.getElementById("retained-standard-page").value = "0";
     await loadRetainedAllowanceStandards();
+}
+
+async function onYearAllowanceStandardsSearch(event) {
+    event.preventDefault();
+    document.getElementById("year-standard-page").value = "0";
+    await loadYearAllowanceStandards();
 }
 
 async function loadPersonnel() {
@@ -460,6 +470,36 @@ async function loadRetainedAllowanceStandards() {
                 <td>${escapeHtml(row.positionCode)}</td>
                 <td>${escapeHtml(row.name)}</td>
                 <td>${money(row.amount)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadYearAllowanceStandards() {
+    const standardYearMonth = document.getElementById("year-standard-year-month").value.trim();
+    const page = document.getElementById("year-standard-page").value || "0";
+    const size = document.getElementById("year-standard-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (standardYearMonth) {
+        params.set("standardYearMonth", standardYearMonth);
+    }
+    const status = document.getElementById("year-standards-status");
+    const rows = document.getElementById("year-standards-rows");
+    status.className = "status";
+    status.textContent = "正在查询年补贴标准...";
+    rows.innerHTML = "";
+    try {
+        const result = await getJson(`/api/payroll/year-allowance-standards?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.standardYearMonth)}</td>
+                <td>${money(row.categoryOneAmount)}</td>
+                <td>${money(row.categoryTwoAmount)}</td>
+                <td>${money(row.categoryThreeAmount)}</td>
+                <td>${money(row.categoryFourAmount)}</td>
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;

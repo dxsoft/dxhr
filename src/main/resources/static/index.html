@@ -391,6 +391,45 @@
         </div>
     </section>
 
+    <section id="year-allowance-standards" class="panel hidden" data-menu-code="YEAR_ALLOWANCE_STANDARDS">
+        <div class="panel-title">
+            <div>
+                <h2>年补贴标准</h2>
+                <p>查询 `njbt` 中的年补贴标准。</p>
+            </div>
+        </div>
+        <form id="year-allowance-standards-form" class="toolbar">
+            <label>
+                标准年月
+                <input id="year-standard-year-month" placeholder="例如 201807">
+            </label>
+            <label>
+                页码
+                <input id="year-standard-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="year-standard-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询标准</button>
+        </form>
+        <div id="year-standards-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>标准年月</th>
+                    <th>A1</th>
+                    <th>A2</th>
+                    <th>A3</th>
+                    <th>A4</th>
+                </tr>
+                </thead>
+                <tbody id="year-standards-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="security" class="panel hidden" data-menu-code="SECURITY">
         <div class="panel-title">
             <div>

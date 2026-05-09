@@ -72,6 +72,13 @@ class PayrollRepository {
             SqlText.trim(rs.getString("mc")),
             rs.getInt("bz"));
 
+    private static final RowMapper<YearAllowanceStandard> YEAR_ALLOWANCE_STANDARD_MAPPER = (rs, rowNum) -> new YearAllowanceStandard(
+            SqlText.trim(rs.getString("tbnd")),
+            rs.getBigDecimal("a1"),
+            rs.getBigDecimal("a2"),
+            rs.getBigDecimal("a3"),
+            rs.getBigDecimal("a4"));
+
     private static final RowMapper<PayrollHistorySnapshot> HISTORY_MAPPER = (rs, rowNum) -> new PayrollHistorySnapshot(
             SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("dwbm")),
@@ -271,6 +278,29 @@ class PayrollRepository {
                 FROM bz06_blfb
                 WHERE (:keyword IS NULL OR zwbm = :keyword OR mc LIKE :keywordLike)
                 """, parameters, Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<YearAllowanceStandard> findYearAllowanceStandards(String standardYearMonth, PageRequest pageRequest) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT tbnd, a1, a2, a3, a4
+                FROM njbt
+                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
+                ORDER BY tbnd DESC
+                LIMIT :limit OFFSET :offset
+                """, parameters, YEAR_ALLOWANCE_STANDARD_MAPPER);
+    }
+
+    long countYearAllowanceStandards(String standardYearMonth) {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM njbt
+                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
+                """, new MapSqlParameterSource("standardYearMonth", emptyToNull(standardYearMonth)), Long.class);
         return count == null ? 0 : count;
     }
 

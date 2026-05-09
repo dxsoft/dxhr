@@ -73,6 +73,14 @@ class PayrollController {
         return payrollService.retainedAllowanceStandards(keyword, PageRequest.of(page, size));
     }
 
+    @GetMapping("/year-allowance-standards")
+    PageResponse<YearAllowanceStandard> yearAllowanceStandards(
+            @RequestParam(required = false) String standardYearMonth,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.yearAllowanceStandards(standardYearMonth, PageRequest.of(page, size));
+    }
+
     @GetMapping("/personnel/{uid}/calculation-context")
     PayrollCalculationContext calculationContext(@PathVariable int uid) {
         return payrollService.calculationContext(uid);

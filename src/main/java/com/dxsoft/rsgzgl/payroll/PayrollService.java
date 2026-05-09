@@ -84,6 +84,15 @@ public class PayrollService {
                 payrollRepository.countRetainedAllowanceStandards(keyword));
     }
 
+    public PageResponse<YearAllowanceStandard> yearAllowanceStandards(
+            String standardYearMonth,
+            PageRequest pageRequest) {
+        return PageResponse.of(
+                payrollRepository.findYearAllowanceStandards(standardYearMonth, pageRequest),
+                pageRequest,
+                payrollRepository.countYearAllowanceStandards(standardYearMonth));
+    }
+
     public PayrollCalculationContext calculationContext(int uid) {
         PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
