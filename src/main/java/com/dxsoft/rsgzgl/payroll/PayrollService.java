@@ -254,13 +254,20 @@ public class PayrollService {
     public PageResponse<LevelPromotionPreview> levelPromotionPreviews(
             String organizationCode,
             String keyword,
+            Boolean dueOnly,
             PageRequest pageRequest) {
         var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
         List<LevelPromotionPreview> previews = payrollRepository
                 .findPersonnelUidsWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword, pageRequest)
                 .stream()
                 .map(this::levelPromotionPreview)
+                .filter(preview -> !Boolean.TRUE.equals(dueOnly)
+                        || Boolean.TRUE.equals(preview.eligible())
+                        && (Boolean.TRUE.equals(preview.levelPromotionDue()) || Boolean.TRUE.equals(preview.stepPromotionDue())))
                 .toList();
+        if (Boolean.TRUE.equals(dueOnly)) {
+            return PageResponse.of(previews, pageRequest, previews.size());
+        }
         return PageResponse.of(
                 previews,
                 pageRequest,

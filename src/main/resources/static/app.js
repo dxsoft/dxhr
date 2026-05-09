@@ -989,9 +989,10 @@ async function loadNormalPromotions() {
 async function loadLevelPromotions() {
     const organizationCode = document.getElementById("level-promotion-organization-code").value.trim();
     const keyword = document.getElementById("level-promotion-keyword").value.trim();
+    const dueOnly = document.getElementById("level-promotion-due-only").checked;
     const page = document.getElementById("level-promotion-page").value || "0";
     const size = document.getElementById("level-promotion-size").value || "20";
-    const params = new URLSearchParams({ page, size });
+    const params = new URLSearchParams({ page, size, dueOnly });
     if (organizationCode) {
         params.set("organizationCode", organizationCode);
     }
