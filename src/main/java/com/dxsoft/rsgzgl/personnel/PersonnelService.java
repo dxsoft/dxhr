@@ -55,6 +55,17 @@ public class PersonnelService {
         return personnelRepository.findEducation(personKey);
     }
 
+    public PageResponse<PersonnelEducationHistoryRecord> educationHistories(
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        return PageResponse.of(
+                personnelRepository.findEducationHistories(scope, emptyToNull(organizationCode), keyword, pageRequest),
+                pageRequest,
+                personnelRepository.countEducationHistories(scope, emptyToNull(organizationCode), keyword));
+    }
+
     public List<AssessmentRecord> assessments(int uid) {
         PersonKey personKey = getPersonKey(uid);
         return personnelRepository.findAssessments(personKey);

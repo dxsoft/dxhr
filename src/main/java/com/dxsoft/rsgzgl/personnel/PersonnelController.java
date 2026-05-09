@@ -52,6 +52,15 @@ class PersonnelController {
         return personnelService.education(uid);
     }
 
+    @GetMapping("/education")
+    PageResponse<PersonnelEducationHistoryRecord> educationHistories(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return personnelService.educationHistories(organizationCode, keyword, PageRequest.of(page, size));
+    }
+
     @GetMapping("/{uid}/assessments")
     List<AssessmentRecord> assessments(@PathVariable int uid) {
         return personnelService.assessments(uid);

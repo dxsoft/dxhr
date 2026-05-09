@@ -103,6 +103,22 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("bz"))
     );
 
+    private static final RowMapper<PersonnelEducationHistoryRecord> EDUCATION_HISTORY_MAPPER = (rs, rowNum) -> new PersonnelEducationHistoryRecord(
+            rs.getInt("id"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("xlbm")),
+            SqlText.trim(rs.getString("xl")),
+            SqlText.trim(rs.getString("byyx")),
+            SqlText.trim(rs.getString("rxsj")),
+            SqlText.trim(rs.getString("bysj")),
+            rs.getInt("xz"),
+            SqlText.trim(rs.getString("xllb")),
+            SqlText.trim(rs.getString("bz"))
+    );
+
     private static final RowMapper<AssessmentRecord> ASSESSMENT_MAPPER = (rs, rowNum) -> new AssessmentRecord(
             rs.getInt("id"),
             SqlText.trim(rs.getString("dwbm")),
@@ -237,6 +253,48 @@ class PersonnelRepository {
                 WHERE dwbm = :dwbm AND grbm = :grbm
                 ORDER BY bysj DESC, xlbm
                 """, keyParameters(key), EDUCATION_MAPPER);
+    }
+
+    List<PersonnelEducationHistoryRecord> findEducationHistories(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource params = personnelHistoryParameters(organizationScope, organizationCode, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT e.id, e.dwbm, dw.dwmc, e.grbm, p.xm, e.xlbm, e.xl, e.byyx,
+                       e.rxsj, e.bysj, e.xz, e.xllb, e.bz
+                FROM dxl e
+                LEFT JOIN dryjbxx p ON p.dwbm = e.dwbm AND p.grbm = e.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = e.dwbm
+                WHERE (:allOrganizations = TRUE OR e.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR e.dwbm = :organizationCode)
+                  AND (:keyword IS NULL OR e.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
+                       OR e.xlbm = :keyword OR e.xl LIKE :keywordLike OR e.byyx LIKE :keywordLike OR e.xllb LIKE :keywordLike)
+                ORDER BY e.dwbm, e.grbm, e.bysj DESC, e.xlbm, e.id DESC
+                LIMIT :limit OFFSET :offset
+                """, params, EDUCATION_HISTORY_MAPPER);
+    }
+
+    long countEducationHistories(OrganizationScope organizationScope, String organizationCode, String keyword) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM dxl e
+                LEFT JOIN dryjbxx p ON p.dwbm = e.dwbm AND p.grbm = e.grbm
+                WHERE (:allOrganizations = TRUE OR e.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR e.dwbm = :organizationCode)
+                  AND (:keyword IS NULL OR e.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
+                       OR e.xlbm = :keyword OR e.xl LIKE :keywordLike OR e.byyx LIKE :keywordLike OR e.xllb LIKE :keywordLike)
+                """, personnelHistoryParameters(organizationScope, organizationCode, keyword), Long.class);
+        return count == null ? 0 : count;
     }
 
     List<AssessmentRecord> findAssessments(PersonKey key) {

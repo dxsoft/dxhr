@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("annual-assessments-form").addEventListener("submit", onAnnualAssessmentsSearch);
     document.getElementById("position-history-form").addEventListener("submit", onPositionHistorySearch);
+    document.getElementById("education-history-form").addEventListener("submit", onEducationHistorySearch);
     document.getElementById("organization-maintenance-form").addEventListener("submit", onOrganizationMaintenanceSearch);
     document.getElementById("dictionary-maintenance-form").addEventListener("submit", onDictionarySearch);
     document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
@@ -70,6 +71,9 @@ async function initializeAuth() {
         }
         if (hasMenu("POSITION_HISTORY")) {
             await loadPositionHistory();
+        }
+        if (hasMenu("EDUCATION_HISTORY")) {
+            await loadEducationHistory();
         }
         if (hasMenu("ORGANIZATION_MAINTENANCE")) {
             await loadOrganizationMaintenance();
@@ -196,6 +200,12 @@ async function onPositionHistorySearch(event) {
     event.preventDefault();
     document.getElementById("position-history-page").value = "0";
     await loadPositionHistory();
+}
+
+async function onEducationHistorySearch(event) {
+    event.preventDefault();
+    document.getElementById("education-history-page").value = "0";
+    await loadEducationHistory();
 }
 
 async function onOrganizationMaintenanceSearch(event) {
@@ -385,6 +395,49 @@ async function loadPositionHistory() {
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条任职记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadEducationHistory() {
+    const organizationCode = document.getElementById("education-history-organization-code").value.trim();
+    const keyword = document.getElementById("education-history-keyword").value.trim();
+    const page = document.getElementById("education-history-page").value || "0";
+    const size = document.getElementById("education-history-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("education-history-status");
+    const rows = document.getElementById("education-history-rows");
+    status.className = "status";
+    status.textContent = "正在查询学历信息...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/personnel/education?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.id)}</td>
+                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name || "")}</td>
+                <td>${escapeHtml(row.educationCode)}</td>
+                <td>${escapeHtml(row.educationName)}</td>
+                <td>${escapeHtml(row.school)}</td>
+                <td>${escapeHtml(row.enrollmentDate)}</td>
+                <td>${escapeHtml(row.graduationDate)}</td>
+                <td>${escapeHtml(row.studyYears)}</td>
+                <td>${escapeHtml(row.educationType)}</td>
+                <td>${escapeHtml(row.remark)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条学历记录`;
     } catch (error) {
         showError(status, error);
     }

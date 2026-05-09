@@ -188,6 +188,56 @@
         </div>
     </section>
 
+    <section id="education-history" class="panel hidden" data-menu-code="EDUCATION_HISTORY">
+        <div class="panel-title">
+            <div>
+                <h2>学历信息</h2>
+                <p>只读查询 `dxl` 学历记录，按当前用户单位数据范围限制可见人员。</p>
+            </div>
+        </div>
+        <form id="education-history-form" class="toolbar">
+            <label>
+                单位编码
+                <input id="education-history-organization-code" placeholder="例如 001">
+            </label>
+            <label>
+                关键词
+                <input id="education-history-keyword" placeholder="人员编码 / 姓名 / 学历 / 学校">
+            </label>
+            <label>
+                页码
+                <input id="education-history-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="education-history-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询学历</button>
+        </form>
+        <div id="education-history-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>学历编码</th>
+                    <th>学历</th>
+                    <th>学校</th>
+                    <th>入学时间</th>
+                    <th>毕业时间</th>
+                    <th>学制</th>
+                    <th>学历类别</th>
+                    <th>备注</th>
+                </tr>
+                </thead>
+                <tbody id="education-history-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="organization-maintenance" class="panel hidden" data-menu-code="ORGANIZATION_MAINTENANCE">
         <div class="panel-title">
             <div>
