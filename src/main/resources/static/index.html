@@ -633,6 +633,57 @@
         </div>
     </section>
 
+    <section id="teaching-allowance-adjustment" class="panel hidden" data-menu-code="TEACHING_ALLOWANCE_ADJUSTMENT">
+        <div class="panel-title">
+            <div>
+                <h2>调整教护龄津贴</h2>
+                <p>按当前执行工资记录试算教护龄津贴，展示旧值、应发值和差额，暂不写入数据库。</p>
+            </div>
+        </div>
+        <form id="teaching-allowance-form" class="toolbar">
+            <label>
+                单位编码
+                <input id="teaching-allowance-organization-code" placeholder="例如 001">
+            </label>
+            <label>
+                关键词
+                <input id="teaching-allowance-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>
+                页码
+                <input id="teaching-allowance-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="teaching-allowance-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="teaching-allowance-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>试算年月</th>
+                    <th>岗位编码</th>
+                    <th>岗位名称</th>
+                    <th>起算年月</th>
+                    <th>中断年限</th>
+                    <th>教护龄</th>
+                    <th>旧值</th>
+                    <th>应发值</th>
+                    <th>差额</th>
+                    <th>适用岗位</th>
+                </tr>
+                </thead>
+                <tbody id="teaching-allowance-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="audit" class="panel hidden" data-menu-code="AUDIT">
         <div class="panel-title">
             <div>

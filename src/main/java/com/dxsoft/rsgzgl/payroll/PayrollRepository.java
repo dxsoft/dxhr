@@ -188,6 +188,23 @@ class PayrollRepository {
             rs.getInt("pgbc"),
             rs.getInt("hj2"));
 
+    private static final RowMapper<TeachingAllowanceAdjustment> TEACHING_ALLOWANCE_ADJUSTMENT_MAPPER = (rs, rowNum) -> new TeachingAllowanceAdjustment(
+            SqlText.trim(rs.getString("id")),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("calculation_period")),
+            SqlText.trim(rs.getString("zwbm2")),
+            SqlText.trim(rs.getString("zwgw2")),
+            SqlText.trim(rs.getString("jhlqsny")),
+            rs.getInt("zdjhlnx"),
+            rs.getInt("teaching_years"),
+            rs.getInt("jhljt"),
+            rs.getInt("calculated_amount"),
+            rs.getInt("difference_amount"),
+            rs.getBoolean("eligible"));
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     PayrollRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -556,6 +573,82 @@ class PayrollRepository {
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
                        OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
                 """, payrollHistoryParameters(organizationScope, organizationCode, period, keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<TeachingAllowanceAdjustment> findTeachingAllowanceAdjustments(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource parameters = payrollChangeParameters(organizationScope, organizationCode, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, CONCAT(h.jsnf, h.jsyf) AS calculation_period,
+                       h.zwbm2, h.zwgw2, h.jhlqsny, h.zdjhlnx, h.jhljt,
+                       CASE
+                           WHEN LEFT(h.zwbm2, 2) >= '07' AND LEFT(h.zwbm2, 2) < '20'
+                                AND CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) > 0
+                                AND CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) > 0
+                           THEN CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) - h.zdjhlnx
+                           ELSE 0
+                       END AS teaching_years,
+                       CASE
+                           WHEN LEFT(h.zwbm2, 2) >= '07' AND LEFT(h.zwbm2, 2) < '20'
+                                AND CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) > 0
+                                AND CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) > 0
+                           THEN CASE
+                               WHEN CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) - h.zdjhlnx BETWEEN 5 AND 9 THEN 3
+                               WHEN CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) - h.zdjhlnx BETWEEN 10 AND 14 THEN 5
+                               WHEN CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) - h.zdjhlnx BETWEEN 15 AND 19 THEN 7
+                               WHEN CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) - h.zdjhlnx BETWEEN 20 AND 99 THEN 10
+                               ELSE 0
+                           END
+                           ELSE 0
+                       END AS calculated_amount,
+                       CASE
+                           WHEN LEFT(h.zwbm2, 2) >= '07' AND LEFT(h.zwbm2, 2) < '20'
+                                AND CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) > 0
+                                AND CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) > 0
+                           THEN CASE
+                               WHEN CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) - h.zdjhlnx BETWEEN 5 AND 9 THEN 3
+                               WHEN CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) - h.zdjhlnx BETWEEN 10 AND 14 THEN 5
+                               WHEN CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) - h.zdjhlnx BETWEEN 15 AND 19 THEN 7
+                               WHEN CAST(h.jsnf AS UNSIGNED) - CAST(LEFT(h.jhlqsny, 4) AS UNSIGNED) - h.zdjhlnx BETWEEN 20 AND 99 THEN 10
+                               ELSE 0
+                           END
+                           ELSE 0
+                       END - h.jhljt AS difference_amount,
+                       (LEFT(h.zwbm2, 2) >= '07' AND LEFT(h.zwbm2, 2) < '20') AS eligible
+                FROM hisbase h
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                  AND (LEFT(h.zwbm2, 2) >= '07' AND LEFT(h.zwbm2, 2) < '20' OR h.jhljt <> 0)
+                  AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                ORDER BY h.dwbm, h.grbm
+                LIMIT :limit OFFSET :offset
+                """, parameters, TEACHING_ALLOWANCE_ADJUSTMENT_MAPPER);
+    }
+
+    long countTeachingAllowanceAdjustments(OrganizationScope organizationScope, String organizationCode, String keyword) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM hisbase h
+                WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                  AND (LEFT(h.zwbm2, 2) >= '07' AND LEFT(h.zwbm2, 2) < '20' OR h.jhljt <> 0)
+                  AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                """, payrollChangeParameters(organizationScope, organizationCode, keyword), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -1075,6 +1168,19 @@ class PayrollRepository {
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("organizationCode", emptyToNull(organizationCode))
                 .addValue("period", emptyToNull(period))
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private MapSqlParameterSource payrollChangeParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword) {
+        String trimmedKeyword = emptyToNull(keyword);
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationCode", emptyToNull(organizationCode))
                 .addValue("keyword", trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%");
     }

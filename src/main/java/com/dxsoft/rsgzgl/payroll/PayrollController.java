@@ -118,6 +118,15 @@ class PayrollController {
         return payrollService.payrollHistories(organizationCode, period, keyword, PageRequest.of(page, size));
     }
 
+    @GetMapping("/teaching-allowance-adjustments")
+    PageResponse<TeachingAllowanceAdjustment> teachingAllowanceAdjustments(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.teachingAllowanceAdjustments(organizationCode, keyword, PageRequest.of(page, size));
+    }
+
     @GetMapping("/personnel/{uid}/calculation-context")
     PayrollCalculationContext calculationContext(@PathVariable int uid) {
         return payrollService.calculationContext(uid);

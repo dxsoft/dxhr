@@ -137,6 +137,7 @@ class SecuritySchemaInitializer {
         upsertMenu("EDUCATION_HISTORY", "学历信息", "#education-history", "PERSONNEL_READ", 19);
         upsertMenu("PAYROLL", "工资试算", "#payroll", "PAYROLL_READ", 20);
         upsertMenu("PAYROLL_HISTORY", "工资变动历史", "#payroll-history", "PAYROLL_READ", 25);
+        upsertMenu("TEACHING_ALLOWANCE_ADJUSTMENT", "调整教护龄津贴", "#teaching-allowance-adjustment", "PAYROLL_READ", 28);
         upsertMenu("AUDIT", "批量对账", "#audit", "AUDIT_READ", 30);
         upsertMenu("BASIC_STANDARDS", "基本工资标准", "#basic-standards", "STANDARD_READ", 40);
         upsertMenu("INTERN_SALARY_STANDARDS", "见习工资标准", "#intern-salary-standards", "STANDARD_READ", 45);

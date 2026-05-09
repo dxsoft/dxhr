@@ -28,6 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("payroll-history-form").addEventListener("submit", onPayrollHistorySearch);
+    document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
     document.getElementById("rank-allowance-standards-form").addEventListener("submit", onRankAllowanceStandardsSearch);
@@ -96,6 +97,9 @@ async function initializeAuth() {
         }
         if (hasMenu("PAYROLL_HISTORY")) {
             await loadPayrollHistory();
+        }
+        if (hasMenu("TEACHING_ALLOWANCE_ADJUSTMENT")) {
+            await loadTeachingAllowanceAdjustments();
         }
         if (hasMenu("BASIC_STANDARDS")) {
             await loadBasicStandards();
@@ -263,6 +267,12 @@ async function onPayrollHistorySearch(event) {
     event.preventDefault();
     document.getElementById("payroll-history-page").value = "0";
     await loadPayrollHistory();
+}
+
+async function onTeachingAllowanceSearch(event) {
+    event.preventDefault();
+    document.getElementById("teaching-allowance-page").value = "0";
+    await loadTeachingAllowanceAdjustments();
 }
 
 async function onBasicStandardsSearch(event) {
@@ -860,6 +870,50 @@ async function loadPayrollHistory() {
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条工资历史`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadTeachingAllowanceAdjustments() {
+    const organizationCode = document.getElementById("teaching-allowance-organization-code").value.trim();
+    const keyword = document.getElementById("teaching-allowance-keyword").value.trim();
+    const page = document.getElementById("teaching-allowance-page").value || "0";
+    const size = document.getElementById("teaching-allowance-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("teaching-allowance-status");
+    const rows = document.getElementById("teaching-allowance-rows");
+    status.className = "status";
+    status.textContent = "正在查询教护龄津贴调整试算...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/payroll/teaching-allowance-adjustments?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.calculationPeriod)}</td>
+                <td>${escapeHtml(row.positionCode)}</td>
+                <td>${escapeHtml(row.positionName)}</td>
+                <td>${escapeHtml(row.teachingStartYearMonth)}</td>
+                <td>${escapeHtml(row.interruptedYears)}</td>
+                <td>${escapeHtml(row.teachingYears)}</td>
+                <td>${money(row.storedAmount)}</td>
+                <td>${money(row.calculatedAmount)}</td>
+                <td class="${Number(row.differenceAmount) === 0 ? "difference-ok" : "difference-bad"}">${money(row.differenceAmount)}</td>
+                <td>${row.eligible ? "是" : "否"}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条试算记录`;
     } catch (error) {
         showError(status, error);
     }

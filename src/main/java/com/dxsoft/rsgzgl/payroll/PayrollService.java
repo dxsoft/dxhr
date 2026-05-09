@@ -221,6 +221,17 @@ public class PayrollService {
                 payrollRepository.countPayrollHistories(scope, emptyToNull(organizationCode), period, keyword));
     }
 
+    public PageResponse<TeachingAllowanceAdjustment> teachingAllowanceAdjustments(
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        return PageResponse.of(
+                payrollRepository.findTeachingAllowanceAdjustments(scope, emptyToNull(organizationCode), keyword, pageRequest),
+                pageRequest,
+                payrollRepository.countTeachingAllowanceAdjustments(scope, emptyToNull(organizationCode), keyword));
+    }
+
     private BasicPayrollCalculation basicCalculation(PayrollHistorySnapshot history) {
         String standardYearMonth = history.salaryStandardYearMonth();
         String positionCode = history.positionCode();
