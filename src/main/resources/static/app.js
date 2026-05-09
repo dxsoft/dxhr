@@ -29,6 +29,11 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-maintenance-form").addEventListener("submit", onPersonnelMaintenanceSave);
     document.getElementById("personnel-maintenance-search").addEventListener("submit", onPersonnelMaintenanceSearch);
     document.getElementById("personnel-maintenance-reset").addEventListener("click", resetPersonnelMaintenanceForm);
+    document.getElementById("personnel-maintenance-new").addEventListener("click", openNewPersonnelMaintenance);
+    document.getElementById("personnel-maintenance-close").addEventListener("click", closePersonnelMaintenanceModal);
+    document.querySelectorAll("[data-personnel-tab]").forEach(button => {
+        button.addEventListener("click", () => showPersonnelTab(button.dataset.personnelTab));
+    });
     document.getElementById("annual-assessments-form").addEventListener("submit", onAnnualAssessmentsSearch);
     document.getElementById("assessment-summary-form").addEventListener("submit", onAssessmentSummarySearch);
     document.getElementById("changed-personnel-form").addEventListener("submit", onChangedPersonnelSearch);
@@ -323,11 +328,37 @@ async function onPersonnelMaintenanceSave(event) {
     try {
         const saved = uid ? await putJson(`/api/personnel/${uid}`, payload) : await postJson("/api/personnel", payload);
         status.textContent = `保存成功：${saved.name}（${saved.organizationCode}-${saved.personCode}）`;
-        resetPersonnelMaintenanceForm();
+        fillPersonnelMaintenanceForm(saved);
+        await loadPersonnelSubrecords(saved.uid, saved.organizationCode, saved.personCode);
         await loadPersonnelMaintenance();
     } catch (error) {
         showError(status, error);
     }
+}
+
+function openNewPersonnelMaintenance() {
+    resetPersonnelMaintenanceForm();
+    openPersonnelMaintenanceModal("新增人员", "填写人员基本信息后保存；保存成功后可继续维护多条附属记录。");
+}
+
+function openPersonnelMaintenanceModal(title, subtitle) {
+    document.getElementById("personnel-maintenance-modal-title").textContent = title;
+    document.getElementById("personnel-maintenance-modal-subtitle").textContent = subtitle;
+    document.getElementById("personnel-maintenance-modal").classList.remove("hidden");
+    showPersonnelTab("basic");
+}
+
+function closePersonnelMaintenanceModal() {
+    document.getElementById("personnel-maintenance-modal").classList.add("hidden");
+}
+
+function showPersonnelTab(tabName) {
+    document.querySelectorAll("[data-personnel-tab]").forEach(button => {
+        button.classList.toggle("active", button.dataset.personnelTab === tabName);
+    });
+    ["basic", "education", "position", "payroll", "assessment"].forEach(name => {
+        document.getElementById(`personnel-tab-${name}`).classList.toggle("hidden", name !== tabName);
+    });
 }
 
 async function onAnnualAssessmentsSearch(event) {
@@ -564,8 +595,9 @@ async function editPersonnelMaintenance(uid) {
     try {
         const record = await getJson(`/api/personnel/${uid}/maintenance`);
         fillPersonnelMaintenanceForm(record);
+        openPersonnelMaintenanceModal("编辑人员", `${record.organizationCode}-${record.personCode} ${record.name}`);
+        await loadPersonnelSubrecords(record.uid, record.organizationCode, record.personCode);
         status.textContent = `正在编辑：${record.name}`;
-        document.getElementById("personnel-maintenance").scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
         showError(status, error);
     }
@@ -643,6 +675,62 @@ function resetPersonnelMaintenanceForm() {
     document.getElementById("personnel-maintenance-form").reset();
     document.getElementById("personnel-maintenance-uid").value = "";
     document.getElementById("maint-salary-years").value = "0";
+    ["maint-education-rows", "maint-position-rows", "maint-payroll-rows", "maint-assessment-rows"].forEach(id => {
+        document.getElementById(id).innerHTML = "<tr><td colspan='8'>保存或选择人员后加载记录</td></tr>";
+    });
+}
+
+async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
+    const [education, positions, assessments, payrollHistory] = await Promise.all([
+        getJson(`/api/personnel/${uid}/education`),
+        getJson(`/api/personnel/${uid}/positions`),
+        getJson(`/api/personnel/${uid}/assessments`),
+        getJson(`/api/payroll/histories?organizationCode=${encodeURIComponent(organizationCode)}&keyword=${encodeURIComponent(personCode)}&size=50`),
+    ]);
+    document.getElementById("maint-education-rows").innerHTML = education.length ? education.map(row => `
+        <tr>
+            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.educationCode)}</td>
+            <td>${escapeHtml(row.educationName)}</td>
+            <td>${escapeHtml(row.school)}</td>
+            <td>${escapeHtml(row.enrollmentDate)}</td>
+            <td>${escapeHtml(row.graduationDate)}</td>
+            <td>${escapeHtml(row.educationType)}</td>
+            <td>${escapeHtml(row.remark)}</td>
+        </tr>
+    `).join("") : "<tr><td colspan='8'>暂无学历记录</td></tr>";
+    document.getElementById("maint-position-rows").innerHTML = positions.length ? positions.map(row => `
+        <tr>
+            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.currentPositionCode)}</td>
+            <td>${escapeHtml(row.currentPosition)}</td>
+            <td>${escapeHtml(row.rankCode)}</td>
+            <td>${escapeHtml(row.positionCode)}</td>
+            <td>${escapeHtml(row.positionName)}</td>
+            <td>${escapeHtml(row.startYearMonth)}</td>
+            <td>${escapeHtml(row.activeFlag)}</td>
+        </tr>
+    `).join("") : "<tr><td colspan='8'>暂无任职记录</td></tr>";
+    document.getElementById("maint-assessment-rows").innerHTML = assessments.length ? assessments.map(row => `
+        <tr>
+            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.year)}</td>
+            <td>${escapeHtml(row.result)}</td>
+        </tr>
+    `).join("") : "<tr><td colspan='3'>暂无考核记录</td></tr>";
+    const histories = payrollHistory.content || [];
+    document.getElementById("maint-payroll-rows").innerHTML = histories.length ? histories.map(row => `
+        <tr>
+            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.calculationYear)}${escapeHtml(row.calculationMonth)}</td>
+            <td>${escapeHtml(row.changeType)}</td>
+            <td>${escapeHtml(row.positionName)}</td>
+            <td>${money(row.positionSalary)}</td>
+            <td>${money(row.gradeSalary)}</td>
+            <td>${money(row.totalAmount)}</td>
+            <td>${row.currentPayroll ? "是" : "否"}</td>
+        </tr>
+    `).join("") : "<tr><td colspan='8'>暂无调资记录</td></tr>";
 }
 
 async function loadAnnualAssessments() {
