@@ -25,4 +25,12 @@ public class OrganizationService {
                 pageRequest,
                 organizationRepository.count(keyword, scope));
     }
+
+    public PageResponse<OrganizationMaintenanceRecord> maintenanceRecords(String keyword, PageRequest pageRequest) {
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
+        return PageResponse.of(
+                organizationRepository.findMaintenanceRecords(keyword, scope, pageRequest),
+                pageRequest,
+                organizationRepository.countMaintenanceRecords(keyword, scope));
+    }
 }

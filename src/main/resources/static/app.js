@@ -18,6 +18,7 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
+    document.getElementById("organization-maintenance-form").addEventListener("submit", onOrganizationMaintenanceSearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
@@ -59,6 +60,9 @@ async function initializeAuth() {
         }
         if (hasMenu("PERSONNEL")) {
             await loadPersonnel();
+        }
+        if (hasMenu("ORGANIZATION_MAINTENANCE")) {
+            await loadOrganizationMaintenance();
         }
         if (hasMenu("BASIC_STANDARDS")) {
             await loadBasicStandards();
@@ -166,6 +170,12 @@ async function onPersonnelSearch(event) {
     await loadPersonnel();
 }
 
+async function onOrganizationMaintenanceSearch(event) {
+    event.preventDefault();
+    document.getElementById("organization-maintenance-page").value = "0";
+    await loadOrganizationMaintenance();
+}
+
 async function onAudit(event) {
     event.preventDefault();
     await loadAudit();
@@ -248,6 +258,50 @@ async function loadPersonnel() {
         rows.querySelectorAll("button[data-uid]").forEach(button => {
             button.addEventListener("click", () => loadPreview(button.dataset.uid));
         });
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadOrganizationMaintenance() {
+    const keyword = document.getElementById("organization-maintenance-keyword").value.trim();
+    const page = document.getElementById("organization-maintenance-page").value || "0";
+    const size = document.getElementById("organization-maintenance-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("organization-maintenance-status");
+    const rows = document.getElementById("organization-maintenance-rows");
+    status.className = "status";
+    status.textContent = "正在查询单位信息...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/organizations/maintenance?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.id)}</td>
+                <td>${escapeHtml(row.organizationCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.shortName)}</td>
+                <td>${escapeHtml(row.category)}</td>
+                <td>${escapeHtml(row.payrollCategory)}</td>
+                <td>${escapeHtml(row.allowanceStandard)}</td>
+                <td>${escapeHtml(row.personnelQuota)}</td>
+                <td>${escapeHtml(row.establishmentCount)}</td>
+                <td>${escapeHtml(row.actualCount)}</td>
+                <td>${escapeHtml(row.activePersonnelCount)}</td>
+                <td>${escapeHtml(row.performanceAllowanceEnabled)}</td>
+                <td>${escapeHtml(row.performanceCategory)}</td>
+                <td>${escapeHtml(row.yearAllowanceCategory)}</td>
+                <td>${escapeHtml(row.financeSource)}</td>
+                <td>${escapeHtml(row.housingFundWithheld)}</td>
+                <td>${escapeHtml(row.pensionWithheld)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 个单位`;
     } catch (error) {
         showError(status, error);
     }

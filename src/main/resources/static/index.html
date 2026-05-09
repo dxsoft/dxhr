@@ -87,6 +87,57 @@
         </div>
     </section>
 
+    <section id="organization-maintenance" class="panel hidden" data-menu-code="ORGANIZATION_MAINTENANCE">
+        <div class="panel-title">
+            <div>
+                <h2>单位信息维护</h2>
+                <p>只读查询 `dwbm` 单位编码、工资类别、津补贴类别和编制人数等关键信息。</p>
+            </div>
+        </div>
+        <form id="organization-maintenance-form" class="toolbar">
+            <label>
+                关键词
+                <input id="organization-maintenance-keyword" placeholder="单位编码 / 名称 / 工资类别">
+            </label>
+            <label>
+                页码
+                <input id="organization-maintenance-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="organization-maintenance-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询单位</button>
+        </form>
+        <div id="organization-maintenance-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>单位编码</th>
+                    <th>单位名称</th>
+                    <th>简称</th>
+                    <th>单位性质</th>
+                    <th>工资类别</th>
+                    <th>津补贴标准</th>
+                    <th>编制人数</th>
+                    <th>在编人数</th>
+                    <th>实领人数</th>
+                    <th>当前人员</th>
+                    <th>DFBT</th>
+                    <th>绩效类别</th>
+                    <th>年补贴类别</th>
+                    <th>经费来源</th>
+                    <th>扣公积金</th>
+                    <th>扣养老保险</th>
+                </tr>
+                </thead>
+                <tbody id="organization-maintenance-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="payroll" class="panel hidden" data-menu-code="PAYROLL">
         <div class="panel-title">
             <div>

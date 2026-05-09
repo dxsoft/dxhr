@@ -24,4 +24,12 @@ class OrganizationController {
             @RequestParam(required = false) Integer size) {
         return organizationService.list(keyword, PageRequest.of(page, size));
     }
+
+    @GetMapping("/maintenance")
+    PageResponse<OrganizationMaintenanceRecord> maintenance(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return organizationService.maintenanceRecords(keyword, PageRequest.of(page, size));
+    }
 }

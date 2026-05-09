@@ -27,6 +27,7 @@
 | `RETAINED_ALLOWANCE_STANDARDS` | 保留福补标准 | `#retained-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `YEAR_ALLOWANCE_STANDARDS` | 年补贴标准 | `#year-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `WAGE_REFORM_STANDARDS` | 2006套改标准 | `#wage-reform-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
+| `ORGANIZATION_MAINTENANCE` | 单位信息维护 | `#organization-maintenance` | `ORG_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `SECURITY` | 权限管理 | `#security` | `SECURITY_ADMIN` | 当前 Spring Boot 已实现 |
 
 ## VFP 顶级菜单种子
