@@ -16,6 +16,8 @@ public record LevelPromotionPreview(
         String promotedStep,
         String levelAssessmentStartYear,
         String stepAssessmentStartYear,
+        String nextLevelAssessmentStartYear,
+        String nextStepAssessmentStartYear,
         Integer qualifiedYearsForLevel,
         Integer qualifiedYearsForStep,
         Boolean levelPromotionDue,

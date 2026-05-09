@@ -778,6 +778,8 @@ public class PayrollService {
             promotedStep = String.valueOf(payrollRepository.intValue(promotedStep) + 1);
             promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
         }
+        String nextLevelAssessmentStartYear = levelPromotionDue ? history.calculationYear() : String.valueOf(levelStartYear);
+        String nextStepAssessmentStartYear = stepPromotionDue ? history.calculationYear() : String.valueOf(stepStartYear);
         return new LevelPromotionPreview(
                 history.id(),
                 history.organizationCode(),
@@ -794,6 +796,8 @@ public class PayrollService {
                 promotedStep,
                 String.valueOf(levelStartYear),
                 String.valueOf(stepStartYear),
+                nextLevelAssessmentStartYear,
+                nextStepAssessmentStartYear,
                 qualifiedYearsForLevel,
                 qualifiedYearsForStep,
                 levelPromotionDue,

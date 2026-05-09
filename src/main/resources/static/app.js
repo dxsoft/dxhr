@@ -1024,6 +1024,8 @@ async function loadLevelPromotions() {
                 <td>${escapeHtml(row.promotedStep || "")}</td>
                 <td>${escapeHtml(row.levelAssessmentStartYear || "")}</td>
                 <td>${escapeHtml(row.stepAssessmentStartYear || "")}</td>
+                <td>${escapeHtml(row.nextLevelAssessmentStartYear || "")}</td>
+                <td>${escapeHtml(row.nextStepAssessmentStartYear || "")}</td>
                 <td>${escapeHtml(row.qualifiedYearsForLevel)}</td>
                 <td>${escapeHtml(row.qualifiedYearsForStep)}</td>
                 <td>${row.levelPromotionDue ? "是" : "否"}</td>
