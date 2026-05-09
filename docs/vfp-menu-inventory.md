@@ -21,6 +21,7 @@
 | `PAYROLL` | 工资试算 | `#payroll` | `PAYROLL_READ` | 当前 Spring Boot 已实现 |
 | `AUDIT` | 批量对账 | `#audit` | `AUDIT_READ` | 当前 Spring Boot 已实现 |
 | `BASIC_STANDARDS` | 基本工资标准 | `#basic-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
+| `INTERN_SALARY_STANDARDS` | 见习工资标准 | `#intern-salary-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `ALLOWANCE_STANDARDS` | 津贴补贴标准 | `#allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `RANK_ALLOWANCE_STANDARDS` | 警衔津贴标准 | `#rank-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `RETAINED_ALLOWANCE_STANDARDS` | 保留福补标准 | `#retained-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |

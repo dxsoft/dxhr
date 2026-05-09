@@ -81,6 +81,15 @@ class PayrollController {
         return payrollService.yearAllowanceStandards(standardYearMonth, PageRequest.of(page, size));
     }
 
+    @GetMapping("/intern-salary-standards")
+    PageResponse<InternSalaryStandard> internSalaryStandards(
+            @RequestParam(required = false) String standardYearMonth,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.internSalaryStandards(standardYearMonth, keyword, PageRequest.of(page, size));
+    }
+
     @GetMapping("/personnel/{uid}/calculation-context")
     PayrollCalculationContext calculationContext(@PathVariable int uid) {
         return payrollService.calculationContext(uid);

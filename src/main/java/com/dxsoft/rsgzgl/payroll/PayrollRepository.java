@@ -79,6 +79,17 @@ class PayrollRepository {
             rs.getBigDecimal("a3"),
             rs.getBigDecimal("a4"));
 
+    private static final RowMapper<InternSalaryStandard> INTERN_SALARY_STANDARD_MAPPER = (rs, rowNum) -> new InternSalaryStandard(
+            SqlText.trim(rs.getString("tbnd")),
+            SqlText.trim(rs.getString("xlbm")),
+            SqlText.trim(rs.getString("xlmc")),
+            SqlText.trim(rs.getString("zzzwbm")),
+            SqlText.trim(rs.getString("zzzwmc")),
+            SqlText.trim(rs.getString("zzdc")),
+            SqlText.trim(rs.getString("zzjb")),
+            rs.getInt("gz1"),
+            rs.getInt("gz2"));
+
     private static final RowMapper<PayrollHistorySnapshot> HISTORY_MAPPER = (rs, rowNum) -> new PayrollHistorySnapshot(
             SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("dwbm")),
@@ -301,6 +312,42 @@ class PayrollRepository {
                 FROM njbt
                 WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
                 """, new MapSqlParameterSource("standardYearMonth", emptyToNull(standardYearMonth)), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<InternSalaryStandard> findInternSalaryStandards(
+            String standardYearMonth,
+            String keyword,
+            PageRequest pageRequest) {
+        String trimmedKeyword = emptyToNull(keyword);
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%")
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT tbnd, xlbm, xlmc, zzzwbm, zzzwmc, zzdc, zzjb, gz1, gz2
+                FROM bz06_zzdz
+                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
+                  AND (:keyword IS NULL OR xlbm = :keyword OR zzzwbm = :keyword OR xlmc LIKE :keywordLike OR zzzwmc LIKE :keywordLike)
+                ORDER BY tbnd DESC, zzzwbm, xlbm
+                LIMIT :limit OFFSET :offset
+                """, parameters, INTERN_SALARY_STANDARD_MAPPER);
+    }
+
+    long countInternSalaryStandards(String standardYearMonth, String keyword) {
+        String trimmedKeyword = emptyToNull(keyword);
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%");
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM bz06_zzdz
+                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
+                  AND (:keyword IS NULL OR xlbm = :keyword OR zzzwbm = :keyword OR xlmc LIKE :keywordLike OR zzzwmc LIKE :keywordLike)
+                """, parameters, Long.class);
         return count == null ? 0 : count;
     }
 

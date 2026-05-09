@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("rank-allowance-standards-form").addEventListener("submit", onRankAllowanceStandardsSearch);
     document.getElementById("retained-allowance-standards-form").addEventListener("submit", onRetainedAllowanceStandardsSearch);
     document.getElementById("year-allowance-standards-form").addEventListener("submit", onYearAllowanceStandardsSearch);
+    document.getElementById("intern-salary-standards-form").addEventListener("submit", onInternSalaryStandardsSearch);
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("create-menu-form").addEventListener("submit", onCreateMenu);
@@ -72,6 +73,9 @@ async function initializeAuth() {
         }
         if (hasMenu("YEAR_ALLOWANCE_STANDARDS")) {
             await loadYearAllowanceStandards();
+        }
+        if (hasMenu("INTERN_SALARY_STANDARDS")) {
+            await loadInternSalaryStandards();
         }
     } catch (error) {
         window.location.href = "/login.html";
@@ -191,6 +195,12 @@ async function onYearAllowanceStandardsSearch(event) {
     event.preventDefault();
     document.getElementById("year-standard-page").value = "0";
     await loadYearAllowanceStandards();
+}
+
+async function onInternSalaryStandardsSearch(event) {
+    event.preventDefault();
+    document.getElementById("intern-standard-page").value = "0";
+    await loadInternSalaryStandards();
 }
 
 async function loadPersonnel() {
@@ -500,6 +510,44 @@ async function loadYearAllowanceStandards() {
                 <td>${money(row.categoryTwoAmount)}</td>
                 <td>${money(row.categoryThreeAmount)}</td>
                 <td>${money(row.categoryFourAmount)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadInternSalaryStandards() {
+    const standardYearMonth = document.getElementById("intern-standard-year-month").value.trim();
+    const keyword = document.getElementById("intern-standard-keyword").value.trim();
+    const page = document.getElementById("intern-standard-page").value || "0";
+    const size = document.getElementById("intern-standard-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (standardYearMonth) {
+        params.set("standardYearMonth", standardYearMonth);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+    const status = document.getElementById("intern-standards-status");
+    const rows = document.getElementById("intern-standards-rows");
+    status.className = "status";
+    status.textContent = "正在查询见习工资标准...";
+    rows.innerHTML = "";
+    try {
+        const result = await getJson(`/api/payroll/intern-salary-standards?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.standardYearMonth)}</td>
+                <td>${escapeHtml(row.educationCode)}</td>
+                <td>${escapeHtml(row.educationName)}</td>
+                <td>${escapeHtml(row.regularPositionCode)}</td>
+                <td>${escapeHtml(row.regularPositionName)}</td>
+                <td>${escapeHtml(row.regularGradeStep)}</td>
+                <td>${escapeHtml(row.regularLevel)}</td>
+                <td>${money(row.firstYearAmount)}</td>
+                <td>${money(row.secondYearAmount)}</td>
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;

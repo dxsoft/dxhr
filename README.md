@@ -32,6 +32,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 登录成功、登录失败、退出登录、修改密码和权限管理操作都会写入安全审计日志。
 前端导航由 `app_menu` 和 `/api/auth/menus` 动态生成，只显示当前用户具备权限的菜单。
 “基本工资标准”页面提供 `bz06_zwgz`、`bz06_zwgz_gr`、`bz06_jbgz`、`bz06_xjgz` 四类标准表只读查询。
+“见习工资标准”页面提供 `bz06_zzdz` 只读查询，支持标准年月和学历/职务关键词筛选。
 “津贴补贴标准”页面提供 `bz06_jbt` 只读查询，支持标准年月、项目和职务编码筛选。
 “警衔津贴标准”页面提供 `jxjtbz` 只读查询，支持标准年月、警衔名称/编码和类别筛选。
 “保留福补标准”页面提供 `bz06_blfb` 只读查询，支持职务编码/名称筛选。
@@ -48,6 +49,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/payroll/fields`
 - `GET /api/payroll/position-standards`
 - `GET /api/payroll/basic-standards`
+- `GET /api/payroll/intern-salary-standards`
 - `GET /api/payroll/allowance-standards`
 - `GET /api/payroll/rank-allowance-standards`
 - `GET /api/payroll/retained-allowance-standards`

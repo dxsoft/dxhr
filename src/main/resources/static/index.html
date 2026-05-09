@@ -430,6 +430,53 @@
         </div>
     </section>
 
+    <section id="intern-salary-standards" class="panel hidden" data-menu-code="INTERN_SALARY_STANDARDS">
+        <div class="panel-title">
+            <div>
+                <h2>见习工资标准</h2>
+                <p>查询 `bz06_zzdz` 中 `jxgz06` 使用的见习工资标准。</p>
+            </div>
+        </div>
+        <form id="intern-salary-standards-form" class="toolbar">
+            <label>
+                标准年月
+                <input id="intern-standard-year-month" placeholder="例如 201807">
+            </label>
+            <label>
+                关键词
+                <input id="intern-standard-keyword" placeholder="学历 / 职务编码 / 职务名称">
+            </label>
+            <label>
+                页码
+                <input id="intern-standard-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="intern-standard-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询标准</button>
+        </form>
+        <div id="intern-standards-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>标准年月</th>
+                    <th>学历编码</th>
+                    <th>学历名称</th>
+                    <th>转正职务编码</th>
+                    <th>转正职务名称</th>
+                    <th>档次</th>
+                    <th>级别</th>
+                    <th>一年期标准</th>
+                    <th>二年期标准</th>
+                </tr>
+                </thead>
+                <tbody id="intern-standards-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="security" class="panel hidden" data-menu-code="SECURITY">
         <div class="panel-title">
             <div>
