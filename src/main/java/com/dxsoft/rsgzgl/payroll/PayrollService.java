@@ -248,6 +248,22 @@ public class PayrollService {
                 payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
     }
 
+    public PageResponse<LevelPromotionPreview> levelPromotionPreviews(
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        List<LevelPromotionPreview> previews = payrollRepository
+                .findPersonnelUidsWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword, pageRequest)
+                .stream()
+                .map(this::levelPromotionPreview)
+                .toList();
+        return PageResponse.of(
+                previews,
+                pageRequest,
+                payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
+    }
+
     private BasicPayrollCalculation basicCalculation(PayrollHistorySnapshot history) {
         String standardYearMonth = history.salaryStandardYearMonth();
         String positionCode = history.positionCode();
@@ -709,6 +725,57 @@ public class PayrollService {
                 promotedBaseSalary,
                 nullToZero(promotedBaseSalary) - nullToZero(currentBaseSalary),
                 baseSalarySource);
+    }
+
+    private LevelPromotionPreview levelPromotionPreview(int uid) {
+        PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        String currentStep = String.valueOf(
+                payrollRepository.intValue(history.positionSalaryGrade())
+                        + payrollRepository.intValue(history.gradeSalaryStep()));
+        Integer currentGradeSalary = payrollRepository.gradeSalary(
+                history.gradeSalaryLevel(),
+                currentStep,
+                history.salaryStandardYearMonth());
+        String promotedLevel = null;
+        String promotedStep = null;
+        Integer promotedGradeSalary = 0;
+        boolean eligible = "GRADE".equals(baseSalarySource(history.positionCode()))
+                && payrollRepository.intValue(history.gradeSalaryLevel()) > 1;
+        if (eligible) {
+            promotedLevel = String.valueOf(payrollRepository.intValue(history.gradeSalaryLevel()) - 1);
+            promotedStep = firstHigherGradeStep(promotedLevel, currentGradeSalary, history.salaryStandardYearMonth());
+            promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
+        }
+        return new LevelPromotionPreview(
+                history.id(),
+                history.organizationCode(),
+                history.personCode(),
+                history.name(),
+                history.calculationYear() + history.calculationMonth(),
+                history.calculationType(),
+                history.positionCode(),
+                history.positionName(),
+                history.salaryStandardYearMonth(),
+                history.gradeSalaryLevel(),
+                currentStep,
+                promotedLevel,
+                promotedStep,
+                currentGradeSalary,
+                promotedGradeSalary,
+                nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
+                eligible,
+                eligible ? "按级别晋升一级，选择晋升级别中高于旧工资的最低档次。" : "当前岗位不使用级别工资或级别无效，暂不参与级别晋升试算。");
+    }
+
+    private String firstHigherGradeStep(String gradeLevel, Integer currentGradeSalary, String standardYearMonth) {
+        for (int step = 1; step <= 20; step++) {
+            int amount = payrollRepository.gradeSalary(gradeLevel, String.valueOf(step), standardYearMonth);
+            if (amount > nullToZero(currentGradeSalary)) {
+                return String.valueOf(step);
+            }
+        }
+        return "20";
     }
 
     private boolean isEducationPosition(String positionCode) {

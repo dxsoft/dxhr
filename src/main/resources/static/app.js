@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("payroll-history-form").addEventListener("submit", onPayrollHistorySearch);
     document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
     document.getElementById("normal-promotion-form").addEventListener("submit", onNormalPromotionSearch);
+    document.getElementById("level-promotion-form").addEventListener("submit", onLevelPromotionSearch);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
     document.getElementById("rank-allowance-standards-form").addEventListener("submit", onRankAllowanceStandardsSearch);
@@ -104,6 +105,9 @@ async function initializeAuth() {
         }
         if (hasMenu("NORMAL_PROMOTION")) {
             await loadNormalPromotions();
+        }
+        if (hasMenu("LEVEL_PROMOTION")) {
+            await loadLevelPromotions();
         }
         if (hasMenu("BASIC_STANDARDS")) {
             await loadBasicStandards();
@@ -283,6 +287,12 @@ async function onNormalPromotionSearch(event) {
     event.preventDefault();
     document.getElementById("normal-promotion-page").value = "0";
     await loadNormalPromotions();
+}
+
+async function onLevelPromotionSearch(event) {
+    event.preventDefault();
+    document.getElementById("level-promotion-page").value = "0";
+    await loadLevelPromotions();
 }
 
 async function onBasicStandardsSearch(event) {
@@ -968,6 +978,54 @@ async function loadNormalPromotions() {
                 <td>${money(row.promotedBaseSalary)}</td>
                 <td>${money(row.increaseAmount)}</td>
                 <td>${escapeHtml(baseSalarySourceName(row.baseSalarySource))}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条试算记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadLevelPromotions() {
+    const organizationCode = document.getElementById("level-promotion-organization-code").value.trim();
+    const keyword = document.getElementById("level-promotion-keyword").value.trim();
+    const page = document.getElementById("level-promotion-page").value || "0";
+    const size = document.getElementById("level-promotion-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("level-promotion-status");
+    const rows = document.getElementById("level-promotion-rows");
+    status.className = "status";
+    status.textContent = "正在查询级别晋升试算...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/payroll/level-promotions?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.organizationCode)}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.calculationPeriod)}</td>
+                <td>${escapeHtml(row.changeType)}</td>
+                <td>${escapeHtml(row.positionCode)}</td>
+                <td>${escapeHtml(row.positionName)}</td>
+                <td>${escapeHtml(row.salaryStandardYearMonth)}</td>
+                <td>${escapeHtml(row.currentLevel || "")}</td>
+                <td>${escapeHtml(row.currentStep || "")}</td>
+                <td>${escapeHtml(row.promotedLevel || "")}</td>
+                <td>${escapeHtml(row.promotedStep || "")}</td>
+                <td>${money(row.currentGradeSalary)}</td>
+                <td>${money(row.promotedGradeSalary)}</td>
+                <td>${money(row.increaseAmount)}</td>
+                <td>${row.eligible ? "是" : "否"}</td>
+                <td>${escapeHtml(row.note || "")}</td>
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条试算记录`;

@@ -738,6 +738,61 @@
         </div>
     </section>
 
+    <section id="level-promotion" class="panel hidden" data-menu-code="LEVEL_PROMOTION">
+        <div class="panel-title">
+            <div>
+                <h2>级别晋升</h2>
+                <p>基于当前执行工资记录，按级别晋升一级并选择晋升级别中高于旧工资的最低档次，展示只读试算差额。</p>
+            </div>
+        </div>
+        <form id="level-promotion-form" class="toolbar">
+            <label>
+                单位编码
+                <input id="level-promotion-organization-code" placeholder="例如 001">
+            </label>
+            <label>
+                关键词
+                <input id="level-promotion-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>
+                页码
+                <input id="level-promotion-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="level-promotion-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="level-promotion-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位编码</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>试算年月</th>
+                    <th>变动类别</th>
+                    <th>岗位编码</th>
+                    <th>岗位名称</th>
+                    <th>工资标准</th>
+                    <th>当前级别</th>
+                    <th>当前档次</th>
+                    <th>晋升级别</th>
+                    <th>晋升档次</th>
+                    <th>旧级别工资</th>
+                    <th>晋升后级别工资</th>
+                    <th>增资额</th>
+                    <th>是否适用</th>
+                    <th>说明</th>
+                </tr>
+                </thead>
+                <tbody id="level-promotion-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="audit" class="panel hidden" data-menu-code="AUDIT">
         <div class="panel-title">
             <div>
