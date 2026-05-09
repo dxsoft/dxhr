@@ -148,6 +148,8 @@ class PayrollRepository {
 
     private static final RowMapper<PayrollHistoryRecord> PAYROLL_HISTORY_MAPPER = (rs, rowNum) -> new PayrollHistoryRecord(
             SqlText.trim(rs.getString("id")),
+            SqlText.trim(rs.getString("sid")),
+            isCurrentPayroll(rs.getString("sid")),
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("dwmc")),
             SqlText.trim(rs.getString("grbm")),
@@ -460,7 +462,8 @@ class PayrollRepository {
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
                 WHERE p.uid = :uid
-                ORDER BY h.jsnf DESC, h.jsyf DESC, h.id DESC
+                ORDER BY CASE WHEN h.sid IS NULL OR TRIM(h.sid) = '' THEN 0 ELSE 1 END,
+                         h.jsnf DESC, h.jsyf DESC, h.id DESC
                 LIMIT 1
                 """, new MapSqlParameterSource("uid", uid), HISTORY_MAPPER).stream().findFirst();
     }
@@ -478,7 +481,7 @@ class PayrollRepository {
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
-                SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                SELECT h.id, h.sid, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
                        h.ryfl, h.dwsx, h.zwbm2, h.zwgw2, h.zwgzdc2, h.jbgzjb2,
                        h.tbnd, h.jbtbz, h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2,
                        h.blfb2, h.jxjt, h.fdgz2, h.jjjy2, h.jhljt, h.jsfszwtg2,
@@ -490,7 +493,9 @@ class PayrollRepository {
                   AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
                        OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
-                ORDER BY h.dwbm, h.grbm, h.jsnf DESC, h.jsyf DESC, h.id DESC
+                ORDER BY h.dwbm, h.grbm,
+                         CASE WHEN h.sid IS NULL OR TRIM(h.sid) = '' THEN 0 ELSE 1 END,
+                         h.jsnf DESC, h.jsyf DESC, h.id DESC
                 LIMIT :limit OFFSET :offset
                 """, parameters, PAYROLL_HISTORY_MAPPER);
     }
@@ -563,7 +568,8 @@ class PayrollRepository {
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 WHERE p.uid = :uid
-                ORDER BY h.jsnf DESC, h.jsyf DESC, h.id DESC
+                ORDER BY CASE WHEN h.sid IS NULL OR TRIM(h.sid) = '' THEN 0 ELSE 1 END,
+                         h.jsnf DESC, h.jsyf DESC, h.id DESC
                 LIMIT 1
                 """, new MapSqlParameterSource("uid", uid));
         if (rows.isEmpty()) {
@@ -1026,6 +1032,11 @@ class PayrollRepository {
                 .addValue("period", emptyToNull(period))
                 .addValue("keyword", trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private static boolean isCurrentPayroll(String successorId) {
+        String trimmedSuccessorId = SqlText.trim(successorId);
+        return trimmedSuccessorId == null || trimmedSuccessorId.isEmpty();
     }
 
     private MapSqlParameterSource basicStandardParameters(String standardYearMonth, String code) {

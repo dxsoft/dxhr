@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 
 public record PayrollHistoryRecord(
         String id,
+        String successorId,
+        boolean currentPayroll,
         String organizationCode,
         String organizationName,
         String personCode,

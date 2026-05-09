@@ -351,6 +351,8 @@ async function loadAnnualAssessments() {
         rows.innerHTML = (result.content || []).map(row => `
             <tr>
                 <td>${escapeHtml(row.id)}</td>
+                <td>${row.currentPayroll ? "是" : "否"}</td>
+                <td>${escapeHtml(row.successorId || "")}</td>
                 <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
                 <td>${escapeHtml(row.personCode)}</td>
                 <td>${escapeHtml(row.name || "")}</td>
