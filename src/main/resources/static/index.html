@@ -255,6 +255,57 @@
         </div>
     </section>
 
+    <section id="allowance-standards" class="panel hidden" data-menu-code="ALLOWANCE_STANDARDS">
+        <div class="panel-title">
+            <div>
+                <h2>津贴补贴标准</h2>
+                <p>查询 `bz06_jbt` 中的津贴补贴、基础绩效和工作性/生活性补贴标准。</p>
+            </div>
+        </div>
+        <form id="allowance-standards-form" class="toolbar">
+            <label>
+                标准年月
+                <input id="allowance-standard-year-month" placeholder="例如 201807">
+            </label>
+            <label>
+                项目
+                <input id="allowance-standard-item" placeholder="例如 DFBT2 / SDBT">
+            </label>
+            <label>
+                职务编码
+                <input id="allowance-standard-position-code" placeholder="例如 0709">
+            </label>
+            <label>
+                页码
+                <input id="allowance-standard-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="allowance-standard-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询标准</button>
+        </form>
+        <div id="allowance-standards-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>标准年月</th>
+                    <th>项目</th>
+                    <th>职务编码</th>
+                    <th>名称</th>
+                    <th>工龄下限</th>
+                    <th>工龄上限</th>
+                    <th>金额</th>
+                    <th>绩效类别</th>
+                </tr>
+                </thead>
+                <tbody id="allowance-standards-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="security" class="panel hidden" data-menu-code="SECURITY">
         <div class="panel-title">
             <div>

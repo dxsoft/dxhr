@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
+    document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("create-menu-form").addEventListener("submit", onCreateMenu);
@@ -56,6 +57,9 @@ async function initializeAuth() {
         }
         if (hasMenu("BASIC_STANDARDS")) {
             await loadBasicStandards();
+        }
+        if (hasMenu("ALLOWANCE_STANDARDS")) {
+            await loadAllowanceStandards();
         }
     } catch (error) {
         window.location.href = "/login.html";
@@ -151,6 +155,12 @@ async function onBasicStandardsSearch(event) {
     event.preventDefault();
     document.getElementById("basic-standard-page").value = "0";
     await loadBasicStandards();
+}
+
+async function onAllowanceStandardsSearch(event) {
+    event.preventDefault();
+    document.getElementById("allowance-standard-page").value = "0";
+    await loadAllowanceStandards();
 }
 
 async function loadPersonnel() {
@@ -327,6 +337,48 @@ function renderBasicStandards(records) {
     body.innerHTML = records.map(record => `
         <tr>${columns.map(column => `<td>${escapeHtml(record.values[column] ?? "")}</td>`).join("")}</tr>
     `).join("");
+}
+
+async function loadAllowanceStandards() {
+    const standardYearMonth = document.getElementById("allowance-standard-year-month").value.trim();
+    const item = document.getElementById("allowance-standard-item").value.trim();
+    const positionCode = document.getElementById("allowance-standard-position-code").value.trim();
+    const page = document.getElementById("allowance-standard-page").value || "0";
+    const size = document.getElementById("allowance-standard-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (standardYearMonth) {
+        params.set("standardYearMonth", standardYearMonth);
+    }
+    if (item) {
+        params.set("item", item);
+    }
+    if (positionCode) {
+        params.set("positionCode", positionCode);
+    }
+    const status = document.getElementById("allowance-standards-status");
+    const rows = document.getElementById("allowance-standards-rows");
+    status.className = "status";
+    status.textContent = "正在查询津贴补贴标准...";
+    rows.innerHTML = "";
+    try {
+        const result = await getJson(`/api/payroll/allowance-standards?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.id)}</td>
+                <td>${escapeHtml(row.standardYearMonth)}</td>
+                <td>${escapeHtml(row.item)}</td>
+                <td>${escapeHtml(row.positionCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.workYearsLower)}</td>
+                <td>${escapeHtml(row.workYearsUpper)}</td>
+                <td>${money(row.amount)}</td>
+                <td>${escapeHtml(row.performanceCategory)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
 }
 
 async function loadSecurityAdmin() {
