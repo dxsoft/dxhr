@@ -703,6 +703,25 @@ class PayrollRepository {
                 """, parameters, Integer.class);
     }
 
+    List<Integer> findPersonnelUidsWithCurrentPayroll(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT p.uid
+                FROM dryjbxx p
+                JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                  AND (:keyword IS NULL OR p.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                ORDER BY p.dwbm, p.grbm
+                """, payrollChangeParameters(organizationScope, organizationCode, keyword), Integer.class);
+    }
+
     long countPersonnelWithCurrentPayroll(OrganizationScope organizationScope, String organizationCode, String keyword) {
         if (organizationScope.noneScope()) {
             return 0;

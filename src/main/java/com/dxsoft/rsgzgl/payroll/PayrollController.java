@@ -140,9 +140,10 @@ class PayrollController {
     PageResponse<LevelPromotionPreview> levelPromotions(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean dueOnly,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.levelPromotionPreviews(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.levelPromotionPreviews(organizationCode, keyword, dueOnly, PageRequest.of(page, size));
     }
 
     @GetMapping("/personnel/{uid}/calculation-context")
