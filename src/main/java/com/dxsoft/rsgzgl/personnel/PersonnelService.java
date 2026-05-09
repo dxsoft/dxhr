@@ -83,6 +83,18 @@ public class PersonnelService {
                 personnelRepository.countAnnualAssessments(scope, emptyToNull(organizationCode), year, keyword));
     }
 
+    public PageResponse<ChangedPersonnelRecord> changedPersonnel(
+            String organizationCode,
+            String period,
+            String keyword,
+            PageRequest pageRequest) {
+        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        return PageResponse.of(
+                personnelRepository.findChangedPersonnel(scope, emptyToNull(organizationCode), period, keyword, pageRequest),
+                pageRequest,
+                personnelRepository.countChangedPersonnel(scope, emptyToNull(organizationCode), period, keyword));
+    }
+
     private PersonKey getPersonKey(int uid) {
         PersonKey key = personnelRepository.findKeyByUid(uid)
                 .orElseThrow(() -> new NotFoundException("Personnel record not found: " + uid));

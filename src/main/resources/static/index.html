@@ -137,6 +137,67 @@
         </div>
     </section>
 
+    <section id="changed-personnel" class="panel hidden" data-menu-code="CHANGED_PERSONNEL">
+        <div class="panel-title">
+            <div>
+                <h2>变动人员信息</h2>
+                <p>只读查询 `bdry` 变动人员清单，按当前用户单位数据范围限制可见人员。</p>
+            </div>
+        </div>
+        <form id="changed-personnel-form" class="toolbar">
+            <label>
+                单位编码
+                <input id="changed-personnel-organization-code" placeholder="例如 001">
+            </label>
+            <label>
+                变动年月
+                <input id="changed-personnel-period" placeholder="例如 202407">
+            </label>
+            <label>
+                关键词
+                <input id="changed-personnel-keyword" placeholder="人员编码 / 姓名 / 身份证 / 变动类别 / 岗位">
+            </label>
+            <label>
+                页码
+                <input id="changed-personnel-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="changed-personnel-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询变动人员</button>
+        </form>
+        <div id="changed-personnel-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>身份证</th>
+                    <th>性别</th>
+                    <th>出生年月</th>
+                    <th>人员类别</th>
+                    <th>单位属性</th>
+                    <th>变动年月</th>
+                    <th>变动类别</th>
+                    <th>原岗位编码</th>
+                    <th>原岗位</th>
+                    <th>原合计</th>
+                    <th>新岗位编码</th>
+                    <th>新岗位</th>
+                    <th>新合计</th>
+                    <th>工资标准</th>
+                    <th>津补贴标准</th>
+                    <th>备注</th>
+                </tr>
+                </thead>
+                <tbody id="changed-personnel-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="position-history" class="panel hidden" data-menu-code="POSITION_HISTORY">
         <div class="panel-title">
             <div>

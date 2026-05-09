@@ -137,6 +137,31 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("khjg"))
     );
 
+    private static final RowMapper<ChangedPersonnelRecord> CHANGED_PERSONNEL_MAPPER = (rs, rowNum) -> new ChangedPersonnelRecord(
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SensitiveData.maskIdCard(rs.getString("sfzh")),
+            SqlText.trim(rs.getString("xb")),
+            SqlText.trim(rs.getString("csny")),
+            SqlText.trim(rs.getString("ryfl")),
+            SqlText.trim(rs.getString("dwsx")),
+            SqlText.trim(rs.getString("gwfl")),
+            SqlText.trim(rs.getString("jsnf")),
+            SqlText.trim(rs.getString("jsyf")),
+            SqlText.trim(rs.getString("jslb")),
+            SqlText.trim(rs.getString("zwbm1")),
+            SqlText.trim(rs.getString("zwgw1")),
+            rs.getBigDecimal("hj1"),
+            SqlText.trim(rs.getString("zwbm2")),
+            SqlText.trim(rs.getString("zwgw2")),
+            rs.getBigDecimal("hj2"),
+            SqlText.trim(rs.getString("tbnd")),
+            SqlText.trim(rs.getString("jbtbz")),
+            SqlText.trim(rs.getString("bz"))
+    );
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     PersonnelRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -297,6 +322,50 @@ class PersonnelRepository {
         return count == null ? 0 : count;
     }
 
+    List<ChangedPersonnelRecord> findChangedPersonnel(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String period,
+            String keyword,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource params = changedPersonnelParameters(organizationScope, organizationCode, period, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT b.dwbm, dw.dwmc, b.grbm, b.xm, b.sfzh, b.xb, b.csny, b.ryfl, b.dwsx, b.gwfl,
+                       b.jsnf, b.jsyf, b.jslb, b.zwbm1, b.zwgw1, b.hj1, b.zwbm2, b.zwgw2, b.hj2,
+                       b.tbnd, b.jbtbz, b.bz
+                FROM bdry b
+                LEFT JOIN dwbm dw ON dw.dwbm = b.dwbm
+                WHERE (:allOrganizations = TRUE OR b.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR b.dwbm = :organizationCode)
+                  AND (:period IS NULL OR CONCAT(b.jsnf, b.jsyf) = :period)
+                  AND (:keyword IS NULL OR b.grbm LIKE :keywordLike OR b.xm LIKE :keywordLike
+                       OR b.sfzh LIKE :keywordLike OR b.jslb LIKE :keywordLike OR b.zwgw2 LIKE :keywordLike)
+                ORDER BY b.dwbm, b.grbm, b.jsnf DESC, b.jsyf DESC, b.jslb
+                LIMIT :limit OFFSET :offset
+                """, params, CHANGED_PERSONNEL_MAPPER);
+    }
+
+    long countChangedPersonnel(OrganizationScope organizationScope, String organizationCode, String period, String keyword) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM bdry b
+                WHERE (:allOrganizations = TRUE OR b.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR b.dwbm = :organizationCode)
+                  AND (:period IS NULL OR CONCAT(b.jsnf, b.jsyf) = :period)
+                  AND (:keyword IS NULL OR b.grbm LIKE :keywordLike OR b.xm LIKE :keywordLike
+                       OR b.sfzh LIKE :keywordLike OR b.jslb LIKE :keywordLike OR b.zwgw2 LIKE :keywordLike)
+                """, changedPersonnelParameters(organizationScope, organizationCode, period, keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
     List<AssessmentRecord> findAssessments(PersonKey key) {
         return jdbcTemplate.query("""
                 SELECT id, dwbm, grbm, khnd, khjg
@@ -391,6 +460,21 @@ class PersonnelRepository {
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private MapSqlParameterSource changedPersonnelParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String period,
+            String keyword) {
+        String trimmedKeyword = SqlText.trim(keyword);
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("period", emptyToNull(period))
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
     }

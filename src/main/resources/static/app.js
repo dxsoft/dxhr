@@ -19,6 +19,7 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("annual-assessments-form").addEventListener("submit", onAnnualAssessmentsSearch);
+    document.getElementById("changed-personnel-form").addEventListener("submit", onChangedPersonnelSearch);
     document.getElementById("position-history-form").addEventListener("submit", onPositionHistorySearch);
     document.getElementById("education-history-form").addEventListener("submit", onEducationHistorySearch);
     document.getElementById("organization-maintenance-form").addEventListener("submit", onOrganizationMaintenanceSearch);
@@ -69,6 +70,9 @@ async function initializeAuth() {
         }
         if (hasMenu("ANNUAL_ASSESSMENTS")) {
             await loadAnnualAssessments();
+        }
+        if (hasMenu("CHANGED_PERSONNEL")) {
+            await loadChangedPersonnel();
         }
         if (hasMenu("POSITION_HISTORY")) {
             await loadPositionHistory();
@@ -198,6 +202,12 @@ async function onAnnualAssessmentsSearch(event) {
     event.preventDefault();
     document.getElementById("assessment-page").value = "0";
     await loadAnnualAssessments();
+}
+
+async function onChangedPersonnelSearch(event) {
+    event.preventDefault();
+    document.getElementById("changed-personnel-page").value = "0";
+    await loadChangedPersonnel();
 }
 
 async function onPositionHistorySearch(event) {
@@ -351,8 +361,6 @@ async function loadAnnualAssessments() {
         rows.innerHTML = (result.content || []).map(row => `
             <tr>
                 <td>${escapeHtml(row.id)}</td>
-                <td>${row.currentPayroll ? "是" : "否"}</td>
-                <td>${escapeHtml(row.successorId || "")}</td>
                 <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
                 <td>${escapeHtml(row.personCode)}</td>
                 <td>${escapeHtml(row.name || "")}</td>
@@ -361,6 +369,60 @@ async function loadAnnualAssessments() {
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条考核记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadChangedPersonnel() {
+    const organizationCode = document.getElementById("changed-personnel-organization-code").value.trim();
+    const period = document.getElementById("changed-personnel-period").value.trim();
+    const keyword = document.getElementById("changed-personnel-keyword").value.trim();
+    const page = document.getElementById("changed-personnel-page").value || "0";
+    const size = document.getElementById("changed-personnel-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (period) {
+        params.set("period", period);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("changed-personnel-status");
+    const rows = document.getElementById("changed-personnel-rows");
+    status.className = "status";
+    status.textContent = "正在查询变动人员信息...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/personnel/changed?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.idCard || "")}</td>
+                <td>${escapeHtml(row.gender || "")}</td>
+                <td>${escapeHtml(row.birthYearMonth || "")}</td>
+                <td>${escapeHtml(row.personnelCategory || "")}</td>
+                <td>${escapeHtml(row.organizationType || "")}</td>
+                <td>${escapeHtml(row.changeYear || "")}${escapeHtml(row.changeMonth || "")}</td>
+                <td>${escapeHtml(row.changeType || "")}</td>
+                <td>${escapeHtml(row.oldPositionCode || "")}</td>
+                <td>${escapeHtml(row.oldPositionName || "")}</td>
+                <td>${money(row.oldTotalAmount)}</td>
+                <td>${escapeHtml(row.newPositionCode || "")}</td>
+                <td>${escapeHtml(row.newPositionName || "")}</td>
+                <td>${money(row.newTotalAmount)}</td>
+                <td>${escapeHtml(row.salaryStandardYearMonth || "")}</td>
+                <td>${escapeHtml(row.allowanceStandardYearMonth || "")}</td>
+                <td>${escapeHtml(row.remark || "")}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条变动人员记录`;
     } catch (error) {
         showError(status, error);
     }
@@ -717,6 +779,8 @@ async function loadPayrollHistory() {
         rows.innerHTML = (result.content || []).map(row => `
             <tr>
                 <td>${escapeHtml(row.id)}</td>
+                <td>${row.currentPayroll ? "是" : "否"}</td>
+                <td>${escapeHtml(row.successorId || "")}</td>
                 <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
                 <td>${escapeHtml(row.personCode)}</td>
                 <td>${escapeHtml(row.name)}</td>
