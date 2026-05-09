@@ -675,6 +675,46 @@ class PayrollRepository {
                 """, parameters, Integer.class);
     }
 
+    List<Integer> findPersonnelUidsWithCurrentPayroll(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource parameters = payrollChangeParameters(organizationScope, organizationCode, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.queryForList("""
+                SELECT p.uid
+                FROM dryjbxx p
+                JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                  AND (:keyword IS NULL OR p.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                ORDER BY p.dwbm, p.grbm
+                LIMIT :limit OFFSET :offset
+                """, parameters, Integer.class);
+    }
+
+    long countPersonnelWithCurrentPayroll(OrganizationScope organizationScope, String organizationCode, String keyword) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM dryjbxx p
+                JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                  AND (:keyword IS NULL OR p.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                """, payrollChangeParameters(organizationScope, organizationCode, keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
     long countPersonnelWithPayrollHistory(OrganizationScope organizationScope) {
         if (organizationScope.noneScope()) {
             return 0;

@@ -232,6 +232,22 @@ public class PayrollService {
                 payrollRepository.countTeachingAllowanceAdjustments(scope, emptyToNull(organizationCode), keyword));
     }
 
+    public PageResponse<NormalPromotionPreview> normalPromotionPreviews(
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        List<NormalPromotionPreview> previews = payrollRepository
+                .findPersonnelUidsWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword, pageRequest)
+                .stream()
+                .map(this::normalPromotionPreview)
+                .toList();
+        return PageResponse.of(
+                previews,
+                pageRequest,
+                payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
+    }
+
     private BasicPayrollCalculation basicCalculation(PayrollHistorySnapshot history) {
         String standardYearMonth = history.salaryStandardYearMonth();
         String positionCode = history.positionCode();
@@ -652,6 +668,47 @@ public class PayrollService {
         return base.multiply(BigDecimal.valueOf(effectivePercentage))
                 .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP)
                 .intValue();
+    }
+
+    private NormalPromotionPreview normalPromotionPreview(int uid) {
+        PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        BasicPayrollCalculation current = basicCalculation(history);
+        String promotedGradeOrLevel = String.valueOf(payrollRepository.intValue(history.positionSalaryGrade()) + 1);
+        String baseSalarySource = baseSalarySource(history.positionCode());
+        Integer promotedBaseSalary = switch (baseSalarySource) {
+            case "GRADE" -> payrollRepository.gradeSalary(
+                    history.gradeSalaryLevel(),
+                    String.valueOf(payrollRepository.intValue(promotedGradeOrLevel) + payrollRepository.intValue(history.gradeSalaryStep())),
+                    history.salaryStandardYearMonth());
+            case "TECHNICAL_GRADE" -> payrollRepository.technicalGradeSalary(
+                    history.positionCode(),
+                    history.salaryStandardYearMonth());
+            default -> payrollRepository.salaryLevelSalary(
+                    promotedGradeOrLevel,
+                    history.gradeSalaryStep(),
+                    history.salaryStandardYearMonth(),
+                    history.positionCode());
+        };
+        Integer currentBaseSalary = current.selectedBaseSalary();
+        return new NormalPromotionPreview(
+                history.id(),
+                history.organizationCode(),
+                history.personCode(),
+                history.name(),
+                history.calculationYear() + history.calculationMonth(),
+                history.calculationType(),
+                history.positionCode(),
+                history.positionName(),
+                history.salaryStandardYearMonth(),
+                history.positionSalaryGrade(),
+                promotedGradeOrLevel,
+                history.gradeSalaryLevel(),
+                history.gradeSalaryStep(),
+                currentBaseSalary,
+                promotedBaseSalary,
+                nullToZero(promotedBaseSalary) - nullToZero(currentBaseSalary),
+                baseSalarySource);
     }
 
     private boolean isEducationPosition(String positionCode) {

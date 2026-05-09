@@ -38,6 +38,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 “学历信息”页面提供 `dxl` 只读查询，按用户单位数据范围限制可见人员。
 “工资变动历史”页面提供 `hisbase` 只读查询，按用户单位数据范围限制可见人员；同一 `dwbm + grbm` 为同一人的工资变动链，`sid` 指向下一次工资变动，`sid` 为空表示当前执行工资。
 “调整教护龄津贴”页面提供当前工资记录的教护龄津贴只读试算，按 `jhljt.prg` 档位规则比较旧值和应发值。
+“正常档次/薪级晋升”页面提供当前工资记录档次/薪级加 1 后的基础工资只读试算。
 “单位信息维护”页面提供 `dwbm` 只读查询，按用户单位数据范围限制可见单位。
 “设置常用值”页面提供 `dmb` 字典表只读查询，支持编码前缀和关键词筛选。
 “本地工资政策”页面提供 `cyxx` 和 `xtcs` 只读查询，用于核对影响工资计算的全局参数。
@@ -70,6 +71,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/payroll/fields`
 - `GET /api/payroll/histories`
 - `GET /api/payroll/teaching-allowance-adjustments`
+- `GET /api/payroll/normal-promotions`
 - `GET /api/payroll/position-standards`
 - `GET /api/payroll/basic-standards`
 - `GET /api/payroll/intern-salary-standards`
