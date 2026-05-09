@@ -741,8 +741,14 @@ public class PayrollService {
                 currentStep,
                 history.salaryStandardYearMonth());
         int calculationYear = yearOf(history.calculationYear());
-        int levelStartYear = assessmentStartYear(history.levelAssessmentStartYear(), history.positionStartYearMonth());
-        int stepStartYear = assessmentStartYear(history.stepAssessmentStartYear(), history.positionStartYearMonth());
+        int levelStartYear = assessmentStartYear(
+                history.levelAssessmentStartYear(),
+                history.positionStartYearMonth(),
+                history.positionCode());
+        int stepStartYear = assessmentStartYear(
+                history.stepAssessmentStartYear(),
+                history.positionStartYearMonth(),
+                history.positionCode());
         int qualifiedYearsForLevel = payrollRepository.countQualifiedAssessmentYears(
                 history.organizationCode(), history.personCode(), levelStartYear, calculationYear - 1);
         int qualifiedYearsForStep = payrollRepository.countQualifiedAssessmentYears(
@@ -802,10 +808,10 @@ public class PayrollService {
         return "20";
     }
 
-    private int assessmentStartYear(String storedStartYear, String positionStartYearMonth) {
+    private int assessmentStartYear(String storedStartYear, String positionStartYearMonth, String positionCode) {
         int stored = yearOf(storedStartYear);
-        int minimumStartYear = 2007;
         String normalizedPositionStart = positionStartYearMonth == null ? "" : positionStartYearMonth.replace(".", "");
+        int minimumStartYear = positionCode != null && !positionCode.contains("F") ? 2006 : 2007;
         if (normalizedPositionStart.compareTo("200607") > 0) {
             minimumStartYear = yearOf(normalizedPositionStart);
         }
