@@ -27,6 +27,7 @@ class SecurityConfig {
                         .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers("/api/security/**").hasAuthority("SECURITY_ADMIN")
                         .requestMatchers("/api/dictionaries/**").hasAuthority("SYSTEM_CONFIG")
+                        .requestMatchers("/api/system-config/**").hasAuthority("SYSTEM_CONFIG")
                         .requestMatchers("/api/organizations/**").hasAuthority("ORG_READ")
                         .requestMatchers("/api/personnel/**").hasAuthority("PERSONNEL_READ")
                         .requestMatchers("/api/payroll/calculation-audits", "/api/payroll/calculation-audit-summary").hasAuthority("AUDIT_READ")

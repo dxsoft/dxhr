@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("organization-maintenance-form").addEventListener("submit", onOrganizationMaintenanceSearch);
     document.getElementById("dictionary-maintenance-form").addEventListener("submit", onDictionarySearch);
+    document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
@@ -67,6 +68,9 @@ async function initializeAuth() {
         }
         if (hasMenu("DICTIONARY_MAINTENANCE")) {
             await loadDictionaries();
+        }
+        if (hasMenu("LOCAL_POLICY_CONFIG")) {
+            await loadLocalPolicies();
         }
         if (hasMenu("BASIC_STANDARDS")) {
             await loadBasicStandards();
@@ -184,6 +188,12 @@ async function onDictionarySearch(event) {
     event.preventDefault();
     document.getElementById("dictionary-page").value = "0";
     await loadDictionaries();
+}
+
+async function onLocalPolicySearch(event) {
+    event.preventDefault();
+    document.getElementById("local-policy-page").value = "0";
+    await loadLocalPolicies();
 }
 
 async function onAudit(event) {
@@ -348,6 +358,66 @@ async function loadDictionaries() {
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条字典`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadLocalPolicies() {
+    const keyword = document.getElementById("local-policy-keyword").value.trim();
+    const page = document.getElementById("local-policy-page").value || "0";
+    const size = document.getElementById("local-policy-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("local-policy-status");
+    const rows = document.getElementById("local-policy-rows");
+    const optionRows = document.getElementById("system-option-rows");
+    status.className = "status";
+    status.textContent = "正在查询本地工资政策...";
+    rows.innerHTML = "";
+    optionRows.innerHTML = "";
+
+    try {
+        const [policies, options] = await Promise.all([
+            getJson(`/api/system-config/local-policies?${params}`),
+            getJson("/api/system-config/options"),
+        ]);
+        rows.innerHTML = (policies.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.id)}</td>
+                <td>${escapeHtml(row.organizationCode)}</td>
+                <td>${escapeHtml(row.organizationName)}</td>
+                <td>${escapeHtml(row.city)}</td>
+                <td>${escapeHtml(row.approvedAt)}</td>
+                <td>${escapeHtml(row.payrollTitle)}</td>
+                <td>${escapeHtml(row.roundingMode)}</td>
+                <td>${escapeHtml(row.roundToInteger)}</td>
+                <td>${escapeHtml(row.policeAllowanceCaption)}</td>
+                <td>${escapeHtml(row.subsidyCaption)}</td>
+                <td>${escapeHtml(row.approvalMode)}</td>
+                <td>${escapeHtml(row.unitApprovalCategory)}</td>
+                <td>${escapeHtml(row.internSalaryMode)}</td>
+                <td>${escapeHtml(row.bonusBalanceMode)}</td>
+                <td>${escapeHtml(row.floatingSalaryMode)}</td>
+                <td>${escapeHtml(row.payGradeRetentionMode)}</td>
+                <td>${escapeHtml(row.autoBackup)}</td>
+                <td>${escapeHtml(row.checkUpdate)}</td>
+            </tr>
+        `).join("");
+        optionRows.innerHTML = (options || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.enterpriseTransferRaise)}</td>
+                <td>${escapeHtml(row.gradeStepEducationLink)}</td>
+                <td>${escapeHtml(row.decimalPlaces)}</td>
+                <td>${escapeHtml(row.policeRankAllowance)}</td>
+                <td>${escapeHtml(row.reformBonusBalance)}</td>
+                <td>${escapeHtml(row.floatingSalary)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${policies.page + 1} / ${Math.max(policies.totalPages, 1)} 页，共 ${policies.totalElements} 条政策配置`;
     } catch (error) {
         showError(status, error);
     }

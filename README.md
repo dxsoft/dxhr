@@ -33,6 +33,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 前端导航由 `app_menu` 和 `/api/auth/menus` 动态生成，只显示当前用户具备权限的菜单。
 “单位信息维护”页面提供 `dwbm` 只读查询，按用户单位数据范围限制可见单位。
 “设置常用值”页面提供 `dmb` 字典表只读查询，支持编码前缀和关键词筛选。
+“本地工资政策”页面提供 `cyxx` 和 `xtcs` 只读查询，用于核对影响工资计算的全局参数。
 “基本工资标准”页面提供 `bz06_zwgz`、`bz06_zwgz_gr`、`bz06_jbgz`、`bz06_xjgz` 四类标准表只读查询。
 “见习工资标准”页面提供 `bz06_zzdz` 只读查询，支持标准年月和学历/职务关键词筛选。
 “津贴补贴标准”页面提供 `bz06_jbt` 只读查询，支持标准年月、项目和职务编码筛选。
@@ -51,6 +52,8 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/personnel/{uid}/assessments`
 - `GET /api/organizations/maintenance`
 - `GET /api/dictionaries`
+- `GET /api/system-config/local-policies`
+- `GET /api/system-config/options`
 - `GET /api/payroll/fields`
 - `GET /api/payroll/position-standards`
 - `GET /api/payroll/basic-standards`
