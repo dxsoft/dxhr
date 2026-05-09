@@ -934,6 +934,64 @@
         </div>
     </section>
 
+    <section id="regularization" class="panel hidden" data-menu-code="REGULARIZATION">
+        <div class="panel-title">
+            <div>
+                <h2>转正定级</h2>
+                <p>基于当前见习工资记录和学历，对照 `bz06_zzdz` 转正定级标准进行只读试算。</p>
+            </div>
+        </div>
+        <form id="regularization-form" class="toolbar">
+            <label>
+                单位编码
+                <input id="regularization-organization-code" placeholder="例如 001">
+            </label>
+            <label>
+                关键词
+                <input id="regularization-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>
+                页码
+                <input id="regularization-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="regularization-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="regularization-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位编码</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>试算年月</th>
+                    <th>见习岗位编码</th>
+                    <th>见习岗位</th>
+                    <th>学历编码</th>
+                    <th>学历</th>
+                    <th>毕业时间</th>
+                    <th>转正岗位编码</th>
+                    <th>转正岗位</th>
+                    <th>转正级别/薪级</th>
+                    <th>转正档次</th>
+                    <th>旧工资</th>
+                    <th>转正岗位工资</th>
+                    <th>转正基础工资</th>
+                    <th>转正合计</th>
+                    <th>增资额</th>
+                    <th>是否适用</th>
+                    <th>说明</th>
+                </tr>
+                </thead>
+                <tbody id="regularization-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="audit" class="panel hidden" data-menu-code="AUDIT">
         <div class="panel-title">
             <div>

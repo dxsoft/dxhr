@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("level-promotion-form").addEventListener("submit", onLevelPromotionSearch);
     document.getElementById("position-change-promotion-form").addEventListener("submit", onPositionChangePromotionSearch);
     document.getElementById("education-promotion-form").addEventListener("submit", onEducationPromotionSearch);
+    document.getElementById("regularization-form").addEventListener("submit", onRegularizationSearch);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
     document.getElementById("allowance-standards-form").addEventListener("submit", onAllowanceStandardsSearch);
     document.getElementById("rank-allowance-standards-form").addEventListener("submit", onRankAllowanceStandardsSearch);
@@ -116,6 +117,9 @@ async function initializeAuth() {
         }
         if (hasMenu("EDUCATION_PROMOTION")) {
             await loadEducationPromotions();
+        }
+        if (hasMenu("REGULARIZATION")) {
+            await loadRegularizations();
         }
         if (hasMenu("BASIC_STANDARDS")) {
             await loadBasicStandards();
@@ -313,6 +317,12 @@ async function onEducationPromotionSearch(event) {
     event.preventDefault();
     document.getElementById("education-promotion-page").value = "0";
     await loadEducationPromotions();
+}
+
+async function onRegularizationSearch(event) {
+    event.preventDefault();
+    document.getElementById("regularization-page").value = "0";
+    await loadRegularizations();
 }
 
 async function onBasicStandardsSearch(event) {
@@ -1168,6 +1178,57 @@ async function loadEducationPromotions() {
                 <td>${money(row.positionSalaryIncrease)}</td>
                 <td>${money(row.gradeSalaryIncrease)}</td>
                 <td>${money(row.totalIncrease)}</td>
+                <td>${row.eligible ? "是" : "否"}</td>
+                <td>${escapeHtml(row.note || "")}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条试算记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadRegularizations() {
+    const organizationCode = document.getElementById("regularization-organization-code").value.trim();
+    const keyword = document.getElementById("regularization-keyword").value.trim();
+    const page = document.getElementById("regularization-page").value || "0";
+    const size = document.getElementById("regularization-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+
+    const status = document.getElementById("regularization-status");
+    const rows = document.getElementById("regularization-rows");
+    status.className = "status";
+    status.textContent = "正在查询转正定级试算...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/payroll/regularizations?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.organizationCode)}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.calculationPeriod)}</td>
+                <td>${escapeHtml(row.probationPositionCode || "")}</td>
+                <td>${escapeHtml(row.probationPositionName || "")}</td>
+                <td>${escapeHtml(row.educationCode || "")}</td>
+                <td>${escapeHtml(row.educationName || "")}</td>
+                <td>${escapeHtml(row.graduationDate || "")}</td>
+                <td>${escapeHtml(row.regularPositionCode || "")}</td>
+                <td>${escapeHtml(row.regularPositionName || "")}</td>
+                <td>${escapeHtml(row.regularLevel || "")}</td>
+                <td>${escapeHtml(row.regularStep || "")}</td>
+                <td>${money(row.currentSalary)}</td>
+                <td>${money(row.regularPositionSalary)}</td>
+                <td>${money(row.regularBaseSalary)}</td>
+                <td>${money(row.totalRegularSalary)}</td>
+                <td>${money(row.increaseAmount)}</td>
                 <td>${row.eligible ? "是" : "否"}</td>
                 <td>${escapeHtml(row.note || "")}</td>
             </tr>

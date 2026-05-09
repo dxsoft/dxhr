@@ -306,6 +306,22 @@ public class PayrollService {
                 payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
     }
 
+    public PageResponse<RegularizationPreview> regularizationPreviews(
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        List<RegularizationPreview> previews = payrollRepository
+                .findProbationPersonnelUidsWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword, pageRequest)
+                .stream()
+                .map(this::regularizationPreview)
+                .toList();
+        return PageResponse.of(
+                previews,
+                pageRequest,
+                payrollRepository.countProbationPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
+    }
+
     private BasicPayrollCalculation basicCalculation(PayrollHistorySnapshot history) {
         String standardYearMonth = history.salaryStandardYearMonth();
         String positionCode = history.positionCode();
@@ -981,6 +997,76 @@ public class PayrollService {
                         + nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
                 eligible,
                 educationPromotionNote(education, standard));
+    }
+
+    private RegularizationPreview regularizationPreview(int uid) {
+        PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        EducationPromotionSource education = payrollRepository
+                .findLatestEducationForPromotion(history.organizationCode(), history.personCode(), history.calculationYear() + history.calculationMonth())
+                .orElse(null);
+        EducationRegularizationStandard standard = education == null ? null : payrollRepository
+                .findEducationRegularizationStandard(history.positionCode(), education.educationCode())
+                .orElse(null);
+        boolean eligible = history.positionCode() != null && history.positionCode().contains("F")
+                && education != null && standard != null;
+        String regularPositionCode = eligible ? normalizeEducationPromotionPositionCode(standard.positionCode()) : null;
+        String regularLevel = eligible ? standard.gradeLevel() : null;
+        String regularStep = eligible ? standard.gradeStep() : null;
+        Integer regularPositionSalary = eligible
+                ? payrollRepository.positionSalary(regularPositionCode, history.salaryStandardYearMonth())
+                : 0;
+        Integer regularBaseSalary = eligible
+                ? regularizedBaseSalary(regularPositionCode, regularLevel, regularStep, history.salaryStandardYearMonth())
+                : 0;
+        Integer currentSalary = history.storedPositionSalary() + history.storedGradeSalary() + history.storedTechnicalGradeSalary();
+        Integer totalRegularSalary = nullToZero(regularPositionSalary) + nullToZero(regularBaseSalary);
+        return new RegularizationPreview(
+                history.id(),
+                history.organizationCode(),
+                history.personCode(),
+                history.name(),
+                history.calculationYear() + history.calculationMonth(),
+                history.positionCode(),
+                history.positionName(),
+                education == null ? null : education.educationCode(),
+                education == null ? null : education.educationName(),
+                education == null ? null : education.graduationDate(),
+                regularPositionCode,
+                standard == null ? null : standard.positionName(),
+                regularLevel,
+                regularStep,
+                currentSalary,
+                regularPositionSalary,
+                regularBaseSalary,
+                totalRegularSalary,
+                totalRegularSalary - nullToZero(currentSalary),
+                eligible,
+                regularizationNote(history, education, standard));
+    }
+
+    private Integer regularizedBaseSalary(String positionCode, String levelOrSalaryLevel, String step, String standardYearMonth) {
+        return switch (baseSalarySource(positionCode)) {
+            case "GRADE" -> payrollRepository.gradeSalary(levelOrSalaryLevel, step, standardYearMonth);
+            case "TECHNICAL_GRADE" -> payrollRepository.technicalGradeSalary(positionCode, standardYearMonth);
+            default -> payrollRepository.salaryLevelSalary(step, "0", standardYearMonth, positionCode);
+        };
+    }
+
+    private String regularizationNote(
+            PayrollHistorySnapshot history,
+            EducationPromotionSource education,
+            EducationRegularizationStandard standard) {
+        if (history.positionCode() == null || !history.positionCode().contains("F")) {
+            return "当前执行工资不是见习岗位，暂不参与转正定级试算。";
+        }
+        if (education == null) {
+            return "未找到可用于转正定级的学历记录。";
+        }
+        if (standard == null) {
+            return "未找到当前见习岗位前缀和学历编码对应的转正定级标准。";
+        }
+        return "按学历和 bz06_zzdz 转正定级标准试算，暂不写入数据库。";
     }
 
     private String educationPromotionLevel(
