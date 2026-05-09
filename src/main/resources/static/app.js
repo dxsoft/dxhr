@@ -16,6 +16,14 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
     maximumFractionDigits: 2,
 });
 
+const menuGroups = [
+    { title: "工作台", codes: ["DASHBOARD"] },
+    { title: "信息维护", codes: ["PERSONNEL", "ANNUAL_ASSESSMENTS", "CHANGED_PERSONNEL", "ASSESSMENT_SUMMARY", "POSITION_HISTORY", "EDUCATION_HISTORY", "ORGANIZATION_MAINTENANCE"] },
+    { title: "工资变动", codes: ["PAYROLL", "PAYROLL_HISTORY", "TEACHING_ALLOWANCE_ADJUSTMENT", "NORMAL_PROMOTION", "LEVEL_PROMOTION", "POSITION_CHANGE_PROMOTION", "EDUCATION_PROMOTION", "REGULARIZATION", "AUDIT"] },
+    { title: "标准维护", codes: ["BASIC_STANDARDS", "ALLOWANCE_STANDARDS", "INTERN_SALARY_STANDARDS", "RANK_ALLOWANCE_STANDARDS", "RETAINED_ALLOWANCE_STANDARDS", "YEAR_ALLOWANCE_STANDARDS", "WAGE_REFORM_STANDARDS", "OTHER_ALLOWANCE_STANDARDS"] },
+    { title: "系统管理", codes: ["LOCAL_POLICY_CONFIG", "DICTIONARY_MAINTENANCE", "SECURITY"] },
+];
+
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("annual-assessments-form").addEventListener("submit", onAnnualAssessmentsSearch);
@@ -59,6 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("logout-button").addEventListener("click", () => {
         window.location.href = "/logout";
     });
+    window.addEventListener("hashchange", applyRoute);
     initializeAuth();
 });
 
@@ -70,6 +79,8 @@ async function initializeAuth() {
         state.menus = menus;
         document.getElementById("current-user").textContent = `${user.displayName} (${user.username})`;
         renderMenus();
+        renderDashboard();
+        applyRoute();
         if (hasMenu("SECURITY")) {
             await loadSecurityAdmin();
         }
@@ -152,16 +163,77 @@ async function initializeAuth() {
 
 function renderMenus() {
     const nav = document.getElementById("main-nav");
-    nav.innerHTML = state.menus.map(menu => `
-        <a href="${escapeHtml(menu.path)}" data-menu-link="${escapeHtml(menu.code)}">${escapeHtml(menu.title)}</a>
-    `).join("");
+    const menuByCode = new Map([{ code: "DASHBOARD", title: "工作台", path: "#dashboard", permissionCode: "" }, ...state.menus].map(menu => [menu.code, menu]));
+    nav.innerHTML = menuGroups.map(group => {
+        const links = group.codes
+            .map(code => menuByCode.get(code))
+            .filter(Boolean)
+            .map(menu => `
+                <a href="${escapeHtml(menu.path)}" data-menu-link="${escapeHtml(menu.code)}">${escapeHtml(menu.title)}</a>
+            `).join("");
+        if (!links) {
+            return "";
+        }
+        return `
+            <div class="nav-group">
+                <div class="nav-group-title">${escapeHtml(group.title)}</div>
+                ${links}
+            </div>
+        `;
+    }).join("");
     document.querySelectorAll("[data-menu-code]").forEach(section => {
-        section.classList.toggle("hidden", !hasMenu(section.dataset.menuCode));
+        section.classList.toggle("unavailable", !hasMenu(section.dataset.menuCode));
     });
 }
 
 function hasMenu(code) {
+    if (code === "DASHBOARD") {
+        return true;
+    }
     return state.menus.some(menu => menu.code === code);
+}
+
+function applyRoute() {
+    const availableMenus = [{ code: "DASHBOARD", title: "工作台", path: "#dashboard" }, ...state.menus];
+    const requestedHash = window.location.hash || "#dashboard";
+    const selectedMenu = availableMenus.find(menu => menu.path === requestedHash) || availableMenus[0];
+    const selectedId = (selectedMenu.path || "#dashboard").replace("#", "");
+    document.querySelectorAll("main > section.panel").forEach(section => {
+        const isPasswordPanel = section.id === "password-panel";
+        const isActive = section.id === selectedId;
+        section.classList.toggle("hidden", !isActive || section.classList.contains("unavailable") || isPasswordPanel);
+    });
+    if (selectedMenu.path && window.location.hash !== selectedMenu.path) {
+        history.replaceState(null, "", selectedMenu.path);
+    }
+    document.querySelectorAll("[data-menu-link]").forEach(link => {
+        link.classList.toggle("active", link.getAttribute("href") === selectedMenu.path);
+    });
+    document.getElementById("workspace-title").textContent = selectedMenu.title || "工作台";
+    document.getElementById("breadcrumb").textContent = menuGroupTitle(selectedMenu.code) + " / " + (selectedMenu.title || "工作台");
+}
+
+function menuGroupTitle(code) {
+    const group = menuGroups.find(item => item.codes.includes(code));
+    return group ? group.title : "工作台";
+}
+
+function renderDashboard() {
+    const counts = {
+        "dashboard-personnel-count": state.menus.filter(menu => menuGroupTitle(menu.code) === "信息维护").length,
+        "dashboard-payroll-count": state.menus.filter(menu => menuGroupTitle(menu.code) === "工资变动").length,
+        "dashboard-standard-count": state.menus.filter(menu => menuGroupTitle(menu.code) === "标准维护").length,
+        "dashboard-system-count": state.menus.filter(menu => menuGroupTitle(menu.code) === "系统管理").length,
+    };
+    Object.entries(counts).forEach(([id, value]) => {
+        document.getElementById(id).textContent = value;
+    });
+    document.getElementById("dashboard-quick-links").innerHTML = state.menus.slice(0, 12).map(menu => `
+        <a class="quick-link" href="${escapeHtml(menu.path)}">
+            <strong>${escapeHtml(menu.title)}</strong>
+            <span>${escapeHtml(menuGroupTitle(menu.code))}</span>
+        </a>
+    `).join("");
 }
 
 async function onCreateUser(event) {
