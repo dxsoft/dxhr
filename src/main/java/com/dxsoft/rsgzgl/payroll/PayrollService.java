@@ -822,7 +822,7 @@ public class PayrollService {
     private int assessmentStartYear(String storedStartYear, String positionStartYearMonth, String positionCode) {
         int stored = yearOf(storedStartYear);
         String normalizedPositionStart = positionStartYearMonth == null ? "" : positionStartYearMonth.replace(".", "");
-        int minimumStartYear = positionCode != null && !positionCode.contains("F") ? 2006 : 2007;
+        int minimumStartYear = 2006;
         if (normalizedPositionStart.compareTo("200607") > 0) {
             minimumStartYear = yearOf(normalizedPositionStart);
         }
