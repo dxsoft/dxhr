@@ -47,6 +47,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 “保留福补标准”页面提供 `bz06_blfb` 只读查询，支持职务编码/名称筛选。
 “年补贴标准”页面提供 `njbt` 只读查询，支持标准年月筛选。
 “2006套改标准”页面提供 `bz06_tgb`（2006 年 7 月工资制度改革套改标准）只读查询，支持职务编码筛选。
+“其他补贴标准”页面提供 `bz_wybt`、`bz_txbt`、`bz_wmj`、`bz_pskhj` 只读查询。
 
 ### 首批接口
 
@@ -75,6 +76,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/payroll/retained-allowance-standards`
 - `GET /api/payroll/year-allowance-standards`
 - `GET /api/payroll/wage-reform-standards`
+- `GET /api/payroll/other-allowance-standards`
 - `GET /api/payroll/personnel/{uid}/calculation-context`
 - `GET /api/payroll/personnel/{uid}/calculation-preview`
 - `GET /api/payroll/calculation-audits`

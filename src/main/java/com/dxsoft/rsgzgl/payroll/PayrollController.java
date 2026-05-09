@@ -98,6 +98,16 @@ class PayrollController {
         return payrollService.wageReformStandards(positionCode, PageRequest.of(page, size));
     }
 
+    @GetMapping("/other-allowance-standards")
+    PageResponse<OtherAllowanceStandard> otherAllowanceStandards(
+            @RequestParam String standardType,
+            @RequestParam(required = false) String standardYearMonth,
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.otherAllowanceStandards(standardType, standardYearMonth, code, PageRequest.of(page, size));
+    }
+
     @GetMapping("/histories")
     PageResponse<PayrollHistoryRecord> payrollHistories(
             @RequestParam(required = false) String organizationCode,

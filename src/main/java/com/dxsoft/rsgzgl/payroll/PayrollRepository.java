@@ -99,6 +99,15 @@ class PayrollRepository {
             SqlText.trim(rs.getString("jb")),
             SqlText.trim(rs.getString("dc")));
 
+    private static final RowMapper<OtherAllowanceStandard> OTHER_ALLOWANCE_STANDARD_MAPPER = (rs, rowNum) -> new OtherAllowanceStandard(
+            SqlText.trim(rs.getString("standard_type")),
+            SqlText.trim(rs.getString("tbnd")),
+            SqlText.trim(rs.getString("code")),
+            SqlText.trim(rs.getString("name")),
+            rs.getBigDecimal("amount"),
+            rs.getBigDecimal("average_amount"),
+            rs.getBigDecimal("multiplier"));
+
     private static final RowMapper<PayrollHistorySnapshot> HISTORY_MAPPER = (rs, rowNum) -> new PayrollHistorySnapshot(
             SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("dwbm")),
@@ -413,6 +422,36 @@ class PayrollRepository {
                 FROM bz06_tgb
                 WHERE (:positionCode IS NULL OR zwbm = :positionCode)
                 """, new MapSqlParameterSource("positionCode", emptyToNull(positionCode)), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<OtherAllowanceStandard> findOtherAllowanceStandards(
+            String standardType,
+            String standardYearMonth,
+            String code,
+            PageRequest pageRequest) {
+        OtherAllowanceStandardQuery query = otherAllowanceStandardQuery(standardType);
+        MapSqlParameterSource parameters = otherAllowanceParameters(standardYearMonth, code)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT '%s' AS standard_type, %s
+                FROM %s
+                WHERE %s
+                ORDER BY %s
+                LIMIT :limit OFFSET :offset
+                """.formatted(query.standardType(), query.columns(), query.tableName(), query.whereClause(), query.orderBy()),
+                parameters,
+                OTHER_ALLOWANCE_STANDARD_MAPPER);
+    }
+
+    long countOtherAllowanceStandards(String standardType, String standardYearMonth, String code) {
+        OtherAllowanceStandardQuery query = otherAllowanceStandardQuery(standardType);
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM %s
+                WHERE %s
+                """.formatted(query.tableName(), query.whereClause()), otherAllowanceParameters(standardYearMonth, code), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -1019,6 +1058,12 @@ class PayrollRepository {
                 .addValue("positionCode", emptyToNull(positionCode));
     }
 
+    private MapSqlParameterSource otherAllowanceParameters(String standardYearMonth, String code) {
+        return new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("code", emptyToNull(code));
+    }
+
     private MapSqlParameterSource payrollHistoryParameters(
             OrganizationScope organizationScope,
             String organizationCode,
@@ -1072,6 +1117,39 @@ class PayrollRepository {
     }
 
     private record BasicStandardQuery(String tableName, String columns, String codePredicate, String orderBy) {
+    }
+
+    private OtherAllowanceStandardQuery otherAllowanceStandardQuery(String standardType) {
+        return switch (emptyToNull(standardType) == null ? "" : standardType.trim().toLowerCase()) {
+            case "property" -> new OtherAllowanceStandardQuery(
+                    "property",
+                    "bz_wybt",
+                    "tbnd, zwbm AS code, NULL AS name, bz AS amount, NULL AS average_amount, NULL AS multiplier",
+                    "(:standardYearMonth IS NULL OR tbnd = :standardYearMonth) AND (:code IS NULL OR zwbm = :code)",
+                    "tbnd DESC, zwbm");
+            case "communication" -> new OtherAllowanceStandardQuery(
+                    "communication",
+                    "bz_txbt",
+                    "tbnd, zwbm AS code, NULL AS name, bz AS amount, NULL AS average_amount, NULL AS multiplier",
+                    "(:standardYearMonth IS NULL OR tbnd = :standardYearMonth) AND (:code IS NULL OR zwbm = :code)",
+                    "tbnd DESC, zwbm");
+            case "civilized" -> new OtherAllowanceStandardQuery(
+                    "civilized",
+                    "bz_wmj",
+                    "NULL AS tbnd, jb AS code, NULL AS name, bz AS amount, NULL AS average_amount, mul AS multiplier",
+                    "(:code IS NULL OR jb = :code)",
+                    "jb");
+            case "assessment" -> new OtherAllowanceStandardQuery(
+                    "assessment",
+                    "bz_pskhj",
+                    "tbnd, khjg AS code, khjg AS name, bz AS amount, pjsp AS average_amount, NULL AS multiplier",
+                    "(:standardYearMonth IS NULL OR tbnd = :standardYearMonth) AND (:code IS NULL OR khjg = :code)",
+                    "tbnd DESC, khjg");
+            default -> throw new IllegalArgumentException("Unsupported other allowance standard type: " + standardType);
+        };
+    }
+
+    private record OtherAllowanceStandardQuery(String standardType, String tableName, String columns, String whereClause, String orderBy) {
     }
 
     private String emptyToNull(String value) {

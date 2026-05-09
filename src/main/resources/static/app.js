@@ -35,6 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("year-allowance-standards-form").addEventListener("submit", onYearAllowanceStandardsSearch);
     document.getElementById("intern-salary-standards-form").addEventListener("submit", onInternSalaryStandardsSearch);
     document.getElementById("wage-reform-standards-form").addEventListener("submit", onWageReformStandardsSearch);
+    document.getElementById("other-allowance-standards-form").addEventListener("submit", onOtherAllowanceStandardsSearch);
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("create-menu-form").addEventListener("submit", onCreateMenu);
@@ -116,6 +117,9 @@ async function initializeAuth() {
         }
         if (hasMenu("WAGE_REFORM_STANDARDS")) {
             await loadWageReformStandards();
+        }
+        if (hasMenu("OTHER_ALLOWANCE_STANDARDS")) {
+            await loadOtherAllowanceStandards();
         }
     } catch (error) {
         window.location.href = "/login.html";
@@ -301,6 +305,12 @@ async function onWageReformStandardsSearch(event) {
     event.preventDefault();
     document.getElementById("wage-reform-page").value = "0";
     await loadWageReformStandards();
+}
+
+async function onOtherAllowanceStandardsSearch(event) {
+    event.preventDefault();
+    document.getElementById("other-allowance-page").value = "0";
+    await loadOtherAllowanceStandards();
 }
 
 async function loadPersonnel() {
@@ -1104,6 +1114,52 @@ async function loadWageReformStandards() {
     } catch (error) {
         showError(status, error);
     }
+}
+
+async function loadOtherAllowanceStandards() {
+    const standardType = document.getElementById("other-allowance-standard-type").value;
+    const standardYearMonth = document.getElementById("other-allowance-standard-year-month").value.trim();
+    const code = document.getElementById("other-allowance-code").value.trim();
+    const page = document.getElementById("other-allowance-page").value || "0";
+    const size = document.getElementById("other-allowance-size").value || "20";
+    const params = new URLSearchParams({ standardType, page, size });
+    if (standardYearMonth) {
+        params.set("standardYearMonth", standardYearMonth);
+    }
+    if (code) {
+        params.set("code", code);
+    }
+    const status = document.getElementById("other-allowance-status");
+    const rows = document.getElementById("other-allowance-rows");
+    status.className = "status";
+    status.textContent = "正在查询其他补贴标准...";
+    rows.innerHTML = "";
+    try {
+        const result = await getJson(`/api/payroll/other-allowance-standards?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(otherAllowanceTypeName(row.standardType))}</td>
+                <td>${escapeHtml(row.standardYearMonth || "")}</td>
+                <td>${escapeHtml(row.code || "")}</td>
+                <td>${escapeHtml(row.name || "")}</td>
+                <td>${money(row.amount)}</td>
+                <td>${money(row.averageAmount)}</td>
+                <td>${escapeHtml(row.multiplier ?? "")}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function otherAllowanceTypeName(type) {
+    return {
+        property: "物业补贴",
+        communication: "通信补贴",
+        civilized: "文明奖",
+        assessment: "平时考核奖",
+    }[type] || type || "";
 }
 
 async function loadSecurityAdmin() {

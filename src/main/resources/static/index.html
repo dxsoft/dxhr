@@ -999,6 +999,60 @@
         </div>
     </section>
 
+    <section id="other-allowance-standards" class="panel hidden" data-menu-code="OTHER_ALLOWANCE_STANDARDS">
+        <div class="panel-title">
+            <div>
+                <h2>其他补贴标准</h2>
+                <p>查询物业补贴、通信补贴、文明奖和平时考核奖等标准。</p>
+            </div>
+        </div>
+        <form id="other-allowance-standards-form" class="toolbar">
+            <label>
+                标准类型
+                <select id="other-allowance-standard-type">
+                    <option value="property">物业补贴 bz_wybt</option>
+                    <option value="communication">通信补贴 bz_txbt</option>
+                    <option value="civilized">文明奖 bz_wmj</option>
+                    <option value="assessment">平时考核奖 bz_pskhj</option>
+                </select>
+            </label>
+            <label>
+                标准年月
+                <input id="other-allowance-standard-year-month" placeholder="例如 201707">
+            </label>
+            <label>
+                编码
+                <input id="other-allowance-code" placeholder="职务编码 / 级别 / 考核结果">
+            </label>
+            <label>
+                页码
+                <input id="other-allowance-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="other-allowance-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询标准</button>
+        </form>
+        <div id="other-allowance-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>标准类型</th>
+                    <th>标准年月</th>
+                    <th>编码</th>
+                    <th>名称</th>
+                    <th>金额</th>
+                    <th>平均水平</th>
+                    <th>倍率</th>
+                </tr>
+                </thead>
+                <tbody id="other-allowance-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="security" class="panel hidden" data-menu-code="SECURITY">
         <div class="panel-title">
             <div>

@@ -33,6 +33,7 @@
 | `RETAINED_ALLOWANCE_STANDARDS` | 保留福补标准 | `#retained-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `YEAR_ALLOWANCE_STANDARDS` | 年补贴标准 | `#year-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `WAGE_REFORM_STANDARDS` | 2006套改标准 | `#wage-reform-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
+| `OTHER_ALLOWANCE_STANDARDS` | 其他补贴标准 | `#other-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `ORGANIZATION_MAINTENANCE` | 单位信息维护 | `#organization-maintenance` | `ORG_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `LOCAL_POLICY_CONFIG` | 本地工资政策 | `#local-policy-config` | `SYSTEM_CONFIG` | 当前 Spring Boot 已实现，只读查询 |
 | `DICTIONARY_MAINTENANCE` | 设置常用值 | `#dictionary-maintenance` | `SYSTEM_CONFIG` | 当前 Spring Boot 已实现，只读查询 |
