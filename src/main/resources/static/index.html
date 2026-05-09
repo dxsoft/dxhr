@@ -135,6 +135,52 @@
         </div>
     </section>
 
+    <section id="assessment-summary" class="panel hidden" data-menu-code="ASSESSMENT_SUMMARY">
+        <div class="panel-title">
+            <div>
+                <h2>年度考核统计</h2>
+                <p>按年度、单位和考核结果汇总 `dndkh` 考核人数，按当前用户单位数据范围限制可见单位。</p>
+            </div>
+        </div>
+        <form id="assessment-summary-form" class="toolbar">
+            <label>
+                单位编码
+                <input id="assessment-summary-organization-code" placeholder="例如 001">
+            </label>
+            <label>
+                考核年度
+                <input id="assessment-summary-year" placeholder="例如 2024">
+            </label>
+            <label>
+                考核结果
+                <input id="assessment-summary-result" placeholder="例如 合格">
+            </label>
+            <label>
+                页码
+                <input id="assessment-summary-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="assessment-summary-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询统计</button>
+        </form>
+        <div id="assessment-summary-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>年度</th>
+                    <th>单位</th>
+                    <th>考核结果</th>
+                    <th>人数</th>
+                </tr>
+                </thead>
+                <tbody id="assessment-summary-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="changed-personnel" class="panel hidden" data-menu-code="CHANGED_PERSONNEL">
         <div class="panel-title">
             <div>

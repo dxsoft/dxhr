@@ -137,6 +137,14 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("khjg"))
     );
 
+    private static final RowMapper<AnnualAssessmentSummaryRecord> ANNUAL_ASSESSMENT_SUMMARY_MAPPER = (rs, rowNum) -> new AnnualAssessmentSummaryRecord(
+            SqlText.trim(rs.getString("khnd")),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("khjg")),
+            rs.getLong("personnel_count")
+    );
+
     private static final RowMapper<ChangedPersonnelRecord> CHANGED_PERSONNEL_MAPPER = (rs, rowNum) -> new ChangedPersonnelRecord(
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("dwmc")),
@@ -422,6 +430,55 @@ class PersonnelRepository {
         return count == null ? 0 : count;
     }
 
+    List<AnnualAssessmentSummaryRecord> findAnnualAssessmentSummary(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String year,
+            String result,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource params = assessmentSummaryParameters(organizationScope, organizationCode, year, result)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT a.khnd, a.dwbm, dw.dwmc, a.khjg, COUNT(*) AS personnel_count
+                FROM dndkh a
+                LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
+                WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
+                  AND (:year IS NULL OR a.khnd = :year)
+                  AND (:result IS NULL OR a.khjg = :result)
+                GROUP BY a.khnd, a.dwbm, dw.dwmc, a.khjg
+                ORDER BY a.khnd DESC, a.dwbm, a.khjg
+                LIMIT :limit OFFSET :offset
+                """, params, ANNUAL_ASSESSMENT_SUMMARY_MAPPER);
+    }
+
+    long countAnnualAssessmentSummary(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String year,
+            String result) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM (
+                    SELECT 1
+                    FROM dndkh a
+                    WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
+                      AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
+                      AND (:year IS NULL OR a.khnd = :year)
+                      AND (:result IS NULL OR a.khjg = :result)
+                    GROUP BY a.khnd, a.dwbm, a.khjg
+                ) grouped_assessment
+                """, assessmentSummaryParameters(organizationScope, organizationCode, year, result), Long.class);
+        return count == null ? 0 : count;
+    }
+
     private MapSqlParameterSource parameters(OrganizationScope organizationScope, String keyword) {
         String trimmedKeyword = SqlText.trim(keyword);
         return new MapSqlParameterSource()
@@ -450,6 +507,19 @@ class PersonnelRepository {
                 .addValue("year", emptyToNull(year))
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private MapSqlParameterSource assessmentSummaryParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String year,
+            String result) {
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("year", emptyToNull(year))
+                .addValue("result", emptyToNull(result));
     }
 
     private MapSqlParameterSource personnelHistoryParameters(

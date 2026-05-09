@@ -19,6 +19,7 @@
 | --- | --- | --- | --- | --- |
 | `PERSONNEL` | 人员查询 | `#personnel` | `PERSONNEL_READ` | 当前 Spring Boot 已实现 |
 | `ANNUAL_ASSESSMENTS` | 年度考核结果 | `#annual-assessments` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
+| `ASSESSMENT_SUMMARY` | 年度考核统计 | `#assessment-summary` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读统计 |
 | `CHANGED_PERSONNEL` | 变动人员信息 | `#changed-personnel` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询，来源 `dryjbxxb` / `hisbaseb` |
 | `POSITION_HISTORY` | 任职岗位信息 | `#position-history` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `EDUCATION_HISTORY` | 学历信息 | `#education-history` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |

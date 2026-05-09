@@ -19,6 +19,7 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("annual-assessments-form").addEventListener("submit", onAnnualAssessmentsSearch);
+    document.getElementById("assessment-summary-form").addEventListener("submit", onAssessmentSummarySearch);
     document.getElementById("changed-personnel-form").addEventListener("submit", onChangedPersonnelSearch);
     document.getElementById("position-history-form").addEventListener("submit", onPositionHistorySearch);
     document.getElementById("education-history-form").addEventListener("submit", onEducationHistorySearch);
@@ -70,6 +71,9 @@ async function initializeAuth() {
         }
         if (hasMenu("ANNUAL_ASSESSMENTS")) {
             await loadAnnualAssessments();
+        }
+        if (hasMenu("ASSESSMENT_SUMMARY")) {
+            await loadAssessmentSummary();
         }
         if (hasMenu("CHANGED_PERSONNEL")) {
             await loadChangedPersonnel();
@@ -202,6 +206,12 @@ async function onAnnualAssessmentsSearch(event) {
     event.preventDefault();
     document.getElementById("assessment-page").value = "0";
     await loadAnnualAssessments();
+}
+
+async function onAssessmentSummarySearch(event) {
+    event.preventDefault();
+    document.getElementById("assessment-summary-page").value = "0";
+    await loadAssessmentSummary();
 }
 
 async function onChangedPersonnelSearch(event) {
@@ -369,6 +379,45 @@ async function loadAnnualAssessments() {
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条考核记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadAssessmentSummary() {
+    const organizationCode = document.getElementById("assessment-summary-organization-code").value.trim();
+    const year = document.getElementById("assessment-summary-year").value.trim();
+    const resultFilter = document.getElementById("assessment-summary-result").value.trim();
+    const page = document.getElementById("assessment-summary-page").value || "0";
+    const size = document.getElementById("assessment-summary-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (year) {
+        params.set("year", year);
+    }
+    if (resultFilter) {
+        params.set("result", resultFilter);
+    }
+
+    const status = document.getElementById("assessment-summary-status");
+    const rows = document.getElementById("assessment-summary-rows");
+    status.className = "status";
+    status.textContent = "正在查询年度考核统计...";
+    rows.innerHTML = "";
+
+    try {
+        const result = await getJson(`/api/personnel/assessment-summary?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.year)}</td>
+                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
+                <td>${escapeHtml(row.result)}</td>
+                <td>${escapeHtml(row.personnelCount)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 组统计`;
     } catch (error) {
         showError(status, error);
     }

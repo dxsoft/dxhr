@@ -76,6 +76,16 @@ class PersonnelController {
         return personnelService.annualAssessments(organizationCode, year, keyword, PageRequest.of(page, size));
     }
 
+    @GetMapping("/assessment-summary")
+    PageResponse<AnnualAssessmentSummaryRecord> annualAssessmentSummary(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String result,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return personnelService.annualAssessmentSummary(organizationCode, year, result, PageRequest.of(page, size));
+    }
+
     @GetMapping("/changed")
     PageResponse<ChangedPersonnelRecord> changedPersonnel(
             @RequestParam(required = false) String organizationCode,

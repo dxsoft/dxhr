@@ -83,6 +83,18 @@ public class PersonnelService {
                 personnelRepository.countAnnualAssessments(scope, emptyToNull(organizationCode), year, keyword));
     }
 
+    public PageResponse<AnnualAssessmentSummaryRecord> annualAssessmentSummary(
+            String organizationCode,
+            String year,
+            String result,
+            PageRequest pageRequest) {
+        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        return PageResponse.of(
+                personnelRepository.findAnnualAssessmentSummary(scope, emptyToNull(organizationCode), year, result, pageRequest),
+                pageRequest,
+                personnelRepository.countAnnualAssessmentSummary(scope, emptyToNull(organizationCode), year, result));
+    }
+
     public PageResponse<ChangedPersonnelRecord> changedPersonnel(
             String organizationCode,
             String period,
