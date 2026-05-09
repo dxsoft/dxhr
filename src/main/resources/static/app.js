@@ -25,6 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("retained-allowance-standards-form").addEventListener("submit", onRetainedAllowanceStandardsSearch);
     document.getElementById("year-allowance-standards-form").addEventListener("submit", onYearAllowanceStandardsSearch);
     document.getElementById("intern-salary-standards-form").addEventListener("submit", onInternSalaryStandardsSearch);
+    document.getElementById("raise-grade-standards-form").addEventListener("submit", onRaiseGradeStandardsSearch);
     document.getElementById("create-user-form").addEventListener("submit", onCreateUser);
     document.getElementById("create-role-form").addEventListener("submit", onCreateRole);
     document.getElementById("create-menu-form").addEventListener("submit", onCreateMenu);
@@ -76,6 +77,9 @@ async function initializeAuth() {
         }
         if (hasMenu("INTERN_SALARY_STANDARDS")) {
             await loadInternSalaryStandards();
+        }
+        if (hasMenu("RAISE_GRADE_STANDARDS")) {
+            await loadRaiseGradeStandards();
         }
     } catch (error) {
         window.location.href = "/login.html";
@@ -201,6 +205,12 @@ async function onInternSalaryStandardsSearch(event) {
     event.preventDefault();
     document.getElementById("intern-standard-page").value = "0";
     await loadInternSalaryStandards();
+}
+
+async function onRaiseGradeStandardsSearch(event) {
+    event.preventDefault();
+    document.getElementById("raise-standard-page").value = "0";
+    await loadRaiseGradeStandards();
 }
 
 async function loadPersonnel() {
@@ -548,6 +558,38 @@ async function loadInternSalaryStandards() {
                 <td>${escapeHtml(row.regularLevel)}</td>
                 <td>${money(row.firstYearAmount)}</td>
                 <td>${money(row.secondYearAmount)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadRaiseGradeStandards() {
+    const positionCode = document.getElementById("raise-standard-position-code").value.trim();
+    const page = document.getElementById("raise-standard-page").value || "0";
+    const size = document.getElementById("raise-standard-size").value || "20";
+    const params = new URLSearchParams({ page, size });
+    if (positionCode) {
+        params.set("positionCode", positionCode);
+    }
+    const status = document.getElementById("raise-standards-status");
+    const rows = document.getElementById("raise-standards-rows");
+    status.className = "status";
+    status.textContent = "正在查询提高工资标准...";
+    rows.innerHTML = "";
+    try {
+        const result = await getJson(`/api/payroll/raise-grade-standards?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.positionCode)}</td>
+                <td>${escapeHtml(row.appointmentYearsLower)}</td>
+                <td>${escapeHtml(row.appointmentYearsUpper)}</td>
+                <td>${escapeHtml(row.raiseYearsLower)}</td>
+                <td>${escapeHtml(row.raiseYearsUpper)}</td>
+                <td>${escapeHtml(row.gradeLevel)}</td>
+                <td>${escapeHtml(row.gradeStep)}</td>
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条`;

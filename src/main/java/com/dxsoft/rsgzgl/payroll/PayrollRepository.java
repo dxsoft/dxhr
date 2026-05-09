@@ -90,6 +90,15 @@ class PayrollRepository {
             rs.getInt("gz1"),
             rs.getInt("gz2"));
 
+    private static final RowMapper<RaiseGradeStandard> RAISE_GRADE_STANDARD_MAPPER = (rs, rowNum) -> new RaiseGradeStandard(
+            SqlText.trim(rs.getString("zwbm")),
+            rs.getInt("rzns"),
+            rs.getInt("rznz"),
+            rs.getInt("tgns"),
+            rs.getInt("tgnz"),
+            SqlText.trim(rs.getString("jb")),
+            SqlText.trim(rs.getString("dc")));
+
     private static final RowMapper<PayrollHistorySnapshot> HISTORY_MAPPER = (rs, rowNum) -> new PayrollHistorySnapshot(
             SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("dwbm")),
@@ -348,6 +357,29 @@ class PayrollRepository {
                 WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
                   AND (:keyword IS NULL OR xlbm = :keyword OR zzzwbm = :keyword OR xlmc LIKE :keywordLike OR zzzwmc LIKE :keywordLike)
                 """, parameters, Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<RaiseGradeStandard> findRaiseGradeStandards(String positionCode, PageRequest pageRequest) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("positionCode", emptyToNull(positionCode))
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT zwbm, rzns, rznz, tgns, tgnz, jb, dc
+                FROM bz06_tgb
+                WHERE (:positionCode IS NULL OR zwbm = :positionCode)
+                ORDER BY zwbm, rzns, rznz, tgns, tgnz
+                LIMIT :limit OFFSET :offset
+                """, parameters, RAISE_GRADE_STANDARD_MAPPER);
+    }
+
+    long countRaiseGradeStandards(String positionCode) {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM bz06_tgb
+                WHERE (:positionCode IS NULL OR zwbm = :positionCode)
+                """, new MapSqlParameterSource("positionCode", emptyToNull(positionCode)), Long.class);
         return count == null ? 0 : count;
     }
 

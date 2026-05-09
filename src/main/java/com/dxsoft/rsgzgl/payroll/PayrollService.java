@@ -103,6 +103,15 @@ public class PayrollService {
                 payrollRepository.countInternSalaryStandards(standardYearMonth, keyword));
     }
 
+    public PageResponse<RaiseGradeStandard> raiseGradeStandards(
+            String positionCode,
+            PageRequest pageRequest) {
+        return PageResponse.of(
+                payrollRepository.findRaiseGradeStandards(positionCode, pageRequest),
+                pageRequest,
+                payrollRepository.countRaiseGradeStandards(positionCode));
+    }
+
     public PayrollCalculationContext calculationContext(int uid) {
         PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
