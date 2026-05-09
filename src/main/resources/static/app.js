@@ -18,7 +18,7 @@ const yuanFormatter = new Intl.NumberFormat("zh-CN", {
 
 const menuGroups = [
     { title: "工作台", codes: ["DASHBOARD"] },
-    { title: "信息维护", codes: ["PERSONNEL", "ANNUAL_ASSESSMENTS", "CHANGED_PERSONNEL", "ASSESSMENT_SUMMARY", "POSITION_HISTORY", "EDUCATION_HISTORY", "ORGANIZATION_MAINTENANCE"] },
+    { title: "信息维护", codes: ["PERSONNEL", "PERSONNEL_MAINTENANCE", "ANNUAL_ASSESSMENTS", "CHANGED_PERSONNEL", "ASSESSMENT_SUMMARY", "POSITION_HISTORY", "EDUCATION_HISTORY", "ORGANIZATION_MAINTENANCE"] },
     { title: "工资变动", codes: ["PAYROLL", "PAYROLL_HISTORY", "TEACHING_ALLOWANCE_ADJUSTMENT", "NORMAL_PROMOTION", "LEVEL_PROMOTION", "POSITION_CHANGE_PROMOTION", "EDUCATION_PROMOTION", "REGULARIZATION", "AUDIT"] },
     { title: "标准维护", codes: ["BASIC_STANDARDS", "ALLOWANCE_STANDARDS", "INTERN_SALARY_STANDARDS", "RANK_ALLOWANCE_STANDARDS", "RETAINED_ALLOWANCE_STANDARDS", "YEAR_ALLOWANCE_STANDARDS", "WAGE_REFORM_STANDARDS", "OTHER_ALLOWANCE_STANDARDS"] },
     { title: "系统管理", codes: ["LOCAL_POLICY_CONFIG", "DICTIONARY_MAINTENANCE", "SECURITY"] },
@@ -26,6 +26,9 @@ const menuGroups = [
 
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
+    document.getElementById("personnel-maintenance-form").addEventListener("submit", onPersonnelMaintenanceSave);
+    document.getElementById("personnel-maintenance-search").addEventListener("submit", onPersonnelMaintenanceSearch);
+    document.getElementById("personnel-maintenance-reset").addEventListener("click", resetPersonnelMaintenanceForm);
     document.getElementById("annual-assessments-form").addEventListener("submit", onAnnualAssessmentsSearch);
     document.getElementById("assessment-summary-form").addEventListener("submit", onAssessmentSummarySearch);
     document.getElementById("changed-personnel-form").addEventListener("submit", onChangedPersonnelSearch);
@@ -86,6 +89,9 @@ async function initializeAuth() {
         }
         if (hasMenu("PERSONNEL")) {
             await loadPersonnel();
+        }
+        if (hasMenu("PERSONNEL_MAINTENANCE")) {
+            await loadPersonnelMaintenance();
         }
         if (hasMenu("ANNUAL_ASSESSMENTS")) {
             await loadAnnualAssessments();
@@ -302,6 +308,28 @@ async function onPersonnelSearch(event) {
     await loadPersonnel();
 }
 
+async function onPersonnelMaintenanceSearch(event) {
+    event.preventDefault();
+    await loadPersonnelMaintenance();
+}
+
+async function onPersonnelMaintenanceSave(event) {
+    event.preventDefault();
+    const uid = document.getElementById("personnel-maintenance-uid").value;
+    const payload = personnelMaintenancePayload();
+    const status = document.getElementById("personnel-maintenance-status");
+    status.className = "status";
+    status.textContent = "正在保存人员信息...";
+    try {
+        const saved = uid ? await putJson(`/api/personnel/${uid}`, payload) : await postJson("/api/personnel", payload);
+        status.textContent = `保存成功：${saved.name}（${saved.organizationCode}-${saved.personCode}）`;
+        resetPersonnelMaintenanceForm();
+        await loadPersonnelMaintenance();
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
 async function onAnnualAssessmentsSearch(event) {
     event.preventDefault();
     document.getElementById("assessment-page").value = "0";
@@ -483,6 +511,138 @@ async function loadPersonnel() {
     } catch (error) {
         showError(status, error);
     }
+}
+
+async function loadPersonnelMaintenance() {
+    const organizationCode = document.getElementById("maint-search-organization-code").value.trim();
+    const keyword = document.getElementById("maint-search-keyword").value.trim();
+    const size = document.getElementById("maint-search-size").value || "20";
+    const params = new URLSearchParams({ page: "0", size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+    const rows = document.getElementById("personnel-maintenance-rows");
+    const status = document.getElementById("personnel-maintenance-status");
+    status.className = "status";
+    status.textContent = "正在查询人员维护列表...";
+    rows.innerHTML = "";
+    try {
+        const page = await getJson(`/api/personnel?${params}`);
+        rows.innerHTML = (page.content || []).map(person => `
+            <tr>
+                <td>${escapeHtml(person.uid)}</td>
+                <td>${escapeHtml(person.organizationCode)} ${escapeHtml(person.organizationName || "")}</td>
+                <td>${escapeHtml(person.personCode)}</td>
+                <td>${escapeHtml(person.name)}</td>
+                <td>${escapeHtml(person.idCard || "")}</td>
+                <td>${escapeHtml(person.currentPosition || "")}</td>
+                <td>
+                    <button class="row-action" data-maint-edit="${person.uid}" type="button">编辑</button>
+                    <button class="row-action danger-button" data-maint-delete="${person.uid}" type="button">删除</button>
+                </td>
+            </tr>
+        `).join("");
+        rows.querySelectorAll("button[data-maint-edit]").forEach(button => {
+            button.addEventListener("click", () => editPersonnelMaintenance(button.dataset.maintEdit));
+        });
+        rows.querySelectorAll("button[data-maint-delete]").forEach(button => {
+            button.addEventListener("click", () => deletePersonnelMaintenance(button.dataset.maintDelete));
+        });
+        status.textContent = `共 ${page.totalElements} 人，当前显示 ${page.content.length} 人`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function editPersonnelMaintenance(uid) {
+    const status = document.getElementById("personnel-maintenance-status");
+    status.className = "status";
+    status.textContent = "正在加载人员详情...";
+    try {
+        const record = await getJson(`/api/personnel/${uid}/maintenance`);
+        fillPersonnelMaintenanceForm(record);
+        status.textContent = `正在编辑：${record.name}`;
+        document.getElementById("personnel-maintenance").scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function deletePersonnelMaintenance(uid) {
+    if (!confirm("确认删除该人员基本信息？该操作不可恢复。")) {
+        return;
+    }
+    const status = document.getElementById("personnel-maintenance-status");
+    status.className = "status";
+    status.textContent = "正在删除人员...";
+    try {
+        await deleteJson(`/api/personnel/${uid}`);
+        status.textContent = "删除成功";
+        resetPersonnelMaintenanceForm();
+        await loadPersonnelMaintenance();
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function personnelMaintenancePayload() {
+    return {
+        organizationCode: document.getElementById("maint-organization-code").value.trim(),
+        personCode: document.getElementById("maint-person-code").value.trim(),
+        name: document.getElementById("maint-name").value.trim(),
+        idCard: document.getElementById("maint-id-card").value.trim(),
+        gender: document.getElementById("maint-gender").value.trim(),
+        birthYearMonth: document.getElementById("maint-birth-year-month").value.trim(),
+        personnelCategory: document.getElementById("maint-personnel-category").value.trim(),
+        organizationType: document.getElementById("maint-organization-type").value.trim(),
+        postCategory: document.getElementById("maint-post-category").value.trim(),
+        workStartYearMonth: document.getElementById("maint-work-start").value.trim(),
+        regularizationYearMonth: document.getElementById("maint-regularization").value.trim(),
+        salaryYears: Number(document.getElementById("maint-salary-years").value || 0),
+        educationCode: document.getElementById("maint-education-code").value.trim(),
+        highestEducation: document.getElementById("maint-highest-education").value.trim(),
+        currentPositionLevel: document.getElementById("maint-position-level").value.trim(),
+        currentRankCode: document.getElementById("maint-rank-code").value.trim(),
+        currentPosition: document.getElementById("maint-current-position").value.trim(),
+        currentPositionStartYearMonth: document.getElementById("maint-position-start").value.trim(),
+        ethnicity: document.getElementById("maint-ethnicity").value.trim(),
+        politicalStatus: document.getElementById("maint-political-status").value.trim(),
+        archiveNumber: document.getElementById("maint-archive-number").value.trim(),
+    };
+}
+
+function fillPersonnelMaintenanceForm(record) {
+    document.getElementById("personnel-maintenance-uid").value = record.uid || "";
+    document.getElementById("maint-organization-code").value = record.organizationCode || "";
+    document.getElementById("maint-person-code").value = record.personCode || "";
+    document.getElementById("maint-name").value = record.name || "";
+    document.getElementById("maint-id-card").value = record.idCard || "";
+    document.getElementById("maint-gender").value = record.gender || "";
+    document.getElementById("maint-birth-year-month").value = record.birthYearMonth || "";
+    document.getElementById("maint-personnel-category").value = record.personnelCategory || "";
+    document.getElementById("maint-organization-type").value = record.organizationType || "";
+    document.getElementById("maint-post-category").value = record.postCategory || "";
+    document.getElementById("maint-work-start").value = record.workStartYearMonth || "";
+    document.getElementById("maint-regularization").value = record.regularizationYearMonth || "";
+    document.getElementById("maint-salary-years").value = record.salaryYears || 0;
+    document.getElementById("maint-education-code").value = record.educationCode || "";
+    document.getElementById("maint-highest-education").value = record.highestEducation || "";
+    document.getElementById("maint-position-level").value = record.currentPositionLevel || "";
+    document.getElementById("maint-rank-code").value = record.currentRankCode || "";
+    document.getElementById("maint-current-position").value = record.currentPosition || "";
+    document.getElementById("maint-position-start").value = record.currentPositionStartYearMonth || "";
+    document.getElementById("maint-ethnicity").value = record.ethnicity || "";
+    document.getElementById("maint-political-status").value = record.politicalStatus || "";
+    document.getElementById("maint-archive-number").value = record.archiveNumber || "";
+}
+
+function resetPersonnelMaintenanceForm() {
+    document.getElementById("personnel-maintenance-form").reset();
+    document.getElementById("personnel-maintenance-uid").value = "";
+    document.getElementById("maint-salary-years").value = "0";
 }
 
 async function loadAnnualAssessments() {
@@ -1879,6 +2039,15 @@ async function postJson(url, body) {
 
 async function putJson(url, body) {
     return writeJson("PUT", url, body);
+}
+
+async function deleteJson(url) {
+    const response = await fetch(url, { method: "DELETE", headers: { Accept: "application/json" } });
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+    }
+    return null;
 }
 
 async function writeJson(method, url, body) {

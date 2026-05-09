@@ -3,10 +3,16 @@ package com.dxsoft.rsgzgl.personnel;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
 import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -31,6 +37,28 @@ class PersonnelController {
     @GetMapping("/{uid}")
     PersonnelDetail get(@PathVariable int uid) {
         return personnelService.get(uid);
+    }
+
+    @GetMapping("/{uid}/maintenance")
+    PersonnelMaintenanceRecord maintenance(@PathVariable int uid) {
+        return personnelService.maintenance(uid);
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    PersonnelMaintenanceRecord create(@RequestBody PersonnelMaintenanceRequest request) {
+        return personnelService.create(request);
+    }
+
+    @PutMapping("/{uid}")
+    PersonnelMaintenanceRecord update(@PathVariable int uid, @RequestBody PersonnelMaintenanceRequest request) {
+        return personnelService.update(uid, request);
+    }
+
+    @DeleteMapping("/{uid}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void delete(@PathVariable int uid) {
+        personnelService.delete(uid);
     }
 
     @GetMapping("/{uid}/positions")

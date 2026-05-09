@@ -2,6 +2,7 @@ package com.dxsoft.rsgzgl.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -29,6 +30,10 @@ class SecurityConfig {
                         .requestMatchers("/api/dictionaries/**").hasAuthority("SYSTEM_CONFIG")
                         .requestMatchers("/api/system-config/**").hasAuthority("SYSTEM_CONFIG")
                         .requestMatchers("/api/organizations/**").hasAuthority("ORG_READ")
+                        .requestMatchers(HttpMethod.POST, "/api/personnel").hasAuthority("PERSONNEL_WRITE")
+                        .requestMatchers(HttpMethod.PUT, "/api/personnel/**").hasAuthority("PERSONNEL_WRITE")
+                        .requestMatchers(HttpMethod.DELETE, "/api/personnel/**").hasAuthority("PERSONNEL_WRITE")
+                        .requestMatchers("/api/personnel/*/maintenance").hasAuthority("PERSONNEL_WRITE")
                         .requestMatchers("/api/personnel/**").hasAuthority("PERSONNEL_READ")
                         .requestMatchers("/api/payroll/calculation-audits", "/api/payroll/calculation-audit-summary").hasAuthority("AUDIT_READ")
                         .requestMatchers("/api/payroll/basic-standards", "/api/payroll/allowance-standards", "/api/payroll/rank-allowance-standards", "/api/payroll/retained-allowance-standards", "/api/payroll/year-allowance-standards", "/api/payroll/intern-salary-standards", "/api/payroll/wage-reform-standards", "/api/payroll/other-allowance-standards").hasAuthority("STANDARD_READ")

@@ -263,6 +263,14 @@ button:hover {
     transform: translateY(-1px);
 }
 
+.danger-button {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.danger-button:hover {
+    background: linear-gradient(135deg, #b91c1c, #dc2626);
+}
+
 .status {
     min-height: 22px;
     margin: 8px 0 12px;

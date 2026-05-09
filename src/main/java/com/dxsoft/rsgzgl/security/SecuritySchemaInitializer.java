@@ -118,6 +118,7 @@ class SecuritySchemaInitializer {
     private void seedPermissions() {
         upsertPermission("ORG_READ", "单位查询", "ORGANIZATION");
         upsertPermission("PERSONNEL_READ", "人员信息查询", "PERSONNEL");
+        upsertPermission("PERSONNEL_WRITE", "人员信息维护", "PERSONNEL");
         upsertPermission("PAYROLL_READ", "工资试算查询", "PAYROLL");
         upsertPermission("AUDIT_READ", "工资批量对账", "PAYROLL");
         upsertPermission("STANDARD_READ", "工资标准维护", "PAYROLL");
@@ -130,6 +131,7 @@ class SecuritySchemaInitializer {
 
     private void seedMenus() {
         upsertMenu("PERSONNEL", "人员查询", "#personnel", "PERSONNEL_READ", 10);
+        upsertMenu("PERSONNEL_MAINTENANCE", "人员信息维护", "#personnel-maintenance", "PERSONNEL_WRITE", 11);
         upsertMenu("ANNUAL_ASSESSMENTS", "年度考核结果", "#annual-assessments", "PERSONNEL_READ", 15);
         upsertMenu("ASSESSMENT_SUMMARY", "年度考核统计", "#assessment-summary", "PERSONNEL_READ", 16);
         upsertMenu("CHANGED_PERSONNEL", "变动人员信息", "#changed-personnel", "PERSONNEL_READ", 17);

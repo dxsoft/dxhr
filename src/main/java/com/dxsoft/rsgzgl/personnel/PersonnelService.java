@@ -7,6 +7,7 @@ import com.dxsoft.rsgzgl.security.AccessControlService;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -32,6 +33,39 @@ public class PersonnelService {
                 .orElseThrow(() -> new NotFoundException("Personnel record not found: " + uid));
         accessControlService.requireOrganization(detail.organizationCode());
         return detail;
+    }
+
+    public PersonnelMaintenanceRecord maintenance(int uid) {
+        PersonnelMaintenanceRecord record = personnelRepository.findMaintenanceByUid(uid)
+                .orElseThrow(() -> new NotFoundException("Personnel record not found: " + uid));
+        accessControlService.requireOrganization(record.organizationCode());
+        requireWritePermission();
+        return record;
+    }
+
+    public PersonnelMaintenanceRecord create(PersonnelMaintenanceRequest request) {
+        requireWritePermission();
+        accessControlService.requireOrganization(requiredOrganizationCode(request));
+        int uid = personnelRepository.createPersonnel(request);
+        return maintenance(uid);
+    }
+
+    public PersonnelMaintenanceRecord update(int uid, PersonnelMaintenanceRequest request) {
+        requireWritePermission();
+        PersonnelMaintenanceRecord existing = personnelRepository.findMaintenanceByUid(uid)
+                .orElseThrow(() -> new NotFoundException("Personnel record not found: " + uid));
+        accessControlService.requireOrganization(existing.organizationCode());
+        accessControlService.requireOrganization(requiredOrganizationCode(request));
+        personnelRepository.updatePersonnel(uid, request);
+        return maintenance(uid);
+    }
+
+    public void delete(int uid) {
+        requireWritePermission();
+        PersonnelMaintenanceRecord existing = personnelRepository.findMaintenanceByUid(uid)
+                .orElseThrow(() -> new NotFoundException("Personnel record not found: " + uid));
+        accessControlService.requireOrganization(existing.organizationCode());
+        personnelRepository.deletePersonnel(uid);
     }
 
     public List<PositionRecord> positions(int uid) {
@@ -116,5 +150,19 @@ public class PersonnelService {
 
     private String emptyToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void requireWritePermission() {
+        if (!accessControlService.hasPermission("PERSONNEL_WRITE")) {
+            throw new AccessDeniedException("PERSONNEL_WRITE permission required");
+        }
+    }
+
+    private String requiredOrganizationCode(PersonnelMaintenanceRequest request) {
+        String organizationCode = emptyToNull(request.organizationCode());
+        if (organizationCode == null) {
+            throw new IllegalArgumentException("单位编码不能为空");
+        }
+        return organizationCode;
     }
 }

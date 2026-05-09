@@ -53,6 +53,31 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("txsj"))
     );
 
+    private static final RowMapper<PersonnelMaintenanceRecord> MAINTENANCE_MAPPER = (rs, rowNum) -> new PersonnelMaintenanceRecord(
+            rs.getInt("uid"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("sfzh")),
+            SqlText.trim(rs.getString("xb")),
+            SqlText.trim(rs.getString("csny")),
+            SqlText.trim(rs.getString("ryfl")),
+            SqlText.trim(rs.getString("dwsx")),
+            SqlText.trim(rs.getString("gwfl")),
+            SqlText.trim(rs.getString("cjgzny")),
+            SqlText.trim(rs.getString("zzny")),
+            rs.getInt("gznx"),
+            SqlText.trim(rs.getString("xlbm")),
+            SqlText.trim(rs.getString("zgxl")),
+            SqlText.trim(rs.getString("zwjb")),
+            SqlText.trim(rs.getString("zjbm")),
+            SqlText.trim(rs.getString("xrzw")),
+            SqlText.trim(rs.getString("srny")),
+            SqlText.trim(rs.getString("mz")),
+            SqlText.trim(rs.getString("zzmm")),
+            SqlText.trim(rs.getString("dah")));
+
     private static final RowMapper<PositionRecord> POSITION_MAPPER = (rs, rowNum) -> new PositionRecord(
             rs.getInt("id"),
             SqlText.trim(rs.getString("dwbm")),
@@ -215,6 +240,67 @@ class PersonnelRepository {
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 WHERE p.uid = :uid
                 """, new MapSqlParameterSource("uid", uid), DETAIL_MAPPER).stream().findFirst();
+    }
+
+    Optional<PersonnelMaintenanceRecord> findMaintenanceByUid(int uid) {
+        return jdbcTemplate.query("""
+                SELECT p.*, dw.dwmc
+                FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE p.uid = :uid
+                """, new MapSqlParameterSource("uid", uid), MAINTENANCE_MAPPER).stream().findFirst();
+    }
+
+    int createPersonnel(PersonnelMaintenanceRequest request) {
+        MapSqlParameterSource params = maintenanceParameters(request);
+        jdbcTemplate.update("""
+                INSERT INTO dryjbxx (
+                    dwbm, grbm, xm, sfzh, xb, csny, ryfl, dwsx, gwfl, cjgzny, zzny, jrny, jrfs,
+                    zdgznx, gznx, jhlqsny, zdjhlnx, xlbm, zgxl, bjglxlnx, tc, txsj, bgdwjc,
+                    zwjb, zjbm, xrzw, srny, tgbl, jtbl, fddc, khqk, dynkh, denkh, bbz, bh,
+                    gryhzh, spdw, mz, zzmm, fdgd, fdsj, jzgb, ydwzw, yzwrzsj, dah, sfjzgb, yctxsj
+                ) VALUES (
+                    :organizationCode, :personCode, :name, :idCard, :gender, :birthYearMonth, :personnelCategory, :organizationType, :postCategory,
+                    :workStartYearMonth, :regularizationYearMonth, '', '', 0, :salaryYears, '', 0, :educationCode, :highestEducation, 0, '', '',
+                    '', :currentPositionLevel, :currentRankCode, :currentPosition, :currentPositionStartYearMonth, 0, '', '', '', '', '', '', '',
+                    '', '', :ethnicity, :politicalStatus, '', '', '', '', '', :archiveNumber, '', 0
+                )
+                """, params);
+        Integer uid = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", new MapSqlParameterSource(), Integer.class);
+        return uid == null ? 0 : uid;
+    }
+
+    void updatePersonnel(int uid, PersonnelMaintenanceRequest request) {
+        MapSqlParameterSource params = maintenanceParameters(request).addValue("uid", uid);
+        jdbcTemplate.update("""
+                UPDATE dryjbxx
+                SET dwbm = :organizationCode,
+                    grbm = :personCode,
+                    xm = :name,
+                    sfzh = :idCard,
+                    xb = :gender,
+                    csny = :birthYearMonth,
+                    ryfl = :personnelCategory,
+                    dwsx = :organizationType,
+                    gwfl = :postCategory,
+                    cjgzny = :workStartYearMonth,
+                    zzny = :regularizationYearMonth,
+                    gznx = :salaryYears,
+                    xlbm = :educationCode,
+                    zgxl = :highestEducation,
+                    zwjb = :currentPositionLevel,
+                    zjbm = :currentRankCode,
+                    xrzw = :currentPosition,
+                    srny = :currentPositionStartYearMonth,
+                    mz = :ethnicity,
+                    zzmm = :politicalStatus,
+                    dah = :archiveNumber
+                WHERE uid = :uid
+                """, params);
+    }
+
+    void deletePersonnel(int uid) {
+        jdbcTemplate.update("DELETE FROM dryjbxx WHERE uid = :uid", new MapSqlParameterSource("uid", uid));
     }
 
     Optional<PersonKey> findKeyByUid(int uid) {
@@ -486,6 +572,36 @@ class PersonnelRepository {
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private MapSqlParameterSource maintenanceParameters(PersonnelMaintenanceRequest request) {
+        return new MapSqlParameterSource()
+                .addValue("organizationCode", valueOrBlank(request.organizationCode()))
+                .addValue("personCode", valueOrBlank(request.personCode()))
+                .addValue("name", valueOrBlank(request.name()))
+                .addValue("idCard", valueOrBlank(request.idCard()))
+                .addValue("gender", valueOrBlank(request.gender()))
+                .addValue("birthYearMonth", valueOrBlank(request.birthYearMonth()))
+                .addValue("personnelCategory", valueOrBlank(request.personnelCategory()))
+                .addValue("organizationType", valueOrBlank(request.organizationType()))
+                .addValue("postCategory", valueOrBlank(request.postCategory()))
+                .addValue("workStartYearMonth", valueOrBlank(request.workStartYearMonth()))
+                .addValue("regularizationYearMonth", valueOrBlank(request.regularizationYearMonth()))
+                .addValue("salaryYears", request.salaryYears() == null ? 0 : request.salaryYears())
+                .addValue("educationCode", valueOrBlank(request.educationCode()))
+                .addValue("highestEducation", valueOrBlank(request.highestEducation()))
+                .addValue("currentPositionLevel", valueOrBlank(request.currentPositionLevel()))
+                .addValue("currentRankCode", valueOrBlank(request.currentRankCode()))
+                .addValue("currentPosition", valueOrBlank(request.currentPosition()))
+                .addValue("currentPositionStartYearMonth", valueOrBlank(request.currentPositionStartYearMonth()))
+                .addValue("ethnicity", valueOrBlank(request.ethnicity()))
+                .addValue("politicalStatus", valueOrBlank(request.politicalStatus()))
+                .addValue("archiveNumber", valueOrBlank(request.archiveNumber()));
+    }
+
+    private String valueOrBlank(String value) {
+        String trimmed = SqlText.trim(value);
+        return trimmed == null ? "" : trimmed;
     }
 
     private MapSqlParameterSource keyParameters(PersonKey key) {
