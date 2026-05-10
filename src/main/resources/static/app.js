@@ -303,7 +303,8 @@ async function initializeDictionaryPickers() {
                 const button = document.createElement("button");
                 button.type = "button";
                 button.className = "dict-picker-button";
-                button.textContent = "选择";
+                button.setAttribute("aria-label", "展开选项");
+                button.textContent = "⌄";
                 button.addEventListener("click", () => openDictionaryPicker(inputId, config));
                 combo.appendChild(button);
             }
