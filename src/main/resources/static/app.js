@@ -25,7 +25,7 @@ const subrecordEditors = {
         endpoint: uid => `/api/personnel/${uid}/education`,
         fields: [
             ["educationCode", "学历编码", "text", { readonly: true }],
-            ["educationName", "学历", "text", { dictionaryPrefix: "002", linkedCodeField: "educationCode" }],
+            ["educationName", "学历", "text", { dictionaryPrefixField: "zgxl", dictionaryPrefix: "002", linkedCodeField: "educationCode" }],
             ["school", "学校"],
             ["enrollmentDate", "入学时间", "month"], ["graduationDate", "毕业时间", "month"],
             ["studyYears", "学制", "number"], ["educationType", "学历类别"], ["remark", "备注"],
@@ -1087,7 +1087,8 @@ function openSubrecordEditor(type, record = null) {
 
 function enhanceSubrecordEditorInputs(config) {
     config.fields.forEach(([name, label, , options]) => {
-        if (!options?.dictionaryPrefix) {
+        const dictionaryPrefix = subrecordDictionaryPrefix(options);
+        if (!dictionaryPrefix) {
             return;
         }
         const input = document.getElementById(`subrecord-field-${name}`);
@@ -1107,11 +1108,24 @@ function enhanceSubrecordEditorInputs(config) {
         button.addEventListener("click", () => openDictionaryPicker(input.id, {
             fieldName: name,
             caption: label,
-            dictionaryPrefix: options.dictionaryPrefix,
+            dictionaryPrefix,
             linkedCodeInputId: options.linkedCodeField ? `subrecord-field-${options.linkedCodeField}` : null,
         }));
         combo.appendChild(button);
     });
+}
+
+function subrecordDictionaryPrefix(options) {
+    if (!options) {
+        return null;
+    }
+    if (options.dictionaryPrefixField) {
+        const configured = state.dictionaryFieldConfigs?.[String(options.dictionaryPrefixField).toLowerCase()];
+        if (configured?.dictionaryPrefix) {
+            return configured.dictionaryPrefix;
+        }
+    }
+    return options.dictionaryPrefix || null;
 }
 
 function closeSubrecordEditor() {
