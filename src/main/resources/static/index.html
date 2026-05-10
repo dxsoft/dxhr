@@ -313,6 +313,8 @@
                 <thead>
                 <tr>
                     <th>ID</th>
+                    <th>当前</th>
+                    <th>后继ID</th>
                     <th>单位</th>
                     <th>人员编码</th>
                     <th>姓名</th>
@@ -816,10 +818,37 @@
                     <th>年补贴</th>
                     <th>PGBC</th>
                     <th>合计</th>
+                    <th>操作</th>
                 </tr>
                 </thead>
                 <tbody id="payroll-history-rows"></tbody>
             </table>
+        </div>
+        <div id="payroll-change-modal" class="modal-overlay hidden">
+            <div class="modal-card wide-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>工资变动情况</h3>
+                        <p id="payroll-change-summary">查看变动前后各工资项目对比。</p>
+                    </div>
+                    <button id="payroll-change-close" type="button">关闭</button>
+                </div>
+                <div id="payroll-change-status" class="status"></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>项目</th>
+                            <th>字段</th>
+                            <th>变动前</th>
+                            <th>变动后</th>
+                            <th>差额</th>
+                        </tr>
+                        </thead>
+                        <tbody id="payroll-change-rows"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </section>
 

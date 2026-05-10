@@ -102,6 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("payroll-history-form").addEventListener("submit", onPayrollHistorySearch);
+    document.getElementById("payroll-change-close").addEventListener("click", closePayrollChangeModal);
     document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
     document.getElementById("normal-promotion-form").addEventListener("submit", onNormalPromotionSearch);
     document.getElementById("level-promotion-form").addEventListener("submit", onLevelPromotionSearch);
@@ -1764,12 +1765,49 @@ async function loadPayrollHistory() {
                 <td>${money(row.yearAllowance)}</td>
                 <td>${money(row.payGradeRetention)}</td>
                 <td>${money(row.totalAmount)}</td>
+                <td><button class="row-action" data-payroll-change="${escapeHtml(row.id)}" type="button">变动情况</button></td>
             </tr>
         `).join("");
+        rows.querySelectorAll("button[data-payroll-change]").forEach(button => {
+            button.addEventListener("click", () => openPayrollChangeModal(button.dataset.payrollChange));
+        });
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条工资历史`;
     } catch (error) {
         showError(status, error);
     }
+}
+
+async function openPayrollChangeModal(payrollHistoryId) {
+    const modal = document.getElementById("payroll-change-modal");
+    const status = document.getElementById("payroll-change-status");
+    const rows = document.getElementById("payroll-change-rows");
+    const summary = document.getElementById("payroll-change-summary");
+    modal.classList.remove("hidden");
+    status.className = "status";
+    status.textContent = "正在加载工资变动情况...";
+    summary.textContent = "查看变动前后各工资项目对比。";
+    rows.innerHTML = "";
+    try {
+        const comparison = await getJson(`/api/payroll/histories/${encodeURIComponent(payrollHistoryId)}/change-comparison`);
+        summary.textContent = `${comparison.organizationCode}-${comparison.personCode} ${comparison.name} / ${comparison.calculationPeriod || ""} ${comparison.changeType || ""}`
+            + (comparison.previousPayrollHistoryId ? `（前次：${comparison.previousCalculationPeriod || ""} ${comparison.previousChangeType || ""}）` : "（无前次工资记录）");
+        rows.innerHTML = (comparison.components || []).map(component => `
+            <tr class="${Number(component.difference || 0) !== 0 ? "highlight-row" : ""}">
+                <td>${escapeHtml(component.caption || "")}</td>
+                <td>${escapeHtml(component.fieldName || "")}</td>
+                <td>${money(component.beforeAmount)}</td>
+                <td>${money(component.afterAmount)}</td>
+                <td>${money(component.difference)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `共 ${(comparison.components || []).length} 个工资项目`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function closePayrollChangeModal() {
+    document.getElementById("payroll-change-modal").classList.add("hidden");
 }
 
 async function loadTeachingAllowanceAdjustments() {

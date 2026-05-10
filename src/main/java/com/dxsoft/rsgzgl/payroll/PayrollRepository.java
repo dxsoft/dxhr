@@ -860,6 +860,31 @@ class PayrollRepository {
         return new LinkedHashMap<>(rows.getFirst());
     }
 
+    Map<String, Object> findHistoryValuesById(String id) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT h.*
+                FROM hisbase h
+                WHERE h.id = :id
+                LIMIT 1
+                """, new MapSqlParameterSource("id", id));
+        if (rows.isEmpty()) {
+            throw new NotFoundException("Payroll history not found: " + id);
+        }
+        return new LinkedHashMap<>(rows.getFirst());
+    }
+
+    Optional<Map<String, Object>> findPredecessorHistoryValues(String id) {
+        return jdbcTemplate.queryForList("""
+                SELECT h.*
+                FROM hisbase h
+                WHERE h.sid = :id
+                LIMIT 1
+                """, new MapSqlParameterSource("id", id))
+                .stream()
+                .findFirst()
+                .map(LinkedHashMap::new);
+    }
+
     Optional<String> findHistoryOrganizationCode(String id) {
         return jdbcTemplate.queryForList("""
                 SELECT dwbm

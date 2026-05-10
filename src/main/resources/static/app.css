@@ -320,6 +320,10 @@ tr:last-child td {
     font-size: 13px;
 }
 
+.highlight-row {
+    background: #fff7ed;
+}
+
 .new-badge {
     display: inline-flex;
     align-items: center;

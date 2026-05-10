@@ -231,6 +231,31 @@ public class PayrollService {
                 payrollRepository.countPayrollHistories(scope, emptyToNull(organizationCode), period, keyword));
     }
 
+    public PayrollChangeComparison payrollChangeComparison(String payrollHistoryId) {
+        Map<String, Object> afterValues = payrollRepository.findHistoryValuesById(payrollHistoryId);
+        String organizationCode = textValue(afterValues, "dwbm");
+        accessControlService.requireOrganization(organizationCode);
+        Optional<Map<String, Object>> beforeValues = payrollRepository.findPredecessorHistoryValues(payrollHistoryId);
+        List<PayrollFieldMetadata> fields = payrollRepository.findCalculationFields();
+        List<PayrollChangeComponentComparison> components = new ArrayList<>(fields.stream()
+                .map(field -> componentComparison(field.fieldName(), field.caption(), beforeValues.orElse(null), afterValues))
+                .toList());
+        if (fields.stream().noneMatch(field -> "HJ2".equalsIgnoreCase(field.fieldName()))) {
+            components.add(componentComparison("HJ2", "合计", beforeValues.orElse(null), afterValues));
+        }
+        return new PayrollChangeComparison(
+                payrollHistoryId,
+                beforeValues.map(values -> textValue(values, "id")).orElse(null),
+                organizationCode,
+                textValue(afterValues, "grbm"),
+                textValue(afterValues, "xm"),
+                textValue(afterValues, "jsnf") + textValue(afterValues, "jsyf"),
+                textValue(afterValues, "jslb"),
+                beforeValues.map(values -> textValue(values, "jsnf") + textValue(values, "jsyf")).orElse(null),
+                beforeValues.map(values -> textValue(values, "jslb")).orElse(null),
+                components);
+    }
+
     public PageResponse<PayrollHistoryRecord> createPayrollHistory(int uid, PayrollHistoryMaintenanceRequest request) {
         PayrollHistorySnapshot latest = payrollRepository.findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
@@ -1474,6 +1499,29 @@ public class PayrollService {
             return "正常薪级";
         }
         throw new IllegalArgumentException("当前基础工资类型不支持正常档次/薪级晋升处理。");
+    }
+
+    private PayrollChangeComponentComparison componentComparison(
+            String fieldName,
+            String caption,
+            Map<String, Object> beforeValues,
+            Map<String, Object> afterValues) {
+        BigDecimal beforeAmount = beforeValues == null ? BigDecimal.ZERO : payrollRepository.decimalValue(beforeValues, fieldName);
+        BigDecimal afterAmount = payrollRepository.decimalValue(afterValues, fieldName);
+        return new PayrollChangeComponentComparison(
+                fieldName,
+                caption,
+                beforeAmount,
+                afterAmount,
+                afterAmount.subtract(beforeAmount));
+    }
+
+    private String textValue(Map<String, Object> values, String fieldName) {
+        Object value = values.get(fieldName);
+        if (value == null) {
+            value = values.get(fieldName.toLowerCase());
+        }
+        return value == null ? "" : value.toString().trim();
     }
 
     private int yearOf(String yearOrYearMonth) {

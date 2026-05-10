@@ -124,6 +124,11 @@ class PayrollController {
         return payrollService.payrollHistories(organizationCode, period, keyword, PageRequest.of(page, size));
     }
 
+    @GetMapping("/histories/{id}/change-comparison")
+    PayrollChangeComparison payrollChangeComparison(@PathVariable String id) {
+        return payrollService.payrollChangeComparison(id);
+    }
+
     @PostMapping("/personnel/{uid}/histories")
     PageResponse<PayrollHistoryRecord> createPayrollHistory(
             @PathVariable int uid,
