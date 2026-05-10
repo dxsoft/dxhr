@@ -1051,16 +1051,17 @@ async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
     const histories = payrollHistory.content || [];
     document.getElementById("maint-payroll-rows").innerHTML = histories.length ? histories.map(row => `
         <tr>
-            <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
-            <td>${escapeHtml(row.calculationYear)}${escapeHtml(row.calculationMonth)}</td>
+            <td>${escapeHtml(row.calculationYear)}${escapeHtml(row.calculationMonth)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
             <td>${escapeHtml(row.changeType)}</td>
             <td>${escapeHtml(row.positionName)}</td>
+            <td>${escapeHtml(row.gradeSalaryLevel || "")}</td>
+            <td>${escapeHtml(row.positionSalaryGrade || "")}</td>
             <td>${money(row.positionSalary)}</td>
             <td>${money(row.gradeSalary)}</td>
             <td>${money(row.totalAmount)}</td>
             <td>${row.currentPayroll ? "是" : "否"} <button class="row-action" type="button" data-edit-payroll="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-payroll="${row.id}">删除</button></td>
         </tr>
-    `).join("") : "<tr><td colspan='8'>暂无调资记录</td></tr>";
+    `).join("") : "<tr><td colspan='9'>暂无调资记录</td></tr>";
     bindSubrecordActions("education", education);
     bindSubrecordActions("position", positions);
     bindSubrecordActions("assessment", assessments);
