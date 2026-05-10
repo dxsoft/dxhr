@@ -27,6 +27,7 @@ class SecurityConfig {
                         .requestMatchers("/login.html", "/auth.css", "/actuator/health").permitAll()
                         .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers("/api/security/**").hasAuthority("SECURITY_ADMIN")
+                        .requestMatchers("/api/dictionaries/field-configs", "/api/dictionaries/tree").hasAnyAuthority("PERSONNEL_WRITE", "SYSTEM_CONFIG")
                         .requestMatchers("/api/dictionaries/**").hasAuthority("SYSTEM_CONFIG")
                         .requestMatchers("/api/system-config/**").hasAuthority("SYSTEM_CONFIG")
                         .requestMatchers("/api/organizations/**").hasAuthority("ORG_READ")

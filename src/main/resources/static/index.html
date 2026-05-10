@@ -237,6 +237,19 @@
                 </div>
             </div>
         </div>
+        <div id="dictionary-picker-modal" class="modal-overlay hidden">
+            <div class="modal-card dictionary-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="dictionary-picker-title">选择项目</h3>
+                        <p>从代码表树形结构中选择录入项。</p>
+                    </div>
+                    <button id="dictionary-picker-close" type="button">关闭</button>
+                </div>
+                <input id="dictionary-picker-filter" placeholder="输入编码或名称过滤">
+                <div id="dictionary-picker-tree" class="dictionary-tree"></div>
+            </div>
+        </div>
     </section>
 
     <section id="annual-assessments" class="panel hidden" data-menu-code="ANNUAL_ASSESSMENTS">

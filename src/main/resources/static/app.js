@@ -9,6 +9,9 @@ const state = {
         organizations: [],
         auditLogs: [],
     },
+    dictionaryFieldConfigs: {},
+    activeDictionaryTarget: null,
+    activeDictionaryNodes: [],
 };
 
 const yuanFormatter = new Intl.NumberFormat("zh-CN", {
@@ -31,6 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-maintenance-reset").addEventListener("click", resetPersonnelMaintenanceForm);
     document.getElementById("personnel-maintenance-new").addEventListener("click", openNewPersonnelMaintenance);
     document.getElementById("personnel-maintenance-close").addEventListener("click", closePersonnelMaintenanceModal);
+    document.getElementById("dictionary-picker-close").addEventListener("click", closeDictionaryPicker);
+    document.getElementById("dictionary-picker-filter").addEventListener("input", renderDictionaryPickerTree);
     document.querySelectorAll("[data-personnel-tab]").forEach(button => {
         button.addEventListener("click", () => showPersonnelTab(button.dataset.personnelTab));
     });
@@ -87,6 +92,7 @@ async function initializeAuth() {
         state.menus = menus;
         document.getElementById("current-user").textContent = `${user.displayName} (${user.username})`;
         renderMenus();
+        await initializeDictionaryPickers();
         renderDashboard();
         applyRoute();
         if (hasMenu("SECURITY")) {
@@ -245,6 +251,122 @@ function renderDashboard() {
             <span>${escapeHtml(menuGroupTitle(menu.code))}</span>
         </a>
     `).join("");
+}
+
+async function initializeDictionaryPickers() {
+    if (!hasMenu("PERSONNEL_MAINTENANCE")) {
+        return;
+    }
+    try {
+        const configs = await getJson("/api/dictionaries/field-configs?tableName=dryjbxx");
+        state.dictionaryFieldConfigs = Object.fromEntries((configs || []).map(config => [String(config.fieldName || "").toLowerCase(), config]));
+        const fieldBindings = {
+            xb: "maint-gender",
+            ryfl: "maint-personnel-category",
+            gwfl: "maint-post-category",
+            zgxl: "maint-highest-education",
+            zwjb: "maint-position-level",
+            xrzw: "maint-current-position",
+            mz: "maint-ethnicity",
+            zzmm: "maint-political-status",
+        };
+        const fallbackPrefixes = {
+            xb: "003",
+            ryfl: "014",
+            gwfl: "008",
+            zgxl: "002",
+            zwjb: "051",
+            xrzw: "025",
+            mz: "011",
+            zzmm: "012",
+            dwsx: "008",
+        };
+        Object.entries(fieldBindings).forEach(([fieldName, inputId]) => {
+            const config = state.dictionaryFieldConfigs[fieldName] || {
+                fieldName,
+                caption: fieldName,
+                dictionaryPrefix: fallbackPrefixes[fieldName],
+            };
+            const input = document.getElementById(inputId);
+            if (!config || !input || !config.dictionaryPrefix) {
+                return;
+            }
+            input.dataset.dictionaryPrefix = config.dictionaryPrefix;
+            input.dataset.dictionaryField = fieldName;
+            const wrapper = input.closest("label");
+            if (wrapper && !wrapper.querySelector(".dict-picker-button")) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "dict-picker-button";
+                button.textContent = "选择";
+                button.addEventListener("click", () => openDictionaryPicker(inputId, config));
+                wrapper.appendChild(button);
+            }
+        });
+    } catch (error) {
+        console.warn("字典字段配置加载失败", error);
+    }
+}
+
+async function openDictionaryPicker(inputId, config) {
+    state.activeDictionaryTarget = { inputId, config };
+    document.getElementById("dictionary-picker-title").textContent = `选择${config.caption || config.fieldName}`;
+    document.getElementById("dictionary-picker-filter").value = "";
+    document.getElementById("dictionary-picker-tree").innerHTML = "正在加载选项...";
+    document.getElementById("dictionary-picker-modal").classList.remove("hidden");
+    try {
+        state.activeDictionaryNodes = await getJson(`/api/dictionaries/tree?prefix=${encodeURIComponent(config.dictionaryPrefix)}`);
+        renderDictionaryPickerTree();
+    } catch (error) {
+        document.getElementById("dictionary-picker-tree").innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+function closeDictionaryPicker() {
+    document.getElementById("dictionary-picker-modal").classList.add("hidden");
+}
+
+function renderDictionaryPickerTree() {
+    const container = document.getElementById("dictionary-picker-tree");
+    const filter = document.getElementById("dictionary-picker-filter").value.trim().toLowerCase();
+    const nodes = (state.activeDictionaryNodes || []).filter(node => {
+        if (!filter) {
+            return true;
+        }
+        return String(node.code || "").toLowerCase().includes(filter)
+            || String(node.value || "").toLowerCase().includes(filter)
+            || String(node.name || "").toLowerCase().includes(filter);
+    });
+    if (!nodes.length) {
+        container.innerHTML = "<div class='empty-state'>没有匹配的选项</div>";
+        return;
+    }
+    container.innerHTML = nodes.map(node => {
+        const depth = Math.max(0, Math.floor((String(node.code || "").length - String(state.activeDictionaryTarget?.config?.dictionaryPrefix || "").length) / 2));
+        return `
+            <button type="button" class="dictionary-node" style="--depth:${depth}" data-dict-code="${escapeHtml(node.code)}" data-dict-value="${escapeHtml(node.value || "")}" data-dict-name="${escapeHtml(node.name || "")}">
+                <span>${escapeHtml(node.code)}</span>
+                <strong>${escapeHtml(node.name)}</strong>
+            </button>
+        `;
+    }).join("");
+    container.querySelectorAll(".dictionary-node").forEach(button => {
+        button.addEventListener("click", () => selectDictionaryNode(button.dataset.dictValue, button.dataset.dictName));
+    });
+}
+
+function selectDictionaryNode(value, name) {
+    const target = state.activeDictionaryTarget;
+    if (!target) {
+        return;
+    }
+    const input = document.getElementById(target.inputId);
+    if (input) {
+        input.value = target.inputId === "maint-education-code" || target.inputId === "maint-rank-code"
+            ? value
+            : name;
+    }
+    closeDictionaryPicker();
 }
 
 async function onCreateUser(event) {

@@ -2,6 +2,7 @@ package com.dxsoft.rsgzgl.dictionary;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,5 +25,15 @@ class DictionaryController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return dictionaryService.entries(prefix, keyword, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/field-configs")
+    List<DictionaryFieldConfig> fieldConfigs(@RequestParam(required = false) String tableName) {
+        return dictionaryService.fieldConfigs(tableName);
+    }
+
+    @GetMapping("/tree")
+    List<DictionaryTreeNode> tree(@RequestParam String prefix) {
+        return dictionaryService.tree(prefix);
     }
 }

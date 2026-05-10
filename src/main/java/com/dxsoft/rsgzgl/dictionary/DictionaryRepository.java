@@ -18,6 +18,23 @@ class DictionaryRepository {
             rs.getInt("xt"),
             rs.getInt("sfsy"));
 
+    private static final RowMapper<DictionaryFieldConfig> FIELD_CONFIG_MAPPER = (rs, rowNum) -> new DictionaryFieldConfig(
+            SqlText.trim(rs.getString("tblname")),
+            SqlText.trim(rs.getString("field_name")),
+            SqlText.trim(rs.getString("field_cap")),
+            SqlText.trim(rs.getString("dmlb")));
+
+    private static final RowMapper<DictionaryTreeNode> TREE_NODE_MAPPER = (rs, rowNum) -> {
+        String code = SqlText.trim(rs.getString("bm"));
+        String prefix = SqlText.trim(rs.getString("prefix"));
+        return new DictionaryTreeNode(
+                code,
+                code != null && prefix != null && code.startsWith(prefix) ? code.substring(prefix.length()) : code,
+                SqlText.trim(rs.getString("mc")),
+                parentCode(prefix, code),
+                rs.getInt("sfsy") == 1);
+    };
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     DictionaryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -48,6 +65,31 @@ class DictionaryRepository {
         return count == null ? 0 : count;
     }
 
+    List<DictionaryFieldConfig> findFieldConfigs(String tableName) {
+        return jdbcTemplate.query("""
+                SELECT tblname, field_name, field_cap, dmlb
+                FROM fldjbxx
+                WHERE (:tableName IS NULL
+                   OR tblname = :tableName
+                   OR (:tableName = 'dryjbxx' AND tblname = 'ryjbxx'))
+                  AND TRIM(dmlb) <> ''
+                ORDER BY sequence, field_name
+                """, new MapSqlParameterSource("tableName", emptyToNull(tableName)), FIELD_CONFIG_MAPPER);
+    }
+
+    List<DictionaryTreeNode> findTreeNodes(String prefix) {
+        String trimmedPrefix = emptyToNull(prefix);
+        return jdbcTemplate.query("""
+                SELECT :prefix AS prefix, bm, mc, czbm, xt, sfsy
+                FROM dmb
+                WHERE (:prefix IS NULL OR bm LIKE :prefixLike)
+                  AND sfsy = 1
+                ORDER BY bm
+                """, new MapSqlParameterSource()
+                .addValue("prefix", trimmedPrefix)
+                .addValue("prefixLike", trimmedPrefix == null ? null : trimmedPrefix + "%"), TREE_NODE_MAPPER);
+    }
+
     private MapSqlParameterSource parameters(String prefix, String keyword) {
         String trimmedPrefix = emptyToNull(prefix);
         String trimmedKeyword = emptyToNull(keyword);
@@ -60,5 +102,13 @@ class DictionaryRepository {
 
     private String emptyToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String parentCode(String prefix, String code) {
+        if (prefix == null || code == null || code.length() <= prefix.length()) {
+            return null;
+        }
+        int parentLength = code.length() > prefix.length() + 2 ? code.length() - 2 : prefix.length();
+        return code.substring(0, parentLength);
     }
 }

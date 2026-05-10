@@ -2,6 +2,7 @@ package com.dxsoft.rsgzgl.dictionary;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,5 +19,13 @@ public class DictionaryService {
                 dictionaryRepository.findEntries(prefix, keyword, pageRequest),
                 pageRequest,
                 dictionaryRepository.countEntries(prefix, keyword));
+    }
+
+    public List<DictionaryFieldConfig> fieldConfigs(String tableName) {
+        return dictionaryRepository.findFieldConfigs(tableName);
+    }
+
+    public List<DictionaryTreeNode> tree(String prefix) {
+        return dictionaryRepository.findTreeNodes(prefix);
     }
 }

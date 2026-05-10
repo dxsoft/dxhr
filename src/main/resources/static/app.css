@@ -536,6 +536,54 @@ tr:last-child td {
     transform: none;
 }
 
+.dict-picker-button {
+    width: max-content;
+    padding: 6px 10px;
+    font-size: 12px;
+    box-shadow: none;
+}
+
+.dictionary-modal {
+    width: min(760px, 100%);
+}
+
+.dictionary-tree {
+    display: grid;
+    gap: 6px;
+    max-height: 58vh;
+    overflow: auto;
+    margin-top: 14px;
+    padding: 10px;
+    background: #f8fbff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+}
+
+.dictionary-node {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+    padding: 9px 12px 9px calc(12px + var(--depth) * 18px);
+    color: var(--text);
+    text-align: left;
+    background: #fff;
+    border: 1px solid var(--border);
+    box-shadow: none;
+}
+
+.dictionary-node:hover {
+    color: var(--primary-dark);
+    background: var(--primary-soft);
+}
+
+.dictionary-node span {
+    color: var(--muted);
+    font-family: "Consolas", monospace;
+    font-size: 12px;
+}
+
 .permission-list {
     display: flex;
     flex-wrap: wrap;
