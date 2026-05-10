@@ -19,6 +19,11 @@ public class PayrollService {
 
     private static final Set<String> LEVEL_PROMOTION_POSITION_PREFIXES = Set.of(
             "01", "02", "04", "21", "22", "23", "24", "25", "26", "27", "28");
+    private static final Set<String> POSITION_SEQUENCE_PREFIXES = Set.of(
+            "01", "02", "03", "04", "21", "22", "23", "24", "25", "26", "27", "28");
+    private static final Set<String> POLICE_OFFICER_CONVERSION_SOURCE_PREFIXES = Set.of(
+            "01", "02", "23", "24", "25", "26", "27", "28");
+    private static final Set<String> POLICE_OFFICER_CONVERSION_TARGET_PREFIXES = Set.of("21", "22");
 
     private final PayrollRepository payrollRepository;
     private final AccessControlService accessControlService;
@@ -899,6 +904,11 @@ public class PayrollService {
                 .findCurrentPositionChangeCandidate(history.organizationCode(), history.personCode())
                 .orElse(new PositionChangeCandidate(history.positionCode(), history.positionName(), history.positionStartYearMonth()));
         PositionLevelRange levelRange = payrollRepository.findPositionLevelRange(candidate.positionCode()).orElse(null);
+        String currentPositionPrefix = positionPrefix(history.positionCode());
+        String newPositionPrefix = positionPrefix(candidate.positionCode());
+        boolean sequenceConversion = isSequenceConversion(currentPositionPrefix, newPositionPrefix);
+        boolean policeOfficerConversion = isPoliceOfficerConversion(currentPositionPrefix, newPositionPrefix);
+        String changeType = positionChangeType(history.positionCode(), candidate.positionCode(), sequenceConversion, policeOfficerConversion);
         int currentLevel = payrollRepository.intValue(history.gradeSalaryLevel());
         String currentStep = String.valueOf(
                 payrollRepository.intValue(history.positionSalaryGrade())
@@ -906,7 +916,8 @@ public class PayrollService {
         Integer currentPositionSalary = payrollRepository.positionSalary(history.positionCode(), history.salaryStandardYearMonth());
         Integer newPositionSalary = payrollRepository.positionSalary(candidate.positionCode(), history.salaryStandardYearMonth());
         Integer currentGradeSalary = payrollRepository.gradeSalary(history.gradeSalaryLevel(), currentStep, history.salaryStandardYearMonth());
-        boolean eligible = isCivilServantForPositionChange(history.positionCode())
+        boolean eligible = !sequenceConversion
+                && isCivilServantForPositionChange(history.positionCode())
                 && isCivilServantForPositionChange(candidate.positionCode())
                 && levelRange != null
                 && currentLevel > 0;
@@ -944,6 +955,11 @@ public class PayrollService {
                 history.positionName(),
                 candidate.positionCode(),
                 candidate.positionName(),
+                currentPositionPrefix,
+                newPositionPrefix,
+                sequenceConversion,
+                policeOfficerConversion,
+                changeType,
                 candidate.startYearMonth(),
                 nextMonth(candidate.startYearMonth()),
                 history.salaryStandardYearMonth(),
@@ -965,7 +981,15 @@ public class PayrollService {
                 nextStepAssessmentStartYear,
                 gradeIncreaseExceedsStepDifference,
                 eligible,
-                positionChangePromotionNote(history, candidate, levelRange, eligible, promotedLevels, gradeIncreaseExceedsStepDifference));
+                positionChangePromotionNote(
+                        history,
+                        candidate,
+                        levelRange,
+                        eligible,
+                        promotedLevels,
+                        gradeIncreaseExceedsStepDifference,
+                        sequenceConversion,
+                        policeOfficerConversion));
     }
 
     private EducationPromotionPreview educationPromotionPreview(int uid) {
@@ -1191,6 +1215,38 @@ public class PayrollService {
         return Set.of("01", "02", "04", "23", "24", "25", "26", "27", "28").contains(positionCode.substring(0, 2));
     }
 
+    private String positionPrefix(String positionCode) {
+        return positionCode == null || positionCode.length() < 2 ? "" : positionCode.substring(0, 2);
+    }
+
+    private boolean isSequenceConversion(String currentPositionPrefix, String newPositionPrefix) {
+        return POSITION_SEQUENCE_PREFIXES.contains(currentPositionPrefix)
+                && POSITION_SEQUENCE_PREFIXES.contains(newPositionPrefix)
+                && !currentPositionPrefix.equals(newPositionPrefix);
+    }
+
+    private boolean isPoliceOfficerConversion(String currentPositionPrefix, String newPositionPrefix) {
+        return POLICE_OFFICER_CONVERSION_SOURCE_PREFIXES.contains(currentPositionPrefix)
+                && POLICE_OFFICER_CONVERSION_TARGET_PREFIXES.contains(newPositionPrefix);
+    }
+
+    private String positionChangeType(
+            String currentPositionCode,
+            String newPositionCode,
+            boolean sequenceConversion,
+            boolean policeOfficerConversion) {
+        if (newPositionCode == null || newPositionCode.equals(currentPositionCode)) {
+            return "未变化";
+        }
+        if (policeOfficerConversion) {
+            return "警员套改";
+        }
+        if (sequenceConversion) {
+            return "转换序列";
+        }
+        return "同序列职务变化";
+    }
+
     private String nextMonth(String yearMonth) {
         String normalized = yearMonth == null ? "" : yearMonth.replace(".", "");
         if (normalized.length() < 6) {
@@ -1211,7 +1267,15 @@ public class PayrollService {
             PositionLevelRange levelRange,
             boolean eligible,
             int promotedLevels,
-            boolean gradeIncreaseExceedsStepDifference) {
+            boolean gradeIncreaseExceedsStepDifference,
+            boolean sequenceConversion,
+            boolean policeOfficerConversion) {
+        if (policeOfficerConversion) {
+            return "新旧职务前缀属于不同序列，且由 01/02/23/24/25/26/27/28 转换到 21/22，识别为警员套改；不按同序列职务晋升级别规则试算。";
+        }
+        if (sequenceConversion) {
+            return "新旧职务前缀属于不同序列，识别为转换序列；不按同序列职务晋升级别规则试算。";
+        }
         if (!eligible) {
             return "仅公务员/参公岗位且存在新任职务级别范围时参与职务变化晋升试算。";
         }
