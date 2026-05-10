@@ -162,6 +162,16 @@ class PayrollController {
         return payrollService.normalPromotionPreviews(organizationCode, keyword, PageRequest.of(page, size));
     }
 
+    @PostMapping("/normal-promotions/{payrollHistoryId}/apply")
+    PromotionActionResult applyNormalPromotion(@PathVariable String payrollHistoryId) {
+        return payrollService.applyNormalPromotion(payrollHistoryId);
+    }
+
+    @PostMapping("/normal-promotions/{payrollHistoryId}/rollback")
+    PromotionActionResult rollbackNormalPromotion(@PathVariable String payrollHistoryId) {
+        return payrollService.rollbackNormalPromotion(payrollHistoryId);
+    }
+
     @GetMapping("/level-promotions")
     PageResponse<LevelPromotionPreview> levelPromotions(
             @RequestParam(required = false) String organizationCode,
@@ -170,6 +180,16 @@ class PayrollController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return payrollService.levelPromotionPreviews(organizationCode, keyword, dueOnly, PageRequest.of(page, size));
+    }
+
+    @PostMapping("/level-promotions/{payrollHistoryId}/apply")
+    PromotionActionResult applyLevelPromotion(@PathVariable String payrollHistoryId) {
+        return payrollService.applyLevelPromotion(payrollHistoryId);
+    }
+
+    @PostMapping("/level-promotions/{payrollHistoryId}/rollback")
+    PromotionActionResult rollbackLevelPromotion(@PathVariable String payrollHistoryId) {
+        return payrollService.rollbackLevelPromotion(payrollHistoryId);
     }
 
     @GetMapping("/position-change-promotions")

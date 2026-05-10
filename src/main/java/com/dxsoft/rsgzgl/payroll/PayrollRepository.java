@@ -868,6 +868,44 @@ class PayrollRepository {
                 """, new MapSqlParameterSource("id", id), String.class).stream().findFirst().map(SqlText::trim);
     }
 
+    Optional<Integer> findPersonnelUidByCurrentHistoryId(String id) {
+        return jdbcTemplate.queryForList("""
+                SELECT p.uid
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                WHERE h.id = :id
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                """, new MapSqlParameterSource("id", id), Integer.class).stream().findFirst();
+    }
+
+    Optional<PayrollHistorySnapshot> findCurrentHistoryById(String id) {
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                       h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.gwjtbz, h.gwjtlb,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf,
+                       h.pgbc, h.njbt, h.hj2
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE h.id = :id
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                LIMIT 1
+                """, new MapSqlParameterSource("id", id), HISTORY_MAPPER).stream().findFirst();
+    }
+
+    Optional<String> findPredecessorHistoryId(String id) {
+        return jdbcTemplate.queryForList("""
+                SELECT id
+                FROM hisbase
+                WHERE sid = :id
+                LIMIT 1
+                """, new MapSqlParameterSource("id", id), String.class).stream().findFirst().map(SqlText::trim);
+    }
+
     String createPayrollHistoryFromLatest(int uid, PayrollHistoryMaintenanceRequest request) {
         PayrollHistorySnapshot latest = findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
@@ -895,6 +933,62 @@ class PayrollRepository {
                 .addValue("sourceId", latest.id()));
         markAppCreated("hisbase", id);
         return id;
+    }
+
+    String createPromotionHistoryFromLatest(int uid, PromotionHistoryMutation mutation) {
+        PayrollHistorySnapshot latest = findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        String id = java.util.UUID.randomUUID().toString().toUpperCase();
+        jdbcTemplate.update("""
+                INSERT INTO hisbase
+                SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
+                       h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
+                       h.tc, :nextStepAssessmentStartYear, :nextLevelAssessmentStartYear, h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
+                       h.jx, h.tgbl, h.jtbl, h.fddc, h.fdgd, h.fdsj,
+                       :calculationYear, :calculationMonth, :changeType,
+                       h.khqk, h.dynkh, h.denkh, h.bbz, :totalAmount,
+                       h.zwbm2, h.zwgw2, :positionSalaryGrade, h.zwgzse2, :gradeSalaryLevel, :gradeSalaryStep, :gradeSalary,
+                       h.jcgz2, h.glgz2, h.jsdjgz2, h.grjj2, h.blfb2, h.jsfszwtg2,
+                       h.jt2, h.fdgz2, h.jjjy2, h.dfbt2, h.gwjt2, h.bh, h.jxgz, h.zzbc,
+                       h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt, h.sdbt, h.grsds, h.zfgjj,
+                       h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, h.qtbt, h.jxjt,
+                       h.gryhzh, h.tfnf, h.tfyf, h.spdw, h.tbnd, h.jxjtbz, h.jbtbz, h.jhljt,
+                       h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
+                       h.gwjtbz, h.gwjtlb, h.sfjzgb, NULL
+                FROM hisbase h
+                WHERE h.id = :sourceId
+                """, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("sourceId", latest.id())
+                .addValue("calculationYear", mutation.calculationYear())
+                .addValue("calculationMonth", mutation.calculationMonth())
+                .addValue("changeType", mutation.changeType())
+                .addValue("nextStepAssessmentStartYear", valueOrBlank(mutation.nextStepAssessmentStartYear()))
+                .addValue("nextLevelAssessmentStartYear", valueOrBlank(mutation.nextLevelAssessmentStartYear()))
+                .addValue("positionSalaryGrade", valueOrBlank(mutation.positionSalaryGrade()))
+                .addValue("gradeSalaryLevel", valueOrBlank(mutation.gradeSalaryLevel()))
+                .addValue("gradeSalaryStep", valueOrBlank(mutation.gradeSalaryStep()))
+                .addValue("gradeSalary", mutation.gradeSalary() == null ? 0 : mutation.gradeSalary())
+                .addValue("totalAmount", mutation.totalAmount() == null ? 0 : mutation.totalAmount()));
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET sid = :newId
+                WHERE id = :sourceId
+                """, new MapSqlParameterSource()
+                .addValue("newId", id)
+                .addValue("sourceId", latest.id()));
+        markAppCreated("hisbase", id);
+        return id;
+    }
+
+    void rollbackCurrentHistory(String currentId, String previousId) {
+        jdbcTemplate.update("DELETE FROM hisbase WHERE id = :currentId", new MapSqlParameterSource("currentId", currentId));
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET sid = ''
+                WHERE id = :previousId
+                """, new MapSqlParameterSource("previousId", previousId));
+        unmarkAppCreated("hisbase", currentId);
     }
 
     void updatePayrollHistory(String id, PayrollHistoryMaintenanceRequest request) {

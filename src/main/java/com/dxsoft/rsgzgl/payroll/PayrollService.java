@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PayrollService {
@@ -283,6 +284,36 @@ public class PayrollService {
                 payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
     }
 
+    @Transactional
+    public PromotionActionResult applyNormalPromotion(String payrollHistoryId) {
+        int uid = requireCurrentHistoryUid(payrollHistoryId);
+        NormalPromotionPreview preview = normalPromotionPreview(uid);
+        if (preview.increaseAmount() == null || preview.increaseAmount() <= 0) {
+            throw new IllegalArgumentException("当前工资记录没有可处理的正常档次/薪级晋升增资。");
+        }
+        String changeType = normalPromotionChangeType(preview.baseSalarySource());
+        PromotionHistoryMutation mutation = new PromotionHistoryMutation(
+                preview.calculationPeriod().substring(0, 4),
+                preview.calculationPeriod().substring(4, 6),
+                changeType,
+                preview.calculationPeriod().substring(0, 4),
+                null,
+                preview.promotedGradeOrLevel(),
+                preview.gradeSalaryLevel(),
+                preview.gradeSalaryStep(),
+                preview.promotedBaseSalary(),
+                nullToZero(payrollRepository.findLatestHistory(uid)
+                        .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid))
+                        .storedTotal()) + preview.increaseAmount());
+        String newId = payrollRepository.createPromotionHistoryFromLatest(uid, mutation);
+        return new PromotionActionResult(newId, payrollHistoryId, changeType, "正常档次/薪级晋升处理完成。");
+    }
+
+    @Transactional
+    public PromotionActionResult rollbackNormalPromotion(String payrollHistoryId) {
+        return rollbackPromotion(payrollHistoryId, Set.of("正常档次", "正常薪级"), "正常档次/薪级晋升已还原。");
+    }
+
     public PageResponse<LevelPromotionPreview> levelPromotionPreviews(
             String organizationCode,
             String keyword,
@@ -304,6 +335,40 @@ public class PayrollService {
                 previews,
                 pageRequest,
                 payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
+    }
+
+    @Transactional
+    public PromotionActionResult applyLevelPromotion(String payrollHistoryId) {
+        int uid = requireCurrentHistoryUid(payrollHistoryId);
+        LevelPromotionPreview preview = levelPromotionPreview(uid);
+        if (!Boolean.TRUE.equals(preview.eligible())
+                || (!Boolean.TRUE.equals(preview.levelPromotionDue()) && !Boolean.TRUE.equals(preview.stepPromotionDue()))) {
+            throw new IllegalArgumentException("当前工资记录不满足级别晋升或档次晋升处理条件。");
+        }
+        String changeType = Boolean.TRUE.equals(preview.levelPromotionDue()) ? "正常级别" : "正常档次";
+        int promotedStepValue = payrollRepository.intValue(preview.promotedStep());
+        String positionSalaryGrade = String.valueOf(promotedStepValue);
+        String gradeSalaryStep = "0";
+        PromotionHistoryMutation mutation = new PromotionHistoryMutation(
+                preview.calculationPeriod().substring(0, 4),
+                preview.calculationPeriod().substring(4, 6),
+                changeType,
+                preview.nextStepAssessmentStartYear(),
+                preview.nextLevelAssessmentStartYear(),
+                positionSalaryGrade,
+                preview.promotedLevel(),
+                gradeSalaryStep,
+                preview.promotedGradeSalary(),
+                nullToZero(payrollRepository.findLatestHistory(uid)
+                        .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid))
+                        .storedTotal()) + preview.increaseAmount());
+        String newId = payrollRepository.createPromotionHistoryFromLatest(uid, mutation);
+        return new PromotionActionResult(newId, payrollHistoryId, changeType, "级别晋升处理完成。");
+    }
+
+    @Transactional
+    public PromotionActionResult rollbackLevelPromotion(String payrollHistoryId) {
+        return rollbackPromotion(payrollHistoryId, Set.of("正常级别", "级别滚动", "正常档次"), "级别晋升已还原。");
     }
 
     public PageResponse<PositionChangePromotionPreview> positionChangePromotionPreviews(
@@ -798,6 +863,7 @@ public class PayrollService {
         };
         Integer currentBaseSalary = current.selectedBaseSalary();
         return new NormalPromotionPreview(
+                uid,
                 history.id(),
                 history.organizationCode(),
                 history.personCode(),
@@ -869,6 +935,7 @@ public class PayrollService {
                 ? history.calculationYear()
                 : String.valueOf(stepStartYear);
         return new LevelPromotionPreview(
+                uid,
                 history.id(),
                 history.organizationCode(),
                 history.personCode(),
@@ -1373,6 +1440,40 @@ public class PayrollService {
         return positionCode != null && positionCode.length() >= 2
                 && positionCode.substring(0, 2).compareTo("07") >= 0
                 && positionCode.substring(0, 2).compareTo("20") < 0;
+    }
+
+    private int requireCurrentHistoryUid(String payrollHistoryId) {
+        int uid = payrollRepository.findPersonnelUidByCurrentHistoryId(payrollHistoryId)
+                .orElseThrow(() -> new NotFoundException("Current payroll history not found: " + payrollHistoryId));
+        PayrollHistorySnapshot latest = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        accessControlService.requireOrganization(latest.organizationCode());
+        requirePayrollWritePermission();
+        return uid;
+    }
+
+    private PromotionActionResult rollbackPromotion(String payrollHistoryId, Set<String> allowedChangeTypes, String message) {
+        PayrollHistorySnapshot current = payrollRepository.findCurrentHistoryById(payrollHistoryId)
+                .orElseThrow(() -> new NotFoundException("Current payroll history not found: " + payrollHistoryId));
+        accessControlService.requireOrganization(current.organizationCode());
+        requirePayrollWritePermission();
+        if (!allowedChangeTypes.contains(current.calculationType())) {
+            throw new IllegalArgumentException("当前工资变动类别不能通过该模块还原：" + current.calculationType());
+        }
+        String previousId = payrollRepository.findPredecessorHistoryId(payrollHistoryId)
+                .orElseThrow(() -> new IllegalArgumentException("未找到可恢复为当前工资的上一条记录。"));
+        payrollRepository.rollbackCurrentHistory(payrollHistoryId, previousId);
+        return new PromotionActionResult(previousId, payrollHistoryId, current.calculationType(), message);
+    }
+
+    private String normalPromotionChangeType(String baseSalarySource) {
+        if ("GRADE".equals(baseSalarySource)) {
+            return "正常档次";
+        }
+        if ("SALARY_LEVEL".equals(baseSalarySource)) {
+            return "正常薪级";
+        }
+        throw new IllegalArgumentException("当前基础工资类型不支持正常档次/薪级晋升处理。");
     }
 
     private int yearOf(String yearOrYearMonth) {

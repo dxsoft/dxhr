@@ -1,6 +1,7 @@
 package com.dxsoft.rsgzgl.payroll;
 
 public record NormalPromotionPreview(
+        Integer uid,
         String payrollHistoryId,
         String organizationCode,
         String personCode,

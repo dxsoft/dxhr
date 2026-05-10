@@ -1855,8 +1855,18 @@ async function loadNormalPromotions() {
                 <td>${money(row.promotedBaseSalary)}</td>
                 <td>${money(row.increaseAmount)}</td>
                 <td>${escapeHtml(baseSalarySourceName(row.baseSalarySource))}</td>
+                <td>
+                    <button class="row-action" data-normal-apply="${escapeHtml(row.payrollHistoryId)}" type="button">处理</button>
+                    <button class="row-action danger-button" data-normal-rollback="${escapeHtml(row.payrollHistoryId)}" type="button">还原</button>
+                </td>
             </tr>
         `).join("");
+        rows.querySelectorAll("button[data-normal-apply]").forEach(button => {
+            button.addEventListener("click", () => applyPromotionAction("normal", button.dataset.normalApply));
+        });
+        rows.querySelectorAll("button[data-normal-rollback]").forEach(button => {
+            button.addEventListener("click", () => rollbackPromotionAction("normal", button.dataset.normalRollback));
+        });
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条试算记录`;
     } catch (error) {
         showError(status, error);
@@ -1913,9 +1923,63 @@ async function loadLevelPromotions() {
                 <td>${money(row.increaseAmount)}</td>
                 <td>${row.eligible ? "是" : "否"}</td>
                 <td>${escapeHtml(row.note || "")}</td>
+                <td>
+                    <button class="row-action" data-level-apply="${escapeHtml(row.payrollHistoryId)}" type="button">处理</button>
+                    <button class="row-action danger-button" data-level-rollback="${escapeHtml(row.payrollHistoryId)}" type="button">还原</button>
+                </td>
             </tr>
         `).join("");
+        rows.querySelectorAll("button[data-level-apply]").forEach(button => {
+            button.addEventListener("click", () => applyPromotionAction("level", button.dataset.levelApply));
+        });
+        rows.querySelectorAll("button[data-level-rollback]").forEach(button => {
+            button.addEventListener("click", () => rollbackPromotionAction("level", button.dataset.levelRollback));
+        });
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条试算记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function applyPromotionAction(type, payrollHistoryId) {
+    const moduleName = type === "normal" ? "正常档次/薪级晋升" : "级别晋升";
+    if (!confirm(`确认按当前试算结果处理${moduleName}？系统会新增一条当前工资变动记录，并将原当前记录转为历史记录。`)) {
+        return;
+    }
+    const status = document.getElementById(type === "normal" ? "normal-promotion-status" : "level-promotion-status");
+    status.className = "status";
+    status.textContent = `正在处理${moduleName}...`;
+    try {
+        const path = type === "normal" ? "normal-promotions" : "level-promotions";
+        const result = await postJson(`/api/payroll/${path}/${encodeURIComponent(payrollHistoryId)}/apply`, {});
+        status.textContent = result.message || `${moduleName}处理完成`;
+        if (type === "normal") {
+            await loadNormalPromotions();
+        } else {
+            await loadLevelPromotions();
+        }
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function rollbackPromotionAction(type, payrollHistoryId) {
+    const moduleName = type === "normal" ? "正常档次/薪级晋升" : "级别晋升";
+    if (!confirm(`确认还原当前${moduleName}工资变动？系统会删除当前链头记录，并恢复上一条工资记录为当前执行工资。`)) {
+        return;
+    }
+    const status = document.getElementById(type === "normal" ? "normal-promotion-status" : "level-promotion-status");
+    status.className = "status";
+    status.textContent = `正在还原${moduleName}...`;
+    try {
+        const path = type === "normal" ? "normal-promotions" : "level-promotions";
+        const result = await postJson(`/api/payroll/${path}/${encodeURIComponent(payrollHistoryId)}/rollback`, {});
+        status.textContent = result.message || `${moduleName}已还原`;
+        if (type === "normal") {
+            await loadNormalPromotions();
+        } else {
+            await loadLevelPromotions();
+        }
     } catch (error) {
         showError(status, error);
     }
