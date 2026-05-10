@@ -32,6 +32,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 登录成功、登录失败、退出登录、修改密码和权限管理操作都会写入安全审计日志。
 前端导航由 `app_menu` 和 `/api/auth/menus` 动态生成，只显示当前用户具备权限的菜单。
 “人员信息维护”页面提供 `dryjbxx` 核心人员基本信息新增、修改和删除，按用户单位数据范围限制可维护单位。
+人员维护中的单位字段通过单位树弹窗选择，按用户单位数据范围限制可选单位。
 人员维护中配置了 `fldjbxx.dmlb` 的字段会按 `dmlb` 前缀从 `dmb` 弹出可折叠树形选项，录入框和选择按钮合并显示，且只能选择叶子节点。
 `fldjbxx.field_type = D` 的人员维护字段使用月份选择控件，保存时转换为旧系统使用的 `yyyy.MM` 格式。
 人员维护弹窗中的学历信息、职务变化、历次调资和年度考核支持增删改；本系统新增的附属记录会写入 `app_record_marker` 并在前端显示“新”标记。
@@ -78,6 +79,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 - `GET /api/personnel/assessment-summary`
 - `GET /api/personnel/changed`
 - `GET /api/organizations/maintenance`
+- `GET /api/organizations/tree`
 - `GET /api/dictionaries`
 - `GET /api/dictionaries/field-configs`
 - `GET /api/dictionaries/tree`

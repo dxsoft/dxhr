@@ -13,6 +13,8 @@ const state = {
     activeDictionaryTarget: null,
     activeDictionaryNodes: [],
     dictionaryExpandedCodes: new Set(),
+    organizationNodes: [],
+    organizationExpandedCodes: new Set(),
     activePersonnelMaintenance: null,
     activeSubrecordEditor: null,
 };
@@ -84,6 +86,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("add-assessment-record").addEventListener("click", () => openSubrecordEditor("assessment"));
     document.getElementById("dictionary-picker-close").addEventListener("click", closeDictionaryPicker);
     document.getElementById("dictionary-picker-filter").addEventListener("input", renderDictionaryPickerTree);
+    document.getElementById("organization-picker-close").addEventListener("click", closeOrganizationPicker);
+    document.getElementById("organization-picker-filter").addEventListener("input", renderOrganizationPickerTree);
     document.querySelectorAll("[data-personnel-tab]").forEach(button => {
         button.addEventListener("click", () => showPersonnelTab(button.dataset.personnelTab));
     });
@@ -370,9 +374,134 @@ async function initializeDictionaryPickers() {
                 combo.appendChild(button);
             }
         });
+        initializeOrganizationPickerInput();
     } catch (error) {
         console.warn("字典字段配置加载失败", error);
     }
+}
+
+function initializeOrganizationPickerInput() {
+    const input = document.getElementById("maint-organization-code");
+    if (!input || input.closest("label").querySelector(".organization-picker-button")) {
+        return;
+    }
+    const wrapper = input.closest("label");
+    const combo = document.createElement("div");
+    combo.className = "dict-input-combo";
+    wrapper.insertBefore(combo, input);
+    combo.appendChild(input);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "dict-picker-button organization-picker-button";
+    button.setAttribute("aria-label", "选择单位");
+    button.textContent = "⌄";
+    button.addEventListener("click", openOrganizationPicker);
+    combo.appendChild(button);
+}
+
+async function openOrganizationPicker() {
+    document.getElementById("organization-picker-filter").value = "";
+    document.getElementById("organization-picker-tree").innerHTML = "正在加载单位...";
+    document.getElementById("organization-picker-modal").classList.remove("hidden");
+    try {
+        state.organizationNodes = await getJson("/api/organizations/tree");
+        state.organizationExpandedCodes = new Set(rootOrganizationNodes(state.organizationNodes).map(node => node.code));
+        renderOrganizationPickerTree();
+    } catch (error) {
+        document.getElementById("organization-picker-tree").innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+function closeOrganizationPicker() {
+    document.getElementById("organization-picker-modal").classList.add("hidden");
+}
+
+function renderOrganizationPickerTree() {
+    const container = document.getElementById("organization-picker-tree");
+    const filter = document.getElementById("organization-picker-filter").value.trim().toLowerCase();
+    const allNodes = state.organizationNodes || [];
+    const childrenByParent = organizationChildrenByParent(allNodes);
+    const roots = rootOrganizationNodes(allNodes);
+    const visibleNodes = [];
+    const appendVisibleNodes = (node, depth) => {
+        const children = childrenByParent.get(node.code) || [];
+        const descendantMatches = children.some(child => organizationNodeMatchesFilter(child, filter, childrenByParent));
+        const selfMatches = organizationNodeTextMatches(node, filter);
+        if (!filter || selfMatches || descendantMatches) {
+            visibleNodes.push({ node, depth, hasChildren: children.length > 0 });
+            const expanded = filter || state.organizationExpandedCodes.has(node.code);
+            if (expanded) {
+                children.forEach(child => appendVisibleNodes(child, depth + 1));
+            }
+        }
+    };
+    roots.forEach(root => appendVisibleNodes(root, 0));
+    if (!visibleNodes.length) {
+        container.innerHTML = "<div class='empty-state'>没有匹配的单位</div>";
+        return;
+    }
+    container.innerHTML = visibleNodes.map(({ node, depth, hasChildren }) => {
+        const expanded = filter || state.organizationExpandedCodes.has(node.code);
+        return `
+            <button type="button" class="dictionary-node ${hasChildren ? "branch" : "leaf"}" style="--depth:${depth}" data-org-code="${escapeHtml(node.code)}" data-org-name="${escapeHtml(node.name || "")}" data-has-children="${hasChildren}">
+                <em>${hasChildren ? (expanded ? "▾" : "▸") : "•"}</em>
+                <span>${escapeHtml(node.code)}</span>
+                <strong>${escapeHtml(node.name || node.shortName || "")}</strong>
+            </button>
+        `;
+    }).join("");
+    container.querySelectorAll(".dictionary-node").forEach(button => {
+        button.addEventListener("click", () => {
+            if (button.dataset.hasChildren === "true") {
+                toggleOrganizationNode(button.dataset.orgCode);
+                return;
+            }
+            document.getElementById("maint-organization-code").value = button.dataset.orgCode || "";
+            closeOrganizationPicker();
+        });
+    });
+}
+
+function organizationChildrenByParent(nodes) {
+    const map = new Map();
+    nodes.forEach(node => {
+        const key = node.parentCode || "__ROOT__";
+        if (!map.has(key)) {
+            map.set(key, []);
+        }
+        map.get(key).push(node);
+    });
+    return map;
+}
+
+function rootOrganizationNodes(nodes) {
+    const codes = new Set((nodes || []).map(node => node.code));
+    return (nodes || []).filter(node => !node.parentCode || !codes.has(node.parentCode));
+}
+
+function organizationNodeTextMatches(node, filter) {
+    if (!filter) {
+        return true;
+    }
+    return String(node.code || "").toLowerCase().includes(filter)
+        || String(node.name || "").toLowerCase().includes(filter)
+        || String(node.shortName || "").toLowerCase().includes(filter);
+}
+
+function organizationNodeMatchesFilter(node, filter, childrenByParent) {
+    if (organizationNodeTextMatches(node, filter)) {
+        return true;
+    }
+    return (childrenByParent.get(node.code) || []).some(child => organizationNodeMatchesFilter(child, filter, childrenByParent));
+}
+
+function toggleOrganizationNode(code) {
+    if (state.organizationExpandedCodes.has(code)) {
+        state.organizationExpandedCodes.delete(code);
+    } else {
+        state.organizationExpandedCodes.add(code);
+    }
+    renderOrganizationPickerTree();
 }
 
 async function openDictionaryPicker(inputId, config) {

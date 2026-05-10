@@ -180,7 +180,7 @@
                 <div id="personnel-tab-basic" class="tab-panel">
                     <form id="personnel-maintenance-form" class="toolbar modal-form-grid">
                         <input id="personnel-maintenance-uid" type="hidden">
-                        <label>单位编码<input id="maint-organization-code" required></label>
+                        <label>单位选择<input id="maint-organization-code" required placeholder="请选择单位"></label>
                         <label>人员编码<input id="maint-person-code" required></label>
                         <label>姓名<input id="maint-name" required></label>
                         <label>身份证<input id="maint-id-card"></label>
@@ -261,6 +261,19 @@
                 </div>
                 <form id="subrecord-editor-form" class="toolbar modal-form-grid"></form>
                 <div id="subrecord-editor-status" class="status"></div>
+            </div>
+        </div>
+        <div id="organization-picker-modal" class="modal-overlay hidden">
+            <div class="modal-card dictionary-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>选择单位</h3>
+                        <p>从单位树中选择人员所属单位。</p>
+                    </div>
+                    <button id="organization-picker-close" type="button">关闭</button>
+                </div>
+                <input id="organization-picker-filter" placeholder="输入单位编码或名称过滤">
+                <div id="organization-picker-tree" class="dictionary-tree"></div>
             </div>
         </div>
     </section>

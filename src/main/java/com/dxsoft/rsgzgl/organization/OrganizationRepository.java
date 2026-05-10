@@ -101,6 +101,27 @@ class OrganizationRepository {
                         SqlText.trim(rs.getString("kylbxf"))));
     }
 
+    List<OrganizationTreeNode> findTree(OrganizationScope organizationScope, String keyword) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource parameters = scopedParameters(keyword, organizationScope);
+        return jdbc.query("""
+                select o.dwbm, o.dwmc, o.dwmc1
+                from dwbm o
+                """ + maintenanceWhere(keyword) + """
+
+                order by o.dwbm
+                """, parameters, (rs, rowNum) -> {
+            String code = SqlText.trim(rs.getString("dwbm"));
+            return new OrganizationTreeNode(
+                    code,
+                    SqlText.trim(rs.getString("dwmc")),
+                    SqlText.trim(rs.getString("dwmc1")),
+                    parentOrganizationCode(code));
+        });
+    }
+
     long count(String keyword, OrganizationScope organizationScope) {
         if (organizationScope.noneScope()) {
             return 0;
@@ -145,5 +166,17 @@ class OrganizationRepository {
             where += " and (o.dwbm like :keyword or o.dwmc like :keyword or o.dwmc1 like :keyword or o.gzczbz like :keyword)";
         }
         return where;
+    }
+
+    private String parentOrganizationCode(String code) {
+        if (code == null || code.length() <= 3) {
+            return null;
+        }
+        for (int length : List.of(7, 5, 3)) {
+            if (code.length() > length) {
+                return code.substring(0, length);
+            }
+        }
+        return null;
     }
 }
