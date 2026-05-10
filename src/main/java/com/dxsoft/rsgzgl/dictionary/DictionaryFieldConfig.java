@@ -4,6 +4,7 @@ public record DictionaryFieldConfig(
         String tableName,
         String fieldName,
         String caption,
-        String dictionaryPrefix
+        String dictionaryPrefix,
+        String fieldType
 ) {
 }

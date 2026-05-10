@@ -22,7 +22,8 @@ class DictionaryRepository {
             SqlText.trim(rs.getString("tblname")),
             SqlText.trim(rs.getString("field_name")),
             SqlText.trim(rs.getString("field_cap")),
-            SqlText.trim(rs.getString("dmlb")));
+            SqlText.trim(rs.getString("dmlb")),
+            SqlText.trim(rs.getString("field_type")));
 
     private static final RowMapper<DictionaryTreeNode> TREE_NODE_MAPPER = (rs, rowNum) -> {
         String code = SqlText.trim(rs.getString("bm"));
@@ -67,7 +68,7 @@ class DictionaryRepository {
 
     List<DictionaryFieldConfig> findFieldConfigs(String tableName) {
         return jdbcTemplate.query("""
-                SELECT tblname, field_name, field_cap, dmlb
+                SELECT tblname, field_name, field_cap, dmlb, field_type
                 FROM fldjbxx
                 WHERE (:tableName IS NULL
                    OR tblname = :tableName

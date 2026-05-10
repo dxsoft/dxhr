@@ -262,12 +262,16 @@ async function initializeDictionaryPickers() {
         const configs = await getJson("/api/dictionaries/field-configs?tableName=dryjbxx");
         state.dictionaryFieldConfigs = Object.fromEntries((configs || []).map(config => [String(config.fieldName || "").toLowerCase(), config]));
         const fieldBindings = {
+            csny: "maint-birth-year-month",
             xb: "maint-gender",
             ryfl: "maint-personnel-category",
             gwfl: "maint-post-category",
+            cjgzny: "maint-work-start",
+            zzny: "maint-regularization",
             zgxl: "maint-highest-education",
             zwjb: "maint-position-level",
             xrzw: "maint-current-position",
+            srny: "maint-position-start",
             mz: "maint-ethnicity",
             zzmm: "maint-political-status",
         };
@@ -283,13 +287,23 @@ async function initializeDictionaryPickers() {
             dwsx: "008",
         };
         Object.entries(fieldBindings).forEach(([fieldName, inputId]) => {
-            const config = state.dictionaryFieldConfigs[fieldName] || {
+            const configured = state.dictionaryFieldConfigs[fieldName];
+            const config = configured || {
                 fieldName,
                 caption: fieldName,
                 dictionaryPrefix: fallbackPrefixes[fieldName],
+                fieldType: null,
             };
             const input = document.getElementById(inputId);
-            if (!config || !input || !config.dictionaryPrefix) {
+            if (!input) {
+                return;
+            }
+            if (String(config.fieldType || "").toUpperCase() === "D") {
+                input.type = "month";
+                input.placeholder = "";
+                input.dataset.monthField = "true";
+            }
+            if (!config || !config.dictionaryPrefix) {
                 return;
             }
             input.dataset.dictionaryPrefix = config.dictionaryPrefix;
@@ -814,19 +828,19 @@ function personnelMaintenancePayload() {
         name: document.getElementById("maint-name").value.trim(),
         idCard: document.getElementById("maint-id-card").value.trim(),
         gender: document.getElementById("maint-gender").value.trim(),
-        birthYearMonth: document.getElementById("maint-birth-year-month").value.trim(),
+        birthYearMonth: monthPayloadValue("maint-birth-year-month"),
         personnelCategory: document.getElementById("maint-personnel-category").value.trim(),
         organizationType: document.getElementById("maint-organization-type").value.trim(),
         postCategory: document.getElementById("maint-post-category").value.trim(),
-        workStartYearMonth: document.getElementById("maint-work-start").value.trim(),
-        regularizationYearMonth: document.getElementById("maint-regularization").value.trim(),
+        workStartYearMonth: monthPayloadValue("maint-work-start"),
+        regularizationYearMonth: monthPayloadValue("maint-regularization"),
         salaryYears: Number(document.getElementById("maint-salary-years").value || 0),
         educationCode: document.getElementById("maint-education-code").value.trim(),
         highestEducation: document.getElementById("maint-highest-education").value.trim(),
         currentPositionLevel: document.getElementById("maint-position-level").value.trim(),
         currentRankCode: document.getElementById("maint-rank-code").value.trim(),
         currentPosition: document.getElementById("maint-current-position").value.trim(),
-        currentPositionStartYearMonth: document.getElementById("maint-position-start").value.trim(),
+        currentPositionStartYearMonth: monthPayloadValue("maint-position-start"),
         ethnicity: document.getElementById("maint-ethnicity").value.trim(),
         politicalStatus: document.getElementById("maint-political-status").value.trim(),
         archiveNumber: document.getElementById("maint-archive-number").value.trim(),
@@ -840,19 +854,19 @@ function fillPersonnelMaintenanceForm(record) {
     document.getElementById("maint-name").value = record.name || "";
     document.getElementById("maint-id-card").value = record.idCard || "";
     document.getElementById("maint-gender").value = record.gender || "";
-    document.getElementById("maint-birth-year-month").value = record.birthYearMonth || "";
+    setMonthInputValue("maint-birth-year-month", record.birthYearMonth);
     document.getElementById("maint-personnel-category").value = record.personnelCategory || "";
     document.getElementById("maint-organization-type").value = record.organizationType || "";
     document.getElementById("maint-post-category").value = record.postCategory || "";
-    document.getElementById("maint-work-start").value = record.workStartYearMonth || "";
-    document.getElementById("maint-regularization").value = record.regularizationYearMonth || "";
+    setMonthInputValue("maint-work-start", record.workStartYearMonth);
+    setMonthInputValue("maint-regularization", record.regularizationYearMonth);
     document.getElementById("maint-salary-years").value = record.salaryYears || 0;
     document.getElementById("maint-education-code").value = record.educationCode || "";
     document.getElementById("maint-highest-education").value = record.highestEducation || "";
     document.getElementById("maint-position-level").value = record.currentPositionLevel || "";
     document.getElementById("maint-rank-code").value = record.currentRankCode || "";
     document.getElementById("maint-current-position").value = record.currentPosition || "";
-    document.getElementById("maint-position-start").value = record.currentPositionStartYearMonth || "";
+    setMonthInputValue("maint-position-start", record.currentPositionStartYearMonth);
     document.getElementById("maint-ethnicity").value = record.ethnicity || "";
     document.getElementById("maint-political-status").value = record.politicalStatus || "";
     document.getElementById("maint-archive-number").value = record.archiveNumber || "";
@@ -865,6 +879,17 @@ function resetPersonnelMaintenanceForm() {
     ["maint-education-rows", "maint-position-rows", "maint-payroll-rows", "maint-assessment-rows"].forEach(id => {
         document.getElementById(id).innerHTML = "<tr><td colspan='8'>保存或选择人员后加载记录</td></tr>";
     });
+}
+
+function monthPayloadValue(inputId) {
+    const value = document.getElementById(inputId).value.trim();
+    return value ? value.replace("-", ".") : "";
+}
+
+function setMonthInputValue(inputId, value) {
+    const input = document.getElementById(inputId);
+    const raw = String(value || "").trim();
+    input.value = raw ? raw.replace(".", "-").slice(0, 7) : "";
 }
 
 async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
