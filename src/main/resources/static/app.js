@@ -85,7 +85,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("add-payroll-record").addEventListener("click", () => openSubrecordEditor("payroll"));
     document.getElementById("add-assessment-record").addEventListener("click", () => openSubrecordEditor("assessment"));
     document.getElementById("dictionary-picker-close").addEventListener("click", closeDictionaryPicker);
-    document.getElementById("dictionary-picker-filter").addEventListener("input", renderDictionaryPickerTree);
     document.getElementById("organization-picker-close").addEventListener("click", closeOrganizationPicker);
     document.getElementById("organization-picker-filter").addEventListener("input", renderOrganizationPickerTree);
     document.querySelectorAll("[data-personnel-tab]").forEach(button => {
@@ -507,7 +506,6 @@ function toggleOrganizationNode(code) {
 async function openDictionaryPicker(inputId, config) {
     state.activeDictionaryTarget = { inputId, config };
     document.getElementById("dictionary-picker-title").textContent = `选择${config.caption || config.fieldName}`;
-    document.getElementById("dictionary-picker-filter").value = "";
     document.getElementById("dictionary-picker-tree").innerHTML = "正在加载选项...";
     document.getElementById("dictionary-picker-modal").classList.remove("hidden");
     try {
@@ -525,7 +523,7 @@ function closeDictionaryPicker() {
 
 function renderDictionaryPickerTree() {
     const container = document.getElementById("dictionary-picker-tree");
-    const filter = document.getElementById("dictionary-picker-filter").value.trim().toLowerCase();
+    const filter = "";
     const allNodes = state.activeDictionaryNodes || [];
     const childrenByParent = dictionaryChildrenByParent(allNodes);
     const roots = rootDictionaryNodes(allNodes);
