@@ -73,7 +73,7 @@ class DictionaryRepository {
                 WHERE (:tableName IS NULL
                    OR tblname = :tableName
                    OR (:tableName = 'dryjbxx' AND tblname = 'ryjbxx'))
-                  AND TRIM(dmlb) <> ''
+                  AND (TRIM(dmlb) <> '' OR UPPER(field_type) = 'D')
                 ORDER BY sequence, field_name
                 """, new MapSqlParameterSource("tableName", emptyToNull(tableName)), FIELD_CONFIG_MAPPER);
     }
