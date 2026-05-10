@@ -24,7 +24,9 @@ const subrecordEditors = {
         title: "学历信息",
         endpoint: uid => `/api/personnel/${uid}/education`,
         fields: [
-            ["educationCode", "学历编码"], ["educationName", "学历"], ["school", "学校"],
+            ["educationCode", "学历编码", "text", { readonly: true }],
+            ["educationName", "学历", "text", { dictionaryPrefix: "002", linkedCodeField: "educationCode" }],
+            ["school", "学校"],
             ["enrollmentDate", "入学时间", "month"], ["graduationDate", "毕业时间", "month"],
             ["studyYears", "学制", "number"], ["educationType", "学历类别"], ["remark", "备注"],
         ],
@@ -619,6 +621,12 @@ function selectDictionaryNode(value, name) {
             ? value
             : name;
     }
+    if (target.config?.linkedCodeInputId) {
+        const linkedInput = document.getElementById(target.config.linkedCodeInputId);
+        if (linkedInput) {
+            linkedInput.value = value || "";
+        }
+    }
     closeDictionaryPicker();
 }
 
@@ -1066,14 +1074,44 @@ function openSubrecordEditor(type, record = null) {
     const config = subrecordEditors[type];
     state.activeSubrecordEditor = { type, record };
     document.getElementById("subrecord-editor-title").textContent = `${record ? "编辑" : "新增"}${config.title}`;
-    document.getElementById("subrecord-editor-form").innerHTML = config.fields.map(([name, label, inputType]) => `
+    document.getElementById("subrecord-editor-form").innerHTML = config.fields.map(([name, label, inputType, options]) => `
         <label>${escapeHtml(label)}
-            <input data-subrecord-field="${escapeHtml(name)}" type="${inputType === "number" ? "number" : inputType === "month" ? "month" : "text"}" value="${escapeHtml(subrecordInputValue(record?.[name], inputType))}">
+            <input id="subrecord-field-${escapeHtml(name)}" data-subrecord-field="${escapeHtml(name)}" type="${inputType === "number" ? "number" : inputType === "month" ? "month" : "text"}" value="${escapeHtml(subrecordInputValue(record?.[name], inputType))}" ${options?.readonly ? "readonly" : ""}>
         </label>
     `).join("") + `<div class="form-actions"><button type="submit">保存记录</button></div>`;
+    enhanceSubrecordEditorInputs(config);
     document.getElementById("subrecord-editor-status").textContent = "";
     document.getElementById("subrecord-editor-status").className = "status";
     document.getElementById("subrecord-editor-modal").classList.remove("hidden");
+}
+
+function enhanceSubrecordEditorInputs(config) {
+    config.fields.forEach(([name, label, , options]) => {
+        if (!options?.dictionaryPrefix) {
+            return;
+        }
+        const input = document.getElementById(`subrecord-field-${name}`);
+        const wrapper = input?.closest("label");
+        if (!input || !wrapper || wrapper.querySelector(".dict-input-combo")) {
+            return;
+        }
+        const combo = document.createElement("div");
+        combo.className = "dict-input-combo";
+        wrapper.insertBefore(combo, input);
+        combo.appendChild(input);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "dict-picker-button";
+        button.setAttribute("aria-label", `选择${label}`);
+        button.textContent = "⌄";
+        button.addEventListener("click", () => openDictionaryPicker(input.id, {
+            fieldName: name,
+            caption: label,
+            dictionaryPrefix: options.dictionaryPrefix,
+            linkedCodeInputId: options.linkedCodeField ? `subrecord-field-${options.linkedCodeField}` : null,
+        }));
+        combo.appendChild(button);
+    });
 }
 
 function closeSubrecordEditor() {
