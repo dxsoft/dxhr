@@ -162,6 +162,7 @@ class PayrollRepository {
             SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("sid")),
             isCurrentPayroll(rs.getString("sid")),
+            rs.getBoolean("app_created"),
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("dwmc")),
             SqlText.trim(rs.getString("grbm")),
@@ -564,13 +565,15 @@ class PayrollRepository {
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
-                SELECT h.id, h.sid, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                SELECT h.id, h.sid, marker.record_id IS NOT NULL AS app_created,
+                       h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
                        h.ryfl, h.dwsx, h.zwbm2, h.zwgw2, h.zwgzdc2, h.jbgzjb2,
                        h.tbnd, h.jbtbz, h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2,
                        h.blfb2, h.jxjt, h.fdgz2, h.jjjy2, h.jhljt, h.jsfszwtg2,
                        h.njbt, h.pgbc, h.hj2
                 FROM hisbase h
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'hisbase' AND marker.record_id = h.id AND marker.marker = 'APP_CREATED'
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
                   AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
@@ -855,6 +858,66 @@ class PayrollRepository {
             throw new NotFoundException("Payroll history not found for personnel record: " + uid);
         }
         return new LinkedHashMap<>(rows.getFirst());
+    }
+
+    Optional<String> findHistoryOrganizationCode(String id) {
+        return jdbcTemplate.queryForList("""
+                SELECT dwbm
+                FROM hisbase
+                WHERE id = :id
+                """, new MapSqlParameterSource("id", id), String.class).stream().findFirst().map(SqlText::trim);
+    }
+
+    String createPayrollHistoryFromLatest(int uid, PayrollHistoryMaintenanceRequest request) {
+        PayrollHistorySnapshot latest = findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        String id = java.util.UUID.randomUUID().toString().toUpperCase();
+        jdbcTemplate.update("""
+                INSERT INTO hisbase
+                SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
+                       h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
+                       h.tc, h.xckhndzw, h.xckhndjb, h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
+                       h.jx, h.tgbl, h.jtbl, h.fddc, h.fdgd, h.fdsj,
+                       :calculationYear, :calculationMonth, :changeType,
+                       h.khqk, h.dynkh, h.denkh, h.bbz, :totalAmount,
+                       :positionCode, :positionName, h.zwgzdc2, :positionSalary, h.jbgzjb2, h.djc2, :gradeSalary,
+                       h.jcgz2, h.glgz2, :technicalGradeSalary, h.grjj2, :retainedAllowance, h.jsfszwtg2,
+                       h.jt2, h.fdgz2, h.jjjy2, :performanceAllowance, h.gwjt2, h.bh, h.jxgz, h.zzbc,
+                       h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt, h.sdbt, h.grsds, h.zfgjj,
+                       h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, h.qtbt, h.jxjt,
+                       h.gryhzh, h.tfnf, h.tfyf, h.spdw, h.tbnd, h.jxjtbz, h.jbtbz, h.jhljt,
+                       h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
+                       h.gwjtbz, h.gwjtlb, h.sfjzgb, NULL
+                FROM hisbase h
+                WHERE h.id = :sourceId
+                """, payrollHistoryRequestParameters(request)
+                .addValue("id", id)
+                .addValue("sourceId", latest.id()));
+        markAppCreated("hisbase", id);
+        return id;
+    }
+
+    void updatePayrollHistory(String id, PayrollHistoryMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET jsnf = :calculationYear,
+                    jsyf = :calculationMonth,
+                    jslb = :changeType,
+                    zwbm2 = :positionCode,
+                    zwgw2 = :positionName,
+                    zwgzse2 = :positionSalary,
+                    jbgzse2 = :gradeSalary,
+                    jsdjgz2 = :technicalGradeSalary,
+                    dfbt2 = :performanceAllowance,
+                    blfb2 = :retainedAllowance,
+                    hj2 = :totalAmount
+                WHERE id = :id
+                """, payrollHistoryRequestParameters(request).addValue("id", id));
+    }
+
+    void deletePayrollHistory(String id) {
+        jdbcTemplate.update("DELETE FROM hisbase WHERE id = :id", new MapSqlParameterSource("id", id));
+        unmarkAppCreated("hisbase", id);
     }
 
     List<PayrollFieldMetadata> findCalculationFields() {
@@ -1387,6 +1450,44 @@ class PayrollRepository {
                 .addValue("organizationCode", emptyToNull(organizationCode))
                 .addValue("keyword", trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private MapSqlParameterSource payrollHistoryRequestParameters(PayrollHistoryMaintenanceRequest request) {
+        return new MapSqlParameterSource()
+                .addValue("calculationYear", valueOrBlank(request.calculationYear()))
+                .addValue("calculationMonth", valueOrBlank(request.calculationMonth()))
+                .addValue("changeType", valueOrBlank(request.changeType()))
+                .addValue("positionCode", valueOrBlank(request.positionCode()))
+                .addValue("positionName", valueOrBlank(request.positionName()))
+                .addValue("positionSalary", request.positionSalary() == null ? 0 : request.positionSalary())
+                .addValue("gradeSalary", request.gradeSalary() == null ? 0 : request.gradeSalary())
+                .addValue("technicalGradeSalary", request.technicalGradeSalary() == null ? 0 : request.technicalGradeSalary())
+                .addValue("performanceAllowance", request.performanceAllowance() == null ? 0 : request.performanceAllowance())
+                .addValue("retainedAllowance", request.retainedAllowance() == null ? 0 : request.retainedAllowance())
+                .addValue("totalAmount", request.totalAmount() == null ? 0 : request.totalAmount());
+    }
+
+    private void markAppCreated(String tableName, Object recordId) {
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_record_marker (table_name, record_id, marker)
+                VALUES (:tableName, :recordId, 'APP_CREATED')
+                """, new MapSqlParameterSource()
+                .addValue("tableName", tableName)
+                .addValue("recordId", String.valueOf(recordId)));
+    }
+
+    private void unmarkAppCreated(String tableName, Object recordId) {
+        jdbcTemplate.update("""
+                DELETE FROM app_record_marker
+                WHERE table_name = :tableName AND record_id = :recordId AND marker = 'APP_CREATED'
+                """, new MapSqlParameterSource()
+                .addValue("tableName", tableName)
+                .addValue("recordId", String.valueOf(recordId)));
+    }
+
+    private String valueOrBlank(String value) {
+        String trimmed = emptyToNull(value);
+        return trimmed == null ? "" : trimmed;
     }
 
     private static boolean isCurrentPayroll(String successorId) {

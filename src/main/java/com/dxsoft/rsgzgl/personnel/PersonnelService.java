@@ -89,6 +89,29 @@ public class PersonnelService {
         return personnelRepository.findEducation(personKey);
     }
 
+    public List<EducationRecord> createEducation(int uid, EducationMaintenanceRequest request) {
+        PersonKey key = getPersonKey(uid);
+        requireWritePermission();
+        int id = personnelRepository.createEducation(key, request);
+        return personnelRepository.findEducation(key);
+    }
+
+    public List<EducationRecord> updateEducation(int uid, int id, EducationMaintenanceRequest request) {
+        PersonKey key = requireSubrecordOrganization(personnelRepository.findEducationKeyById(id), "Education record not found: " + id);
+        PersonKey personKey = getPersonKey(uid);
+        requireSamePerson(key, personKey);
+        requireWritePermission();
+        personnelRepository.updateEducation(id, request);
+        return personnelRepository.findEducation(personKey);
+    }
+
+    public void deleteEducation(int uid, int id) {
+        PersonKey key = requireSubrecordOrganization(personnelRepository.findEducationKeyById(id), "Education record not found: " + id);
+        requireSamePerson(key, getPersonKey(uid));
+        requireWritePermission();
+        personnelRepository.deleteEducation(id);
+    }
+
     public PageResponse<PersonnelEducationHistoryRecord> educationHistories(
             String organizationCode,
             String keyword,
@@ -103,6 +126,52 @@ public class PersonnelService {
     public List<AssessmentRecord> assessments(int uid) {
         PersonKey personKey = getPersonKey(uid);
         return personnelRepository.findAssessments(personKey);
+    }
+
+    public List<PositionRecord> createPosition(int uid, PositionMaintenanceRequest request) {
+        PersonKey key = getPersonKey(uid);
+        requireWritePermission();
+        personnelRepository.createPosition(key, request);
+        return personnelRepository.findPositions(key);
+    }
+
+    public List<PositionRecord> updatePosition(int uid, int id, PositionMaintenanceRequest request) {
+        PersonKey key = requireSubrecordOrganization(personnelRepository.findPositionKeyById(id), "Position record not found: " + id);
+        PersonKey personKey = getPersonKey(uid);
+        requireSamePerson(key, personKey);
+        requireWritePermission();
+        personnelRepository.updatePosition(id, request);
+        return personnelRepository.findPositions(personKey);
+    }
+
+    public void deletePosition(int uid, int id) {
+        PersonKey key = requireSubrecordOrganization(personnelRepository.findPositionKeyById(id), "Position record not found: " + id);
+        requireSamePerson(key, getPersonKey(uid));
+        requireWritePermission();
+        personnelRepository.deletePosition(id);
+    }
+
+    public List<AssessmentRecord> createAssessment(int uid, AssessmentMaintenanceRequest request) {
+        PersonKey key = getPersonKey(uid);
+        requireWritePermission();
+        personnelRepository.createAssessment(key, request);
+        return personnelRepository.findAssessments(key);
+    }
+
+    public List<AssessmentRecord> updateAssessment(int uid, int id, AssessmentMaintenanceRequest request) {
+        PersonKey key = requireSubrecordOrganization(personnelRepository.findAssessmentKeyById(id), "Assessment record not found: " + id);
+        PersonKey personKey = getPersonKey(uid);
+        requireSamePerson(key, personKey);
+        requireWritePermission();
+        personnelRepository.updateAssessment(id, request);
+        return personnelRepository.findAssessments(personKey);
+    }
+
+    public void deleteAssessment(int uid, int id) {
+        PersonKey key = requireSubrecordOrganization(personnelRepository.findAssessmentKeyById(id), "Assessment record not found: " + id);
+        requireSamePerson(key, getPersonKey(uid));
+        requireWritePermission();
+        personnelRepository.deleteAssessment(id);
     }
 
     public PageResponse<AnnualAssessmentRecord> annualAssessments(
@@ -155,6 +224,18 @@ public class PersonnelService {
     private void requireWritePermission() {
         if (!accessControlService.hasPermission("PERSONNEL_WRITE")) {
             throw new AccessDeniedException("PERSONNEL_WRITE permission required");
+        }
+    }
+
+    private PersonKey requireSubrecordOrganization(Optional<PersonKey> optionalKey, String message) {
+        PersonKey key = optionalKey.orElseThrow(() -> new NotFoundException(message));
+        accessControlService.requireOrganization(key.organizationCode());
+        return key;
+    }
+
+    private void requireSamePerson(PersonKey recordKey, PersonKey personKey) {
+        if (!recordKey.organizationCode().equals(personKey.organizationCode()) || !recordKey.personCode().equals(personKey.personCode())) {
+            throw new AccessDeniedException("Record does not belong to the selected personnel");
         }
     }
 

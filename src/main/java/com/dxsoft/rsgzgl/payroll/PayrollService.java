@@ -224,6 +224,32 @@ public class PayrollService {
                 payrollRepository.countPayrollHistories(scope, emptyToNull(organizationCode), period, keyword));
     }
 
+    public PageResponse<PayrollHistoryRecord> createPayrollHistory(int uid, PayrollHistoryMaintenanceRequest request) {
+        PayrollHistorySnapshot latest = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        accessControlService.requireOrganization(latest.organizationCode());
+        requirePayrollWritePermission();
+        payrollRepository.createPayrollHistoryFromLatest(uid, request);
+        return payrollHistories(latest.organizationCode(), null, latest.personCode(), PageRequest.of(0, 50));
+    }
+
+    public PageResponse<PayrollHistoryRecord> updatePayrollHistory(String id, PayrollHistoryMaintenanceRequest request) {
+        String organizationCode = payrollRepository.findHistoryOrganizationCode(id)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found: " + id));
+        accessControlService.requireOrganization(organizationCode);
+        requirePayrollWritePermission();
+        payrollRepository.updatePayrollHistory(id, request);
+        return payrollHistories(organizationCode, null, null, PageRequest.of(0, 50));
+    }
+
+    public void deletePayrollHistory(String id) {
+        String organizationCode = payrollRepository.findHistoryOrganizationCode(id)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found: " + id));
+        accessControlService.requireOrganization(organizationCode);
+        requirePayrollWritePermission();
+        payrollRepository.deletePayrollHistory(id);
+    }
+
     public PageResponse<TeachingAllowanceAdjustment> teachingAllowanceAdjustments(
             String organizationCode,
             String keyword,
@@ -1272,6 +1298,12 @@ public class PayrollService {
 
     private int nullToZero(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private void requirePayrollWritePermission() {
+        if (!accessControlService.hasPermission("PAYROLL_WRITE")) {
+            throw new org.springframework.security.access.AccessDeniedException("PAYROLL_WRITE permission required");
+        }
     }
 
     private BigDecimal nullToZero(BigDecimal value) {

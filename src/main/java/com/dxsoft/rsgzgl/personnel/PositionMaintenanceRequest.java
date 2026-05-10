@@ -1,9 +1,6 @@
 package com.dxsoft.rsgzgl.personnel;
 
-public record PositionRecord(
-        Integer id,
-        String organizationCode,
-        String personCode,
+public record PositionMaintenanceRequest(
         String currentPositionCode,
         String currentPosition,
         String positionLevel,
@@ -14,7 +11,6 @@ public record PositionRecord(
         String startYearMonth,
         Integer intervalYears,
         String activeFlag,
-        String calculationStandard,
-        Boolean appCreated
+        String calculationStandard
 ) {
 }

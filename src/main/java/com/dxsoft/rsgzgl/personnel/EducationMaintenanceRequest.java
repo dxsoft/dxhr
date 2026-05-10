@@ -1,9 +1,6 @@
 package com.dxsoft.rsgzgl.personnel;
 
-public record EducationRecord(
-        Integer id,
-        String organizationCode,
-        String personCode,
+public record EducationMaintenanceRequest(
         String educationCode,
         String educationName,
         String school,
@@ -11,7 +8,6 @@ public record EducationRecord(
         String graduationDate,
         Integer studyYears,
         String educationType,
-        String remark,
-        Boolean appCreated
+        String remark
 ) {
 }

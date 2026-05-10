@@ -66,6 +66,22 @@ class PersonnelController {
         return personnelService.positions(uid);
     }
 
+    @PostMapping("/{uid}/positions")
+    List<PositionRecord> createPosition(@PathVariable int uid, @RequestBody PositionMaintenanceRequest request) {
+        return personnelService.createPosition(uid, request);
+    }
+
+    @PutMapping("/{uid}/positions/{id}")
+    List<PositionRecord> updatePosition(@PathVariable int uid, @PathVariable int id, @RequestBody PositionMaintenanceRequest request) {
+        return personnelService.updatePosition(uid, id, request);
+    }
+
+    @DeleteMapping("/{uid}/positions/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deletePosition(@PathVariable int uid, @PathVariable int id) {
+        personnelService.deletePosition(uid, id);
+    }
+
     @GetMapping("/positions")
     PageResponse<PersonnelPositionHistoryRecord> positionHistories(
             @RequestParam(required = false) String organizationCode,
@@ -80,6 +96,22 @@ class PersonnelController {
         return personnelService.education(uid);
     }
 
+    @PostMapping("/{uid}/education")
+    List<EducationRecord> createEducation(@PathVariable int uid, @RequestBody EducationMaintenanceRequest request) {
+        return personnelService.createEducation(uid, request);
+    }
+
+    @PutMapping("/{uid}/education/{id}")
+    List<EducationRecord> updateEducation(@PathVariable int uid, @PathVariable int id, @RequestBody EducationMaintenanceRequest request) {
+        return personnelService.updateEducation(uid, id, request);
+    }
+
+    @DeleteMapping("/{uid}/education/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteEducation(@PathVariable int uid, @PathVariable int id) {
+        personnelService.deleteEducation(uid, id);
+    }
+
     @GetMapping("/education")
     PageResponse<PersonnelEducationHistoryRecord> educationHistories(
             @RequestParam(required = false) String organizationCode,
@@ -92,6 +124,22 @@ class PersonnelController {
     @GetMapping("/{uid}/assessments")
     List<AssessmentRecord> assessments(@PathVariable int uid) {
         return personnelService.assessments(uid);
+    }
+
+    @PostMapping("/{uid}/assessments")
+    List<AssessmentRecord> createAssessment(@PathVariable int uid, @RequestBody AssessmentMaintenanceRequest request) {
+        return personnelService.createAssessment(uid, request);
+    }
+
+    @PutMapping("/{uid}/assessments/{id}")
+    List<AssessmentRecord> updateAssessment(@PathVariable int uid, @PathVariable int id, @RequestBody AssessmentMaintenanceRequest request) {
+        return personnelService.updateAssessment(uid, id, request);
+    }
+
+    @DeleteMapping("/{uid}/assessments/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteAssessment(@PathVariable int uid, @PathVariable int id) {
+        personnelService.deleteAssessment(uid, id);
     }
 
     @GetMapping("/assessments")

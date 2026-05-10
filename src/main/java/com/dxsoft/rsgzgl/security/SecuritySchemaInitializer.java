@@ -112,6 +112,15 @@ class SecuritySchemaInitializer {
                     sort_order INT NOT NULL DEFAULT 0,
                     enabled TINYINT(1) NOT NULL DEFAULT 1
                 )
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS app_record_marker (
+                    table_name VARCHAR(80) NOT NULL,
+                    record_id VARCHAR(80) NOT NULL,
+                    marker VARCHAR(40) NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (table_name, record_id, marker)
+                )
                 """).forEach(jdbcTemplate::execute);
     }
 
@@ -120,6 +129,7 @@ class SecuritySchemaInitializer {
         upsertPermission("PERSONNEL_READ", "人员信息查询", "PERSONNEL");
         upsertPermission("PERSONNEL_WRITE", "人员信息维护", "PERSONNEL");
         upsertPermission("PAYROLL_READ", "工资试算查询", "PAYROLL");
+        upsertPermission("PAYROLL_WRITE", "工资变动维护", "PAYROLL");
         upsertPermission("AUDIT_READ", "工资批量对账", "PAYROLL");
         upsertPermission("STANDARD_READ", "工资标准维护", "PAYROLL");
         upsertPermission("SECURITY_ADMIN", "权限管理", "SYSTEM");

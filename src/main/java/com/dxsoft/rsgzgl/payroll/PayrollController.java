@@ -2,10 +2,16 @@ package com.dxsoft.rsgzgl.payroll;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -116,6 +122,26 @@ class PayrollController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return payrollService.payrollHistories(organizationCode, period, keyword, PageRequest.of(page, size));
+    }
+
+    @PostMapping("/personnel/{uid}/histories")
+    PageResponse<PayrollHistoryRecord> createPayrollHistory(
+            @PathVariable int uid,
+            @RequestBody PayrollHistoryMaintenanceRequest request) {
+        return payrollService.createPayrollHistory(uid, request);
+    }
+
+    @PutMapping("/histories/{id}")
+    PageResponse<PayrollHistoryRecord> updatePayrollHistory(
+            @PathVariable String id,
+            @RequestBody PayrollHistoryMaintenanceRequest request) {
+        return payrollService.updatePayrollHistory(id, request);
+    }
+
+    @DeleteMapping("/histories/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deletePayrollHistory(@PathVariable String id) {
+        payrollService.deletePayrollHistory(id);
     }
 
     @GetMapping("/teaching-allowance-adjustments")

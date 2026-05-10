@@ -13,6 +13,47 @@ const state = {
     activeDictionaryTarget: null,
     activeDictionaryNodes: [],
     dictionaryExpandedCodes: new Set(),
+    activePersonnelMaintenance: null,
+    activeSubrecordEditor: null,
+};
+
+const subrecordEditors = {
+    education: {
+        title: "学历信息",
+        endpoint: uid => `/api/personnel/${uid}/education`,
+        fields: [
+            ["educationCode", "学历编码"], ["educationName", "学历"], ["school", "学校"],
+            ["enrollmentDate", "入学时间", "month"], ["graduationDate", "毕业时间", "month"],
+            ["studyYears", "学制", "number"], ["educationType", "学历类别"], ["remark", "备注"],
+        ],
+    },
+    position: {
+        title: "职务变化信息",
+        endpoint: uid => `/api/personnel/${uid}/positions`,
+        fields: [
+            ["currentPositionCode", "任职编码"], ["currentPosition", "任职职务"], ["positionLevel", "职务级别"],
+            ["rankCode", "职级编码"], ["positionCode", "岗位编码"], ["positionName", "岗位名称"],
+            ["positionType", "岗位类型"], ["startYearMonth", "任职年月", "month"], ["intervalYears", "间隔年限", "number"],
+            ["activeFlag", "现任标志"], ["calculationStandard", "计算标准"],
+        ],
+    },
+    assessment: {
+        title: "年度考核信息",
+        endpoint: uid => `/api/personnel/${uid}/assessments`,
+        fields: [["year", "年度"], ["result", "考核结果"]],
+    },
+    payroll: {
+        title: "历次调资信息",
+        endpoint: uid => `/api/payroll/personnel/${uid}/histories`,
+        updateEndpoint: id => `/api/payroll/histories/${id}`,
+        fields: [
+            ["calculationYear", "年度"], ["calculationMonth", "月份"], ["changeType", "变动类别"],
+            ["positionCode", "岗位编码"], ["positionName", "岗位名称"], ["positionSalary", "职务工资", "number"],
+            ["gradeSalary", "级别/薪级工资", "number"], ["technicalGradeSalary", "技术等级工资", "number"],
+            ["performanceAllowance", "绩效/生活补贴", "number"], ["retainedAllowance", "保留福补", "number"],
+            ["totalAmount", "合计", "number"],
+        ],
+    },
 };
 
 const yuanFormatter = new Intl.NumberFormat("zh-CN", {
@@ -35,6 +76,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-maintenance-reset").addEventListener("click", resetPersonnelMaintenanceForm);
     document.getElementById("personnel-maintenance-new").addEventListener("click", openNewPersonnelMaintenance);
     document.getElementById("personnel-maintenance-close").addEventListener("click", closePersonnelMaintenanceModal);
+    document.getElementById("subrecord-editor-close").addEventListener("click", closeSubrecordEditor);
+    document.getElementById("subrecord-editor-form").addEventListener("submit", onSubrecordSave);
+    document.getElementById("add-education-record").addEventListener("click", () => openSubrecordEditor("education"));
+    document.getElementById("add-position-record").addEventListener("click", () => openSubrecordEditor("position"));
+    document.getElementById("add-payroll-record").addEventListener("click", () => openSubrecordEditor("payroll"));
+    document.getElementById("add-assessment-record").addEventListener("click", () => openSubrecordEditor("assessment"));
     document.getElementById("dictionary-picker-close").addEventListener("click", closeDictionaryPicker);
     document.getElementById("dictionary-picker-filter").addEventListener("input", renderDictionaryPickerTree);
     document.querySelectorAll("[data-personnel-tab]").forEach(button => {
@@ -848,6 +895,7 @@ function personnelMaintenancePayload() {
 }
 
 function fillPersonnelMaintenanceForm(record) {
+    state.activePersonnelMaintenance = record;
     document.getElementById("personnel-maintenance-uid").value = record.uid || "";
     document.getElementById("maint-organization-code").value = record.organizationCode || "";
     document.getElementById("maint-person-code").value = record.personCode || "";
@@ -873,12 +921,82 @@ function fillPersonnelMaintenanceForm(record) {
 }
 
 function resetPersonnelMaintenanceForm() {
+    state.activePersonnelMaintenance = null;
     document.getElementById("personnel-maintenance-form").reset();
     document.getElementById("personnel-maintenance-uid").value = "";
     document.getElementById("maint-salary-years").value = "0";
     ["maint-education-rows", "maint-position-rows", "maint-payroll-rows", "maint-assessment-rows"].forEach(id => {
         document.getElementById(id).innerHTML = "<tr><td colspan='8'>保存或选择人员后加载记录</td></tr>";
     });
+}
+
+function openSubrecordEditor(type, record = null) {
+    const person = state.activePersonnelMaintenance;
+    if (!person || !person.uid) {
+        alert("请先保存或选择一个人员。");
+        return;
+    }
+    const config = subrecordEditors[type];
+    state.activeSubrecordEditor = { type, record };
+    document.getElementById("subrecord-editor-title").textContent = `${record ? "编辑" : "新增"}${config.title}`;
+    document.getElementById("subrecord-editor-form").innerHTML = config.fields.map(([name, label, inputType]) => `
+        <label>${escapeHtml(label)}
+            <input data-subrecord-field="${escapeHtml(name)}" type="${inputType === "number" ? "number" : inputType === "month" ? "month" : "text"}" value="${escapeHtml(subrecordInputValue(record?.[name], inputType))}">
+        </label>
+    `).join("") + `<div class="form-actions"><button type="submit">保存记录</button></div>`;
+    document.getElementById("subrecord-editor-status").textContent = "";
+    document.getElementById("subrecord-editor-status").className = "status";
+    document.getElementById("subrecord-editor-modal").classList.remove("hidden");
+}
+
+function closeSubrecordEditor() {
+    document.getElementById("subrecord-editor-modal").classList.add("hidden");
+}
+
+async function onSubrecordSave(event) {
+    event.preventDefault();
+    const person = state.activePersonnelMaintenance;
+    const editor = state.activeSubrecordEditor;
+    const status = document.getElementById("subrecord-editor-status");
+    if (!person || !editor) {
+        return;
+    }
+    const config = subrecordEditors[editor.type];
+    const payload = {};
+    config.fields.forEach(([name, , inputType]) => {
+        const input = document.querySelector(`[data-subrecord-field="${name}"]`);
+        payload[name] = inputType === "number" ? Number(input.value || 0) : inputType === "month" ? input.value.replace("-", ".") : input.value.trim();
+    });
+    status.textContent = "正在保存记录...";
+    try {
+        const url = editor.record
+            ? (config.updateEndpoint ? config.updateEndpoint(editor.record.id) : `${config.endpoint(person.uid)}/${editor.record.id}`)
+            : config.endpoint(person.uid);
+        const rows = editor.record ? await putJson(url, payload) : await postJson(url, payload);
+        status.textContent = "保存成功";
+        closeSubrecordEditor();
+        await loadPersonnelSubrecords(person.uid, person.organizationCode, person.personCode);
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function deleteSubrecord(type, id) {
+    const person = state.activePersonnelMaintenance;
+    if (!person || !confirm("确认删除该记录？")) {
+        return;
+    }
+    const config = subrecordEditors[type];
+    const url = config.updateEndpoint ? config.updateEndpoint(id) : `${config.endpoint(person.uid)}/${id}`;
+    await deleteJson(url);
+    await loadPersonnelSubrecords(person.uid, person.organizationCode, person.personCode);
+}
+
+function subrecordInputValue(value, inputType) {
+    if (inputType === "month") {
+        return String(value || "").replace(".", "-").slice(0, 7);
+    }
+    return value ?? "";
 }
 
 function monthPayloadValue(inputId) {
@@ -901,48 +1019,65 @@ async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
     ]);
     document.getElementById("maint-education-rows").innerHTML = education.length ? education.map(row => `
         <tr>
-            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
             <td>${escapeHtml(row.educationCode)}</td>
             <td>${escapeHtml(row.educationName)}</td>
             <td>${escapeHtml(row.school)}</td>
             <td>${escapeHtml(row.enrollmentDate)}</td>
             <td>${escapeHtml(row.graduationDate)}</td>
             <td>${escapeHtml(row.educationType)}</td>
-            <td>${escapeHtml(row.remark)}</td>
+            <td>${escapeHtml(row.remark)} <button class="row-action" type="button" data-edit-education="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-education="${row.id}">删除</button></td>
         </tr>
     `).join("") : "<tr><td colspan='8'>暂无学历记录</td></tr>";
     document.getElementById("maint-position-rows").innerHTML = positions.length ? positions.map(row => `
         <tr>
-            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
             <td>${escapeHtml(row.currentPositionCode)}</td>
             <td>${escapeHtml(row.currentPosition)}</td>
             <td>${escapeHtml(row.rankCode)}</td>
             <td>${escapeHtml(row.positionCode)}</td>
             <td>${escapeHtml(row.positionName)}</td>
             <td>${escapeHtml(row.startYearMonth)}</td>
-            <td>${escapeHtml(row.activeFlag)}</td>
+            <td>${escapeHtml(row.activeFlag)} <button class="row-action" type="button" data-edit-position="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-position="${row.id}">删除</button></td>
         </tr>
     `).join("") : "<tr><td colspan='8'>暂无任职记录</td></tr>";
     document.getElementById("maint-assessment-rows").innerHTML = assessments.length ? assessments.map(row => `
         <tr>
-            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
             <td>${escapeHtml(row.year)}</td>
-            <td>${escapeHtml(row.result)}</td>
+            <td>${escapeHtml(row.result)} <button class="row-action" type="button" data-edit-assessment="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-assessment="${row.id}">删除</button></td>
         </tr>
     `).join("") : "<tr><td colspan='3'>暂无考核记录</td></tr>";
     const histories = payrollHistory.content || [];
     document.getElementById("maint-payroll-rows").innerHTML = histories.length ? histories.map(row => `
         <tr>
-            <td>${escapeHtml(row.id)}</td>
+            <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
             <td>${escapeHtml(row.calculationYear)}${escapeHtml(row.calculationMonth)}</td>
             <td>${escapeHtml(row.changeType)}</td>
             <td>${escapeHtml(row.positionName)}</td>
             <td>${money(row.positionSalary)}</td>
             <td>${money(row.gradeSalary)}</td>
             <td>${money(row.totalAmount)}</td>
-            <td>${row.currentPayroll ? "是" : "否"}</td>
+            <td>${row.currentPayroll ? "是" : "否"} <button class="row-action" type="button" data-edit-payroll="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-payroll="${row.id}">删除</button></td>
         </tr>
     `).join("") : "<tr><td colspan='8'>暂无调资记录</td></tr>";
+    bindSubrecordActions("education", education);
+    bindSubrecordActions("position", positions);
+    bindSubrecordActions("assessment", assessments);
+    bindSubrecordActions("payroll", histories);
+}
+
+function bindSubrecordActions(type, rows) {
+    rows.forEach(row => {
+        const edit = document.querySelector(`[data-edit-${type}="${row.id}"]`);
+        const del = document.querySelector(`[data-delete-${type}="${row.id}"]`);
+        if (edit) {
+            edit.addEventListener("click", () => openSubrecordEditor(type, row));
+        }
+        if (del) {
+            del.addEventListener("click", () => deleteSubrecord(type, row.id));
+        }
+    });
 }
 
 async function loadAnnualAssessments() {

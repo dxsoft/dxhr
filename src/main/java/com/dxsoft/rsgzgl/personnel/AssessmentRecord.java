@@ -5,6 +5,7 @@ public record AssessmentRecord(
         String organizationCode,
         String personCode,
         String year,
-        String result
+        String result,
+        Boolean appCreated
 ) {
 }

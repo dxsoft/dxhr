@@ -92,7 +92,8 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("srny")),
             rs.getInt("kjnx"),
             SqlText.trim(rs.getString("xrzwbz")),
-            SqlText.trim(rs.getString("jsbz"))
+            SqlText.trim(rs.getString("jsbz")),
+            rs.getBoolean("app_created")
     );
 
     private static final RowMapper<PersonnelPositionHistoryRecord> POSITION_HISTORY_MAPPER = (rs, rowNum) -> new PersonnelPositionHistoryRecord(
@@ -125,7 +126,8 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("bysj")),
             rs.getInt("xz"),
             SqlText.trim(rs.getString("xllb")),
-            SqlText.trim(rs.getString("bz"))
+            SqlText.trim(rs.getString("bz")),
+            rs.getBoolean("app_created")
     );
 
     private static final RowMapper<PersonnelEducationHistoryRecord> EDUCATION_HISTORY_MAPPER = (rs, rowNum) -> new PersonnelEducationHistoryRecord(
@@ -149,7 +151,8 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("grbm")),
             SqlText.trim(rs.getString("khnd")),
-            SqlText.trim(rs.getString("khjg"))
+            SqlText.trim(rs.getString("khjg")),
+            rs.getBoolean("app_created")
     );
 
     private static final RowMapper<AnnualAssessmentRecord> ANNUAL_ASSESSMENT_MAPPER = (rs, rowNum) -> new AnnualAssessmentRecord(
@@ -314,11 +317,25 @@ class PersonnelRepository {
         )).stream().findFirst();
     }
 
+    Optional<PersonKey> findEducationKeyById(int id) {
+        return findSubrecordKeyById("dxl", id);
+    }
+
+    Optional<PersonKey> findPositionKeyById(int id) {
+        return findSubrecordKeyById("dryzwbh", id);
+    }
+
+    Optional<PersonKey> findAssessmentKeyById(int id) {
+        return findSubrecordKeyById("dndkh", id);
+    }
+
     List<PositionRecord> findPositions(PersonKey key) {
         return jdbcTemplate.query("""
-                SELECT id, dwbm, grbm, xrzwbm, xrzw, zwjb, zjbm, zwbm, xzzw, zwlb, srny, kjnx, xrzwbz, jsbz
-                FROM dryzwbh
-                WHERE dwbm = :dwbm AND grbm = :grbm
+                SELECT z.id, z.dwbm, z.grbm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm, z.zwbm, z.xzzw, z.zwlb,
+                       z.srny, z.kjnx, z.xrzwbz, z.jsbz, marker.record_id IS NOT NULL AS app_created
+                FROM dryzwbh z
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'dryzwbh' AND marker.record_id = CAST(z.id AS CHAR) AND marker.marker = 'APP_CREATED'
+                WHERE z.dwbm = :dwbm AND z.grbm = :grbm
                 ORDER BY srny DESC, id DESC
                 """, keyParameters(key), POSITION_MAPPER);
     }
@@ -367,9 +384,11 @@ class PersonnelRepository {
 
     List<EducationRecord> findEducation(PersonKey key) {
         return jdbcTemplate.query("""
-                SELECT id, dwbm, grbm, xlbm, xl, byyx, rxsj, bysj, xz, xllb, bz
-                FROM dxl
-                WHERE dwbm = :dwbm AND grbm = :grbm
+                SELECT e.id, e.dwbm, e.grbm, e.xlbm, e.xl, e.byyx, e.rxsj, e.bysj, e.xz, e.xllb, e.bz,
+                       marker.record_id IS NOT NULL AS app_created
+                FROM dxl e
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'dxl' AND marker.record_id = CAST(e.id AS CHAR) AND marker.marker = 'APP_CREATED'
+                WHERE e.dwbm = :dwbm AND e.grbm = :grbm
                 ORDER BY bysj DESC, xlbm
                 """, keyParameters(key), EDUCATION_MAPPER);
     }
@@ -463,11 +482,84 @@ class PersonnelRepository {
 
     List<AssessmentRecord> findAssessments(PersonKey key) {
         return jdbcTemplate.query("""
-                SELECT id, dwbm, grbm, khnd, khjg
-                FROM dndkh
-                WHERE dwbm = :dwbm AND grbm = :grbm
+                SELECT a.id, a.dwbm, a.grbm, a.khnd, a.khjg, marker.record_id IS NOT NULL AS app_created
+                FROM dndkh a
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'dndkh' AND marker.record_id = CAST(a.id AS CHAR) AND marker.marker = 'APP_CREATED'
+                WHERE a.dwbm = :dwbm AND a.grbm = :grbm
                 ORDER BY khnd DESC
                 """, keyParameters(key), ASSESSMENT_MAPPER);
+    }
+
+    int createEducation(PersonKey key, EducationMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                INSERT INTO dxl (dwbm, grbm, xlbm, xl, byyx, rxsj, bysj, xz, xllb, bz)
+                VALUES (:dwbm, :grbm, :educationCode, :educationName, :school, :enrollmentDate, :graduationDate, :studyYears, :educationType, :remark)
+                """, educationParameters(key, request));
+        int id = lastInsertId();
+        markAppCreated("dxl", id);
+        return id;
+    }
+
+    void updateEducation(int id, EducationMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                UPDATE dxl
+                SET xlbm = :educationCode, xl = :educationName, byyx = :school, rxsj = :enrollmentDate,
+                    bysj = :graduationDate, xz = :studyYears, xllb = :educationType, bz = :remark
+                WHERE id = :id
+                """, educationParameters(new PersonKey("", ""), request).addValue("id", id));
+    }
+
+    void deleteEducation(int id) {
+        jdbcTemplate.update("DELETE FROM dxl WHERE id = :id", new MapSqlParameterSource("id", id));
+        unmarkAppCreated("dxl", id);
+    }
+
+    int createPosition(PersonKey key, PositionMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                INSERT INTO dryzwbh (dwbm, grbm, xrzwbm, xrzw, zwjb, zjbm, zwbm, xzzw, zwlb, srny, kjnx, xrzwbz, jsbz)
+                VALUES (:dwbm, :grbm, :currentPositionCode, :currentPosition, :positionLevel, :rankCode, :positionCode, :positionName, :positionType, :startYearMonth, :intervalYears, :activeFlag, :calculationStandard)
+                """, positionParameters(key, request));
+        int id = lastInsertId();
+        markAppCreated("dryzwbh", id);
+        return id;
+    }
+
+    void updatePosition(int id, PositionMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                UPDATE dryzwbh
+                SET xrzwbm = :currentPositionCode, xrzw = :currentPosition, zwjb = :positionLevel, zjbm = :rankCode,
+                    zwbm = :positionCode, xzzw = :positionName, zwlb = :positionType, srny = :startYearMonth,
+                    kjnx = :intervalYears, xrzwbz = :activeFlag, jsbz = :calculationStandard
+                WHERE id = :id
+                """, positionParameters(new PersonKey("", ""), request).addValue("id", id));
+    }
+
+    void deletePosition(int id) {
+        jdbcTemplate.update("DELETE FROM dryzwbh WHERE id = :id", new MapSqlParameterSource("id", id));
+        unmarkAppCreated("dryzwbh", id);
+    }
+
+    int createAssessment(PersonKey key, AssessmentMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                INSERT INTO dndkh (dwbm, grbm, khnd, khjg)
+                VALUES (:dwbm, :grbm, :year, :result)
+                """, assessmentParameters(key, request));
+        int id = lastInsertId();
+        markAppCreated("dndkh", id);
+        return id;
+    }
+
+    void updateAssessment(int id, AssessmentMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                UPDATE dndkh
+                SET khnd = :year, khjg = :result
+                WHERE id = :id
+                """, assessmentParameters(new PersonKey("", ""), request).addValue("id", id));
+    }
+
+    void deleteAssessment(int id) {
+        jdbcTemplate.update("DELETE FROM dndkh WHERE id = :id", new MapSqlParameterSource("id", id));
+        unmarkAppCreated("dndkh", id);
     }
 
     List<AnnualAssessmentRecord> findAnnualAssessments(
@@ -599,6 +691,68 @@ class PersonnelRepository {
                 .addValue("archiveNumber", valueOrBlank(request.archiveNumber()));
     }
 
+    private MapSqlParameterSource educationParameters(PersonKey key, EducationMaintenanceRequest request) {
+        return new MapSqlParameterSource()
+                .addValue("dwbm", key.organizationCode())
+                .addValue("grbm", key.personCode())
+                .addValue("educationCode", valueOrBlank(request.educationCode()))
+                .addValue("educationName", valueOrBlank(request.educationName()))
+                .addValue("school", valueOrBlank(request.school()))
+                .addValue("enrollmentDate", valueOrBlank(request.enrollmentDate()))
+                .addValue("graduationDate", valueOrBlank(request.graduationDate()))
+                .addValue("studyYears", request.studyYears() == null ? 0 : request.studyYears())
+                .addValue("educationType", valueOrBlank(request.educationType()))
+                .addValue("remark", valueOrBlank(request.remark()));
+    }
+
+    private MapSqlParameterSource positionParameters(PersonKey key, PositionMaintenanceRequest request) {
+        return new MapSqlParameterSource()
+                .addValue("dwbm", key.organizationCode())
+                .addValue("grbm", key.personCode())
+                .addValue("currentPositionCode", valueOrBlank(request.currentPositionCode()))
+                .addValue("currentPosition", valueOrBlank(request.currentPosition()))
+                .addValue("positionLevel", valueOrBlank(request.positionLevel()))
+                .addValue("rankCode", valueOrBlank(request.rankCode()))
+                .addValue("positionCode", valueOrBlank(request.positionCode()))
+                .addValue("positionName", valueOrBlank(request.positionName()))
+                .addValue("positionType", valueOrBlank(request.positionType()))
+                .addValue("startYearMonth", valueOrBlank(request.startYearMonth()))
+                .addValue("intervalYears", request.intervalYears() == null ? 0 : request.intervalYears())
+                .addValue("activeFlag", valueOrBlank(request.activeFlag()))
+                .addValue("calculationStandard", valueOrBlank(request.calculationStandard()));
+    }
+
+    private MapSqlParameterSource assessmentParameters(PersonKey key, AssessmentMaintenanceRequest request) {
+        return new MapSqlParameterSource()
+                .addValue("dwbm", key.organizationCode())
+                .addValue("grbm", key.personCode())
+                .addValue("year", valueOrBlank(request.year()))
+                .addValue("result", valueOrBlank(request.result()));
+    }
+
+    private int lastInsertId() {
+        Integer id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", new MapSqlParameterSource(), Integer.class);
+        return id == null ? 0 : id;
+    }
+
+    private void markAppCreated(String tableName, Object recordId) {
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_record_marker (table_name, record_id, marker)
+                VALUES (:tableName, :recordId, 'APP_CREATED')
+                """, new MapSqlParameterSource()
+                .addValue("tableName", tableName)
+                .addValue("recordId", String.valueOf(recordId)));
+    }
+
+    private void unmarkAppCreated(String tableName, Object recordId) {
+        jdbcTemplate.update("""
+                DELETE FROM app_record_marker
+                WHERE table_name = :tableName AND record_id = :recordId AND marker = 'APP_CREATED'
+                """, new MapSqlParameterSource()
+                .addValue("tableName", tableName)
+                .addValue("recordId", String.valueOf(recordId)));
+    }
+
     private String valueOrBlank(String value) {
         String trimmed = SqlText.trim(value);
         return trimmed == null ? "" : trimmed;
@@ -608,6 +762,16 @@ class PersonnelRepository {
         return new MapSqlParameterSource()
                 .addValue("dwbm", key.organizationCode())
                 .addValue("grbm", key.personCode());
+    }
+
+    private Optional<PersonKey> findSubrecordKeyById(String tableName, int id) {
+        return jdbcTemplate.query("""
+                SELECT dwbm, grbm
+                FROM %s
+                WHERE id = :id
+                """.formatted(tableName), new MapSqlParameterSource("id", id), (rs, rowNum) -> new PersonKey(
+                SqlText.trim(rs.getString("dwbm")),
+                SqlText.trim(rs.getString("grbm")))).stream().findFirst();
     }
 
     private MapSqlParameterSource assessmentParameters(
