@@ -12,6 +12,7 @@ const state = {
     dictionaryFieldConfigs: {},
     activeDictionaryTarget: null,
     activeDictionaryNodes: [],
+    dictionaryExpandedCodes: new Set(),
 };
 
 const yuanFormatter = new Intl.NumberFormat("zh-CN", {
@@ -294,13 +295,17 @@ async function initializeDictionaryPickers() {
             input.dataset.dictionaryPrefix = config.dictionaryPrefix;
             input.dataset.dictionaryField = fieldName;
             const wrapper = input.closest("label");
-            if (wrapper && !wrapper.querySelector(".dict-picker-button")) {
+            if (wrapper && !wrapper.querySelector(".dict-input-combo")) {
+                const combo = document.createElement("div");
+                combo.className = "dict-input-combo";
+                wrapper.insertBefore(combo, input);
+                combo.appendChild(input);
                 const button = document.createElement("button");
                 button.type = "button";
                 button.className = "dict-picker-button";
                 button.textContent = "选择";
                 button.addEventListener("click", () => openDictionaryPicker(inputId, config));
-                wrapper.appendChild(button);
+                combo.appendChild(button);
             }
         });
     } catch (error) {
@@ -316,6 +321,7 @@ async function openDictionaryPicker(inputId, config) {
     document.getElementById("dictionary-picker-modal").classList.remove("hidden");
     try {
         state.activeDictionaryNodes = await getJson(`/api/dictionaries/tree?prefix=${encodeURIComponent(config.dictionaryPrefix)}`);
+        state.dictionaryExpandedCodes = new Set(rootDictionaryNodes(state.activeDictionaryNodes).map(node => node.code));
         renderDictionaryPickerTree();
     } catch (error) {
         document.getElementById("dictionary-picker-tree").innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
@@ -329,30 +335,88 @@ function closeDictionaryPicker() {
 function renderDictionaryPickerTree() {
     const container = document.getElementById("dictionary-picker-tree");
     const filter = document.getElementById("dictionary-picker-filter").value.trim().toLowerCase();
-    const nodes = (state.activeDictionaryNodes || []).filter(node => {
-        if (!filter) {
-            return true;
+    const allNodes = state.activeDictionaryNodes || [];
+    const childrenByParent = dictionaryChildrenByParent(allNodes);
+    const roots = rootDictionaryNodes(allNodes);
+    const visibleNodes = [];
+    const appendVisibleNodes = (node, depth) => {
+        const children = childrenByParent.get(node.code) || [];
+        const descendantMatches = children.some(child => dictionaryNodeMatchesFilter(child, filter, childrenByParent));
+        const selfMatches = dictionaryNodeTextMatches(node, filter);
+        if (!filter || selfMatches || descendantMatches) {
+            visibleNodes.push({ node, depth, hasChildren: children.length > 0 });
+            const expanded = filter || state.dictionaryExpandedCodes.has(node.code);
+            if (expanded) {
+                children.forEach(child => appendVisibleNodes(child, depth + 1));
+            }
         }
-        return String(node.code || "").toLowerCase().includes(filter)
-            || String(node.value || "").toLowerCase().includes(filter)
-            || String(node.name || "").toLowerCase().includes(filter);
-    });
-    if (!nodes.length) {
+    };
+    roots.forEach(root => appendVisibleNodes(root, 0));
+    if (!visibleNodes.length) {
         container.innerHTML = "<div class='empty-state'>没有匹配的选项</div>";
         return;
     }
-    container.innerHTML = nodes.map(node => {
-        const depth = Math.max(0, Math.floor((String(node.code || "").length - String(state.activeDictionaryTarget?.config?.dictionaryPrefix || "").length) / 2));
+    container.innerHTML = visibleNodes.map(({ node, depth, hasChildren }) => {
+        const expanded = filter || state.dictionaryExpandedCodes.has(node.code);
         return `
-            <button type="button" class="dictionary-node" style="--depth:${depth}" data-dict-code="${escapeHtml(node.code)}" data-dict-value="${escapeHtml(node.value || "")}" data-dict-name="${escapeHtml(node.name || "")}">
+            <button type="button" class="dictionary-node ${hasChildren ? "branch" : "leaf"}" style="--depth:${depth}" data-dict-code="${escapeHtml(node.code)}" data-dict-value="${escapeHtml(node.value || "")}" data-dict-name="${escapeHtml(node.name || "")}" data-has-children="${hasChildren}">
+                <em>${hasChildren ? (expanded ? "▾" : "▸") : "•"}</em>
                 <span>${escapeHtml(node.code)}</span>
                 <strong>${escapeHtml(node.name)}</strong>
             </button>
         `;
     }).join("");
     container.querySelectorAll(".dictionary-node").forEach(button => {
-        button.addEventListener("click", () => selectDictionaryNode(button.dataset.dictValue, button.dataset.dictName));
+        button.addEventListener("click", () => {
+            if (button.dataset.hasChildren === "true") {
+                toggleDictionaryNode(button.dataset.dictCode);
+                return;
+            }
+            selectDictionaryNode(button.dataset.dictValue, button.dataset.dictName);
+        });
     });
+}
+
+function dictionaryChildrenByParent(nodes) {
+    const map = new Map();
+    nodes.forEach(node => {
+        const key = node.parentCode || "__ROOT__";
+        if (!map.has(key)) {
+            map.set(key, []);
+        }
+        map.get(key).push(node);
+    });
+    return map;
+}
+
+function rootDictionaryNodes(nodes) {
+    const codes = new Set((nodes || []).map(node => node.code));
+    return (nodes || []).filter(node => !node.parentCode || !codes.has(node.parentCode));
+}
+
+function dictionaryNodeTextMatches(node, filter) {
+    if (!filter) {
+        return true;
+    }
+    return String(node.code || "").toLowerCase().includes(filter)
+        || String(node.value || "").toLowerCase().includes(filter)
+        || String(node.name || "").toLowerCase().includes(filter);
+}
+
+function dictionaryNodeMatchesFilter(node, filter, childrenByParent) {
+    if (dictionaryNodeTextMatches(node, filter)) {
+        return true;
+    }
+    return (childrenByParent.get(node.code) || []).some(child => dictionaryNodeMatchesFilter(child, filter, childrenByParent));
+}
+
+function toggleDictionaryNode(code) {
+    if (state.dictionaryExpandedCodes.has(code)) {
+        state.dictionaryExpandedCodes.delete(code);
+    } else {
+        state.dictionaryExpandedCodes.add(code);
+    }
+    renderDictionaryPickerTree();
 }
 
 function selectDictionaryNode(value, name) {

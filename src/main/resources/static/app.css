@@ -536,10 +536,21 @@ tr:last-child td {
     transform: none;
 }
 
+.dict-input-combo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+}
+
+.dict-input-combo input {
+    border-radius: 12px 0 0 12px;
+}
+
 .dict-picker-button {
     width: max-content;
-    padding: 6px 10px;
+    padding: 0 12px;
     font-size: 12px;
+    border-radius: 0 12px 12px 0;
     box-shadow: none;
 }
 
@@ -561,8 +572,8 @@ tr:last-child td {
 
 .dictionary-node {
     display: grid;
-    grid-template-columns: 120px 1fr;
-    gap: 12px;
+    grid-template-columns: 20px 128px 1fr;
+    gap: 10px;
     align-items: center;
     width: 100%;
     padding: 9px 12px 9px calc(12px + var(--depth) * 18px);
@@ -573,9 +584,23 @@ tr:last-child td {
     box-shadow: none;
 }
 
-.dictionary-node:hover {
+.dictionary-node:hover,
+.dictionary-node.leaf:hover {
     color: var(--primary-dark);
     background: var(--primary-soft);
+}
+
+.dictionary-node.branch {
+    font-weight: 700;
+}
+
+.dictionary-node.leaf {
+    cursor: pointer;
+}
+
+.dictionary-node em {
+    color: var(--muted);
+    font-style: normal;
 }
 
 .dictionary-node span {
