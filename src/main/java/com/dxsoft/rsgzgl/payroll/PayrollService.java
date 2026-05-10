@@ -1015,13 +1015,17 @@ public class PayrollService {
         Integer currentPositionSalary = payrollRepository.positionSalary(history.positionCode(), history.salaryStandardYearMonth());
         Integer newPositionSalary = payrollRepository.positionSalary(candidate.positionCode(), history.salaryStandardYearMonth());
         Integer currentGradeSalary = payrollRepository.gradeSalary(history.gradeSalaryLevel(), currentStep, history.salaryStandardYearMonth());
-        boolean eligible = !sequenceConversion
+        PoliceOfficerConversionResult policeOfficerResult = policeOfficerConversion
+                ? policeOfficerConversionResult(history, candidate, levelRange, currentLevel, currentStep, currentGradeSalary)
+                : null;
+        boolean sameSequenceEligible = !sequenceConversion
                 && isCivilServantForPositionChange(history.positionCode())
                 && isCivilServantForPositionChange(candidate.positionCode())
                 && levelRange != null
                 && currentLevel > 0;
+        boolean eligible = (policeOfficerResult != null && policeOfficerResult.eligible()) || sameSequenceEligible;
         String promotedLevel = history.gradeSalaryLevel();
-        if (eligible) {
+        if (sameSequenceEligible) {
             if (currentLevel > levelRange.minimumLevel()) {
                 promotedLevel = String.valueOf(levelRange.minimumLevel());
             } else if (currentLevel >= levelRange.maximumLevel()) {
@@ -1030,13 +1034,18 @@ public class PayrollService {
         }
         String promotedStep = currentStep;
         Integer promotedGradeSalary = currentGradeSalary;
-        if (eligible && !promotedLevel.equals(history.gradeSalaryLevel())) {
+        if (sameSequenceEligible && !promotedLevel.equals(history.gradeSalaryLevel())) {
             promotedStep = firstHigherGradeStep(promotedLevel, currentGradeSalary, history.salaryStandardYearMonth());
             promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
         }
+        if (policeOfficerResult != null && policeOfficerResult.eligible()) {
+            promotedLevel = policeOfficerResult.promotedLevel();
+            promotedStep = policeOfficerResult.promotedStep();
+            promotedGradeSalary = policeOfficerResult.promotedGradeSalary();
+        }
         int promotedLevels = Math.max(0, currentLevel - payrollRepository.intValue(promotedLevel));
         String nextLevelAssessmentStartYear = promotedLevels >= 2 ? history.calculationYear() : history.levelAssessmentStartYear();
-        boolean gradeIncreaseExceedsStepDifference = eligible && promotedLevels > 0
+        boolean gradeIncreaseExceedsStepDifference = sameSequenceEligible && promotedLevels > 0
                 && gradeIncreaseExceedsStepDifference(
                 history.gradeSalaryLevel(),
                 currentStep,
@@ -1067,6 +1076,9 @@ public class PayrollService {
                 currentStep,
                 levelRange == null ? null : String.valueOf(levelRange.minimumLevel()),
                 levelRange == null ? null : String.valueOf(levelRange.maximumLevel()),
+                policeOfficerResult == null ? null : policeOfficerResult.sameRankLevel(),
+                policeOfficerResult == null ? null : policeOfficerResult.sameRankStep(),
+                policeOfficerResult == null ? null : policeOfficerResult.highPositionPromotion(),
                 promotedLevel,
                 promotedStep,
                 currentPositionSalary,
@@ -1090,7 +1102,8 @@ public class PayrollService {
                         gradeIncreaseExceedsStepDifference,
                         sequenceConversion,
                         policeOfficerConversion,
-                        judicialConversion));
+                        judicialConversion,
+                        policeOfficerResult));
     }
 
     private EducationPromotionPreview educationPromotionPreview(int uid) {
@@ -1336,6 +1349,86 @@ public class PayrollService {
                 && JUDICIAL_CONVERSION_TARGET_PREFIXES.contains(newPositionPrefix);
     }
 
+    private PoliceOfficerConversionResult policeOfficerConversionResult(
+            PayrollHistorySnapshot history,
+            PositionChangeCandidate candidate,
+            PositionLevelRange targetLevelRange,
+            int currentLevel,
+            String currentStep,
+            Integer currentGradeSalary) {
+        if (targetLevelRange == null || currentLevel <= 0 || payrollRepository.intValue(currentStep) <= 0) {
+            return PoliceOfficerConversionResult.ineligible();
+        }
+        int sameRankCivilLevel = targetLevelRange.minimumLevel() + 7;
+        boolean highPositionPromotion = isPoliceHighPositionPromotion(history.positionCode(), candidate.positionCode());
+        String sameRankLevel;
+        String sameRankStep;
+        String promotedLevel;
+        String promotedStep;
+        if (currentLevel > sameRankCivilLevel) {
+            sameRankLevel = String.valueOf(targetLevelRange.minimumLevel());
+            sameRankStep = firstHigherGradeStep(String.valueOf(sameRankCivilLevel), currentGradeSalary, "201807");
+            promotedLevel = sameRankLevel;
+            promotedStep = sameRankStep;
+        } else {
+            sameRankLevel = String.valueOf(Math.max(1, currentLevel - 7));
+            sameRankStep = currentStep;
+            if (highPositionPromotion) {
+                promotedLevel = String.valueOf(Math.max(1, currentLevel - 8));
+                promotedStep = firstHigherPoliceGradeStep(sameRankLevel, currentStep, promotedLevel, "201807");
+            } else {
+                promotedLevel = sameRankLevel;
+                promotedStep = sameRankStep;
+            }
+        }
+        int promotedGradeSalary = payrollRepository.policeOfficerGradeSalary(promotedLevel, promotedStep, "201807");
+        if (promotedGradeSalary == 0) {
+            promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
+        }
+        return new PoliceOfficerConversionResult(
+                true,
+                sameRankLevel,
+                sameRankStep,
+                highPositionPromotion,
+                promotedLevel,
+                promotedStep,
+                promotedGradeSalary);
+    }
+
+    private boolean isPoliceHighPositionPromotion(String currentPositionCode, String targetPositionCode) {
+        return (Set.of("0207", "01C0").contains(currentPositionCode) && "2111".equals(targetPositionCode))
+                || (Set.of("0206", "01B0").contains(currentPositionCode) && Set.of("2110", "2109").contains(targetPositionCode))
+                || (Set.of("0204", "0205", "01A1", "01A0").contains(currentPositionCode) && Set.of("2108", "2107").contains(targetPositionCode))
+                || (Set.of("0203", "0191", "0190").contains(currentPositionCode) && Set.of("2106", "2105").contains(targetPositionCode))
+                || (Set.of("0202", "0181", "0180").contains(currentPositionCode) && Set.of("2104", "2103").contains(targetPositionCode))
+                || (Set.of("0201", "0171", "0170").contains(currentPositionCode) && "2102".equals(targetPositionCode));
+    }
+
+    private String firstHigherPoliceGradeStep(String currentLevel, String currentStep, String promotedLevel, String standardYearMonth) {
+        int currentSalary = payrollRepository.policeOfficerGradeSalary(currentLevel, currentStep, standardYearMonth);
+        for (int step = 1; step <= 14; step++) {
+            int amount = payrollRepository.policeOfficerGradeSalary(promotedLevel, String.valueOf(step), standardYearMonth);
+            if (amount > currentSalary) {
+                return String.valueOf(step);
+            }
+        }
+        return "14";
+    }
+
+    private record PoliceOfficerConversionResult(
+            boolean eligible,
+            String sameRankLevel,
+            String sameRankStep,
+            boolean highPositionPromotion,
+            String promotedLevel,
+            String promotedStep,
+            Integer promotedGradeSalary) {
+
+        static PoliceOfficerConversionResult ineligible() {
+            return new PoliceOfficerConversionResult(false, null, null, false, null, null, 0);
+        }
+    }
+
     private String positionChangeType(
             String currentPositionCode,
             String newPositionCode,
@@ -1380,9 +1473,15 @@ public class PayrollService {
             boolean gradeIncreaseExceedsStepDifference,
             boolean sequenceConversion,
             boolean policeOfficerConversion,
-            boolean judicialConversion) {
+            boolean judicialConversion,
+            PoliceOfficerConversionResult policeOfficerResult) {
         if (policeOfficerConversion) {
-            return "新旧职务前缀属于不同序列，且由 01/02/23/24/25/26/27/28 转换到 21/22，识别为警员套改；不按同序列职务晋升级别规则试算。";
+            if (policeOfficerResult == null || !policeOfficerResult.eligible()) {
+                return "识别为警员套改，但未找到套改后职务对应的等级范围，暂不能试算。";
+            }
+            return policeOfficerResult.highPositionPromotion()
+                    ? "识别为警员套改；高套职务按旧系统 jytg 规则先按同级职务平套，再按职务晋升政策晋升到套改后职务。"
+                    : "识别为警员套改；按旧系统 jytg 规则先判断是否达到套改后职务最低等级，未达最低进最低，已达最低保持平套等级。";
         }
         if (judicialConversion) {
             return "新旧职务前缀属于不同序列，且由 01/02/23/24/25/26/27/28 转换到 03，识别为法检套改；不按同序列职务晋升级别规则试算。";

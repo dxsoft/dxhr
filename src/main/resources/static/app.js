@@ -2065,6 +2065,9 @@ async function loadPositionChangePromotions() {
                 <td>${escapeHtml(row.currentStep || "")}</td>
                 <td>${escapeHtml(row.newPositionMinimumLevel || "")}</td>
                 <td>${escapeHtml(row.newPositionMaximumLevel || "")}</td>
+                <td>${escapeHtml(row.policeSameRankLevel || "")}</td>
+                <td>${escapeHtml(row.policeSameRankStep || "")}</td>
+                <td>${row.policeHighPositionPromotion ? "是" : "否"}</td>
                 <td>${escapeHtml(row.promotedLevel || "")}</td>
                 <td>${escapeHtml(row.promotedStep || "")}</td>
                 <td>${money(row.currentPositionSalary)}</td>

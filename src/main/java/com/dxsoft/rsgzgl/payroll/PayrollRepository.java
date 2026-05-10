@@ -1201,6 +1201,22 @@ class PayrollRepository {
         return highest + (highest - previous) * (step - highestStep);
     }
 
+    int policeOfficerGradeSalary(String gradeLevel, String gradeStep, String standardYearMonth) {
+        int step = intValue(gradeStep);
+        if (step <= 0 || emptyToNull(gradeLevel) == null) {
+            return 0;
+        }
+        String column = "dc" + Math.min(step, 14);
+        return queryInteger("""
+                SELECT %s
+                FROM bz06_djgz
+                WHERE tbnd = :standardYearMonth AND CAST(jb AS UNSIGNED) = :gradeLevel
+                LIMIT 1
+                """.formatted(column), new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("gradeLevel", intValue(gradeLevel)));
+    }
+
     int salaryLevelSalary(String salaryLevel, String inversionStep, String standardYearMonth, String positionCode) {
         String normalizedLevel = leftPadTwo(salaryLevel);
         if (normalizedLevel == null || emptyToNull(positionCode) == null) {
