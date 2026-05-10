@@ -1956,6 +1956,7 @@ async function loadPositionChangePromotions() {
                 <td>${escapeHtml(row.changeType || "")}</td>
                 <td>${row.sequenceConversion ? "是" : "否"}</td>
                 <td>${row.policeOfficerConversion ? "是" : "否"}</td>
+                <td>${row.judicialConversion ? "是" : "否"}</td>
                 <td>${escapeHtml(row.positionStartYearMonth || "")}</td>
                 <td>${escapeHtml(row.effectivePeriod || "")}</td>
                 <td>${escapeHtml(row.currentLevel || "")}</td>

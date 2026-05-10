@@ -24,6 +24,7 @@ public class PayrollService {
     private static final Set<String> POLICE_OFFICER_CONVERSION_SOURCE_PREFIXES = Set.of(
             "01", "02", "23", "24", "25", "26", "27", "28");
     private static final Set<String> POLICE_OFFICER_CONVERSION_TARGET_PREFIXES = Set.of("21", "22");
+    private static final Set<String> JUDICIAL_CONVERSION_TARGET_PREFIXES = Set.of("03");
 
     private final PayrollRepository payrollRepository;
     private final AccessControlService accessControlService;
@@ -908,7 +909,13 @@ public class PayrollService {
         String newPositionPrefix = positionPrefix(candidate.positionCode());
         boolean sequenceConversion = isSequenceConversion(currentPositionPrefix, newPositionPrefix);
         boolean policeOfficerConversion = isPoliceOfficerConversion(currentPositionPrefix, newPositionPrefix);
-        String changeType = positionChangeType(history.positionCode(), candidate.positionCode(), sequenceConversion, policeOfficerConversion);
+        boolean judicialConversion = isJudicialConversion(currentPositionPrefix, newPositionPrefix);
+        String changeType = positionChangeType(
+                history.positionCode(),
+                candidate.positionCode(),
+                sequenceConversion,
+                policeOfficerConversion,
+                judicialConversion);
         int currentLevel = payrollRepository.intValue(history.gradeSalaryLevel());
         String currentStep = String.valueOf(
                 payrollRepository.intValue(history.positionSalaryGrade())
@@ -959,6 +966,7 @@ public class PayrollService {
                 newPositionPrefix,
                 sequenceConversion,
                 policeOfficerConversion,
+                judicialConversion,
                 changeType,
                 candidate.startYearMonth(),
                 nextMonth(candidate.startYearMonth()),
@@ -989,7 +997,8 @@ public class PayrollService {
                         promotedLevels,
                         gradeIncreaseExceedsStepDifference,
                         sequenceConversion,
-                        policeOfficerConversion));
+                        policeOfficerConversion,
+                        judicialConversion));
     }
 
     private EducationPromotionPreview educationPromotionPreview(int uid) {
@@ -1230,16 +1239,25 @@ public class PayrollService {
                 && POLICE_OFFICER_CONVERSION_TARGET_PREFIXES.contains(newPositionPrefix);
     }
 
+    private boolean isJudicialConversion(String currentPositionPrefix, String newPositionPrefix) {
+        return POLICE_OFFICER_CONVERSION_SOURCE_PREFIXES.contains(currentPositionPrefix)
+                && JUDICIAL_CONVERSION_TARGET_PREFIXES.contains(newPositionPrefix);
+    }
+
     private String positionChangeType(
             String currentPositionCode,
             String newPositionCode,
             boolean sequenceConversion,
-            boolean policeOfficerConversion) {
+            boolean policeOfficerConversion,
+            boolean judicialConversion) {
         if (newPositionCode == null || newPositionCode.equals(currentPositionCode)) {
             return "未变化";
         }
         if (policeOfficerConversion) {
             return "警员套改";
+        }
+        if (judicialConversion) {
+            return "法检套改";
         }
         if (sequenceConversion) {
             return "转换序列";
@@ -1269,9 +1287,13 @@ public class PayrollService {
             int promotedLevels,
             boolean gradeIncreaseExceedsStepDifference,
             boolean sequenceConversion,
-            boolean policeOfficerConversion) {
+            boolean policeOfficerConversion,
+            boolean judicialConversion) {
         if (policeOfficerConversion) {
             return "新旧职务前缀属于不同序列，且由 01/02/23/24/25/26/27/28 转换到 21/22，识别为警员套改；不按同序列职务晋升级别规则试算。";
+        }
+        if (judicialConversion) {
+            return "新旧职务前缀属于不同序列，且由 01/02/23/24/25/26/27/28 转换到 03，识别为法检套改；不按同序列职务晋升级别规则试算。";
         }
         if (sequenceConversion) {
             return "新旧职务前缀属于不同序列，识别为转换序列；不按同序列职务晋升级别规则试算。";

@@ -13,6 +13,7 @@ public record PositionChangePromotionPreview(
         String newPositionPrefix,
         Boolean sequenceConversion,
         Boolean policeOfficerConversion,
+        Boolean judicialConversion,
         String changeType,
         String positionStartYearMonth,
         String effectivePeriod,
