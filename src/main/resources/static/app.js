@@ -383,7 +383,7 @@ async function initializeDictionaryPickers() {
 }
 
 function initializeOrganizationPickerInput() {
-    const input = document.getElementById("maint-organization-code");
+    const input = document.getElementById("maint-organization-name");
     if (!input || input.closest("label").querySelector(".organization-picker-button")) {
         return;
     }
@@ -399,6 +399,7 @@ function initializeOrganizationPickerInput() {
     button.textContent = "⌄";
     button.addEventListener("click", openOrganizationPicker);
     combo.appendChild(button);
+    input.addEventListener("click", openOrganizationPicker);
 }
 
 async function openOrganizationPicker() {
@@ -445,10 +446,10 @@ function renderOrganizationPickerTree() {
     container.innerHTML = visibleNodes.map(({ node, depth, hasChildren }) => {
         const expanded = filter || state.organizationExpandedCodes.has(node.code);
         return `
-            <button type="button" class="dictionary-node ${hasChildren ? "branch" : "leaf"}" style="--depth:${depth}" data-org-code="${escapeHtml(node.code)}" data-org-name="${escapeHtml(node.name || "")}" data-has-children="${hasChildren}">
+            <button type="button" class="dictionary-node organization-node ${hasChildren ? "branch" : "leaf"}" style="--depth:${depth}" data-org-code="${escapeHtml(node.code)}" data-org-name="${escapeHtml(node.name || node.shortName || "")}" data-has-children="${hasChildren}">
                 <em>${hasChildren ? (expanded ? "▾" : "▸") : "•"}</em>
-                <span>${escapeHtml(node.code)}</span>
                 <strong>${escapeHtml(node.name || node.shortName || "")}</strong>
+                <span>${escapeHtml(node.code)}</span>
             </button>
         `;
     }).join("");
@@ -459,6 +460,7 @@ function renderOrganizationPickerTree() {
                 return;
             }
             document.getElementById("maint-organization-code").value = button.dataset.orgCode || "";
+            document.getElementById("maint-organization-name").value = button.dataset.orgName || button.dataset.orgCode || "";
             closeOrganizationPicker();
         });
     });
@@ -1034,6 +1036,7 @@ function fillPersonnelMaintenanceForm(record) {
     state.activePersonnelMaintenance = record;
     document.getElementById("personnel-maintenance-uid").value = record.uid || "";
     document.getElementById("maint-organization-code").value = record.organizationCode || "";
+    document.getElementById("maint-organization-name").value = record.organizationName || record.organizationCode || "";
     document.getElementById("maint-person-code").value = record.personCode || "";
     document.getElementById("maint-name").value = record.name || "";
     document.getElementById("maint-id-card").value = record.idCard || "";

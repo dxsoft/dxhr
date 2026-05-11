@@ -656,6 +656,14 @@ tr:last-child td {
     font-size: 12px;
 }
 
+.organization-node {
+    grid-template-columns: 20px minmax(220px, 1fr) 128px;
+}
+
+.organization-node strong {
+    text-align: left;
+}
+
 .permission-list {
     display: flex;
     flex-wrap: wrap;
