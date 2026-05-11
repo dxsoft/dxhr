@@ -940,12 +940,14 @@
                 <input id="normal-promotion-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询试算</button>
+            <button id="normal-promotion-batch-apply" type="button">批量处理</button>
         </form>
         <div id="normal-promotion-status" class="status"></div>
         <div class="table-wrap">
             <table>
                 <thead>
                 <tr>
+                    <th><input id="normal-promotion-select-all" type="checkbox" aria-label="全选正常晋升"></th>
                     <th>单位编码</th>
                     <th>人员编码</th>
                     <th>姓名</th>
@@ -957,7 +959,8 @@
                     <th>当前档次/薪级</th>
                     <th>晋升后档次/薪级</th>
                     <th>级别</th>
-                    <th>级别档次</th>
+                    <th>xckhndjb</th>
+                    <th>xckhndzw</th>
                     <th>旧基础工资</th>
                     <th>晋升后基础工资</th>
                     <th>增资额</th>

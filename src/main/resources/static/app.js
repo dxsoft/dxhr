@@ -117,6 +117,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("payroll-change-close").addEventListener("click", closePayrollChangeModal);
     document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
     document.getElementById("normal-promotion-form").addEventListener("submit", onNormalPromotionSearch);
+    document.getElementById("normal-promotion-batch-apply").addEventListener("click", applySelectedNormalPromotions);
+    document.getElementById("normal-promotion-select-all").addEventListener("change", event => {
+        document.querySelectorAll("[data-normal-select]").forEach(checkbox => {
+            checkbox.checked = event.target.checked;
+        });
+    });
     document.getElementById("level-promotion-form").addEventListener("submit", onLevelPromotionSearch);
     document.getElementById("position-change-promotion-form").addEventListener("submit", onPositionChangePromotionSearch);
     document.getElementById("education-promotion-form").addEventListener("submit", onEducationPromotionSearch);
@@ -2020,8 +2026,10 @@ async function loadNormalPromotions() {
 
     try {
         const result = await getJson(`/api/payroll/normal-promotions?${params}`);
+        document.getElementById("normal-promotion-select-all").checked = false;
         rows.innerHTML = (result.content || []).map(row => `
             <tr>
+                <td><input type="checkbox" data-normal-select="${escapeHtml(row.payrollHistoryId)}" aria-label="选择${escapeHtml(row.name)}"></td>
                 <td>${escapeHtml(row.organizationCode)}</td>
                 <td>${escapeHtml(row.personCode)}</td>
                 <td>${escapeHtml(row.name)}</td>
@@ -2033,7 +2041,8 @@ async function loadNormalPromotions() {
                 <td>${escapeHtml(row.currentGradeOrLevel)}</td>
                 <td>${escapeHtml(row.promotedGradeOrLevel)}</td>
                 <td>${escapeHtml(row.gradeSalaryLevel || "")}</td>
-                <td>${escapeHtml(row.gradeSalaryStep || "")}</td>
+                <td>${escapeHtml(row.levelAssessmentStartYear || "")}</td>
+                <td>${escapeHtml(row.stepAssessmentStartYear || "")}</td>
                 <td>${money(row.currentBaseSalary)}</td>
                 <td>${money(row.promotedBaseSalary)}</td>
                 <td>${money(row.increaseAmount)}</td>
@@ -2144,6 +2153,39 @@ async function applyPromotionAction(type, payrollHistoryId) {
     } catch (error) {
         showError(status, error);
     }
+}
+
+async function applySelectedNormalPromotions() {
+    const selectedIds = Array.from(document.querySelectorAll("[data-normal-select]:checked"))
+        .map(checkbox => checkbox.dataset.normalSelect)
+        .filter(Boolean);
+    const status = document.getElementById("normal-promotion-status");
+    if (!selectedIds.length) {
+        status.className = "status error";
+        status.textContent = "请先勾选需要处理的正常档次/薪级晋升记录。";
+        return;
+    }
+    if (!confirm(`确认批量处理 ${selectedIds.length} 条正常档次/薪级晋升记录？`)) {
+        return;
+    }
+    status.className = "status";
+    status.textContent = `正在批量处理 0 / ${selectedIds.length}...`;
+    let successCount = 0;
+    const failures = [];
+    for (const id of selectedIds) {
+        try {
+            await postJson(`/api/payroll/normal-promotions/${encodeURIComponent(id)}/apply`, {});
+            successCount++;
+            status.textContent = `正在批量处理 ${successCount} / ${selectedIds.length}...`;
+        } catch (error) {
+            failures.push(error.message);
+        }
+    }
+    status.className = failures.length ? "status error" : "status";
+    status.textContent = failures.length
+        ? `批量处理完成：成功 ${successCount} 条，失败 ${failures.length} 条。${failures[0] || ""}`
+        : `批量处理完成：成功 ${successCount} 条。`;
+    await loadNormalPromotions();
 }
 
 async function rollbackPromotionAction(type, payrollHistoryId) {

@@ -325,7 +325,7 @@ public class PayrollService {
                 null,
                 preview.promotedGradeOrLevel(),
                 preview.gradeSalaryLevel(),
-                preview.gradeSalaryStep(),
+                "0",
                 preview.promotedBaseSalary(),
                 nullToZero(payrollRepository.findLatestHistory(uid)
                         .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid))
@@ -901,7 +901,8 @@ public class PayrollService {
                 history.positionSalaryGrade(),
                 promotedGradeOrLevel,
                 history.gradeSalaryLevel(),
-                history.gradeSalaryStep(),
+                history.levelAssessmentStartYear(),
+                history.stepAssessmentStartYear(),
                 currentBaseSalary,
                 promotedBaseSalary,
                 nullToZero(promotedBaseSalary) - nullToZero(currentBaseSalary),
