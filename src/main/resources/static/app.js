@@ -810,7 +810,7 @@ function showPersonnelTab(tabName) {
     document.querySelectorAll("[data-personnel-tab]").forEach(button => {
         button.classList.toggle("active", button.dataset.personnelTab === tabName);
     });
-    ["basic", "education", "position", "current-payroll", "payroll", "assessment", "award", "rank-level", "wage-reform", "pre-reform"].forEach(name => {
+    ["basic", "projection", "education", "position", "current-payroll", "payroll", "assessment", "award", "rank-level", "wage-reform", "pre-reform"].forEach(name => {
         document.getElementById(`personnel-tab-${name}`).classList.toggle("hidden", name !== tabName);
     });
 }
@@ -1212,11 +1212,16 @@ function resetPersonnelMaintenanceForm() {
     document.getElementById("maint-salary-years").value = "0";
     [
         "maint-education-rows", "maint-position-rows", "maint-payroll-rows", "maint-assessment-rows",
+        "maint-projection-rows", "maint-projection-excluded-rows",
         "maint-current-payroll-rows", "maint-award-rows", "maint-rank-rows",
         "maint-wage-reform-rows", "maint-pre-reform-rows", "maint-pension-base-rows",
     ].forEach(id => {
         document.getElementById(id).innerHTML = "<tr><td colspan='8'>保存或选择人员后加载记录</td></tr>";
     });
+    ["maint-projection-period", "maint-projection-total", "maint-projection-stored-total", "maint-projection-difference"].forEach(id => {
+        document.getElementById(id).textContent = "-";
+    });
+    document.getElementById("maint-projection-pgbc").textContent = "暂无推算结果";
 }
 
 function openSubrecordEditor(type, record = null) {
@@ -1344,13 +1349,15 @@ function setMonthInputValue(inputId, value) {
 }
 
 async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
-    const [education, positions, assessments, payrollHistory, relatedRecords] = await Promise.all([
+    const [education, positions, assessments, payrollHistory, relatedRecords, projection] = await Promise.all([
         getJson(`/api/personnel/${uid}/education`),
         getJson(`/api/personnel/${uid}/positions`),
         getJson(`/api/personnel/${uid}/assessments`),
         getJson(`/api/payroll/histories?organizationCode=${encodeURIComponent(organizationCode)}&keyword=${encodeURIComponent(personCode)}&size=50`),
         getJson(`/api/personnel/${uid}/related-records`),
+        getJson(`/api/payroll/personnel/${uid}/calculation-preview`),
     ]);
+    renderPersonnelProjection(projection);
     document.getElementById("maint-education-rows").innerHTML = education.length ? education.map(row => `
         <tr>
             <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
@@ -1414,6 +1421,38 @@ function bindSubrecordActions(type, rows) {
             del.addEventListener("click", () => deleteSubrecord(type, row.id));
         }
     });
+}
+
+function renderPersonnelProjection(preview) {
+    document.getElementById("maint-projection-period").textContent = preview.calculationPeriod || "-";
+    document.getElementById("maint-projection-total").textContent = money(preview.recalculatedKnownTotal);
+    document.getElementById("maint-projection-stored-total").textContent = money(preview.storedTotal);
+    const difference = document.getElementById("maint-projection-difference");
+    difference.textContent = money(preview.totalDifference);
+    difference.className = Number(preview.totalDifference) === 0 ? "difference-ok" : "difference-bad";
+    document.getElementById("maint-projection-rows").innerHTML = (preview.calculatedComponents || []).length ? preview.calculatedComponents.map(component => `
+        <tr>
+            <td>${escapeHtml(component.fieldName)}</td>
+            <td>${escapeHtml(component.caption)}</td>
+            <td>${money(component.amount)}</td>
+            <td>${escapeHtml(component.source)}</td>
+        </tr>
+    `).join("") : "<tr><td colspan='4'>暂无工资推算项目</td></tr>";
+    document.getElementById("maint-projection-excluded-rows").innerHTML = (preview.excludedComponents || []).length ? preview.excludedComponents.map(component => `
+        <tr>
+            <td>${escapeHtml(component.fieldName)}</td>
+            <td>${escapeHtml(component.caption)}</td>
+            <td>${money(component.storedAmount)}</td>
+            <td>${escapeHtml(component.reason)}</td>
+        </tr>
+    `).join("") : "<tr><td colspan='4'>暂无排除字段</td></tr>";
+    const pgbc = preview.pgbcComparison || {};
+    document.getElementById("maint-projection-pgbc").innerHTML = `
+        <strong>处理方式：</strong>${escapeHtml(pgbc.treatment || "-")}<br>
+        <strong>旧值：</strong>${money(pgbc.storedAmount)}
+        <strong>建议值：</strong>${money(pgbc.recommendedAmount)}<br>
+        <span>${escapeHtml(pgbc.note || "")}</span>
+    `;
 }
 
 function renderPersonnelRelatedRecords(records) {
