@@ -16,6 +16,7 @@ const state = {
     organizationNodes: [],
     organizationExpandedCodes: new Set(),
     activeOrganizationTarget: "maintenance",
+    pendingPersonnelChange: null,
     activePersonnelMaintenance: null,
     activeSubrecordEditor: null,
 };
@@ -449,6 +450,10 @@ function bindOrganizationPickerInput(inputId, buttonId, target) {
 
 async function openOrganizationPicker(target = "maintenance") {
     state.activeOrganizationTarget = target;
+    document.getElementById("organization-picker-title").textContent = target === "personnelTransfer" ? "选择调往单位" : "选择单位";
+    document.getElementById("organization-picker-subtitle").textContent = target === "personnelTransfer"
+        ? "从单位树中选择调往本地其他单位，支持按单位名称或编码搜索。"
+        : "从单位树中选择人员所属单位，支持按单位名称或编码搜索。";
     document.getElementById("organization-picker-filter").value = "";
     document.getElementById("organization-picker-tree").innerHTML = "正在加载单位...";
     document.getElementById("organization-picker-modal").classList.remove("hidden");
@@ -512,6 +517,14 @@ function renderOrganizationPickerTree() {
 }
 
 function selectOrganizationNode(code, name) {
+    if (state.activeOrganizationTarget === "personnelTransfer") {
+        const pending = state.pendingPersonnelChange;
+        state.pendingPersonnelChange = null;
+        if (pending) {
+            continuePersonnelChangeMaintenance(pending.uid, pending.name, pending.changeType, pending.changeDescription, { code, name });
+        }
+        return;
+    }
     if (state.activeOrganizationTarget === "maintenanceSearch") {
         document.getElementById("maint-search-organization-code").value = name || code;
         return;
@@ -1067,12 +1080,22 @@ function closePersonnelChangeMenu() {
 }
 
 async function changePersonnelMaintenance(uid, name, changeType, changeDescription) {
+    if (changeType === "调动") {
+        state.pendingPersonnelChange = { uid, name, changeType, changeDescription };
+        await openOrganizationPicker("personnelTransfer");
+        return;
+    }
+    await continuePersonnelChangeMaintenance(uid, name, changeType, changeDescription, null);
+}
+
+async function continuePersonnelChangeMaintenance(uid, name, changeType, changeDescription, targetOrganization) {
     const remark = prompt("请输入备注（可留空）：", "");
     if (remark === null) {
         return;
     }
     const defaultRemark = changeDescription && changeDescription !== changeType ? changeDescription : "";
-    const finalRemark = [defaultRemark, remark.trim()].filter(Boolean).join("；");
+    const transferRemark = targetOrganization ? `调往单位：${targetOrganization.name || ""}（${targetOrganization.code || ""}）` : "";
+    const finalRemark = [defaultRemark, transferRemark, remark.trim()].filter(Boolean).join("；");
     if (!confirm(`确认将 ${name || "该人员"} 办理为“${changeType.trim()}”？该人员将转入变动人员信息。`)) {
         return;
     }
