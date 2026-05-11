@@ -20,6 +20,16 @@ const state = {
     activeSubrecordEditor: null,
 };
 
+const personnelChangeTypes = [
+    { type: "退休", description: "退休" },
+    { type: "调动", description: "调往本地其他单位" },
+    { type: "调出", description: "调往外地" },
+    { type: "辞职", description: "辞职" },
+    { type: "辞退", description: "辞退" },
+    { type: "开除", description: "开除" },
+    { type: "死亡", description: "死亡" },
+];
+
 const subrecordEditors = {
     education: {
         title: "学历信息",
@@ -132,6 +142,11 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("security-refresh-button").addEventListener("click", loadSecurityAdmin);
     document.getElementById("change-password-button").addEventListener("click", () => {
         document.getElementById("password-panel").classList.toggle("hidden");
+    });
+    document.addEventListener("click", event => {
+        if (!event.target.closest(".personnel-change-menu") && !event.target.closest("[data-maint-change]")) {
+            closePersonnelChangeMenu();
+        }
     });
     document.getElementById("logout-button").addEventListener("click", () => {
         window.location.href = "/logout";
@@ -1003,7 +1018,10 @@ async function loadPersonnelMaintenance() {
             button.addEventListener("click", () => deletePersonnelMaintenance(button.dataset.maintDelete));
         });
         rows.querySelectorAll("button[data-maint-change]").forEach(button => {
-            button.addEventListener("click", () => changePersonnelMaintenance(button.dataset.maintChange, button.dataset.personName || ""));
+            button.addEventListener("click", event => {
+                event.stopPropagation();
+                openPersonnelChangeMenu(button);
+            });
         });
         status.textContent = `共 ${page.totalElements} 人，当前显示 ${page.content.length} 人`;
     } catch (error) {
@@ -1011,16 +1029,38 @@ async function loadPersonnelMaintenance() {
     }
 }
 
-async function changePersonnelMaintenance(uid, name) {
-    const allowedTypes = ["退休", "调动", "辞职", "开除", "开出", "死亡", "停薪"];
-    const changeType = prompt(`请输入人员变动类别：${allowedTypes.join(" / ")}`, "退休");
-    if (!changeType) {
-        return;
-    }
-    if (!allowedTypes.includes(changeType.trim())) {
-        alert(`人员变动类别必须为：${allowedTypes.join(" / ")}`);
-        return;
-    }
+function openPersonnelChangeMenu(button) {
+    closePersonnelChangeMenu();
+    const menu = document.createElement("div");
+    menu.className = "personnel-change-menu";
+    menu.innerHTML = personnelChangeTypes.map(item => `
+        <button type="button" data-change-type="${escapeHtml(item.type)}" data-change-description="${escapeHtml(item.description)}">
+            <strong>${escapeHtml(item.type)}</strong>
+            <span>${escapeHtml(item.description)}</span>
+        </button>
+    `).join("");
+    document.body.appendChild(menu);
+    const rect = button.getBoundingClientRect();
+    menu.style.left = `${Math.min(rect.left, window.innerWidth - 220)}px`;
+    menu.style.top = `${rect.bottom + 6}px`;
+    menu.querySelectorAll("button[data-change-type]").forEach(itemButton => {
+        itemButton.addEventListener("click", event => {
+            event.stopPropagation();
+            closePersonnelChangeMenu();
+            changePersonnelMaintenance(
+                button.dataset.maintChange,
+                button.dataset.personName || "",
+                itemButton.dataset.changeType,
+                itemButton.dataset.changeDescription);
+        });
+    });
+}
+
+function closePersonnelChangeMenu() {
+    document.querySelectorAll(".personnel-change-menu").forEach(menu => menu.remove());
+}
+
+async function changePersonnelMaintenance(uid, name, changeType, changeDescription) {
     const effectivePeriod = prompt("请输入变动年月（例如 2024.07 或 202407）：", "");
     if (effectivePeriod === null) {
         return;
@@ -1029,6 +1069,8 @@ async function changePersonnelMaintenance(uid, name) {
     if (remark === null) {
         return;
     }
+    const defaultRemark = changeDescription && changeDescription !== changeType ? changeDescription : "";
+    const finalRemark = [defaultRemark, remark.trim()].filter(Boolean).join("；");
     if (!confirm(`确认将 ${name || "该人员"} 办理为“${changeType.trim()}”？该人员将转入变动人员信息。`)) {
         return;
     }
@@ -1039,7 +1081,7 @@ async function changePersonnelMaintenance(uid, name) {
         const result = await postJson(`/api/personnel/${encodeURIComponent(uid)}/change`, {
             changeType: changeType.trim(),
             effectivePeriod: effectivePeriod.trim(),
-            remark: remark.trim(),
+            remark: finalRemark,
         });
         status.textContent = result.message || "人员变动处理完成";
         resetPersonnelMaintenanceForm();

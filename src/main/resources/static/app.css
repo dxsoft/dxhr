@@ -320,6 +320,41 @@ tr:last-child td {
     font-size: 13px;
 }
 
+.personnel-change-menu {
+    position: fixed;
+    z-index: 60;
+    display: grid;
+    width: 220px;
+    padding: 6px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+}
+
+.personnel-change-menu button {
+    display: grid;
+    gap: 2px;
+    padding: 9px 10px;
+    color: var(--text);
+    text-align: left;
+    background: transparent;
+    border-radius: 6px;
+    box-shadow: none;
+}
+
+.personnel-change-menu button:hover {
+    color: var(--primary-dark);
+    background: var(--primary-soft);
+    transform: none;
+}
+
+.personnel-change-menu span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+}
+
 .highlight-row {
     background: #fff7ed;
 }

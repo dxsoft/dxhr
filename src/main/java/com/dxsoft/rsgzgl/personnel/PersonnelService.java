@@ -76,8 +76,8 @@ public class PersonnelService {
                 .orElseThrow(() -> new NotFoundException("Personnel record not found: " + uid));
         accessControlService.requireOrganization(existing.organizationCode());
         String changeType = emptyToNull(request.changeType());
-        if (changeType == null || !List.of("退休", "调动", "辞职", "开除", "开出", "死亡", "停薪").contains(changeType)) {
-            throw new IllegalArgumentException("人员变动类别必须为退休、调动、辞职、开除、开出、死亡或停薪。");
+        if (changeType == null || !List.of("退休", "调动", "调出", "辞职", "辞退", "开除", "死亡").contains(changeType)) {
+            throw new IllegalArgumentException("人员变动类别必须为退休、调动、调出、辞职、辞退、开除或死亡。");
         }
         return personnelRepository.movePersonnelToChanged(uid, request);
     }
