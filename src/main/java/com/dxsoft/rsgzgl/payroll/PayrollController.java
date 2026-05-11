@@ -162,9 +162,10 @@ class PayrollController {
     PageResponse<NormalPromotionPreview> normalPromotions(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean dueOnly,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.normalPromotionPreviews(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.normalPromotionPreviews(organizationCode, keyword, dueOnly, PageRequest.of(page, size));
     }
 
     @PostMapping("/normal-promotions/{payrollHistoryId}/apply")

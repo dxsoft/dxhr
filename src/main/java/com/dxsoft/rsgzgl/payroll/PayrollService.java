@@ -296,13 +296,18 @@ public class PayrollService {
     public PageResponse<NormalPromotionPreview> normalPromotionPreviews(
             String organizationCode,
             String keyword,
+            Boolean dueOnly,
             PageRequest pageRequest) {
         var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
         List<NormalPromotionPreview> previews = payrollRepository
                 .findPersonnelUidsWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword, pageRequest)
                 .stream()
                 .map(this::normalPromotionPreview)
+                .filter(preview -> !Boolean.TRUE.equals(dueOnly) || Boolean.TRUE.equals(preview.eligible()))
                 .toList();
+        if (Boolean.TRUE.equals(dueOnly)) {
+            return PageResponse.of(previews, pageRequest, previews.size());
+        }
         return PageResponse.of(
                 previews,
                 pageRequest,
@@ -313,8 +318,8 @@ public class PayrollService {
     public PromotionActionResult applyNormalPromotion(String payrollHistoryId) {
         int uid = requireCurrentHistoryUid(payrollHistoryId);
         NormalPromotionPreview preview = normalPromotionPreview(uid);
-        if (preview.increaseAmount() == null || preview.increaseAmount() <= 0) {
-            throw new IllegalArgumentException("当前工资记录没有可处理的正常档次/薪级晋升增资。");
+        if (!Boolean.TRUE.equals(preview.eligible()) || preview.increaseAmount() == null || preview.increaseAmount() <= 0) {
+            throw new IllegalArgumentException("当前工资记录不满足正常档次/薪级晋升处理条件。");
         }
         String changeType = normalPromotionChangeType(preview.baseSalarySource());
         PromotionHistoryMutation mutation = new PromotionHistoryMutation(
@@ -887,6 +892,16 @@ public class PayrollService {
                     history.positionCode());
         };
         Integer currentBaseSalary = current.selectedBaseSalary();
+        int calculationYear = yearOf(history.calculationYear());
+        int stepStartYear = assessmentStartYear(
+                history.stepAssessmentStartYear(),
+                history.positionStartYearMonth(),
+                history.positionCode());
+        int qualifiedYears = payrollRepository.countQualifiedAssessmentYears(
+                history.organizationCode(), history.personCode(), stepStartYear, calculationYear - 1);
+        int requiredYears = normalPromotionRequiredYears(history);
+        boolean eligible = requiredYears > 0 && qualifiedYears >= requiredYears && calculationYear >= 2007
+                && !"TECHNICAL_GRADE".equals(baseSalarySource);
         return new NormalPromotionPreview(
                 uid,
                 history.id(),
@@ -903,6 +918,9 @@ public class PayrollService {
                 history.gradeSalaryLevel(),
                 history.levelAssessmentStartYear(),
                 history.stepAssessmentStartYear(),
+                qualifiedYears,
+                requiredYears,
+                eligible,
                 currentBaseSalary,
                 promotedBaseSalary,
                 nullToZero(promotedBaseSalary) - nullToZero(currentBaseSalary),
@@ -1535,6 +1553,16 @@ public class PayrollService {
     private boolean isLevelPromotionPosition(String positionCode) {
         return positionCode != null && positionCode.length() >= 2
                 && LEVEL_PROMOTION_POSITION_PREFIXES.contains(positionCode.substring(0, 2));
+    }
+
+    private int normalPromotionRequiredYears(PayrollHistorySnapshot history) {
+        if ("SALARY_LEVEL".equals(baseSalarySource(history.positionCode()))) {
+            return 1;
+        }
+        if ("GRADE".equals(baseSalarySource(history.positionCode()))) {
+            return 2;
+        }
+        return 0;
     }
 
     private String levelPromotionNote(

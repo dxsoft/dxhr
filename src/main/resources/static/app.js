@@ -118,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("payroll-change-close").addEventListener("click", closePayrollChangeModal);
     document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
     document.getElementById("normal-promotion-form").addEventListener("submit", onNormalPromotionSearch);
+    document.getElementById("normal-promotion-due-only").addEventListener("change", loadNormalPromotions);
     document.getElementById("normal-promotion-batch-apply").addEventListener("click", applySelectedNormalPromotions);
     document.getElementById("normal-promotion-select-all").addEventListener("change", event => {
         document.querySelectorAll("[data-normal-select]").forEach(checkbox => {
@@ -2105,9 +2106,10 @@ async function loadTeachingAllowanceAdjustments() {
 async function loadNormalPromotions() {
     const organizationCode = document.getElementById("normal-promotion-organization-code").value.trim();
     const keyword = document.getElementById("normal-promotion-keyword").value.trim();
+    const dueOnly = document.getElementById("normal-promotion-due-only").checked;
     const page = document.getElementById("normal-promotion-page").value || "0";
     const size = document.getElementById("normal-promotion-size").value || "20";
-    const params = new URLSearchParams({ page, size });
+    const params = new URLSearchParams({ page, size, dueOnly });
     if (organizationCode) {
         params.set("organizationCode", organizationCode);
     }
@@ -2126,7 +2128,7 @@ async function loadNormalPromotions() {
         document.getElementById("normal-promotion-select-all").checked = false;
         rows.innerHTML = (result.content || []).map(row => `
             <tr>
-                <td><input type="checkbox" data-normal-select="${escapeHtml(row.payrollHistoryId)}" aria-label="选择${escapeHtml(row.name)}"></td>
+                <td><input type="checkbox" data-normal-select="${escapeHtml(row.payrollHistoryId)}" data-normal-eligible="${row.eligible ? "true" : "false"}" ${row.eligible ? "" : "disabled"} aria-label="选择${escapeHtml(row.name)}"></td>
                 <td>${escapeHtml(row.organizationCode)}</td>
                 <td>${escapeHtml(row.personCode)}</td>
                 <td>${escapeHtml(row.name)}</td>
@@ -2140,6 +2142,9 @@ async function loadNormalPromotions() {
                 <td>${escapeHtml(row.gradeSalaryLevel || "")}</td>
                 <td>${escapeHtml(row.levelAssessmentStartYear || "")}</td>
                 <td>${escapeHtml(row.stepAssessmentStartYear || "")}</td>
+                <td>${escapeHtml(row.qualifiedYears ?? "")}</td>
+                <td>${escapeHtml(row.requiredYears ?? "")}</td>
+                <td>${row.eligible ? "是" : "否"}</td>
                 <td>${money(row.currentBaseSalary)}</td>
                 <td>${money(row.promotedBaseSalary)}</td>
                 <td>${money(row.increaseAmount)}</td>
@@ -2254,6 +2259,7 @@ async function applyPromotionAction(type, payrollHistoryId) {
 
 async function applySelectedNormalPromotions() {
     const selectedIds = Array.from(document.querySelectorAll("[data-normal-select]:checked"))
+        .filter(checkbox => checkbox.dataset.normalEligible === "true")
         .map(checkbox => checkbox.dataset.normalSelect)
         .filter(Boolean);
     const status = document.getElementById("normal-promotion-status");
