@@ -1217,6 +1217,24 @@ class PayrollRepository {
                 .addValue("gradeLevel", intValue(gradeLevel)));
     }
 
+    String judicialConversionStep(String currentLevel, String currentStep, String targetPositionCode) {
+        int level = intValue(currentLevel);
+        int step = intValue(currentStep);
+        if (level < 8 || level > 26 || step <= 0 || targetPositionCode == null || targetPositionCode.length() < 4) {
+            return "";
+        }
+        String targetRank = targetPositionCode.substring(3, 4).toLowerCase();
+        if (!targetRank.matches("[5-9a-d]")) {
+            return "";
+        }
+        return queryString("""
+                SELECT d03%s
+                FROM bz06_fjtgb
+                WHERE TRIM(jb%d) = :currentStep
+                LIMIT 1
+                """.formatted(targetRank, level), new MapSqlParameterSource("currentStep", String.valueOf(step)));
+    }
+
     int salaryLevelSalary(String salaryLevel, String inversionStep, String standardYearMonth, String positionCode) {
         String normalizedLevel = leftPadTwo(salaryLevel);
         if (normalizedLevel == null || emptyToNull(positionCode) == null) {
@@ -1723,6 +1741,14 @@ class PayrollRepository {
             return 0;
         }
         return values.getFirst();
+    }
+
+    private String queryString(String sql, MapSqlParameterSource parameters) {
+        List<String> values = jdbcTemplate.queryForList(sql, parameters, String.class);
+        if (values.isEmpty() || values.getFirst() == null) {
+            return "";
+        }
+        return SqlText.trim(values.getFirst());
     }
 
     private int highestGradeStep(String gradeLevel) {

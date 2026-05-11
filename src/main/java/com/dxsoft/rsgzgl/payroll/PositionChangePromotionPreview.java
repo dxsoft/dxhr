@@ -25,6 +25,7 @@ public record PositionChangePromotionPreview(
         String policeSameRankLevel,
         String policeSameRankStep,
         Boolean policeHighPositionPromotion,
+        String judicialConversionStep,
         String promotedLevel,
         String promotedStep,
         Integer currentPositionSalary,
