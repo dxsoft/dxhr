@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PersonnelService {
@@ -66,6 +67,31 @@ public class PersonnelService {
                 .orElseThrow(() -> new NotFoundException("Personnel record not found: " + uid));
         accessControlService.requireOrganization(existing.organizationCode());
         personnelRepository.deletePersonnel(uid);
+    }
+
+    @Transactional
+    public PersonnelChangeResult changePersonnel(int uid, PersonnelChangeRequest request) {
+        requireWritePermission();
+        PersonnelMaintenanceRecord existing = personnelRepository.findMaintenanceByUid(uid)
+                .orElseThrow(() -> new NotFoundException("Personnel record not found: " + uid));
+        accessControlService.requireOrganization(existing.organizationCode());
+        String changeType = emptyToNull(request.changeType());
+        if (changeType == null || !List.of("退休", "调动", "辞职", "开除", "开出", "死亡", "停薪").contains(changeType)) {
+            throw new IllegalArgumentException("人员变动类别必须为退休、调动、辞职、开除、开出、死亡或停薪。");
+        }
+        return personnelRepository.movePersonnelToChanged(uid, request);
+    }
+
+    @Transactional
+    public PersonnelChangeResult restoreChangedPersonnel(ChangedPersonnelRestoreRequest request) {
+        requireWritePermission();
+        String organizationCode = emptyToNull(request.organizationCode());
+        String personCode = emptyToNull(request.personCode());
+        if (organizationCode == null || personCode == null) {
+            throw new IllegalArgumentException("单位编码和人员编码不能为空。");
+        }
+        accessControlService.requireOrganization(organizationCode);
+        return personnelRepository.restoreChangedPersonnel(organizationCode, personCode);
     }
 
     public List<PositionRecord> positions(int uid) {

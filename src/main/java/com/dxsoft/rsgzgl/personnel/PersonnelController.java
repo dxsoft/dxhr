@@ -61,6 +61,11 @@ class PersonnelController {
         personnelService.delete(uid);
     }
 
+    @PostMapping("/{uid}/change")
+    PersonnelChangeResult changePersonnel(@PathVariable int uid, @RequestBody PersonnelChangeRequest request) {
+        return personnelService.changePersonnel(uid, request);
+    }
+
     @GetMapping("/{uid}/positions")
     List<PositionRecord> positions(@PathVariable int uid) {
         return personnelService.positions(uid);
@@ -170,5 +175,10 @@ class PersonnelController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return personnelService.changedPersonnel(organizationCode, period, keyword, PageRequest.of(page, size));
+    }
+
+    @PostMapping("/changed/restore")
+    PersonnelChangeResult restoreChangedPersonnel(@RequestBody ChangedPersonnelRestoreRequest request) {
+        return personnelService.restoreChangedPersonnel(request);
     }
 }

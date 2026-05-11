@@ -991,6 +991,7 @@ async function loadPersonnelMaintenance() {
                 <td>${escapeHtml(person.currentPosition || "")}</td>
                 <td>
                     <button class="row-action" data-maint-edit="${person.uid}" type="button">编辑</button>
+                    <button class="row-action" data-maint-change="${person.uid}" data-person-name="${escapeHtml(person.name)}" type="button">变动</button>
                     <button class="row-action danger-button" data-maint-delete="${person.uid}" type="button">删除</button>
                 </td>
             </tr>
@@ -1001,7 +1002,51 @@ async function loadPersonnelMaintenance() {
         rows.querySelectorAll("button[data-maint-delete]").forEach(button => {
             button.addEventListener("click", () => deletePersonnelMaintenance(button.dataset.maintDelete));
         });
+        rows.querySelectorAll("button[data-maint-change]").forEach(button => {
+            button.addEventListener("click", () => changePersonnelMaintenance(button.dataset.maintChange, button.dataset.personName || ""));
+        });
         status.textContent = `共 ${page.totalElements} 人，当前显示 ${page.content.length} 人`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function changePersonnelMaintenance(uid, name) {
+    const allowedTypes = ["退休", "调动", "辞职", "开除", "开出", "死亡", "停薪"];
+    const changeType = prompt(`请输入人员变动类别：${allowedTypes.join(" / ")}`, "退休");
+    if (!changeType) {
+        return;
+    }
+    if (!allowedTypes.includes(changeType.trim())) {
+        alert(`人员变动类别必须为：${allowedTypes.join(" / ")}`);
+        return;
+    }
+    const effectivePeriod = prompt("请输入变动年月（例如 2024.07 或 202407）：", "");
+    if (effectivePeriod === null) {
+        return;
+    }
+    const remark = prompt("请输入备注（可留空）：", "");
+    if (remark === null) {
+        return;
+    }
+    if (!confirm(`确认将 ${name || "该人员"} 办理为“${changeType.trim()}”？该人员将转入变动人员信息。`)) {
+        return;
+    }
+    const status = document.getElementById("personnel-maintenance-status");
+    status.className = "status";
+    status.textContent = "正在办理人员变动...";
+    try {
+        const result = await postJson(`/api/personnel/${encodeURIComponent(uid)}/change`, {
+            changeType: changeType.trim(),
+            effectivePeriod: effectivePeriod.trim(),
+            remark: remark.trim(),
+        });
+        status.textContent = result.message || "人员变动处理完成";
+        resetPersonnelMaintenanceForm();
+        await loadPersonnelMaintenance();
+        if (hasMenu("CHANGED_PERSONNEL")) {
+            await loadChangedPersonnel();
+        }
     } catch (error) {
         showError(status, error);
     }
@@ -1420,9 +1465,35 @@ async function loadChangedPersonnel() {
                 <td>${escapeHtml(row.salaryStandardYearMonth || "")}</td>
                 <td>${escapeHtml(row.allowanceStandardYearMonth || "")}</td>
                 <td>${escapeHtml(row.remark || "")}</td>
+                <td><button class="row-action" data-restore-org="${escapeHtml(row.organizationCode)}" data-restore-person="${escapeHtml(row.personCode)}" data-restore-name="${escapeHtml(row.name)}" type="button">恢复在册</button></td>
             </tr>
         `).join("");
+        rows.querySelectorAll("button[data-restore-org]").forEach(button => {
+            button.addEventListener("click", () => restoreChangedPersonnel(
+                button.dataset.restoreOrg,
+                button.dataset.restorePerson,
+                button.dataset.restoreName || ""));
+        });
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条变动人员记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function restoreChangedPersonnel(organizationCode, personCode, name) {
+    if (!confirm(`确认将 ${name || personCode} 恢复到在册人员信息？`)) {
+        return;
+    }
+    const status = document.getElementById("changed-personnel-status");
+    status.className = "status";
+    status.textContent = "正在恢复人员...";
+    try {
+        const result = await postJson("/api/personnel/changed/restore", { organizationCode, personCode });
+        status.textContent = result.message || "人员已恢复到在册";
+        await loadChangedPersonnel();
+        if (hasMenu("PERSONNEL_MAINTENANCE")) {
+            await loadPersonnelMaintenance();
+        }
     } catch (error) {
         showError(status, error);
     }

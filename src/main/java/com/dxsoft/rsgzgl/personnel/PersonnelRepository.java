@@ -4,8 +4,11 @@ import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.SensitiveData;
 import com.dxsoft.rsgzgl.common.SqlText;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -307,6 +310,68 @@ class PersonnelRepository {
 
     void deletePersonnel(int uid) {
         jdbcTemplate.update("DELETE FROM dryjbxx WHERE uid = :uid", new MapSqlParameterSource("uid", uid));
+    }
+
+    PersonnelChangeResult movePersonnelToChanged(int uid, PersonnelChangeRequest request) {
+        PersonnelMaintenanceRecord record = findMaintenanceByUid(uid)
+                .orElseThrow(() -> new com.dxsoft.rsgzgl.common.NotFoundException("Personnel record not found: " + uid));
+        String organizationCode = record.organizationCode();
+        String personCode = record.personCode();
+        jdbcTemplate.update("""
+                DELETE FROM dryjbxxb
+                WHERE dwbm = :dwbm AND grbm = :grbm
+                """, keyParameters(new PersonKey(organizationCode, personCode)));
+        insertCommonColumns("dryjbxx", "dryjbxxb", "uid", "p", "p.uid = :uid", new MapSqlParameterSource("uid", uid));
+        jdbcTemplate.update("""
+                UPDATE dryjbxxb
+                SET bz = :remark,
+                    txsj = CASE WHEN :changeType = '退休' THEN :effectivePeriod ELSE txsj END
+                WHERE dwbm = :dwbm AND grbm = :grbm
+                """, keyParameters(new PersonKey(organizationCode, personCode))
+                .addValue("changeType", valueOrBlank(request.changeType()))
+                .addValue("effectivePeriod", valueOrBlank(request.effectivePeriod()))
+                .addValue("remark", personnelChangeRemark(request)));
+
+        jdbcTemplate.update("""
+                DELETE FROM hisbaseb
+                WHERE dwbm = :dwbm AND grbm = :grbm
+                """, keyParameters(new PersonKey(organizationCode, personCode)));
+        insertCommonColumns("hisbase", "hisbaseb", null, "h", "h.dwbm = :dwbm AND h.grbm = :grbm", keyParameters(new PersonKey(organizationCode, personCode)));
+        jdbcTemplate.update("""
+                UPDATE hisbaseb
+                SET jslb = :changeType,
+                    jsnf = :year,
+                    jsyf = :month,
+                    bbz = :marker
+                WHERE dwbm = :dwbm AND grbm = :grbm AND (sid IS NULL OR TRIM(sid) = '')
+                """, keyParameters(new PersonKey(organizationCode, personCode))
+                .addValue("changeType", valueOrBlank(request.changeType()))
+                .addValue("year", changeYear(request.effectivePeriod()))
+                .addValue("month", changeMonth(request.effectivePeriod()))
+                .addValue("marker", "变动"));
+
+        jdbcTemplate.update("DELETE FROM hisbase WHERE dwbm = :dwbm AND grbm = :grbm", keyParameters(new PersonKey(organizationCode, personCode)));
+        jdbcTemplate.update("DELETE FROM dryjbxx WHERE uid = :uid", new MapSqlParameterSource("uid", uid));
+        return new PersonnelChangeResult(organizationCode, personCode, record.name(), request.changeType(), "人员变动处理完成");
+    }
+
+    PersonnelChangeResult restoreChangedPersonnel(String organizationCode, String personCode) {
+        MapSqlParameterSource key = keyParameters(new PersonKey(organizationCode, personCode));
+        Map<String, Object> changed = jdbcTemplate.queryForList("""
+                SELECT *
+                FROM dryjbxxb
+                WHERE dwbm = :dwbm AND grbm = :grbm
+                LIMIT 1
+                """, key).stream().findFirst()
+                .orElseThrow(() -> new com.dxsoft.rsgzgl.common.NotFoundException("Changed personnel record not found"));
+        String name = SqlText.trim(String.valueOf(changed.getOrDefault("xm", "")));
+        jdbcTemplate.update("DELETE FROM dryjbxx WHERE dwbm = :dwbm AND grbm = :grbm", key);
+        insertCommonColumns("dryjbxxb", "dryjbxx", "uid", "b", "b.dwbm = :dwbm AND b.grbm = :grbm", key);
+        jdbcTemplate.update("DELETE FROM hisbase WHERE dwbm = :dwbm AND grbm = :grbm", key);
+        insertCommonColumns("hisbaseb", "hisbase", null, "h", "h.dwbm = :dwbm AND h.grbm = :grbm", key);
+        jdbcTemplate.update("DELETE FROM hisbaseb WHERE dwbm = :dwbm AND grbm = :grbm", key);
+        jdbcTemplate.update("DELETE FROM dryjbxxb WHERE dwbm = :dwbm AND grbm = :grbm", key);
+        return new PersonnelChangeResult(organizationCode, personCode, name, "恢复在册", "人员已恢复到在册人员信息");
     }
 
     Optional<PersonKey> findKeyByUid(int uid) {
@@ -847,6 +912,91 @@ class PersonnelRepository {
                 .addValue("period", emptyToNull(period))
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
+    }
+
+    private void insertCommonColumns(
+            String sourceTable,
+            String targetTable,
+            String excludedColumn,
+            String sourceAlias,
+            String whereClause,
+            MapSqlParameterSource parameters) {
+        List<TableColumn> sourceColumns = tableColumns(sourceTable);
+        List<TableColumn> targetColumns = tableColumns(targetTable);
+        Map<String, TableColumn> sourceByName = sourceColumns.stream()
+                .collect(java.util.stream.Collectors.toMap(TableColumn::name, column -> column));
+        List<TableColumn> commonColumns = new ArrayList<>();
+        for (TableColumn targetColumn : targetColumns) {
+            if (excludedColumn != null && targetColumn.name().equalsIgnoreCase(excludedColumn)) {
+                continue;
+            }
+            if (sourceByName.containsKey(targetColumn.name())) {
+                commonColumns.add(targetColumn);
+            }
+        }
+        if (commonColumns.isEmpty()) {
+            throw new IllegalStateException("No common columns between " + sourceTable + " and " + targetTable);
+        }
+        String targetColumnSql = commonColumns.stream()
+                .map(column -> quote(column.name()))
+                .collect(java.util.stream.Collectors.joining(", "));
+        String sourceColumnSql = commonColumns.stream()
+                .map(column -> sourceExpression(sourceAlias, column))
+                .collect(java.util.stream.Collectors.joining(", "));
+        jdbcTemplate.update("""
+                INSERT INTO %s (%s)
+                SELECT %s
+                FROM %s %s
+                WHERE %s
+                """.formatted(quote(targetTable), targetColumnSql, sourceColumnSql, quote(sourceTable), sourceAlias, whereClause), parameters);
+    }
+
+    private List<TableColumn> tableColumns(String tableName) {
+        return jdbcTemplate.query("""
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = :tableName
+                ORDER BY ordinal_position
+                """, new MapSqlParameterSource("tableName", tableName), (rs, rowNum) -> new TableColumn(
+                rs.getString("column_name"),
+                rs.getString("data_type")));
+    }
+
+    private String sourceExpression(String alias, TableColumn column) {
+        String source = alias + "." + quote(column.name());
+        if (numericType(column.dataType())) {
+            return "COALESCE(" + source + ", 0)";
+        }
+        return "COALESCE(" + source + ", '')";
+    }
+
+    private boolean numericType(String dataType) {
+        return Set.of("int", "integer", "bigint", "smallint", "tinyint", "decimal", "numeric", "float", "double")
+                .contains(String.valueOf(dataType).toLowerCase());
+    }
+
+    private String quote(String identifier) {
+        return "`" + identifier.replace("`", "``") + "`";
+    }
+
+    private String personnelChangeRemark(PersonnelChangeRequest request) {
+        String type = valueOrBlank(request.changeType());
+        String period = valueOrBlank(request.effectivePeriod());
+        String remark = valueOrBlank(request.remark());
+        return (type + (period.isBlank() ? "" : " " + period) + (remark.isBlank() ? "" : " " + remark)).trim();
+    }
+
+    private String changeYear(String effectivePeriod) {
+        String normalized = valueOrBlank(effectivePeriod).replace(".", "");
+        return normalized.length() >= 4 ? normalized.substring(0, 4) : "";
+    }
+
+    private String changeMonth(String effectivePeriod) {
+        String normalized = valueOrBlank(effectivePeriod).replace(".", "");
+        return normalized.length() >= 6 ? normalized.substring(4, 6) : "";
+    }
+
+    private record TableColumn(String name, String dataType) {
     }
 
     private String emptyToNull(String value) {
