@@ -140,7 +140,12 @@
         </div>
         <div id="personnel-maintenance-status" class="status"></div>
         <form id="personnel-maintenance-search" class="toolbar">
-            <label>单位名称<input id="maint-search-organization-code" placeholder="输入单位名称或编码"></label>
+            <label>单位名称
+                <div class="dict-input-combo">
+                    <input id="maint-search-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="maint-search-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择查询单位">⌄</button>
+                </div>
+            </label>
             <label>关键词<input id="maint-search-keyword" placeholder="姓名 / 编码 / 身份证"></label>
             <label>每页数量<input id="maint-search-size" type="number" min="1" max="100" value="20"></label>
             <button type="submit">查询</button>

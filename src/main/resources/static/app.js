@@ -15,6 +15,7 @@ const state = {
     dictionaryExpandedCodes: new Set(),
     organizationNodes: [],
     organizationExpandedCodes: new Set(),
+    activeOrganizationTarget: "maintenance",
     activePersonnelMaintenance: null,
     activeSubrecordEditor: null,
 };
@@ -384,12 +385,17 @@ async function initializeDictionaryPickers() {
 }
 
 function initializeOrganizationPickerInput() {
-    const input = document.getElementById("maint-organization-name");
+    bindOrganizationPickerInput("maint-organization-name", "maint-organization-picker-button", "maintenance");
+    bindOrganizationPickerInput("maint-search-organization-code", "maint-search-organization-picker-button", "maintenanceSearch");
+}
+
+function bindOrganizationPickerInput(inputId, buttonId, target) {
+    const input = document.getElementById(inputId);
     if (!input) {
         return;
     }
     const wrapper = input.closest("label");
-    let button = wrapper.querySelector(".organization-picker-button");
+    let button = document.getElementById(buttonId) || wrapper.querySelector(".organization-picker-button");
     if (!button) {
         const combo = document.createElement("div");
         combo.className = "dict-input-combo";
@@ -397,23 +403,31 @@ function initializeOrganizationPickerInput() {
         combo.appendChild(input);
         button = document.createElement("button");
         button.type = "button";
+        button.id = buttonId;
         button.className = "dict-picker-button organization-picker-button";
         button.setAttribute("aria-label", "选择单位");
         button.textContent = "⌄";
         combo.appendChild(button);
     }
     if (!button.dataset.pickerBound) {
-        button.addEventListener("click", openOrganizationPicker);
+        button.addEventListener("click", () => openOrganizationPicker(target));
         button.dataset.pickerBound = "true";
     }
     if (!input.dataset.pickerBound) {
-        input.addEventListener("click", openOrganizationPicker);
-        input.addEventListener("focus", openOrganizationPicker);
+        input.addEventListener("click", () => openOrganizationPicker(target));
+        input.addEventListener("focus", () => openOrganizationPicker(target));
+        input.addEventListener("keydown", event => {
+            if (target === "maintenanceSearch" && (event.key === "Backspace" || event.key === "Delete")) {
+                input.value = "";
+                event.preventDefault();
+            }
+        });
         input.dataset.pickerBound = "true";
     }
 }
 
-async function openOrganizationPicker() {
+async function openOrganizationPicker(target = "maintenance") {
+    state.activeOrganizationTarget = target;
     document.getElementById("organization-picker-filter").value = "";
     document.getElementById("organization-picker-tree").innerHTML = "正在加载单位...";
     document.getElementById("organization-picker-modal").classList.remove("hidden");
@@ -470,11 +484,19 @@ function renderOrganizationPickerTree() {
                 toggleOrganizationNode(button.dataset.orgCode);
                 return;
             }
-            document.getElementById("maint-organization-code").value = button.dataset.orgCode || "";
-            document.getElementById("maint-organization-name").value = button.dataset.orgName || button.dataset.orgCode || "";
+            selectOrganizationNode(button.dataset.orgCode || "", button.dataset.orgName || button.dataset.orgCode || "");
             closeOrganizationPicker();
         });
     });
+}
+
+function selectOrganizationNode(code, name) {
+    if (state.activeOrganizationTarget === "maintenanceSearch") {
+        document.getElementById("maint-search-organization-code").value = name || code;
+        return;
+    }
+    document.getElementById("maint-organization-code").value = code;
+    document.getElementById("maint-organization-name").value = name || code;
 }
 
 function organizationChildrenByParent(nodes) {
