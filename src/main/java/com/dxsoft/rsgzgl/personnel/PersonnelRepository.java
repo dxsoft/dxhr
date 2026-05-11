@@ -17,6 +17,21 @@ import org.springframework.stereotype.Repository;
 @Repository
 class PersonnelRepository {
 
+    private static final List<TablePair> PERSONNEL_CHANGE_TABLE_PAIRS = List.of(
+            new TablePair("dxl", "dxlb"),
+            new TablePair("dryzwbh", "dryzwbhb"),
+            new TablePair("dndkh", "dndkhb"),
+            new TablePair("dtgxx", "dtgxxb"),
+            new TablePair("tgqgz2006", "tgqgz2006b"),
+            new TablePair("jx", "jxb"),
+            new TablePair("jdzw", "jdzwb"),
+            new TablePair("jfjs", "jfjsb"),
+            new TablePair("jytgyb", "jytgybb"),
+            new TablePair("jytgzzbf", "jytgzzbfb"),
+            new TablePair("hjxx", "hjxxb"),
+            new TablePair("djxgz", "djxgzb")
+    );
+
     private static final RowMapper<PersonnelSummary> SUMMARY_MAPPER = (rs, rowNum) -> new PersonnelSummary(
             rs.getInt("uid"),
             SqlText.trim(rs.getString("dwbm")),
@@ -317,26 +332,29 @@ class PersonnelRepository {
                 .orElseThrow(() -> new com.dxsoft.rsgzgl.common.NotFoundException("Personnel record not found: " + uid));
         String organizationCode = record.organizationCode();
         String personCode = record.personCode();
+        PersonKey personKey = new PersonKey(organizationCode, personCode);
         jdbcTemplate.update("""
                 DELETE FROM dryjbxxb
                 WHERE dwbm = :dwbm AND grbm = :grbm
-                """, keyParameters(new PersonKey(organizationCode, personCode)));
+                """, keyParameters(personKey));
         insertCommonColumns("dryjbxx", "dryjbxxb", "uid", "p", "p.uid = :uid", new MapSqlParameterSource("uid", uid));
         jdbcTemplate.update("""
                 UPDATE dryjbxxb
                 SET bz = :remark,
                     txsj = CASE WHEN :changeType = '退休' THEN :effectivePeriod ELSE txsj END
                 WHERE dwbm = :dwbm AND grbm = :grbm
-                """, keyParameters(new PersonKey(organizationCode, personCode))
+                """, keyParameters(personKey)
                 .addValue("changeType", valueOrBlank(request.changeType()))
                 .addValue("effectivePeriod", valueOrBlank(request.effectivePeriod()))
                 .addValue("remark", personnelChangeRemark(request)));
 
+        moveRelatedRecordsToChanged(personKey);
+
         jdbcTemplate.update("""
                 DELETE FROM hisbaseb
                 WHERE dwbm = :dwbm AND grbm = :grbm
-                """, keyParameters(new PersonKey(organizationCode, personCode)));
-        insertCommonColumns("hisbase", "hisbaseb", null, "h", "h.dwbm = :dwbm AND h.grbm = :grbm", keyParameters(new PersonKey(organizationCode, personCode)));
+                """, keyParameters(personKey));
+        insertCommonColumns("hisbase", "hisbaseb", null, "h", "h.dwbm = :dwbm AND h.grbm = :grbm", keyParameters(personKey));
         jdbcTemplate.update("""
                 UPDATE hisbaseb
                 SET jslb = :changeType,
@@ -344,19 +362,20 @@ class PersonnelRepository {
                     jsyf = :month,
                     bbz = :marker
                 WHERE dwbm = :dwbm AND grbm = :grbm AND (sid IS NULL OR TRIM(sid) = '')
-                """, keyParameters(new PersonKey(organizationCode, personCode))
+                """, keyParameters(personKey)
                 .addValue("changeType", valueOrBlank(request.changeType()))
                 .addValue("year", changeYear(request.effectivePeriod()))
                 .addValue("month", changeMonth(request.effectivePeriod()))
                 .addValue("marker", "变动"));
 
-        jdbcTemplate.update("DELETE FROM hisbase WHERE dwbm = :dwbm AND grbm = :grbm", keyParameters(new PersonKey(organizationCode, personCode)));
+        jdbcTemplate.update("DELETE FROM hisbase WHERE dwbm = :dwbm AND grbm = :grbm", keyParameters(personKey));
         jdbcTemplate.update("DELETE FROM dryjbxx WHERE uid = :uid", new MapSqlParameterSource("uid", uid));
         return new PersonnelChangeResult(organizationCode, personCode, record.name(), request.changeType(), "人员变动处理完成");
     }
 
     PersonnelChangeResult restoreChangedPersonnel(String organizationCode, String personCode) {
-        MapSqlParameterSource key = keyParameters(new PersonKey(organizationCode, personCode));
+        PersonKey personKey = new PersonKey(organizationCode, personCode);
+        MapSqlParameterSource key = keyParameters(personKey);
         Map<String, Object> changed = jdbcTemplate.queryForList("""
                 SELECT *
                 FROM dryjbxxb
@@ -367,6 +386,7 @@ class PersonnelRepository {
         String name = SqlText.trim(String.valueOf(changed.getOrDefault("xm", "")));
         jdbcTemplate.update("DELETE FROM dryjbxx WHERE dwbm = :dwbm AND grbm = :grbm", key);
         insertCommonColumns("dryjbxxb", "dryjbxx", "uid", "b", "b.dwbm = :dwbm AND b.grbm = :grbm", key);
+        restoreRelatedRecords(personKey);
         jdbcTemplate.update("DELETE FROM hisbase WHERE dwbm = :dwbm AND grbm = :grbm", key);
         insertCommonColumns("hisbaseb", "hisbase", null, "h", "h.dwbm = :dwbm AND h.grbm = :grbm", key);
         jdbcTemplate.update("DELETE FROM hisbaseb WHERE dwbm = :dwbm AND grbm = :grbm", key);
@@ -951,6 +971,49 @@ class PersonnelRepository {
                 """.formatted(quote(targetTable), targetColumnSql, sourceColumnSql, quote(sourceTable), sourceAlias, whereClause), parameters);
     }
 
+    private void moveRelatedRecordsToChanged(PersonKey key) {
+        for (TablePair pair : PERSONNEL_CHANGE_TABLE_PAIRS) {
+            moveTableRows(pair.activeTable(), pair.changedTable(), key);
+        }
+    }
+
+    private void restoreRelatedRecords(PersonKey key) {
+        for (TablePair pair : PERSONNEL_CHANGE_TABLE_PAIRS) {
+            moveTableRows(pair.changedTable(), pair.activeTable(), key);
+        }
+    }
+
+    private void moveTableRows(String sourceTable, String targetTable, PersonKey key) {
+        if (!tableExists(sourceTable) || !tableExists(targetTable)) {
+            return;
+        }
+        MapSqlParameterSource parameters = keyParameters(key);
+        jdbcTemplate.update("""
+                DELETE FROM %s
+                WHERE dwbm = :dwbm AND grbm = :grbm
+                """.formatted(quote(targetTable)), parameters);
+        insertCommonColumns(
+                sourceTable,
+                targetTable,
+                "id",
+                "src",
+                "src.dwbm = :dwbm AND src.grbm = :grbm",
+                parameters);
+        jdbcTemplate.update("""
+                DELETE FROM %s
+                WHERE dwbm = :dwbm AND grbm = :grbm
+                """.formatted(quote(sourceTable)), parameters);
+    }
+
+    private boolean tableExists(String tableName) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE() AND table_name = :tableName
+                """, new MapSqlParameterSource("tableName", tableName), Integer.class);
+        return count != null && count > 0;
+    }
+
     private List<TableColumn> tableColumns(String tableName) {
         return jdbcTemplate.query("""
                 SELECT column_name, data_type
@@ -997,6 +1060,9 @@ class PersonnelRepository {
     }
 
     private record TableColumn(String name, String dataType) {
+    }
+
+    private record TablePair(String activeTable, String changedTable) {
     }
 
     private String emptyToNull(String value) {
