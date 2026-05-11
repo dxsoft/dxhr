@@ -796,7 +796,7 @@ function showPersonnelTab(tabName) {
     document.querySelectorAll("[data-personnel-tab]").forEach(button => {
         button.classList.toggle("active", button.dataset.personnelTab === tabName);
     });
-    ["basic", "education", "position", "payroll", "assessment"].forEach(name => {
+    ["basic", "education", "position", "current-payroll", "payroll", "assessment", "award", "rank-level", "wage-reform", "pre-reform"].forEach(name => {
         document.getElementById(`personnel-tab-${name}`).classList.toggle("hidden", name !== tabName);
     });
 }
@@ -1186,7 +1186,11 @@ function resetPersonnelMaintenanceForm() {
     document.getElementById("personnel-maintenance-form").reset();
     document.getElementById("personnel-maintenance-uid").value = "";
     document.getElementById("maint-salary-years").value = "0";
-    ["maint-education-rows", "maint-position-rows", "maint-payroll-rows", "maint-assessment-rows"].forEach(id => {
+    [
+        "maint-education-rows", "maint-position-rows", "maint-payroll-rows", "maint-assessment-rows",
+        "maint-current-payroll-rows", "maint-award-rows", "maint-rank-rows", "maint-supervision-rows",
+        "maint-wage-reform-rows", "maint-pre-reform-rows", "maint-pension-base-rows",
+    ].forEach(id => {
         document.getElementById(id).innerHTML = "<tr><td colspan='8'>保存或选择人员后加载记录</td></tr>";
     });
 }
@@ -1316,11 +1320,12 @@ function setMonthInputValue(inputId, value) {
 }
 
 async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
-    const [education, positions, assessments, payrollHistory] = await Promise.all([
+    const [education, positions, assessments, payrollHistory, relatedRecords] = await Promise.all([
         getJson(`/api/personnel/${uid}/education`),
         getJson(`/api/personnel/${uid}/positions`),
         getJson(`/api/personnel/${uid}/assessments`),
         getJson(`/api/payroll/histories?organizationCode=${encodeURIComponent(organizationCode)}&keyword=${encodeURIComponent(personCode)}&size=50`),
+        getJson(`/api/personnel/${uid}/related-records`),
     ]);
     document.getElementById("maint-education-rows").innerHTML = education.length ? education.map(row => `
         <tr>
@@ -1367,6 +1372,7 @@ async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
             <td>${row.currentPayroll ? "是" : "否"} <button class="row-action" type="button" data-edit-payroll="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-payroll="${row.id}">删除</button></td>
         </tr>
     `).join("") : "<tr><td colspan='9'>暂无调资记录</td></tr>";
+    renderPersonnelRelatedRecords(relatedRecords || {});
     bindSubrecordActions("education", education);
     bindSubrecordActions("position", positions);
     bindSubrecordActions("assessment", assessments);
@@ -1384,6 +1390,63 @@ function bindSubrecordActions(type, rows) {
             del.addEventListener("click", () => deleteSubrecord(type, row.id));
         }
     });
+}
+
+function renderPersonnelRelatedRecords(records) {
+    const current = records.currentPayroll || {};
+    document.getElementById("maint-current-payroll-rows").innerHTML = Object.keys(current).length ? `
+        <tr>
+            <td>${escapeHtml(textField(current, "jsnf"))}${escapeHtml(textField(current, "jsyf"))}</td>
+            <td>${escapeHtml(textField(current, "jslb"))}</td>
+            <td>${escapeHtml(textField(current, "zwbm2"))} ${escapeHtml(textField(current, "zwgw2"))}</td>
+            <td>${escapeHtml(textField(current, "jbgzjb2"))}</td>
+            <td>${escapeHtml(textField(current, "zwgzdc2"))}</td>
+            <td>${money(numberField(current, "zwgzse2"))}</td>
+            <td>${money(numberField(current, "jbgzse2"))}</td>
+            <td>${money(numberField(current, "jsdjgz2"))}</td>
+            <td>${money(numberField(current, "dfbt2"))}</td>
+            <td>${money(numberField(current, "blfb2"))}</td>
+            <td>${money(numberField(current, "jxjt"))}</td>
+            <td>${money(numberField(current, "njbt"))}</td>
+            <td>${money(numberField(current, "hj2"))}</td>
+        </tr>
+    ` : "<tr><td colspan='13'>暂无当前工资记录</td></tr>";
+
+    document.getElementById("maint-award-rows").innerHTML = tableRows(records.awards, row => `
+        <tr><td>${escapeHtml(textField(row, "hjmc"))}</td><td>${escapeHtml(textField(row, "sjdw"))}</td><td>${escapeHtml(textField(row, "jllx"))}</td><td>${escapeHtml(textField(row, "hjsj"))}</td><td>${escapeHtml(textField(row, "tqyjjssj"))}</td><td>${escapeHtml(textField(row, "jljb"))}</td><td>${escapeHtml(textField(row, "jldc"))}</td><td>${escapeHtml(textField(row, "qtqk"))}</td></tr>
+    `, 8, "暂无获奖记录");
+    document.getElementById("maint-rank-rows").innerHTML = tableRows(records.rankRecords, row => `
+        <tr><td>${escapeHtml(textField(row, "jx"))}</td><td>${escapeHtml(textField(row, "sysj"))}</td><td>${escapeHtml(textField(row, "syyy"))}</td><td>${escapeHtml(textField(row, "rmwh"))}</td><td>${truthyField(row, "xrjxbz") ? "是" : "否"}</td><td>${escapeHtml(textField(row, "lb"))}</td></tr>
+    `, 6, "暂无警衔记录");
+    document.getElementById("maint-supervision-rows").innerHTML = tableRows(records.supervisionLevels, row => `
+        <tr><td>${escapeHtml(textField(row, "zwmc"))}</td><td>${escapeHtml(textField(row, "zjbm"))}</td><td>${escapeHtml(textField(row, "zwjb"))}</td><td>${escapeHtml(textField(row, "rzsj"))}</td></tr>
+    `, 4, "暂无监察/等级记录");
+    document.getElementById("maint-wage-reform-rows").innerHTML = tableRows(records.wageReform, row => `
+        <tr><td>${escapeHtml(textField(row, "cjgzny"))}</td><td>${escapeHtml(textField(row, "tgnx"))}</td><td>${escapeHtml(textField(row, "zwmc"))}</td><td>${escapeHtml(textField(row, "rzsj"))}</td><td>${escapeHtml(textField(row, "rznx"))}</td><td>${escapeHtml(textField(row, "xl"))}</td><td>${escapeHtml(textField(row, "tgzw"))}</td><td>${escapeHtml(textField(row, "tgjb"))}</td><td>${escapeHtml(textField(row, "tgdc"))}</td><td>${escapeHtml(textField(row, "remark"))}</td></tr>
+    `, 10, "暂无套改记录");
+    document.getElementById("maint-pre-reform-rows").innerHTML = tableRows(records.preReformSalary, row => `
+        <tr><td>${escapeHtml(textField(row, "jsnf") || textField(row, "nd") || textField(row, "tbnd"))}${escapeHtml(textField(row, "jsyf"))}</td><td>${escapeHtml(textField(row, "zwbm2"))} ${escapeHtml(textField(row, "zwgw2"))}</td><td>${escapeHtml(textField(row, "jbgzjb2"))}</td><td>${escapeHtml(textField(row, "zwgzdc2"))}</td><td>${money(numberField(row, "zwgzse2"))}</td><td>${money(numberField(row, "jbgzse2"))}</td><td>${money(numberField(row, "jsdjgz2"))}</td><td>${escapeHtml(textField(row, "bz") || textField(row, "remark"))}</td></tr>
+    `, 8, "暂无套改前工资记录");
+    document.getElementById("maint-pension-base-rows").innerHTML = tableRows(records.pensionBase, row => `
+        <tr><td>${escapeHtml(textField(row, "nd"))}</td><td>${escapeHtml(textField(row, "zwbm2"))} ${escapeHtml(textField(row, "zwgw2"))}</td><td>${escapeHtml(textField(row, "jbgzjb2"))}</td><td>${escapeHtml(textField(row, "zwgzdc2"))}</td><td>${money(numberField(row, "zwgzse2"))}</td><td>${money(numberField(row, "jbgzse2"))}</td><td>${money(numberField(row, "js"))}</td><td>${escapeHtml(textField(row, "bz"))}</td></tr>
+    `, 8, "暂无养老缴费基数记录");
+}
+
+function tableRows(rows, render, colspan, emptyText) {
+    return (rows || []).length ? rows.map(render).join("") : `<tr><td colspan="${colspan}">${emptyText}</td></tr>`;
+}
+
+function textField(row, fieldName) {
+    return row?.[fieldName] ?? row?.[fieldName.toUpperCase()] ?? "";
+}
+
+function numberField(row, fieldName) {
+    return Number(textField(row, fieldName) || 0);
+}
+
+function truthyField(row, fieldName) {
+    const value = textField(row, fieldName);
+    return value === true || value === 1 || value === "1" || value === "true";
 }
 
 async function loadAnnualAssessments() {

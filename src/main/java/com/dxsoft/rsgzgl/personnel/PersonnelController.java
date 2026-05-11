@@ -3,6 +3,7 @@ package com.dxsoft.rsgzgl.personnel;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -129,6 +130,11 @@ class PersonnelController {
     @GetMapping("/{uid}/assessments")
     List<AssessmentRecord> assessments(@PathVariable int uid) {
         return personnelService.assessments(uid);
+    }
+
+    @GetMapping("/{uid}/related-records")
+    Map<String, Object> relatedRecords(@PathVariable int uid) {
+        return personnelService.relatedRecords(uid);
     }
 
     @PostMapping("/{uid}/assessments")

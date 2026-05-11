@@ -583,6 +583,18 @@ class PersonnelRepository {
                 """, keyParameters(key), ASSESSMENT_MAPPER);
     }
 
+    Map<String, Object> findPersonnelRelatedRecords(PersonKey key) {
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("currentPayroll", firstTableRow("hisbase", key, "CASE WHEN sid IS NULL OR TRIM(sid) = '' THEN 0 ELSE 1 END, jsnf DESC, jsyf DESC"));
+        result.put("awards", tableRows("hjxx", key, "hjsj DESC, id DESC"));
+        result.put("rankRecords", tableRows("jx", key, "sysj DESC, id DESC"));
+        result.put("supervisionLevels", tableRows("jdzw", key, "rzsj DESC, id DESC"));
+        result.put("wageReform", tableRows("dtgxx", key, "id DESC"));
+        result.put("preReformSalary", tableRows("tgqgz2006", key, "id DESC"));
+        result.put("pensionBase", tableRows("jfjs", key, "nd DESC, id DESC"));
+        return result;
+    }
+
     int createEducation(PersonKey key, EducationMaintenanceRequest request) {
         jdbcTemplate.update("""
                 INSERT INTO dxl (dwbm, grbm, xlbm, xl, byyx, rxsj, bysj, xz, xllb, bz)
@@ -1005,6 +1017,23 @@ class PersonnelRepository {
                 DELETE FROM %s
                 WHERE dwbm = :dwbm AND grbm = :grbm
                 """.formatted(quote(sourceTable)), parameters);
+    }
+
+    private List<Map<String, Object>> tableRows(String tableName, PersonKey key, String orderBy) {
+        if (!tableExists(tableName)) {
+            return List.of();
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT *
+                FROM %s
+                WHERE dwbm = :dwbm AND grbm = :grbm
+                ORDER BY %s
+                """.formatted(quote(tableName), orderBy), keyParameters(key));
+    }
+
+    private Map<String, Object> firstTableRow(String tableName, PersonKey key, String orderBy) {
+        List<Map<String, Object>> rows = tableRows(tableName, key, orderBy);
+        return rows.isEmpty() ? Map.of() : rows.getFirst();
     }
 
     private boolean tableExists(String tableName) {

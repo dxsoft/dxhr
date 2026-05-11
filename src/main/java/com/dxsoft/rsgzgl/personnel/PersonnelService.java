@@ -6,6 +6,7 @@ import com.dxsoft.rsgzgl.common.PageResponse;
 import com.dxsoft.rsgzgl.security.AccessControlService;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -152,6 +153,11 @@ public class PersonnelService {
     public List<AssessmentRecord> assessments(int uid) {
         PersonKey personKey = getPersonKey(uid);
         return personnelRepository.findAssessments(personKey);
+    }
+
+    public Map<String, Object> relatedRecords(int uid) {
+        PersonKey personKey = getPersonKey(uid);
+        return personnelRepository.findPersonnelRelatedRecords(personKey);
     }
 
     public List<PositionRecord> createPosition(int uid, PositionMaintenanceRequest request) {
