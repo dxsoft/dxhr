@@ -89,6 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("dictionary-picker-close").addEventListener("click", closeDictionaryPicker);
     document.getElementById("organization-picker-close").addEventListener("click", closeOrganizationPicker);
     document.getElementById("organization-picker-filter").addEventListener("input", renderOrganizationPickerTree);
+    initializeOrganizationPickerInput();
     document.querySelectorAll("[data-personnel-tab]").forEach(button => {
         button.addEventListener("click", () => showPersonnelTab(button.dataset.personnelTab));
     });
@@ -311,6 +312,7 @@ async function initializeDictionaryPickers() {
     if (!hasMenu("PERSONNEL_MAINTENANCE")) {
         return;
     }
+    initializeOrganizationPickerInput();
     try {
         const configs = await getJson("/api/dictionaries/field-configs?tableName=dryjbxx");
         state.dictionaryFieldConfigs = Object.fromEntries((configs || []).map(config => [String(config.fieldName || "").toLowerCase(), config]));
@@ -376,7 +378,6 @@ async function initializeDictionaryPickers() {
                 combo.appendChild(button);
             }
         });
-        initializeOrganizationPickerInput();
     } catch (error) {
         console.warn("字典字段配置加载失败", error);
     }
