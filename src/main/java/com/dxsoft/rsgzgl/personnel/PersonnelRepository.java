@@ -4,6 +4,7 @@ import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.SensitiveData;
 import com.dxsoft.rsgzgl.common.SqlText;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -332,6 +333,7 @@ class PersonnelRepository {
                 .orElseThrow(() -> new com.dxsoft.rsgzgl.common.NotFoundException("Personnel record not found: " + uid));
         String organizationCode = record.organizationCode();
         String personCode = record.personCode();
+        String changePeriod = normalizedChangePeriod(request.effectivePeriod());
         PersonKey personKey = new PersonKey(organizationCode, personCode);
         jdbcTemplate.update("""
                 DELETE FROM dryjbxxb
@@ -345,8 +347,8 @@ class PersonnelRepository {
                 WHERE dwbm = :dwbm AND grbm = :grbm
                 """, keyParameters(personKey)
                 .addValue("changeType", valueOrBlank(request.changeType()))
-                .addValue("effectivePeriod", valueOrBlank(request.effectivePeriod()))
-                .addValue("remark", personnelChangeRemark(request)));
+                .addValue("effectivePeriod", displayChangePeriod(changePeriod))
+                .addValue("remark", personnelChangeRemark(request, changePeriod)));
 
         moveRelatedRecordsToChanged(personKey);
 
@@ -364,8 +366,8 @@ class PersonnelRepository {
                 WHERE dwbm = :dwbm AND grbm = :grbm AND (sid IS NULL OR TRIM(sid) = '')
                 """, keyParameters(personKey)
                 .addValue("changeType", valueOrBlank(request.changeType()))
-                .addValue("year", changeYear(request.effectivePeriod()))
-                .addValue("month", changeMonth(request.effectivePeriod()))
+                .addValue("year", changePeriod.substring(0, 4))
+                .addValue("month", changePeriod.substring(4, 6))
                 .addValue("marker", "变动"));
 
         jdbcTemplate.update("DELETE FROM hisbase WHERE dwbm = :dwbm AND grbm = :grbm", keyParameters(personKey));
@@ -1042,21 +1044,24 @@ class PersonnelRepository {
         return "`" + identifier.replace("`", "``") + "`";
     }
 
-    private String personnelChangeRemark(PersonnelChangeRequest request) {
+    private String personnelChangeRemark(PersonnelChangeRequest request, String changePeriod) {
         String type = valueOrBlank(request.changeType());
-        String period = valueOrBlank(request.effectivePeriod());
+        String period = displayChangePeriod(changePeriod);
         String remark = valueOrBlank(request.remark());
         return (type + (period.isBlank() ? "" : " " + period) + (remark.isBlank() ? "" : " " + remark)).trim();
     }
 
-    private String changeYear(String effectivePeriod) {
+    private String normalizedChangePeriod(String effectivePeriod) {
         String normalized = valueOrBlank(effectivePeriod).replace(".", "");
-        return normalized.length() >= 4 ? normalized.substring(0, 4) : "";
+        if (normalized.length() >= 6) {
+            return normalized.substring(0, 6);
+        }
+        YearMonth current = YearMonth.now();
+        return "%04d%02d".formatted(current.getYear(), current.getMonthValue());
     }
 
-    private String changeMonth(String effectivePeriod) {
-        String normalized = valueOrBlank(effectivePeriod).replace(".", "");
-        return normalized.length() >= 6 ? normalized.substring(4, 6) : "";
+    private String displayChangePeriod(String normalizedPeriod) {
+        return normalizedPeriod.substring(0, 4) + "." + normalizedPeriod.substring(4, 6);
     }
 
     private record TableColumn(String name, String dataType) {

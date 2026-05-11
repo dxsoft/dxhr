@@ -1061,10 +1061,6 @@ function closePersonnelChangeMenu() {
 }
 
 async function changePersonnelMaintenance(uid, name, changeType, changeDescription) {
-    const effectivePeriod = prompt("请输入变动年月（例如 2024.07 或 202407）：", "");
-    if (effectivePeriod === null) {
-        return;
-    }
     const remark = prompt("请输入备注（可留空）：", "");
     if (remark === null) {
         return;
@@ -1080,7 +1076,7 @@ async function changePersonnelMaintenance(uid, name, changeType, changeDescripti
     try {
         const result = await postJson(`/api/personnel/${encodeURIComponent(uid)}/change`, {
             changeType: changeType.trim(),
-            effectivePeriod: effectivePeriod.trim(),
+            effectivePeriod: "",
             remark: finalRemark,
         });
         status.textContent = result.message || "人员变动处理完成";
