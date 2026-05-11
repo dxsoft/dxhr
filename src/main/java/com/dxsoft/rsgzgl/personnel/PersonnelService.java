@@ -22,9 +22,9 @@ public class PersonnelService {
     }
 
     public PageResponse<PersonnelSummary> list(String organizationCode, String keyword, PageRequest pageRequest) {
-        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
-        List<PersonnelSummary> rows = personnelRepository.findAll(scope, keyword, pageRequest);
-        long total = personnelRepository.countAll(scope, keyword);
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
+        List<PersonnelSummary> rows = personnelRepository.findAll(scope, emptyToNull(organizationCode), keyword, pageRequest);
+        long total = personnelRepository.countAll(scope, emptyToNull(organizationCode), keyword);
         return PageResponse.of(rows, pageRequest, total);
     }
 
@@ -77,7 +77,7 @@ public class PersonnelService {
             String organizationCode,
             String keyword,
             PageRequest pageRequest) {
-        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
         return PageResponse.of(
                 personnelRepository.findPositionHistories(scope, emptyToNull(organizationCode), keyword, pageRequest),
                 pageRequest,
@@ -116,7 +116,7 @@ public class PersonnelService {
             String organizationCode,
             String keyword,
             PageRequest pageRequest) {
-        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
         return PageResponse.of(
                 personnelRepository.findEducationHistories(scope, emptyToNull(organizationCode), keyword, pageRequest),
                 pageRequest,
@@ -179,7 +179,7 @@ public class PersonnelService {
             String year,
             String keyword,
             PageRequest pageRequest) {
-        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
         return PageResponse.of(
                 personnelRepository.findAnnualAssessments(scope, emptyToNull(organizationCode), year, keyword, pageRequest),
                 pageRequest,
@@ -191,7 +191,7 @@ public class PersonnelService {
             String year,
             String result,
             PageRequest pageRequest) {
-        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
         return PageResponse.of(
                 personnelRepository.findAnnualAssessmentSummary(scope, emptyToNull(organizationCode), year, result, pageRequest),
                 pageRequest,
@@ -203,7 +203,7 @@ public class PersonnelService {
             String period,
             String keyword,
             PageRequest pageRequest) {
-        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
         return PageResponse.of(
                 personnelRepository.findChangedPersonnel(scope, emptyToNull(organizationCode), period, keyword, pageRequest),
                 pageRequest,

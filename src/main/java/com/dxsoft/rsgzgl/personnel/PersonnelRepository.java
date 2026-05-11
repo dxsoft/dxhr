@@ -204,11 +204,11 @@ class PersonnelRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    List<PersonnelSummary> findAll(OrganizationScope organizationScope, String keyword, PageRequest pageRequest) {
+    List<PersonnelSummary> findAll(OrganizationScope organizationScope, String organizationFilter, String keyword, PageRequest pageRequest) {
         if (organizationScope.noneScope()) {
             return List.of();
         }
-        MapSqlParameterSource params = parameters(organizationScope, keyword)
+        MapSqlParameterSource params = parameters(organizationScope, organizationFilter, keyword)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
@@ -217,22 +217,25 @@ class PersonnelRepository {
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationFilter IS NULL OR p.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
                 ORDER BY p.dwbm, p.grbm
                 LIMIT :limit OFFSET :offset
                 """, params, SUMMARY_MAPPER);
     }
 
-    long countAll(OrganizationScope organizationScope, String keyword) {
+    long countAll(OrganizationScope organizationScope, String organizationFilter, String keyword) {
         if (organizationScope.noneScope()) {
             return 0;
         }
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationFilter IS NULL OR p.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
-                """, parameters(organizationScope, keyword), Long.class);
+                """, parameters(organizationScope, organizationFilter, keyword), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -358,7 +361,7 @@ class PersonnelRepository {
                 LEFT JOIN dryjbxx p ON p.dwbm = z.dwbm AND p.grbm = z.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = z.dwbm
                 WHERE (:allOrganizations = TRUE OR z.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR z.dwbm = :organizationCode)
+                  AND (:organizationFilter IS NULL OR z.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:keyword IS NULL OR z.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
                        OR z.xrzw LIKE :keywordLike OR z.xzzw LIKE :keywordLike OR z.zwbm = :keyword)
                 ORDER BY z.dwbm, z.grbm, z.srny DESC, z.id DESC
@@ -374,8 +377,9 @@ class PersonnelRepository {
                 SELECT COUNT(*)
                 FROM dryzwbh z
                 LEFT JOIN dryjbxx p ON p.dwbm = z.dwbm AND p.grbm = z.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = z.dwbm
                 WHERE (:allOrganizations = TRUE OR z.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR z.dwbm = :organizationCode)
+                  AND (:organizationFilter IS NULL OR z.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:keyword IS NULL OR z.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
                        OR z.xrzw LIKE :keywordLike OR z.xzzw LIKE :keywordLike OR z.zwbm = :keyword)
                 """, personnelHistoryParameters(organizationScope, organizationCode, keyword), Long.class);
@@ -411,7 +415,7 @@ class PersonnelRepository {
                 LEFT JOIN dryjbxx p ON p.dwbm = e.dwbm AND p.grbm = e.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = e.dwbm
                 WHERE (:allOrganizations = TRUE OR e.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR e.dwbm = :organizationCode)
+                  AND (:organizationFilter IS NULL OR e.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:keyword IS NULL OR e.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
                        OR e.xlbm = :keyword OR e.xl LIKE :keywordLike OR e.byyx LIKE :keywordLike OR e.xllb LIKE :keywordLike)
                 ORDER BY e.dwbm, e.grbm, e.bysj DESC, e.xlbm, e.id DESC
@@ -427,8 +431,9 @@ class PersonnelRepository {
                 SELECT COUNT(*)
                 FROM dxl e
                 LEFT JOIN dryjbxx p ON p.dwbm = e.dwbm AND p.grbm = e.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = e.dwbm
                 WHERE (:allOrganizations = TRUE OR e.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR e.dwbm = :organizationCode)
+                  AND (:organizationFilter IS NULL OR e.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:keyword IS NULL OR e.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
                        OR e.xlbm = :keyword OR e.xl LIKE :keywordLike OR e.byyx LIKE :keywordLike OR e.xllb LIKE :keywordLike)
                 """, personnelHistoryParameters(organizationScope, organizationCode, keyword), Long.class);
@@ -454,7 +459,7 @@ class PersonnelRepository {
                 LEFT JOIN dwbm dw ON dw.dwbm = b.dwbm
                 LEFT JOIN hisbaseb h ON h.dwbm = b.dwbm AND h.grbm = b.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 WHERE (:allOrganizations = TRUE OR b.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR b.dwbm = :organizationCode)
+                  AND (:organizationFilter IS NULL OR b.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
                   AND (:keyword IS NULL OR b.grbm LIKE :keywordLike OR b.xm LIKE :keywordLike
                        OR b.sfzh LIKE :keywordLike OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
@@ -470,9 +475,10 @@ class PersonnelRepository {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM dryjbxxb b
+                LEFT JOIN dwbm dw ON dw.dwbm = b.dwbm
                 LEFT JOIN hisbaseb h ON h.dwbm = b.dwbm AND h.grbm = b.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 WHERE (:allOrganizations = TRUE OR b.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR b.dwbm = :organizationCode)
+                  AND (:organizationFilter IS NULL OR b.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
                   AND (:keyword IS NULL OR b.grbm LIKE :keywordLike OR b.xm LIKE :keywordLike
                        OR b.sfzh LIKE :keywordLike OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
@@ -580,7 +586,7 @@ class PersonnelRepository {
                 LEFT JOIN dryjbxx p ON p.dwbm = a.dwbm AND p.grbm = a.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
                 WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
+                  AND (:organizationFilter IS NULL OR a.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR a.khnd = :year)
                   AND (:keyword IS NULL OR a.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR a.khjg LIKE :keywordLike)
                 ORDER BY a.khnd DESC, a.dwbm, a.grbm
@@ -600,8 +606,9 @@ class PersonnelRepository {
                 SELECT COUNT(*)
                 FROM dndkh a
                 LEFT JOIN dryjbxx p ON p.dwbm = a.dwbm AND p.grbm = a.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
                 WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
+                  AND (:organizationFilter IS NULL OR a.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR a.khnd = :year)
                   AND (:keyword IS NULL OR a.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR a.khjg LIKE :keywordLike)
                 """, assessmentParameters(organizationScope, organizationCode, year, keyword), Long.class);
@@ -625,7 +632,7 @@ class PersonnelRepository {
                 FROM dndkh a
                 LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
                 WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
+                  AND (:organizationFilter IS NULL OR a.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR a.khnd = :year)
                   AND (:result IS NULL OR a.khjg = :result)
                 GROUP BY a.khnd, a.dwbm, dw.dwmc, a.khjg
@@ -647,8 +654,9 @@ class PersonnelRepository {
                 FROM (
                     SELECT 1
                     FROM dndkh a
+                    LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
                     WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                      AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
+                      AND (:organizationFilter IS NULL OR a.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                       AND (:year IS NULL OR a.khnd = :year)
                       AND (:result IS NULL OR a.khjg = :result)
                     GROUP BY a.khnd, a.dwbm, a.khjg
@@ -657,11 +665,14 @@ class PersonnelRepository {
         return count == null ? 0 : count;
     }
 
-    private MapSqlParameterSource parameters(OrganizationScope organizationScope, String keyword) {
+    private MapSqlParameterSource parameters(OrganizationScope organizationScope, String organizationFilter, String keyword) {
         String trimmedKeyword = SqlText.trim(keyword);
+        String trimmedOrganizationFilter = SqlText.trim(organizationFilter);
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
+                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
     }
@@ -780,10 +791,12 @@ class PersonnelRepository {
             String year,
             String keyword) {
         String trimmedKeyword = SqlText.trim(keyword);
+        String trimmedOrganizationFilter = SqlText.trim(organizationCode);
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
-                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
+                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
                 .addValue("year", emptyToNull(year))
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
@@ -794,10 +807,12 @@ class PersonnelRepository {
             String organizationCode,
             String year,
             String result) {
+        String trimmedOrganizationFilter = SqlText.trim(organizationCode);
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
-                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
+                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
                 .addValue("year", emptyToNull(year))
                 .addValue("result", emptyToNull(result));
     }
@@ -807,10 +822,12 @@ class PersonnelRepository {
             String organizationCode,
             String keyword) {
         String trimmedKeyword = SqlText.trim(keyword);
+        String trimmedOrganizationFilter = SqlText.trim(organizationCode);
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
-                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
+                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
     }
@@ -821,10 +838,12 @@ class PersonnelRepository {
             String period,
             String keyword) {
         String trimmedKeyword = SqlText.trim(keyword);
+        String trimmedOrganizationFilter = SqlText.trim(organizationCode);
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
-                .addValue("organizationCode", emptyToNull(organizationCode))
+                .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
+                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
                 .addValue("period", emptyToNull(period))
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
