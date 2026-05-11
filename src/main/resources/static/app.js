@@ -1188,7 +1188,7 @@ function resetPersonnelMaintenanceForm() {
     document.getElementById("maint-salary-years").value = "0";
     [
         "maint-education-rows", "maint-position-rows", "maint-payroll-rows", "maint-assessment-rows",
-        "maint-current-payroll-rows", "maint-award-rows", "maint-rank-rows", "maint-supervision-rows",
+        "maint-current-payroll-rows", "maint-award-rows", "maint-rank-rows",
         "maint-wage-reform-rows", "maint-pre-reform-rows", "maint-pension-base-rows",
     ].forEach(id => {
         document.getElementById(id).innerHTML = "<tr><td colspan='8'>保存或选择人员后加载记录</td></tr>";
@@ -1416,11 +1416,8 @@ function renderPersonnelRelatedRecords(records) {
         <tr><td>${escapeHtml(textField(row, "hjmc"))}</td><td>${escapeHtml(textField(row, "sjdw"))}</td><td>${escapeHtml(textField(row, "jllx"))}</td><td>${escapeHtml(textField(row, "hjsj"))}</td><td>${escapeHtml(textField(row, "tqyjjssj"))}</td><td>${escapeHtml(textField(row, "jljb"))}</td><td>${escapeHtml(textField(row, "jldc"))}</td><td>${escapeHtml(textField(row, "qtqk"))}</td></tr>
     `, 8, "暂无获奖记录");
     document.getElementById("maint-rank-rows").innerHTML = tableRows(records.rankRecords, row => `
-        <tr><td>${escapeHtml(textField(row, "jx"))}</td><td>${escapeHtml(textField(row, "sysj"))}</td><td>${escapeHtml(textField(row, "syyy"))}</td><td>${escapeHtml(textField(row, "rmwh"))}</td><td>${truthyField(row, "xrjxbz") ? "是" : "否"}</td><td>${escapeHtml(textField(row, "lb"))}</td></tr>
-    `, 6, "暂无警衔记录");
-    document.getElementById("maint-supervision-rows").innerHTML = tableRows(records.supervisionLevels, row => `
-        <tr><td>${escapeHtml(textField(row, "zwmc"))}</td><td>${escapeHtml(textField(row, "zjbm"))}</td><td>${escapeHtml(textField(row, "zwjb"))}</td><td>${escapeHtml(textField(row, "rzsj"))}</td></tr>
-    `, 4, "暂无监察/等级记录");
+        <tr><td>${escapeHtml(rankRecordType(row))}</td><td>${escapeHtml(textField(row, "jx"))}</td><td>${escapeHtml(textField(row, "sysj"))}</td><td>${escapeHtml(textField(row, "syyy"))}</td><td>${escapeHtml(textField(row, "rmwh"))}</td><td>${truthyField(row, "xrjxbz") ? "是" : "否"}</td><td>${escapeHtml(textField(row, "lb"))}</td></tr>
+    `, 7, "暂无警衔/等级记录");
     document.getElementById("maint-wage-reform-rows").innerHTML = tableRows(records.wageReform, row => `
         <tr><td>${escapeHtml(textField(row, "cjgzny"))}</td><td>${escapeHtml(textField(row, "tgnx"))}</td><td>${escapeHtml(textField(row, "zwmc"))}</td><td>${escapeHtml(textField(row, "rzsj"))}</td><td>${escapeHtml(textField(row, "rznx"))}</td><td>${escapeHtml(textField(row, "xl"))}</td><td>${escapeHtml(textField(row, "tgzw"))}</td><td>${escapeHtml(textField(row, "tgjb"))}</td><td>${escapeHtml(textField(row, "tgdc"))}</td><td>${escapeHtml(textField(row, "remark"))}</td></tr>
     `, 10, "暂无套改记录");
@@ -1447,6 +1444,20 @@ function numberField(row, fieldName) {
 function truthyField(row, fieldName) {
     const value = textField(row, fieldName);
     return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function rankRecordType(row) {
+    const value = String(textField(row, "jx") || "");
+    if (value.includes("检察")) {
+        return "检察官等级";
+    }
+    if (value.includes("法官")) {
+        return "法官等级";
+    }
+    if (value.includes("监察")) {
+        return "监察官等级";
+    }
+    return "警衔";
 }
 
 async function loadAnnualAssessments() {

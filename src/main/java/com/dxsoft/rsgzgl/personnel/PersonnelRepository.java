@@ -25,7 +25,6 @@ class PersonnelRepository {
             new TablePair("dtgxx", "dtgxxb"),
             new TablePair("tgqgz2006", "tgqgz2006b"),
             new TablePair("jx", "jxb"),
-            new TablePair("jdzw", "jdzwb"),
             new TablePair("jfjs", "jfjsb"),
             new TablePair("jytgyb", "jytgybb"),
             new TablePair("jytgzzbf", "jytgzzbfb"),
@@ -588,7 +587,6 @@ class PersonnelRepository {
         result.put("currentPayroll", firstTableRow("hisbase", key, "CASE WHEN sid IS NULL OR TRIM(sid) = '' THEN 0 ELSE 1 END, jsnf DESC, jsyf DESC"));
         result.put("awards", tableRows("hjxx", key, "hjsj DESC, id DESC"));
         result.put("rankRecords", tableRows("jx", key, "sysj DESC, id DESC"));
-        result.put("supervisionLevels", tableRows("jdzw", key, "rzsj DESC, id DESC"));
         result.put("wageReform", tableRows("dtgxx", key, "id DESC"));
         result.put("preReformSalary", tableRows("tgqgz2006", key, "id DESC"));
         result.put("pensionBase", tableRows("jfjs", key, "nd DESC, id DESC"));
