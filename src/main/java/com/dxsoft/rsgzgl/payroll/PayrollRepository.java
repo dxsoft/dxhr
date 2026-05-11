@@ -552,6 +552,26 @@ class PayrollRepository {
                 """, new MapSqlParameterSource("uid", uid), HISTORY_MAPPER).stream().findFirst();
     }
 
+    List<PayrollHistorySnapshot> findHistoryChain(String organizationCode, String personCode) {
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                       h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.gwjtbz, h.gwjtlb,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf,
+                       h.pgbc, h.njbt, h.hj2
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE h.dwbm = :organizationCode AND h.grbm = :personCode
+                ORDER BY h.jsnf, h.jsyf, h.id
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode), HISTORY_MAPPER);
+    }
+
     List<PayrollHistoryRecord> findPayrollHistories(
             OrganizationScope organizationScope,
             String organizationCode,

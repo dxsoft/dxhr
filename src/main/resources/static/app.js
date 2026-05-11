@@ -2398,6 +2398,10 @@ async function loadPositionChangePromotions() {
                 <td>${escapeHtml(row.policeSameRankStep || "")}</td>
                 <td>${row.policeHighPositionPromotion ? "是" : "否"}</td>
                 <td>${escapeHtml(row.judicialConversionStep || "")}</td>
+                <td>${escapeHtml(row.administrativeReplayLevel || "")}</td>
+                <td>${escapeHtml(row.administrativeReplayStep || "")}</td>
+                <td>${escapeHtml(row.administrativeReplayLevelStartYear || "")}</td>
+                <td>${escapeHtml(row.administrativeReplayStepStartYear || "")}</td>
                 <td>${escapeHtml(row.promotedLevel || "")}</td>
                 <td>${escapeHtml(row.promotedStep || "")}</td>
                 <td>${money(row.currentPositionSalary)}</td>
