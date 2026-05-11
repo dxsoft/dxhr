@@ -322,11 +322,12 @@ public class PayrollService {
             throw new IllegalArgumentException("当前工资记录不满足正常档次/薪级晋升处理条件。");
         }
         String changeType = normalPromotionChangeType(preview.baseSalarySource());
+        String promotionYear = preview.calculationPeriod().substring(0, 4);
         PromotionHistoryMutation mutation = new PromotionHistoryMutation(
-                preview.calculationPeriod().substring(0, 4),
-                preview.calculationPeriod().substring(4, 6),
+                promotionYear,
+                "01",
                 changeType,
-                preview.calculationPeriod().substring(0, 4),
+                promotionYear,
                 null,
                 preview.promotedGradeOrLevel(),
                 preview.gradeSalaryLevel(),
@@ -379,9 +380,10 @@ public class PayrollService {
         int promotedStepValue = payrollRepository.intValue(preview.promotedStep());
         String positionSalaryGrade = String.valueOf(promotedStepValue);
         String gradeSalaryStep = "0";
+        String promotionYear = preview.calculationPeriod().substring(0, 4);
         PromotionHistoryMutation mutation = new PromotionHistoryMutation(
-                preview.calculationPeriod().substring(0, 4),
-                preview.calculationPeriod().substring(4, 6),
+                promotionYear,
+                "01",
                 changeType,
                 preview.nextStepAssessmentStartYear(),
                 preview.nextLevelAssessmentStartYear(),
