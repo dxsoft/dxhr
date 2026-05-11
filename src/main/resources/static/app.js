@@ -385,22 +385,32 @@ async function initializeDictionaryPickers() {
 
 function initializeOrganizationPickerInput() {
     const input = document.getElementById("maint-organization-name");
-    if (!input || input.closest("label").querySelector(".organization-picker-button")) {
+    if (!input) {
         return;
     }
     const wrapper = input.closest("label");
-    const combo = document.createElement("div");
-    combo.className = "dict-input-combo";
-    wrapper.insertBefore(combo, input);
-    combo.appendChild(input);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "dict-picker-button organization-picker-button";
-    button.setAttribute("aria-label", "选择单位");
-    button.textContent = "⌄";
-    button.addEventListener("click", openOrganizationPicker);
-    combo.appendChild(button);
-    input.addEventListener("click", openOrganizationPicker);
+    let button = wrapper.querySelector(".organization-picker-button");
+    if (!button) {
+        const combo = document.createElement("div");
+        combo.className = "dict-input-combo";
+        wrapper.insertBefore(combo, input);
+        combo.appendChild(input);
+        button = document.createElement("button");
+        button.type = "button";
+        button.className = "dict-picker-button organization-picker-button";
+        button.setAttribute("aria-label", "选择单位");
+        button.textContent = "⌄";
+        combo.appendChild(button);
+    }
+    if (!button.dataset.pickerBound) {
+        button.addEventListener("click", openOrganizationPicker);
+        button.dataset.pickerBound = "true";
+    }
+    if (!input.dataset.pickerBound) {
+        input.addEventListener("click", openOrganizationPicker);
+        input.addEventListener("focus", openOrganizationPicker);
+        input.dataset.pickerBound = "true";
+    }
 }
 
 async function openOrganizationPicker() {

@@ -181,7 +181,12 @@
                     <form id="personnel-maintenance-form" class="toolbar modal-form-grid">
                         <input id="personnel-maintenance-uid" type="hidden">
                         <input id="maint-organization-code" type="hidden">
-                        <label>单位选择<input id="maint-organization-name" required readonly placeholder="请选择单位"></label>
+                        <label>单位选择
+                            <div class="dict-input-combo">
+                                <input id="maint-organization-name" required readonly placeholder="请选择单位">
+                                <button id="maint-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                            </div>
+                        </label>
                         <label>人员编码<input id="maint-person-code" required></label>
                         <label>姓名<input id="maint-name" required></label>
                         <label>身份证<input id="maint-id-card"></label>
