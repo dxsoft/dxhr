@@ -469,6 +469,21 @@ class PayrollRepository {
         return count == null ? 0 : count;
     }
 
+    Optional<WageReformStandard> findWageReformStandard(String positionCode, int appointmentYears, int reformYears) {
+        return jdbcTemplate.query("""
+                SELECT zwbm, rzns, rznz, tgns, tgnz, jb, dc
+                FROM bz06_tgb
+                WHERE zwbm = :positionCode
+                  AND :appointmentYears BETWEEN rzns AND rznz
+                  AND :reformYears BETWEEN tgns AND tgnz
+                ORDER BY rzns, tgns
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("positionCode", emptyToNull(positionCode))
+                .addValue("appointmentYears", appointmentYears)
+                .addValue("reformYears", reformYears), WAGE_REFORM_STANDARD_MAPPER).stream().findFirst();
+    }
+
     List<OtherAllowanceStandard> findOtherAllowanceStandards(
             String standardType,
             String standardYearMonth,
@@ -581,6 +596,21 @@ class PayrollRepository {
                 """, new MapSqlParameterSource()
                 .addValue("organizationCode", organizationCode)
                 .addValue("personCode", personCode), String.class).stream().findFirst().map(SqlText::trim).orElse("");
+    }
+
+    Optional<PositionChangeCandidate> findAdministrativePositionBeforeReform(String organizationCode, String personCode) {
+        return jdbcTemplate.query("""
+                SELECT zwbm, xzzw, srny
+                FROM dryzwbh
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND LEFT(zwbm, 2) = '01'
+                  AND REPLACE(srny, '.', '') < '200607'
+                ORDER BY srny DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode), POSITION_CHANGE_CANDIDATE_MAPPER).stream().findFirst();
     }
 
     List<PayrollHistoryRecord> findPayrollHistories(
