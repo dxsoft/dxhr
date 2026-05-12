@@ -1479,21 +1479,22 @@ public class PayrollService {
     private AdministrativeReplayStart administrativeReplayStart(PayrollHistorySnapshot current, List<PayrollHistorySnapshot> chain) {
         String regularization = normalizeYearMonth(payrollRepository.findRegularizationYearMonth(current.organizationCode(), current.personCode()));
         if (!regularization.isBlank() && regularization.compareTo("200607") < 0) {
-            Optional<WageReformStart> wageReform = payrollRepository.findWageReformStart(current.organizationCode(), current.personCode());
-            if (wageReform.isEmpty()) {
-                return AdministrativeReplayStart.ineligible("2006.07 前已转正人员未找到 dtgxx 套改起点。");
+            int startIndex = firstHistoryIndexByType(chain, "套改");
+            if (startIndex < 0) {
+                return AdministrativeReplayStart.ineligible("2006.07 前已转正人员未找到工资历史中的套改记录。");
             }
-            WageReformStart start = wageReform.get();
-            int historyStartIndex = firstHistoryIndexAtOrAfter(chain, "200607");
+            PayrollHistorySnapshot start = chain.get(startIndex);
             return new AdministrativeReplayStart(
                     true,
-                    historyStartIndex,
+                    startIndex,
                     start.positionCode(),
-                    start.level(),
-                    start.step(),
-                    "2006",
-                    "2006",
-                    "2006.07 前已转正，按 01 职务套改起点 " + start.positionCode() + " " + start.level() + "级" + start.step() + "档开始回放");
+                    start.gradeSalaryLevel(),
+                    String.valueOf(payrollRepository.intValue(start.positionSalaryGrade()) + payrollRepository.intValue(start.gradeSalaryStep())),
+                    start.levelAssessmentStartYear(),
+                    start.stepAssessmentStartYear(),
+                    "2006.07 前已转正，按工资历史中的 " + start.calculationYear() + start.calculationMonth()
+                            + " " + start.calculationType() + " 记录确定 01 职务套改起点 " + start.positionCode()
+                            + " " + start.gradeSalaryLevel() + "级开始回放");
         }
         int startIndex = firstHistoryIndexByType(chain, "转正");
         if (startIndex < 0) {
@@ -1519,16 +1520,6 @@ public class PayrollService {
             }
         }
         return -1;
-    }
-
-    private int firstHistoryIndexAtOrAfter(List<PayrollHistorySnapshot> chain, String period) {
-        for (int i = 0; i < chain.size(); i++) {
-            String rowPeriod = normalizeYearMonth(chain.get(i).calculationYear() + chain.get(i).calculationMonth());
-            if (!rowPeriod.isBlank() && rowPeriod.compareTo(period) >= 0) {
-                return i;
-            }
-        }
-        return Math.max(0, chain.size() - 1);
     }
 
     private String normalizeYearMonth(String value) {

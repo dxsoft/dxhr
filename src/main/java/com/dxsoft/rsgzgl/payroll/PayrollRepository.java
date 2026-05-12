@@ -232,12 +232,6 @@ class PayrollRepository {
             SqlText.trim(rs.getString("zzjb")),
             SqlText.trim(rs.getString("zzdc")));
 
-    private static final RowMapper<WageReformStart> WAGE_REFORM_START_MAPPER = (rs, rowNum) -> new WageReformStart(
-            SqlText.trim(rs.getString("tgzwbm")),
-            SqlText.trim(rs.getString("tgzw")),
-            SqlText.trim(rs.getString("tgjb")),
-            SqlText.trim(rs.getString("tgdc")));
-
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     PayrollRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -587,18 +581,6 @@ class PayrollRepository {
                 """, new MapSqlParameterSource()
                 .addValue("organizationCode", organizationCode)
                 .addValue("personCode", personCode), String.class).stream().findFirst().map(SqlText::trim).orElse("");
-    }
-
-    Optional<WageReformStart> findWageReformStart(String organizationCode, String personCode) {
-        return jdbcTemplate.query("""
-                SELECT tgzwbm, tgzw, tgjb, tgdc
-                FROM dtgxx
-                WHERE dwbm = :organizationCode AND grbm = :personCode
-                ORDER BY id DESC
-                LIMIT 1
-                """, new MapSqlParameterSource()
-                .addValue("organizationCode", organizationCode)
-                .addValue("personCode", personCode), WAGE_REFORM_START_MAPPER).stream().findFirst();
     }
 
     List<PayrollHistoryRecord> findPayrollHistories(
