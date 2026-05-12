@@ -1219,7 +1219,7 @@ public class PayrollService {
         String regularizationPeriod = normalizeYearMonth(payrollRepository.findRegularizationYearMonth(history.organizationCode(), history.personCode()));
         PositionChangeCandidate appointedPosition = regularizationPeriod.isBlank()
                 ? null
-                : payrollRepository.findPositionAtOrBefore(history.organizationCode(), history.personCode(), regularizationPeriod).orElse(null);
+                : payrollRepository.findPositionAtPeriod(history.organizationCode(), history.personCode(), regularizationPeriod).orElse(null);
         String standardPositionCode = appointedPosition != null && isInstitutionPosition(appointedPosition.positionCode())
                 ? appointedPosition.positionCode()
                 : history.positionCode();
@@ -1523,7 +1523,7 @@ public class PayrollService {
             return AdministrativeReplayStart.ineligible("未找到转正年月，无法按学历转正定级确定起点。");
         }
         PositionChangeCandidate appointedPosition = payrollRepository
-                .findPositionAtOrBefore(current.organizationCode(), current.personCode(), regularization)
+                .findPositionAtPeriod(current.organizationCode(), current.personCode(), regularization)
                 .orElse(null);
         String standardPositionCode = appointedPosition != null && isInstitutionPosition(appointedPosition.positionCode())
                 ? appointedPosition.positionCode()

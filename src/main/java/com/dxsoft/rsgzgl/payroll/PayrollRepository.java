@@ -613,14 +613,14 @@ class PayrollRepository {
                 .addValue("personCode", personCode), POSITION_CHANGE_CANDIDATE_MAPPER).stream().findFirst();
     }
 
-    Optional<PositionChangeCandidate> findPositionAtOrBefore(String organizationCode, String personCode, String period) {
+    Optional<PositionChangeCandidate> findPositionAtPeriod(String organizationCode, String personCode, String period) {
         String normalizedPeriod = period == null ? "" : period.replace(".", "");
         return jdbcTemplate.query("""
                 SELECT zwbm, xzzw, srny
                 FROM dryzwbh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
-                  AND REPLACE(srny, '.', '') <= :period
+                  AND REPLACE(srny, '.', '') = :period
                 ORDER BY srny DESC, id DESC
                 LIMIT 1
                 """, new MapSqlParameterSource()
