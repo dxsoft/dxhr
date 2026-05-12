@@ -26,6 +26,7 @@ public class PayrollService {
             "01", "02", "23", "24", "25", "26", "27", "28");
     private static final Set<String> POLICE_OFFICER_CONVERSION_TARGET_PREFIXES = Set.of("21", "22");
     private static final Set<String> JUDICIAL_CONVERSION_TARGET_PREFIXES = Set.of("03");
+    private static final Set<String> INSTITUTION_POSITION_PREFIXES = Set.of("07", "08", "09", "10", "11");
 
     private final PayrollRepository payrollRepository;
     private final AccessControlService accessControlService;
@@ -1215,15 +1216,26 @@ public class PayrollService {
     private RegularizationPreview regularizationPreview(int uid) {
         PayrollHistorySnapshot history = payrollRepository.findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        String regularizationPeriod = normalizeYearMonth(payrollRepository.findRegularizationYearMonth(history.organizationCode(), history.personCode()));
+        PositionChangeCandidate appointedPosition = regularizationPeriod.isBlank()
+                ? null
+                : payrollRepository.findPositionAtOrBefore(history.organizationCode(), history.personCode(), regularizationPeriod).orElse(null);
+        String standardPositionCode = appointedPosition != null && isInstitutionPosition(appointedPosition.positionCode())
+                ? appointedPosition.positionCode()
+                : history.positionCode();
         EducationPromotionSource education = payrollRepository
                 .findLatestEducationForPromotion(history.organizationCode(), history.personCode(), history.calculationYear() + history.calculationMonth())
                 .orElse(null);
         EducationRegularizationStandard standard = education == null ? null : payrollRepository
-                .findEducationRegularizationStandard(history.positionCode(), education.educationCode())
+                .findEducationRegularizationStandard(standardPositionCode, education.educationCode())
                 .orElse(null);
         boolean eligible = history.positionCode() != null && history.positionCode().contains("F")
                 && education != null && standard != null;
-        String regularPositionCode = eligible ? normalizeEducationPromotionPositionCode(standard.positionCode()) : null;
+        boolean institutionRegularization = eligible && appointedPosition != null && isInstitutionPosition(appointedPosition.positionCode());
+        String regularPositionCode = eligible
+                ? (institutionRegularization ? appointedPosition.positionCode() : normalizeEducationPromotionPositionCode(standard.positionCode()))
+                : null;
+        String regularPositionName = institutionRegularization ? appointedPosition.positionName() : standard == null ? null : standard.positionName();
         String regularLevel = eligible ? standard.gradeLevel() : null;
         String regularStep = eligible ? standard.gradeStep() : null;
         Integer regularPositionSalary = eligible
@@ -1246,7 +1258,7 @@ public class PayrollService {
                 education == null ? null : education.educationName(),
                 education == null ? null : education.graduationDate(),
                 regularPositionCode,
-                standard == null ? null : standard.positionName(),
+                regularPositionName,
                 regularLevel,
                 regularStep,
                 currentSalary,
@@ -1255,7 +1267,7 @@ public class PayrollService {
                 totalRegularSalary,
                 totalRegularSalary - nullToZero(currentSalary),
                 eligible,
-                regularizationNote(history, education, standard));
+                regularizationNote(history, education, standard, institutionRegularization));
     }
 
     private Integer regularizedBaseSalary(String positionCode, String levelOrSalaryLevel, String step, String standardYearMonth) {
@@ -1269,7 +1281,8 @@ public class PayrollService {
     private String regularizationNote(
             PayrollHistorySnapshot history,
             EducationPromotionSource education,
-            EducationRegularizationStandard standard) {
+            EducationRegularizationStandard standard,
+            boolean institutionRegularization) {
         if (history.positionCode() == null || !history.positionCode().contains("F")) {
             return "当前执行工资不是见习岗位，暂不参与转正定级试算。";
         }
@@ -1278,6 +1291,9 @@ public class PayrollService {
         }
         if (standard == null) {
             return "未找到当前见习岗位前缀和学历编码对应的转正定级标准。";
+        }
+        if (institutionRegularization) {
+            return "事业人员转正按学历转正定级标准确定薪级，职务岗位取转正时聘任岗位记录。";
         }
         return "按学历和 bz06_zzdz 转正定级标准试算，暂不写入数据库。";
     }
@@ -1506,25 +1522,35 @@ public class PayrollService {
         if (regularization.isBlank()) {
             return AdministrativeReplayStart.ineligible("未找到转正年月，无法按学历转正定级确定起点。");
         }
+        PositionChangeCandidate appointedPosition = payrollRepository
+                .findPositionAtOrBefore(current.organizationCode(), current.personCode(), regularization)
+                .orElse(null);
+        String standardPositionCode = appointedPosition != null && isInstitutionPosition(appointedPosition.positionCode())
+                ? appointedPosition.positionCode()
+                : candidate.positionCode();
         EducationPromotionSource education = payrollRepository
                 .findLatestEducationForPromotion(current.organizationCode(), current.personCode(), regularization)
                 .orElse(null);
         EducationRegularizationStandard standard = education == null ? null : payrollRepository
-                .findEducationRegularizationStandard(candidate.positionCode(), education.educationCode())
+                .findEducationRegularizationStandard(standardPositionCode, education.educationCode())
                 .orElse(null);
         if (standard == null) {
             return AdministrativeReplayStart.ineligible("2006.07 及以后转正人员未能按学历匹配转正定级标准。");
         }
+        boolean institutionRegularization = appointedPosition != null && isInstitutionPosition(appointedPosition.positionCode());
         int startIndex = firstHistoryIndexAtOrAfter(chain, regularization);
         return new AdministrativeReplayStart(
                 true,
                 startIndex,
-                normalizeEducationPromotionPositionCode(standard.positionCode()),
+                institutionRegularization ? appointedPosition.positionCode() : normalizeEducationPromotionPositionCode(standard.positionCode()),
                 standard.gradeLevel(),
                 standard.gradeStep(),
                 String.valueOf(yearOf(regularization)),
                 String.valueOf(yearOf(regularization)),
-                "2006.07 及以后转正，按学历转正定级标准确定起点 "
+                institutionRegularization
+                        ? "2006.07 及以后转正，事业人员按学历转正定级标准确定薪级，岗位取转正时聘任岗位 "
+                        + appointedPosition.positionCode() + " " + standard.gradeStep() + "薪级开始回放"
+                        : "2006.07 及以后转正，按学历转正定级标准确定起点 "
                         + standard.positionCode() + " " + standard.gradeLevel() + "级" + standard.gradeStep() + "档开始回放");
     }
 
@@ -1797,6 +1823,11 @@ public class PayrollService {
     private boolean isLevelPromotionPosition(String positionCode) {
         return positionCode != null && positionCode.length() >= 2
                 && LEVEL_PROMOTION_POSITION_PREFIXES.contains(positionCode.substring(0, 2));
+    }
+
+    private boolean isInstitutionPosition(String positionCode) {
+        return positionCode != null && positionCode.length() >= 2
+                && INSTITUTION_POSITION_PREFIXES.contains(positionCode.substring(0, 2));
     }
 
     private int normalPromotionRequiredYears(PayrollHistorySnapshot history) {
