@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -627,6 +628,28 @@ class PayrollRepository {
                 .addValue("organizationCode", organizationCode)
                 .addValue("personCode", personCode)
                 .addValue("period", normalizedPeriod), POSITION_CHANGE_CANDIDATE_MAPPER).stream().findFirst();
+    }
+
+    Optional<PositionChangeCandidate> findLatestPositionBefore(
+            String organizationCode,
+            String personCode,
+            String beforePeriod,
+            Set<String> prefixes) {
+        String normalizedPeriod = beforePeriod == null ? "" : beforePeriod.replace(".", "");
+        return jdbcTemplate.query("""
+                SELECT zwbm, xzzw, srny
+                FROM dryzwbh
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND REPLACE(srny, '.', '') < :period
+                  AND LEFT(zwbm, 2) IN (:prefixes)
+                ORDER BY srny DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("period", normalizedPeriod)
+                .addValue("prefixes", prefixes == null || prefixes.isEmpty() ? List.of("__NO_PREFIX__") : prefixes), POSITION_CHANGE_CANDIDATE_MAPPER).stream().findFirst();
     }
 
     List<PayrollHistoryRecord> findPayrollHistories(

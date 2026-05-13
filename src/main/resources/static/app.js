@@ -2389,6 +2389,7 @@ async function loadPositionChangePromotions() {
                 <td>${row.policeOfficerConversion ? "是" : "否"}</td>
                 <td>${row.judicialConversion ? "是" : "否"}</td>
                 <td>${row.rankConversion ? "是" : "否"}</td>
+                <td>${row.institutionPositionChange ? "是" : "否"}</td>
                 <td>${row.rankHighPositionPromotion ? "是" : "否"}</td>
                 <td>${escapeHtml(row.positionStartYearMonth || "")}</td>
                 <td>${escapeHtml(row.effectivePeriod || "")}</td>
@@ -2404,6 +2405,9 @@ async function loadPositionChangePromotions() {
                 <td>${escapeHtml(row.administrativeReplayStep || "")}</td>
                 <td>${escapeHtml(row.administrativeReplayLevelStartYear || "")}</td>
                 <td>${escapeHtml(row.administrativeReplayStepStartYear || "")}</td>
+                <td>${escapeHtml(row.institutionStartSalaryLevel || "")}</td>
+                <td>${escapeHtml(row.institutionPromotedSalaryLevel || "")}</td>
+                <td>${escapeHtml(row.institutionNextStepAssessmentStartYear || "")}</td>
                 <td>${escapeHtml(row.promotedLevel || "")}</td>
                 <td>${escapeHtml(row.promotedStep || "")}</td>
                 <td>${money(row.currentPositionSalary)}</td>

@@ -1026,13 +1026,15 @@ public class PayrollService {
         boolean judicialConversion = isJudicialConversion(currentPositionPrefix, newPositionPrefix);
         boolean rankConversion = isRankConversion(currentPositionPrefix, newPositionPrefix);
         boolean rankHighPositionPromotion = rankConversion && isHigherPositionLayer(history.positionCode(), candidate.positionCode());
+        boolean institutionPositionChange = isInstitutionPosition(currentPositionPrefix) && isInstitutionPosition(newPositionPrefix);
         String changeType = positionChangeType(
                 history.positionCode(),
                 candidate.positionCode(),
                 sequenceConversion,
                 policeOfficerConversion,
                 judicialConversion,
-                rankConversion);
+                rankConversion,
+                institutionPositionChange);
         int currentLevel = payrollRepository.intValue(history.gradeSalaryLevel());
         String currentStep = String.valueOf(
                 payrollRepository.intValue(history.positionSalaryGrade())
@@ -1045,6 +1047,9 @@ public class PayrollService {
                 : null;
         RankConversionResult rankConversionResult = rankConversion
                 ? rankConversionResult(history, candidate, levelRange, currentLevel, currentStep, currentGradeSalary, rankHighPositionPromotion)
+                : null;
+        InstitutionPositionChangeResult institutionResult = institutionPositionChange
+                ? institutionPositionChangeResult(history, candidate, currentStep)
                 : null;
         String judicialConversionStep = judicialConversion
                 ? payrollRepository.judicialConversionStep(history.gradeSalaryLevel(), currentStep, candidate.positionCode())
@@ -1060,6 +1065,7 @@ public class PayrollService {
                 && currentLevel > 0;
         boolean eligible = (policeOfficerResult != null && policeOfficerResult.eligible())
                 || (rankConversionResult != null && rankConversionResult.eligible())
+                || (institutionResult != null && institutionResult.eligible())
                 || (judicialConversion && judicialConversionStep != null && !judicialConversionStep.isBlank())
                 || (administrativeReplayResult != null && administrativeReplayResult.eligible())
                 || sameSequenceEligible;
@@ -1097,6 +1103,11 @@ public class PayrollService {
             promotedStep = administrativeReplayResult.promotedStep();
             promotedGradeSalary = administrativeReplayResult.promotedGradeSalary();
         }
+        if (institutionResult != null && institutionResult.eligible()) {
+            promotedLevel = "";
+            promotedStep = institutionResult.promotedSalaryLevel();
+            promotedGradeSalary = institutionResult.promotedSalary();
+        }
         int promotedLevels = Math.max(0, currentLevel - payrollRepository.intValue(promotedLevel));
         String nextLevelAssessmentStartYear = promotedLevels >= 2 ? history.calculationYear() : history.levelAssessmentStartYear();
         boolean gradeIncreaseExceedsStepDifference = sameSequenceEligible && promotedLevels > 0
@@ -1131,6 +1142,10 @@ public class PayrollService {
                 judicialConversion,
                 rankConversion,
                 rankHighPositionPromotion,
+                institutionPositionChange,
+                institutionResult == null ? null : institutionResult.startSalaryLevel(),
+                institutionResult == null ? null : institutionResult.promotedSalaryLevel(),
+                institutionResult == null ? null : institutionResult.nextStepAssessmentStartYear(),
                 changeType,
                 candidate.startYearMonth(),
                 nextMonth(candidate.startYearMonth()),
@@ -1176,6 +1191,7 @@ public class PayrollService {
                         judicialConversion,
                         rankConversion,
                         rankConversionResult,
+                        institutionResult,
                         judicialConversionStep,
                         administrativeReplayResult,
                         policeOfficerResult));
@@ -1479,6 +1495,139 @@ public class PayrollService {
                 payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth()));
     }
 
+    private InstitutionPositionChangeResult institutionPositionChangeResult(
+            PayrollHistorySnapshot history,
+            PositionChangeCandidate candidate,
+            String currentSalaryLevel) {
+        int currentLevel = payrollRepository.intValue(currentSalaryLevel);
+        if (currentLevel <= 0) {
+            return InstitutionPositionChangeResult.ineligible("当前薪级不完整，无法试算事业岗位变动。");
+        }
+        String currentPrefix = positionPrefix(history.positionCode());
+        String targetPrefix = positionPrefix(candidate.positionCode());
+        String startLevel = String.valueOf(currentLevel);
+        String promotedLevel = startLevel;
+        String nextStepStartYear = history.stepAssessmentStartYear();
+        String note;
+        if (currentPrefix.equals(targetPrefix)) {
+            PositionLevelRange range = payrollRepository.findPositionLevelRange(candidate.positionCode()).orElse(null);
+            if (range != null && currentLevel < range.minimumLevel()) {
+                promotedLevel = String.valueOf(range.minimumLevel());
+                nextStepStartYear = nextAssessmentYear(candidate.startYearMonth(), history.calculationYear());
+                note = "事业人员同序列岗位变动：未达新岗位最低薪级，进入最低薪级，第二年不再考核晋升薪级。";
+            } else {
+                note = "事业人员同序列岗位变动：已达新岗位最低薪级，薪级不变。";
+            }
+        } else if ("08".equals(currentPrefix) && Set.of("07", "10", "11").contains(targetPrefix)) {
+            InstitutionStart start = institutionTransferStart(history, candidate);
+            if (!start.eligible()) {
+                return InstitutionPositionChangeResult.ineligible(start.note());
+            }
+            startLevel = start.startSalaryLevel();
+            promotedLevel = replayInstitutionSalaryLevel(
+                    history,
+                    start.historyStartPeriod(),
+                    startLevel,
+                    targetPrefix);
+            nextStepStartYear = start.stepStartYear();
+            note = start.note() + "；回放套改/转正以来正常薪级晋升和学历变化后确定转岗薪级。";
+        } else {
+            PositionLevelRange range = payrollRepository.findPositionLevelRange(candidate.positionCode()).orElse(null);
+            if (range != null && currentLevel < range.minimumLevel()) {
+                promotedLevel = String.valueOf(range.minimumLevel());
+                nextStepStartYear = nextAssessmentYear(candidate.startYearMonth(), history.calculationYear());
+                note = "事业人员不同序列岗位变动：未达新岗位最低薪级，进入最低薪级。";
+            } else {
+                note = "事业人员不同序列岗位变动：已达新岗位最低薪级，薪级不变。";
+            }
+        }
+        int promotedSalary = payrollRepository.salaryLevelSalary(promotedLevel, "0", history.salaryStandardYearMonth(), candidate.positionCode());
+        return new InstitutionPositionChangeResult(true, startLevel, promotedLevel, nextStepStartYear, promotedSalary, note);
+    }
+
+    private InstitutionStart institutionTransferStart(PayrollHistorySnapshot history, PositionChangeCandidate candidate) {
+        String regularization = normalizeYearMonth(payrollRepository.findRegularizationYearMonth(history.organizationCode(), history.personCode()));
+        if (regularization.isBlank()) {
+            return InstitutionStart.ineligible("未找到转正年月，无法确定事业转岗起点。");
+        }
+        if (regularization.compareTo("200607") >= 0) {
+            EducationPromotionSource education = payrollRepository
+                    .findLatestEducationForPromotion(history.organizationCode(), history.personCode(), regularization)
+                    .orElse(null);
+            EducationRegularizationStandard standard = education == null ? null : payrollRepository
+                    .findEducationRegularizationStandard(candidate.positionCode(), education.educationCode())
+                    .orElse(null);
+            if (standard == null) {
+                return InstitutionStart.ineligible("2006.07 后转正人员未能按学历匹配新岗位序列转正薪级。");
+            }
+            return new InstitutionStart(true, regularization, standard.gradeStep(), String.valueOf(yearOf(regularization)),
+                    "2006.07 后转正，按转正时学历确定新任岗位序列薪级 " + standard.gradeStep());
+        }
+        boolean hasManagementOrTechnicalBeforeWorker = payrollRepository
+                .findLatestPositionBefore(history.organizationCode(), history.personCode(), normalizeYearMonth(history.positionStartYearMonth()), Set.of("07", "10", "11"))
+                .isPresent();
+        EducationPromotionSource education = payrollRepository
+                .findLatestEducationForPromotion(history.organizationCode(), history.personCode(), "200607")
+                .orElse(null);
+        EducationRegularizationStandard standard = education == null ? null : payrollRepository
+                .findEducationRegularizationStandard(candidate.positionCode(), education.educationCode())
+                .orElse(null);
+        String reformPosition = hasManagementOrTechnicalBeforeWorker
+                ? candidate.positionCode()
+                : standard == null ? candidate.positionCode() : normalizeEducationPromotionPositionCode(standard.positionCode());
+        int appointmentYears = hasManagementOrTechnicalBeforeWorker
+                ? Math.max(1, 2006 - yearOf(candidate.startYearMonth()) + 1)
+                : 1;
+        int reformYears = history.salaryYears() == null || history.salaryYears() <= 0
+                ? Math.max(1, 2006 - yearOf(history.workStartYearMonth()) + 1 - nullToZero(history.interruptedSalaryYears()))
+                : history.salaryYears();
+        Optional<WageReformStandard> wageReform = payrollRepository.findWageReformStandard(reformPosition, appointmentYears, reformYears);
+        if (wageReform.isEmpty()) {
+            return InstitutionStart.ineligible("2006.07 前已转正事业人员未能匹配新任岗位序列套改薪级。");
+        }
+        return new InstitutionStart(
+                true,
+                "200607",
+                wageReform.get().convertedStep(),
+                "2006",
+                hasManagementOrTechnicalBeforeWorker
+                        ? "2006.07 前已转正，曾有管理/专技岗位，按新聘岗位序列套改薪级 " + wageReform.get().convertedStep()
+                        : "2006.07 前已转正，工勤转岗，按学历模拟定级岗位、任职年限1年套改薪级 " + wageReform.get().convertedStep());
+    }
+
+    private String replayInstitutionSalaryLevel(
+            PayrollHistorySnapshot history,
+            String startPeriod,
+            String startSalaryLevel,
+            String targetPrefix) {
+        int level = payrollRepository.intValue(startSalaryLevel);
+        if (level <= 0) {
+            return startSalaryLevel;
+        }
+        List<PayrollHistorySnapshot> chain = payrollRepository.findHistoryChain(history.organizationCode(), history.personCode());
+        for (PayrollHistorySnapshot row : chain) {
+            String rowPeriod = normalizeYearMonth(row.calculationYear() + row.calculationMonth());
+            if (rowPeriod.compareTo(startPeriod) <= 0) {
+                continue;
+            }
+            if (containsAny(row.calculationType(), "正常档次", "薪级")) {
+                level++;
+            } else if (containsAny(row.calculationType(), "学历")) {
+                String rowLevel = String.valueOf(payrollRepository.intValue(row.positionSalaryGrade()) + payrollRepository.intValue(row.gradeSalaryStep()));
+                int value = payrollRepository.intValue(rowLevel);
+                if (value > level && isInstitutionPosition(row.positionCode())) {
+                    level = value;
+                }
+            }
+        }
+        return String.valueOf(level);
+    }
+
+    private String nextAssessmentYear(String yearMonth, String fallbackYear) {
+        int year = yearOf(yearMonth);
+        return year > 0 ? String.valueOf(year + 1) : fallbackYear;
+    }
+
     private AdministrativeReplayResult administrativeReplayResult(PayrollHistorySnapshot current, PositionChangeCandidate candidate) {
         List<PayrollHistorySnapshot> chain = payrollRepository.findHistoryChain(current.organizationCode(), current.personCode());
         if (chain.isEmpty()) {
@@ -1777,6 +1926,31 @@ public class PayrollService {
         }
     }
 
+    private record InstitutionPositionChangeResult(
+            boolean eligible,
+            String startSalaryLevel,
+            String promotedSalaryLevel,
+            String nextStepAssessmentStartYear,
+            Integer promotedSalary,
+            String note) {
+
+        static InstitutionPositionChangeResult ineligible(String note) {
+            return new InstitutionPositionChangeResult(false, null, null, null, 0, note);
+        }
+    }
+
+    private record InstitutionStart(
+            boolean eligible,
+            String historyStartPeriod,
+            String startSalaryLevel,
+            String stepStartYear,
+            String note) {
+
+        static InstitutionStart ineligible(String note) {
+            return new InstitutionStart(false, null, null, null, note);
+        }
+    }
+
     private record AdministrativeReplayResult(
             boolean eligible,
             String replayedLevel,
@@ -1814,7 +1988,8 @@ public class PayrollService {
             boolean sequenceConversion,
             boolean policeOfficerConversion,
             boolean judicialConversion,
-            boolean rankConversion) {
+            boolean rankConversion,
+            boolean institutionPositionChange) {
         if (newPositionCode == null || newPositionCode.equals(currentPositionCode)) {
             return "未变化";
         }
@@ -1826,6 +2001,9 @@ public class PayrollService {
         }
         if (rankConversion) {
             return "职级套改";
+        }
+        if (institutionPositionChange) {
+            return "事业岗位变动";
         }
         if (sequenceConversion) {
             return "转换序列";
@@ -1859,6 +2037,7 @@ public class PayrollService {
             boolean judicialConversion,
             boolean rankConversion,
             RankConversionResult rankConversionResult,
+            InstitutionPositionChangeResult institutionResult,
             String judicialConversionStep,
             AdministrativeReplayResult administrativeReplayResult,
             PoliceOfficerConversionResult policeOfficerResult) {
@@ -1880,6 +2059,11 @@ public class PayrollService {
                 return "识别为职级套改，但未找到目标职级对应的级别范围，暂不能试算。";
             }
             return "识别为职级套改；从 01 前缀职务转为职级类序列，按警员套改同类规则处理。职务工资减少额保留到 PGBC，后续职务晋升时从职务工资增资额中冲减。";
+        }
+        if (institutionResult != null) {
+            return institutionResult.eligible()
+                    ? institutionResult.note()
+                    : institutionResult.note();
         }
         if (judicialConversion) {
             return judicialConversionStep == null || judicialConversionStep.isBlank()
