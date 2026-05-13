@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 class ReportRepository {
 
     private static final RowMapper<PayrollChangeRegisterRow> PAYROLL_CHANGE_REGISTER_MAPPER = (rs, rowNum) -> new PayrollChangeRegisterRow(
+            SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("dwmc")),
             SqlText.trim(rs.getString("grbm")),
@@ -50,7 +51,7 @@ class ReportRepository {
             return List.of();
         }
         return jdbc.query("""
-                SELECT h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
                        h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.blfb2,
                        h.jxjt, h.njbt, h.pgbc, h.hj2
