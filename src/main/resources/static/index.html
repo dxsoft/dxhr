@@ -1380,6 +1380,50 @@
         </div>
     </section>
 
+    <section id="payroll-change-register-report" class="panel hidden" data-menu-code="PAYROLL_CHANGE_REGISTER_REPORT">
+        <div class="panel-title">
+            <div>
+                <h2>工资变动花名册</h2>
+                <p>按单位、变动年月和关键词预览 `hisbase` 工资变动花名册，可使用浏览器打印。</p>
+            </div>
+            <button id="payroll-change-register-print" type="button">打印预览</button>
+        </div>
+        <form id="payroll-change-register-report-form" class="toolbar">
+            <label>单位名称<input id="report-payroll-change-organization-code" placeholder="输入单位名称或编码"></label>
+            <label>变动年月<input id="report-payroll-change-period" placeholder="例如 202407"></label>
+            <label>关键词<input id="report-payroll-change-keyword" placeholder="人员编码 / 姓名 / 变动类别 / 岗位"></label>
+            <label>每页数量<input id="report-payroll-change-size" type="number" min="1" max="500" value="50"></label>
+            <button type="submit">查询报表</button>
+        </form>
+        <div id="report-payroll-change-status" class="status"></div>
+        <div class="table-wrap report-print-area">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>年月</th>
+                    <th>变动类别</th>
+                    <th>岗位</th>
+                    <th>级别</th>
+                    <th>档次/薪级</th>
+                    <th>职务工资</th>
+                    <th>级别/薪级</th>
+                    <th>技术等级</th>
+                    <th>绩效/生活</th>
+                    <th>保留福补</th>
+                    <th>警衔津贴</th>
+                    <th>年补贴</th>
+                    <th>PGBC</th>
+                    <th>合计</th>
+                </tr>
+                </thead>
+                <tbody id="report-payroll-change-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="basic-standards" class="panel hidden" data-menu-code="BASIC_STANDARDS">
         <div class="panel-title">
             <div>

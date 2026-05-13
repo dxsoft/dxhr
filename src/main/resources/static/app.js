@@ -82,6 +82,7 @@ const menuGroups = [
     { title: "信息维护", codes: ["PERSONNEL", "PERSONNEL_MAINTENANCE", "ANNUAL_ASSESSMENTS", "CHANGED_PERSONNEL", "ASSESSMENT_SUMMARY", "POSITION_HISTORY", "EDUCATION_HISTORY", "ORGANIZATION_MAINTENANCE"] },
     { title: "工资变动", codes: ["PAYROLL", "PAYROLL_HISTORY", "TEACHING_ALLOWANCE_ADJUSTMENT", "NORMAL_PROMOTION", "LEVEL_PROMOTION", "POSITION_CHANGE_PROMOTION", "EDUCATION_PROMOTION", "REGULARIZATION", "AUDIT"] },
     { title: "标准维护", codes: ["BASIC_STANDARDS", "ALLOWANCE_STANDARDS", "INTERN_SALARY_STANDARDS", "RANK_ALLOWANCE_STANDARDS", "RETAINED_ALLOWANCE_STANDARDS", "YEAR_ALLOWANCE_STANDARDS", "WAGE_REFORM_STANDARDS", "OTHER_ALLOWANCE_STANDARDS"] },
+    { title: "报表查询", codes: ["PAYROLL_CHANGE_REGISTER_REPORT"] },
     { title: "系统管理", codes: ["LOCAL_POLICY_CONFIG", "DICTIONARY_MAINTENANCE", "SECURITY"] },
 ];
 
@@ -115,6 +116,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("dictionary-maintenance-form").addEventListener("submit", onDictionarySearch);
     document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
+    document.getElementById("payroll-change-register-report-form").addEventListener("submit", onPayrollChangeRegisterReportSearch);
+    document.getElementById("payroll-change-register-print").addEventListener("click", () => window.print());
     document.getElementById("payroll-history-form").addEventListener("submit", onPayrollHistorySearch);
     document.getElementById("payroll-change-close").addEventListener("click", closePayrollChangeModal);
     document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
@@ -211,6 +214,9 @@ async function initializeAuth() {
         }
         if (hasMenu("PAYROLL_HISTORY")) {
             await loadPayrollHistory();
+        }
+        if (hasMenu("PAYROLL_CHANGE_REGISTER_REPORT")) {
+            await loadPayrollChangeRegisterReport();
         }
         if (hasMenu("TEACHING_ALLOWANCE_ADJUSTMENT")) {
             await loadTeachingAllowanceAdjustments();
@@ -2039,6 +2045,60 @@ async function loadAudit() {
             </tr>
         `).join("");
         status.textContent = `已比较 ${summary.comparedPersonnel} 人，差异 ${summary.differenceCount} 人`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function onPayrollChangeRegisterReportSearch(event) {
+    event.preventDefault();
+    await loadPayrollChangeRegisterReport();
+}
+
+async function loadPayrollChangeRegisterReport() {
+    const organizationCode = document.getElementById("report-payroll-change-organization-code").value.trim();
+    const period = document.getElementById("report-payroll-change-period").value.trim();
+    const keyword = document.getElementById("report-payroll-change-keyword").value.trim();
+    const size = document.getElementById("report-payroll-change-size").value || "50";
+    const params = new URLSearchParams({ page: "0", size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (period) {
+        params.set("period", period);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+    const status = document.getElementById("report-payroll-change-status");
+    const rows = document.getElementById("report-payroll-change-rows");
+    status.className = "status";
+    status.textContent = "正在加载工资变动花名册...";
+    rows.innerHTML = "";
+    try {
+        const result = await getJson(`/api/reports/payroll-change-register?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.calculationYear)}${escapeHtml(row.calculationMonth)}</td>
+                <td>${escapeHtml(row.changeType)}</td>
+                <td>${escapeHtml(row.positionCode)} ${escapeHtml(row.positionName || "")}</td>
+                <td>${escapeHtml(row.gradeLevel || "")}</td>
+                <td>${escapeHtml(row.stepOrSalaryLevel || "")}</td>
+                <td>${money(row.positionSalary)}</td>
+                <td>${money(row.gradeSalary)}</td>
+                <td>${money(row.technicalGradeSalary)}</td>
+                <td>${money(row.performanceAllowance)}</td>
+                <td>${money(row.retainedAllowance)}</td>
+                <td>${money(row.rankAllowance)}</td>
+                <td>${money(row.yearAllowance)}</td>
+                <td>${money(row.pgbc)}</td>
+                <td>${money(row.totalAmount)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `共 ${result.totalElements} 条，当前预览 ${result.content.length} 条`;
     } catch (error) {
         showError(status, error);
     }
