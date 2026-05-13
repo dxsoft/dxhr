@@ -186,42 +186,87 @@ public class PayrollService {
 
     public WageProjectionPreview wageProjection(int uid, String period) {
         String targetPeriod = projectionPeriod(period);
-        PayrollHistorySnapshot base = payrollRepository.findHistoryAtOrBefore(uid, targetPeriod)
-                .orElseGet(() -> payrollRepository.findLatestHistory(uid)
-                        .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid)));
-        accessControlService.requireOrganization(base.organizationCode());
-        String positionCode = base.positionCode();
-        String positionName = base.positionName();
+        PayrollHistorySnapshot latest = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        accessControlService.requireOrganization(latest.organizationCode());
+        List<PayrollHistorySnapshot> chain = payrollRepository.findHistoryChain(latest.organizationCode(), latest.personCode());
         List<String> lines = new ArrayList<>();
         lines.add("目标年月：" + targetPeriod + "。");
-        lines.add("起点工资记录：" + base.calculationYear() + base.calculationMonth() + " " + base.calculationType()
-                + "，岗位 " + base.positionCode() + " " + base.positionName() + "。");
-        payrollRepository.findPositionAtOrBefore(base.organizationCode(), base.personCode(), targetPeriod)
+        WageProjectionStart start = wageProjectionStart(latest, chain);
+        if (!start.eligible()) {
+            lines.add(start.note());
+            return new WageProjectionPreview(
+                    uid,
+                    latest.organizationCode(),
+                    latest.personCode(),
+                    latest.name(),
+                    targetPeriod,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    lines);
+        }
+        String positionCode = start.positionCode();
+        String positionName = start.positionName();
+        String level = start.level();
+        String step = start.stepOrSalaryLevel();
+        String levelStartYear = start.levelStartYear();
+        String stepStartYear = start.stepStartYear();
+        String baseSalarySource = baseSalarySource(positionCode);
+        lines.add(start.note());
+        String startPeriod = start.period();
+        for (PayrollHistorySnapshot row : chain) {
+            String rowPeriod = normalizeYearMonth(row.calculationYear() + row.calculationMonth());
+            if (rowPeriod.isBlank() || rowPeriod.compareTo(startPeriod) <= 0 || rowPeriod.compareTo(targetPeriod) > 0) {
+                continue;
+            }
+            String type = row.calculationType();
+            if (containsAny(type, "职务", "岗位")) {
+                positionCode = row.positionCode();
+                positionName = row.positionName();
+                baseSalarySource = baseSalarySource(positionCode);
+                if ("GRADE".equals(baseSalarySource)) {
+                    level = row.gradeSalaryLevel();
+                    step = String.valueOf(payrollRepository.intValue(row.positionSalaryGrade()) + payrollRepository.intValue(row.gradeSalaryStep()));
+                    levelStartYear = row.levelAssessmentStartYear();
+                    stepStartYear = row.stepAssessmentStartYear();
+                } else if ("SALARY_LEVEL".equals(baseSalarySource)) {
+                    level = "";
+                    step = String.valueOf(payrollRepository.intValue(row.positionSalaryGrade()) + payrollRepository.intValue(row.gradeSalaryStep()));
+                    stepStartYear = row.stepAssessmentStartYear();
+                }
+                lines.add(row.calculationYear() + row.calculationMonth() + " " + type + "：采用历史记录岗位 " + positionCode + " " + positionName
+                        + "，级别/薪级 " + emptyToDash(level) + "/" + emptyToDash(step) + "。");
+            } else if (containsAny(type, "学历")) {
+                if ("GRADE".equals(baseSalarySource)) {
+                    level = row.gradeSalaryLevel();
+                }
+                step = String.valueOf(payrollRepository.intValue(row.positionSalaryGrade()) + payrollRepository.intValue(row.gradeSalaryStep()));
+                stepStartYear = row.stepAssessmentStartYear();
+                lines.add(row.calculationYear() + row.calculationMonth() + " 学历变化：采用历史记录级别/薪级 " + emptyToDash(level) + "/" + step + "。");
+            }
+        }
+        payrollRepository.findPositionAtOrBefore(latest.organizationCode(), latest.personCode(), targetPeriod)
                 .ifPresent(position -> {
                     lines.add("目标年月任职记录：" + position.startYearMonth() + " " + position.positionCode() + " " + position.positionName() + "。");
                 });
-        Optional<PositionChangeCandidate> targetPosition = payrollRepository.findPositionAtOrBefore(base.organizationCode(), base.personCode(), targetPeriod);
-        if (targetPosition.isPresent()) {
-            positionCode = targetPosition.get().positionCode();
-            positionName = targetPosition.get().positionName();
-        }
-        String baseSalarySource = baseSalarySource(positionCode);
-        String level = base.gradeSalaryLevel();
-        String step = String.valueOf(payrollRepository.intValue(base.positionSalaryGrade()) + payrollRepository.intValue(base.gradeSalaryStep()));
-        String levelStartYear = base.levelAssessmentStartYear();
-        String stepStartYear = base.stepAssessmentStartYear();
-        int baseYear = yearOf(base.calculationYear());
+        int baseYear = yearOf(startPeriod);
         int targetYear = yearOf(targetPeriod);
         for (int year = Math.max(2007, baseYear + 1); year <= targetYear; year++) {
             if ("GRADE".equals(baseSalarySource) && payrollRepository.intValue(level) > 1) {
-                int levelStart = assessmentStartYear(levelStartYear, base.positionStartYearMonth(), positionCode);
-                int stepStart = assessmentStartYear(stepStartYear, base.positionStartYearMonth(), positionCode);
-                int qualifiedLevel = payrollRepository.countQualifiedAssessmentYears(base.organizationCode(), base.personCode(), levelStart, year - 1);
-                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(base.organizationCode(), base.personCode(), stepStart, year - 1);
+                int levelStart = assessmentStartYear(levelStartYear, start.positionStartYearMonth(), positionCode);
+                int stepStart = assessmentStartYear(stepStartYear, start.positionStartYearMonth(), positionCode);
+                int qualifiedLevel = payrollRepository.countQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), levelStart, year - 1);
+                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1);
                 if (qualifiedLevel >= 5) {
-                    int currentSalary = payrollRepository.gradeSalary(level, step, base.salaryStandardYearMonth());
+                    int currentSalary = payrollRepository.gradeSalary(level, step, latest.salaryStandardYearMonth());
                     String nextLevel = String.valueOf(Math.max(1, payrollRepository.intValue(level) - 1));
-                    String nextStep = firstHigherGradeStep(nextLevel, currentSalary, base.salaryStandardYearMonth());
+                    String nextStep = firstHigherGradeStep(nextLevel, currentSalary, latest.salaryStandardYearMonth());
                     lines.add(year + " 年：累计 " + qualifiedLevel + " 年考核合格，晋升级别 " + level + " -> " + nextLevel + "，档次 " + step + " -> " + nextStep + "。");
                     level = nextLevel;
                     step = nextStep;
@@ -233,8 +278,8 @@ public class PayrollService {
                     lines.add(year + " 年：累计 " + qualifiedStep + " 年考核合格，晋升档次/薪级到 " + step + "。");
                 }
             } else if ("SALARY_LEVEL".equals(baseSalarySource)) {
-                int stepStart = assessmentStartYear(stepStartYear, base.positionStartYearMonth(), positionCode);
-                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(base.organizationCode(), base.personCode(), stepStart, year - 1);
+                int stepStart = assessmentStartYear(stepStartYear, start.positionStartYearMonth(), positionCode);
+                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1);
                 if (qualifiedStep >= 1) {
                     step = String.valueOf(payrollRepository.intValue(step) + 1);
                     stepStartYear = String.valueOf(year);
@@ -244,11 +289,11 @@ public class PayrollService {
         }
         return new WageProjectionPreview(
                 uid,
-                base.organizationCode(),
-                base.personCode(),
-                base.name(),
+                latest.organizationCode(),
+                latest.personCode(),
+                latest.name(),
                 targetPeriod,
-                base.calculationYear() + base.calculationMonth(),
+                start.period(),
                 positionCode,
                 positionName,
                 level,
@@ -1479,6 +1524,71 @@ public class PayrollService {
         };
     }
 
+    private WageProjectionStart wageProjectionStart(PayrollHistorySnapshot latest, List<PayrollHistorySnapshot> chain) {
+        String regularization = normalizeYearMonth(payrollRepository.findRegularizationYearMonth(latest.organizationCode(), latest.personCode()));
+        if (!regularization.isBlank() && regularization.compareTo("200607") < 0) {
+            Optional<PositionChangeCandidate> position = payrollRepository.findLatestPositionBefore(
+                    latest.organizationCode(),
+                    latest.personCode(),
+                    "200607",
+                    Set.of("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "21", "22", "23", "24", "25", "26", "27", "28"));
+            String startPositionCode = position.map(PositionChangeCandidate::positionCode).orElse(latest.positionCode());
+            String startPositionName = position.map(PositionChangeCandidate::positionName).orElse(latest.positionName());
+            int appointmentYears = Math.max(1, 2006 - yearOf(position.map(PositionChangeCandidate::startYearMonth).orElse(latest.positionStartYearMonth())) + 1);
+            int reformYears = latest.salaryYears() == null || latest.salaryYears() <= 0
+                    ? Math.max(1, 2006 - yearOf(latest.workStartYearMonth()) + 1 - nullToZero(latest.interruptedSalaryYears()))
+                    : latest.salaryYears();
+            Optional<WageReformStandard> standard = payrollRepository.findWageReformStandard(startPositionCode, appointmentYears, reformYears);
+            if (standard.isEmpty()) {
+                return WageProjectionStart.ineligible("2006.07 前已转正，但未能按基本信息匹配 2006 套改标准。");
+            }
+            return new WageProjectionStart(
+                    true,
+                    "200607",
+                    standard.get().positionCode(),
+                    startPositionName,
+                    standard.get().convertedLevel(),
+                    standard.get().convertedStep(),
+                    "2006",
+                    "2006",
+                    position.map(PositionChangeCandidate::startYearMonth).orElse("2006.07"),
+                    "2006.07 前已转正，按基本信息和 2006 套改标准确定起点：岗位 "
+                            + standard.get().positionCode() + "，级别/薪级 " + emptyToDash(standard.get().convertedLevel())
+                            + "/" + standard.get().convertedStep() + "。");
+        }
+        if (regularization.isBlank()) {
+            return WageProjectionStart.ineligible("未找到转正年月，无法从转正定级规则确定起点。");
+        }
+        PositionChangeCandidate appointed = payrollRepository.findPositionAtPeriod(latest.organizationCode(), latest.personCode(), regularization).orElse(null);
+        String standardPositionCode = appointed != null && isInstitutionPosition(appointed.positionCode())
+                ? appointed.positionCode()
+                : latest.positionCode();
+        EducationPromotionSource education = payrollRepository.findLatestEducationForPromotion(latest.organizationCode(), latest.personCode(), regularization).orElse(null);
+        EducationRegularizationStandard standard = education == null ? null : payrollRepository
+                .findEducationRegularizationStandard(standardPositionCode, education.educationCode())
+                .orElse(null);
+        if (standard == null) {
+            return WageProjectionStart.ineligible("2006.07 及以后转正，但未能按学历转正定级标准确定起点。");
+        }
+        boolean institution = appointed != null && isInstitutionPosition(appointed.positionCode());
+        String positionCode = institution ? appointed.positionCode() : normalizeEducationPromotionPositionCode(standard.positionCode());
+        String positionName = institution ? appointed.positionName() : standard.positionName();
+        return new WageProjectionStart(
+                true,
+                regularization,
+                positionCode,
+                positionName,
+                institution ? "" : standard.gradeLevel(),
+                standard.gradeStep(),
+                String.valueOf(yearOf(regularization)),
+                String.valueOf(yearOf(regularization)),
+                appointed == null ? regularization : appointed.startYearMonth(),
+                institution
+                        ? "2006.07 及以后转正，事业人员按学历标准确定薪级、岗位取转正当月聘任岗位：" + positionCode + "，薪级 " + standard.gradeStep() + "。"
+                        : "2006.07 及以后转正，按学历转正定级标准确定起点：岗位 " + positionCode
+                        + "，级别/档次 " + standard.gradeLevel() + "/" + standard.gradeStep() + "。");
+    }
+
     private String regularizationNote(
             PayrollHistorySnapshot history,
             EducationPromotionSource education,
@@ -2153,6 +2263,23 @@ public class PayrollService {
 
         static AdministrativeReplayStart ineligible(String note) {
             return new AdministrativeReplayStart(false, 0, null, null, null, null, null, note);
+        }
+    }
+
+    private record WageProjectionStart(
+            boolean eligible,
+            String period,
+            String positionCode,
+            String positionName,
+            String level,
+            String stepOrSalaryLevel,
+            String levelStartYear,
+            String stepStartYear,
+            String positionStartYearMonth,
+            String note) {
+
+        static WageProjectionStart ineligible(String note) {
+            return new WageProjectionStart(false, "", "", "", "", "", "", "", "", note);
         }
     }
 
