@@ -2,6 +2,8 @@ package com.dxsoft.rsgzgl.report;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import com.dxsoft.rsgzgl.payroll.PayrollChangeComparison;
+import com.dxsoft.rsgzgl.payroll.PayrollService;
 import com.dxsoft.rsgzgl.security.AccessControlService;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
 import java.util.Optional;
@@ -11,10 +13,12 @@ import org.springframework.stereotype.Service;
 class ReportService {
 
     private final ReportRepository reportRepository;
+    private final PayrollService payrollService;
     private final AccessControlService accessControlService;
 
-    ReportService(ReportRepository reportRepository, AccessControlService accessControlService) {
+    ReportService(ReportRepository reportRepository, PayrollService payrollService, AccessControlService accessControlService) {
         this.reportRepository = reportRepository;
+        this.payrollService = payrollService;
         this.accessControlService = accessControlService;
     }
 
@@ -28,5 +32,9 @@ class ReportService {
                 reportRepository.findPayrollChangeRegister(scope, organizationFilter, period, keyword, pageRequest),
                 pageRequest,
                 reportRepository.countPayrollChangeRegister(scope, organizationFilter, period, keyword));
+    }
+
+    PayrollChangeComparison payrollChangeApproval(String payrollHistoryId) {
+        return payrollService.payrollChangeComparison(payrollHistoryId);
     }
 }

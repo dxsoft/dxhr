@@ -3,6 +3,7 @@ package com.dxsoft.rsgzgl.report;
 import java.math.BigDecimal;
 
 public record PayrollChangeRegisterRow(
+        String payrollHistoryId,
         String organizationCode,
         String organizationName,
         String personCode,

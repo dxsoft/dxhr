@@ -82,7 +82,7 @@ const menuGroups = [
     { title: "信息维护", codes: ["PERSONNEL", "PERSONNEL_MAINTENANCE", "ANNUAL_ASSESSMENTS", "CHANGED_PERSONNEL", "ASSESSMENT_SUMMARY", "POSITION_HISTORY", "EDUCATION_HISTORY", "ORGANIZATION_MAINTENANCE"] },
     { title: "工资变动", codes: ["PAYROLL", "PAYROLL_HISTORY", "TEACHING_ALLOWANCE_ADJUSTMENT", "NORMAL_PROMOTION", "LEVEL_PROMOTION", "POSITION_CHANGE_PROMOTION", "EDUCATION_PROMOTION", "REGULARIZATION", "AUDIT"] },
     { title: "标准维护", codes: ["BASIC_STANDARDS", "ALLOWANCE_STANDARDS", "INTERN_SALARY_STANDARDS", "RANK_ALLOWANCE_STANDARDS", "RETAINED_ALLOWANCE_STANDARDS", "YEAR_ALLOWANCE_STANDARDS", "WAGE_REFORM_STANDARDS", "OTHER_ALLOWANCE_STANDARDS"] },
-    { title: "报表查询", codes: ["PAYROLL_CHANGE_REGISTER_REPORT"] },
+    { title: "报表查询", codes: ["PAYROLL_CHANGE_REGISTER_REPORT", "PAYROLL_CHANGE_APPROVAL_REPORT"] },
     { title: "系统管理", codes: ["LOCAL_POLICY_CONFIG", "DICTIONARY_MAINTENANCE", "SECURITY"] },
 ];
 
@@ -118,6 +118,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("payroll-change-register-report-form").addEventListener("submit", onPayrollChangeRegisterReportSearch);
     document.getElementById("payroll-change-register-print").addEventListener("click", () => window.print());
+    document.getElementById("payroll-change-approval-report-form").addEventListener("submit", onPayrollChangeApprovalReportSearch);
+    document.getElementById("payroll-change-approval-print").addEventListener("click", () => window.print());
     document.getElementById("payroll-history-form").addEventListener("submit", onPayrollHistorySearch);
     document.getElementById("payroll-change-close").addEventListener("click", closePayrollChangeModal);
     document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
@@ -217,6 +219,9 @@ async function initializeAuth() {
         }
         if (hasMenu("PAYROLL_CHANGE_REGISTER_REPORT")) {
             await loadPayrollChangeRegisterReport();
+        }
+        if (hasMenu("PAYROLL_CHANGE_APPROVAL_REPORT")) {
+            await loadPayrollChangeApprovalReport();
         }
         if (hasMenu("TEACHING_ALLOWANCE_ADJUSTMENT")) {
             await loadTeachingAllowanceAdjustments();
@@ -2099,6 +2104,82 @@ async function loadPayrollChangeRegisterReport() {
             </tr>
         `).join("");
         status.textContent = `共 ${result.totalElements} 条，当前预览 ${result.content.length} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function onPayrollChangeApprovalReportSearch(event) {
+    event.preventDefault();
+    await loadPayrollChangeApprovalReport();
+}
+
+async function loadPayrollChangeApprovalReport() {
+    const organizationCode = document.getElementById("report-approval-organization-code").value.trim();
+    const period = document.getElementById("report-approval-period").value.trim();
+    const keyword = document.getElementById("report-approval-keyword").value.trim();
+    const size = document.getElementById("report-approval-size").value || "20";
+    const params = new URLSearchParams({ page: "0", size });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (period) {
+        params.set("period", period);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+    const status = document.getElementById("report-approval-status");
+    const rows = document.getElementById("report-approval-select-rows");
+    status.className = "status";
+    status.textContent = "正在加载工资变动记录...";
+    rows.innerHTML = "";
+    try {
+        const result = await getJson(`/api/reports/payroll-change-register?${params}`);
+        rows.innerHTML = (result.content || []).map(row => `
+            <tr>
+                <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(row.calculationYear)}${escapeHtml(row.calculationMonth)}</td>
+                <td>${escapeHtml(row.changeType)}</td>
+                <td>${escapeHtml(row.positionCode)} ${escapeHtml(row.positionName || "")}</td>
+                <td>${money(row.totalAmount)}</td>
+                <td><button class="row-action" data-approval-id="${escapeHtml(row.payrollHistoryId)}" type="button">生成审批表</button></td>
+            </tr>
+        `).join("");
+        rows.querySelectorAll("button[data-approval-id]").forEach(button => {
+            button.addEventListener("click", () => loadPayrollChangeApproval(button.dataset.approvalId));
+        });
+        status.textContent = `共 ${result.totalElements} 条，当前可选 ${result.content.length} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function loadPayrollChangeApproval(payrollHistoryId) {
+    const status = document.getElementById("report-approval-status");
+    status.className = "status";
+    status.textContent = "正在生成工资变动审批表...";
+    try {
+        const report = await getJson(`/api/reports/payroll-change-approval?payrollHistoryId=${encodeURIComponent(payrollHistoryId)}`);
+        document.getElementById("report-approval-person").textContent =
+            `${report.organizationCode}-${report.personCode} ${report.name}`;
+        document.getElementById("report-approval-period-title").textContent = report.calculationPeriod || "-";
+        document.getElementById("report-approval-type").textContent = report.changeType || "-";
+        document.getElementById("report-approval-previous").textContent =
+            report.previousPayrollHistoryId ? `${report.previousCalculationPeriod || ""} ${report.previousChangeType || ""}` : "无";
+        document.getElementById("report-approval-component-rows").innerHTML = (report.components || []).map(component => `
+            <tr class="${Number(component.difference || 0) !== 0 ? "highlight-row" : ""}">
+                <td>${escapeHtml(component.caption || "")}</td>
+                <td>${escapeHtml(component.fieldName || "")}</td>
+                <td>${money(component.beforeAmount)}</td>
+                <td>${money(component.afterAmount)}</td>
+                <td>${money(component.difference)}</td>
+            </tr>
+        `).join("");
+        document.getElementById("report-approval-preview").classList.remove("hidden");
+        status.textContent = "工资变动审批表已生成";
     } catch (error) {
         showError(status, error);
     }

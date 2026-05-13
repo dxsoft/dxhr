@@ -2,6 +2,7 @@ package com.dxsoft.rsgzgl.report;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import com.dxsoft.rsgzgl.payroll.PayrollChangeComparison;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -25,5 +26,10 @@ class ReportController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return reportService.payrollChangeRegister(organizationCode, period, keyword, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/payroll-change-approval")
+    PayrollChangeComparison payrollChangeApproval(@RequestParam String payrollHistoryId) {
+        return reportService.payrollChangeApproval(payrollHistoryId);
     }
 }

@@ -1424,6 +1424,64 @@
         </div>
     </section>
 
+    <section id="payroll-change-approval-report" class="panel hidden" data-menu-code="PAYROLL_CHANGE_APPROVAL_REPORT">
+        <div class="panel-title">
+            <div>
+                <h2>工资变动审批表</h2>
+                <p>选择一条工资变动记录，预览变动前后工资项目和增减额，可使用浏览器打印。</p>
+            </div>
+            <button id="payroll-change-approval-print" type="button">打印审批表</button>
+        </div>
+        <form id="payroll-change-approval-report-form" class="toolbar">
+            <label>单位名称<input id="report-approval-organization-code" placeholder="输入单位名称或编码"></label>
+            <label>变动年月<input id="report-approval-period" placeholder="例如 202407"></label>
+            <label>关键词<input id="report-approval-keyword" placeholder="人员编码 / 姓名 / 变动类别 / 岗位"></label>
+            <label>每页数量<input id="report-approval-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询记录</button>
+        </form>
+        <div id="report-approval-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>年月</th>
+                    <th>变动类别</th>
+                    <th>岗位</th>
+                    <th>合计</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="report-approval-select-rows"></tbody>
+            </table>
+        </div>
+        <div id="report-approval-preview" class="report-print-area hidden">
+            <h3>工资变动审批表</h3>
+            <div class="summary-grid">
+                <div><span>人员</span><strong id="report-approval-person">-</strong></div>
+                <div><span>变动年月</span><strong id="report-approval-period-title">-</strong></div>
+                <div><span>变动类别</span><strong id="report-approval-type">-</strong></div>
+                <div><span>前次变动</span><strong id="report-approval-previous">-</strong></div>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>项目</th>
+                        <th>字段</th>
+                        <th>变动前</th>
+                        <th>变动后</th>
+                        <th>增减额</th>
+                    </tr>
+                    </thead>
+                    <tbody id="report-approval-component-rows"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
     <section id="basic-standards" class="panel hidden" data-menu-code="BASIC_STANDARDS">
         <div class="panel-title">
             <div>
