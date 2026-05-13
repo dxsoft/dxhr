@@ -207,6 +207,16 @@ class PayrollController {
         return payrollService.positionChangePromotionPreviews(organizationCode, keyword, PageRequest.of(page, size));
     }
 
+    @PostMapping("/position-change-promotions/{payrollHistoryId}/apply")
+    PromotionActionResult applyPositionChangePromotion(@PathVariable String payrollHistoryId) {
+        return payrollService.applyPositionChangePromotion(payrollHistoryId);
+    }
+
+    @PostMapping("/position-change-promotions/{payrollHistoryId}/rollback")
+    PromotionActionResult rollbackPositionChangePromotion(@PathVariable String payrollHistoryId) {
+        return payrollService.rollbackPositionChangePromotion(payrollHistoryId);
+    }
+
     @GetMapping("/education-promotions")
     PageResponse<EducationPromotionPreview> educationPromotions(
             @RequestParam(required = false) String organizationCode,

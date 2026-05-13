@@ -2428,12 +2428,54 @@ async function loadPositionChangePromotions() {
                 <td>${row.eligible ? "是" : "否"}</td>
                 <td>${escapeHtml(row.note || "")}</td>
                 <td><button class="row-action" data-position-change-detail="${escapeHtml(row.payrollHistoryId)}" type="button">明细</button></td>
+                <td>
+                    <button class="row-action" data-position-change-apply="${escapeHtml(row.payrollHistoryId)}" type="button">处理</button>
+                    <button class="row-action danger-button" data-position-change-rollback="${escapeHtml(row.payrollHistoryId)}" type="button">还原</button>
+                </td>
             </tr>
         `).join("");
         rows.querySelectorAll("button[data-position-change-detail]").forEach(button => {
             button.addEventListener("click", () => openPositionChangeDetailModal(button.dataset.positionChangeDetail));
         });
+        rows.querySelectorAll("button[data-position-change-apply]").forEach(button => {
+            button.addEventListener("click", () => applyPositionChangeAction(button.dataset.positionChangeApply));
+        });
+        rows.querySelectorAll("button[data-position-change-rollback]").forEach(button => {
+            button.addEventListener("click", () => rollbackPositionChangeAction(button.dataset.positionChangeRollback));
+        });
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条试算记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function applyPositionChangeAction(payrollHistoryId) {
+    if (!confirm("确认按当前试算结果处理职务变化？系统会新增一条当前工资变动记录，并将原当前记录转为历史记录。")) {
+        return;
+    }
+    const status = document.getElementById("position-change-status");
+    status.className = "status";
+    status.textContent = "正在处理职务变化...";
+    try {
+        const result = await postJson(`/api/payroll/position-change-promotions/${encodeURIComponent(payrollHistoryId)}/apply`, {});
+        status.textContent = result.message || "职务变化处理完成";
+        await loadPositionChangePromotions();
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function rollbackPositionChangeAction(payrollHistoryId) {
+    if (!confirm("确认还原当前职务变化工资变动？系统会删除当前链头记录，并恢复上一条工资记录为当前执行工资。")) {
+        return;
+    }
+    const status = document.getElementById("position-change-status");
+    status.className = "status";
+    status.textContent = "正在还原职务变化...";
+    try {
+        const result = await postJson(`/api/payroll/position-change-promotions/${encodeURIComponent(payrollHistoryId)}/rollback`, {});
+        status.textContent = result.message || "职务变化已还原";
+        await loadPositionChangePromotions();
     } catch (error) {
         showError(status, error);
     }

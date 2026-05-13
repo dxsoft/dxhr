@@ -420,6 +420,50 @@ public class PayrollService {
                 payrollRepository.countPersonnelWithCurrentPayroll(scope, emptyToNull(organizationCode), keyword));
     }
 
+    @Transactional
+    public PromotionActionResult applyPositionChangePromotion(String payrollHistoryId) {
+        int uid = requireCurrentHistoryUid(payrollHistoryId);
+        PayrollHistorySnapshot latest = payrollRepository.findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        PositionChangePromotionPreview preview = positionChangePromotionPreview(uid);
+        if (!Boolean.TRUE.equals(preview.eligible()) || preview.totalIncrease() == null) {
+            throw new IllegalArgumentException("当前工资记录不满足职务变化处理条件。");
+        }
+        String effectivePeriod = preview.effectivePeriod() == null || preview.effectivePeriod().isBlank()
+                ? latest.calculationYear() + latest.calculationMonth()
+                : preview.effectivePeriod();
+        String normalizedPeriod = effectivePeriod.replace(".", "");
+        if (normalizedPeriod.length() < 6) {
+            throw new IllegalArgumentException("职务变化执行年月不完整。");
+        }
+        int pgbc = Math.max(0, nullToZero(latest.storedPgbc()) + nullToZero(preview.pgbcRetainedAmount()) - nullToZero(preview.pgbcOffsetAmount()));
+        PositionChangeHistoryMutation mutation = new PositionChangeHistoryMutation(
+                normalizedPeriod.substring(0, 4),
+                normalizedPeriod.substring(4, 6),
+                preview.changeType(),
+                preview.nextStepAssessmentStartYear(),
+                preview.nextLevelAssessmentStartYear(),
+                preview.newPositionCode(),
+                preview.newPositionName(),
+                preview.newPositionSalary(),
+                preview.promotedStep(),
+                preview.promotedLevel(),
+                "0",
+                preview.promotedGradeSalary(),
+                pgbc,
+                nullToZero(latest.storedTotal()) + nullToZero(preview.totalIncrease()));
+        String newId = payrollRepository.createPositionChangeHistoryFromLatest(uid, mutation);
+        return new PromotionActionResult(newId, payrollHistoryId, preview.changeType(), "职务变化处理完成。");
+    }
+
+    @Transactional
+    public PromotionActionResult rollbackPositionChangePromotion(String payrollHistoryId) {
+        return rollbackPromotion(
+                payrollHistoryId,
+                Set.of("同序列职务变化", "职务变化", "警员套改", "法检套改", "职级套改", "事业岗位变动", "转换序列"),
+                "职务变化已还原。");
+    }
+
     public PageResponse<EducationPromotionPreview> educationPromotionPreviews(
             String organizationCode,
             String keyword,
@@ -1124,7 +1168,7 @@ public class PayrollService {
         int pgbcOffsetAmount = sameSequenceEligible && positionSalaryIncrease > 0
                 ? Math.min(positionSalaryIncrease, Math.max(0, nullToZero(history.storedPgbc())))
                 : 0;
-        int netPositionSalaryIncrease = positionSalaryIncrease - pgbcOffsetAmount;
+        int netPositionSalaryIncrease = positionSalaryIncrease + pgbcRetainedAmount - pgbcOffsetAmount;
         int gradeSalaryIncrease = nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary);
         String note = positionChangePromotionNote(
                 history,
