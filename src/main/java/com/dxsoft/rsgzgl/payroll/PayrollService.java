@@ -1224,6 +1224,9 @@ public class PayrollService {
         Integer promotedPositionSalary = payrollRepository.positionSalary(promotedPositionCode, history.salaryStandardYearMonth());
         Integer currentGradeSalary = payrollRepository.gradeSalary(history.gradeSalaryLevel(), currentStep, history.salaryStandardYearMonth());
         Integer promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
+        int currentBasicSalary = nullToZero(currentPositionSalary) + nullToZero(currentGradeSalary);
+        int promotedBasicSalary = nullToZero(promotedPositionSalary) + nullToZero(promotedGradeSalary);
+        eligible = eligible && promotedBasicSalary > currentBasicSalary;
         return new EducationPromotionPreview(
                 history.id(),
                 history.organizationCode(),
@@ -1251,7 +1254,7 @@ public class PayrollService {
                 nullToZero(promotedPositionSalary) - nullToZero(currentPositionSalary)
                         + nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
                 eligible,
-                educationPromotionNote(education, standard));
+                educationPromotionNote(education, standard, promotedBasicSalary, currentBasicSalary));
     }
 
     private RegularizationPreview regularizationPreview(int uid) {
@@ -1383,12 +1386,19 @@ public class PayrollService {
         return positionCode;
     }
 
-    private String educationPromotionNote(EducationPromotionSource education, EducationRegularizationStandard standard) {
+    private String educationPromotionNote(
+            EducationPromotionSource education,
+            EducationRegularizationStandard standard,
+            int promotedBasicSalary,
+            int currentBasicSalary) {
         if (education == null) {
             return "未找到可用于学历晋升的学历记录。";
         }
         if (standard == null) {
             return "未找到当前岗位前缀和学历编码对应的转正定级标准。";
+        }
+        if (promotedBasicSalary <= currentBasicSalary) {
+            return "当前基本工资不低于相同学历新录用公务员转正定级工资待遇，不执行学历晋升。";
         }
         return "按最高学历和 bz06_zzdz 转正定级标准试算，暂不写入数据库。";
     }
