@@ -16,6 +16,7 @@ const state = {
     organizationNodes: [],
     organizationExpandedCodes: new Set(),
     activeOrganizationTarget: "maintenance",
+    pendingPersonnelChange: null,
     activePersonnelMaintenance: null,
     activeSubrecordEditor: null,
 };
@@ -117,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("payroll-change-close").addEventListener("click", closePayrollChangeModal);
     document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
     document.getElementById("normal-promotion-form").addEventListener("submit", onNormalPromotionSearch);
+    document.getElementById("normal-promotion-due-only").addEventListener("change", loadNormalPromotions);
     document.getElementById("normal-promotion-batch-apply").addEventListener("click", applySelectedNormalPromotions);
     document.getElementById("normal-promotion-select-all").addEventListener("change", event => {
         document.querySelectorAll("[data-normal-select]").forEach(checkbox => {
@@ -449,6 +451,10 @@ function bindOrganizationPickerInput(inputId, buttonId, target) {
 
 async function openOrganizationPicker(target = "maintenance") {
     state.activeOrganizationTarget = target;
+    document.getElementById("organization-picker-title").textContent = target === "personnelTransfer" ? "选择调往单位" : "选择单位";
+    document.getElementById("organization-picker-subtitle").textContent = target === "personnelTransfer"
+        ? "从单位树中选择调往本地其他单位，支持按单位名称或编码搜索。"
+        : "从单位树中选择人员所属单位，支持按单位名称或编码搜索。";
     document.getElementById("organization-picker-filter").value = "";
     document.getElementById("organization-picker-tree").innerHTML = "正在加载单位...";
     document.getElementById("organization-picker-modal").classList.remove("hidden");
@@ -512,6 +518,14 @@ function renderOrganizationPickerTree() {
 }
 
 function selectOrganizationNode(code, name) {
+    if (state.activeOrganizationTarget === "personnelTransfer") {
+        const pending = state.pendingPersonnelChange;
+        state.pendingPersonnelChange = null;
+        if (pending) {
+            continuePersonnelChangeMaintenance(pending.uid, pending.name, pending.changeType, pending.changeDescription, { code, name });
+        }
+        return;
+    }
     if (state.activeOrganizationTarget === "maintenanceSearch") {
         document.getElementById("maint-search-organization-code").value = name || code;
         return;
@@ -796,7 +810,7 @@ function showPersonnelTab(tabName) {
     document.querySelectorAll("[data-personnel-tab]").forEach(button => {
         button.classList.toggle("active", button.dataset.personnelTab === tabName);
     });
-    ["basic", "education", "position", "current-payroll", "payroll", "assessment", "award", "rank-level", "wage-reform", "pre-reform"].forEach(name => {
+    ["basic", "projection", "education", "position", "current-payroll", "payroll", "assessment", "award", "rank-level", "wage-reform", "pre-reform"].forEach(name => {
         document.getElementById(`personnel-tab-${name}`).classList.toggle("hidden", name !== tabName);
     });
 }
@@ -1067,12 +1081,22 @@ function closePersonnelChangeMenu() {
 }
 
 async function changePersonnelMaintenance(uid, name, changeType, changeDescription) {
+    if (changeType === "调动") {
+        state.pendingPersonnelChange = { uid, name, changeType, changeDescription };
+        await openOrganizationPicker("personnelTransfer");
+        return;
+    }
+    await continuePersonnelChangeMaintenance(uid, name, changeType, changeDescription, null);
+}
+
+async function continuePersonnelChangeMaintenance(uid, name, changeType, changeDescription, targetOrganization) {
     const remark = prompt("请输入备注（可留空）：", "");
     if (remark === null) {
         return;
     }
     const defaultRemark = changeDescription && changeDescription !== changeType ? changeDescription : "";
-    const finalRemark = [defaultRemark, remark.trim()].filter(Boolean).join("；");
+    const transferRemark = targetOrganization ? `调往单位：${targetOrganization.name || ""}（${targetOrganization.code || ""}）` : "";
+    const finalRemark = [defaultRemark, transferRemark, remark.trim()].filter(Boolean).join("；");
     if (!confirm(`确认将 ${name || "该人员"} 办理为“${changeType.trim()}”？该人员将转入变动人员信息。`)) {
         return;
     }
@@ -1188,11 +1212,16 @@ function resetPersonnelMaintenanceForm() {
     document.getElementById("maint-salary-years").value = "0";
     [
         "maint-education-rows", "maint-position-rows", "maint-payroll-rows", "maint-assessment-rows",
+        "maint-projection-rows", "maint-projection-excluded-rows",
         "maint-current-payroll-rows", "maint-award-rows", "maint-rank-rows",
         "maint-wage-reform-rows", "maint-pre-reform-rows", "maint-pension-base-rows",
     ].forEach(id => {
         document.getElementById(id).innerHTML = "<tr><td colspan='8'>保存或选择人员后加载记录</td></tr>";
     });
+    ["maint-projection-period", "maint-projection-total", "maint-projection-stored-total", "maint-projection-difference"].forEach(id => {
+        document.getElementById(id).textContent = "-";
+    });
+    document.getElementById("maint-projection-pgbc").textContent = "暂无推算结果";
 }
 
 function openSubrecordEditor(type, record = null) {
@@ -1320,13 +1349,15 @@ function setMonthInputValue(inputId, value) {
 }
 
 async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
-    const [education, positions, assessments, payrollHistory, relatedRecords] = await Promise.all([
+    const [education, positions, assessments, payrollHistory, relatedRecords, projection] = await Promise.all([
         getJson(`/api/personnel/${uid}/education`),
         getJson(`/api/personnel/${uid}/positions`),
         getJson(`/api/personnel/${uid}/assessments`),
         getJson(`/api/payroll/histories?organizationCode=${encodeURIComponent(organizationCode)}&keyword=${encodeURIComponent(personCode)}&size=50`),
         getJson(`/api/personnel/${uid}/related-records`),
+        getJson(`/api/payroll/personnel/${uid}/calculation-preview`),
     ]);
+    renderPersonnelProjection(projection);
     document.getElementById("maint-education-rows").innerHTML = education.length ? education.map(row => `
         <tr>
             <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
@@ -1390,6 +1421,38 @@ function bindSubrecordActions(type, rows) {
             del.addEventListener("click", () => deleteSubrecord(type, row.id));
         }
     });
+}
+
+function renderPersonnelProjection(preview) {
+    document.getElementById("maint-projection-period").textContent = preview.calculationPeriod || "-";
+    document.getElementById("maint-projection-total").textContent = money(preview.recalculatedKnownTotal);
+    document.getElementById("maint-projection-stored-total").textContent = money(preview.storedTotal);
+    const difference = document.getElementById("maint-projection-difference");
+    difference.textContent = money(preview.totalDifference);
+    difference.className = Number(preview.totalDifference) === 0 ? "difference-ok" : "difference-bad";
+    document.getElementById("maint-projection-rows").innerHTML = (preview.calculatedComponents || []).length ? preview.calculatedComponents.map(component => `
+        <tr>
+            <td>${escapeHtml(component.fieldName)}</td>
+            <td>${escapeHtml(component.caption)}</td>
+            <td>${money(component.amount)}</td>
+            <td>${escapeHtml(component.source)}</td>
+        </tr>
+    `).join("") : "<tr><td colspan='4'>暂无工资推算项目</td></tr>";
+    document.getElementById("maint-projection-excluded-rows").innerHTML = (preview.excludedComponents || []).length ? preview.excludedComponents.map(component => `
+        <tr>
+            <td>${escapeHtml(component.fieldName)}</td>
+            <td>${escapeHtml(component.caption)}</td>
+            <td>${money(component.storedAmount)}</td>
+            <td>${escapeHtml(component.reason)}</td>
+        </tr>
+    `).join("") : "<tr><td colspan='4'>暂无排除字段</td></tr>";
+    const pgbc = preview.pgbcComparison || {};
+    document.getElementById("maint-projection-pgbc").innerHTML = `
+        <strong>处理方式：</strong>${escapeHtml(pgbc.treatment || "-")}<br>
+        <strong>旧值：</strong>${money(pgbc.storedAmount)}
+        <strong>建议值：</strong>${money(pgbc.recommendedAmount)}<br>
+        <span>${escapeHtml(pgbc.note || "")}</span>
+    `;
 }
 
 function renderPersonnelRelatedRecords(records) {
@@ -2082,9 +2145,10 @@ async function loadTeachingAllowanceAdjustments() {
 async function loadNormalPromotions() {
     const organizationCode = document.getElementById("normal-promotion-organization-code").value.trim();
     const keyword = document.getElementById("normal-promotion-keyword").value.trim();
+    const dueOnly = document.getElementById("normal-promotion-due-only").checked;
     const page = document.getElementById("normal-promotion-page").value || "0";
     const size = document.getElementById("normal-promotion-size").value || "20";
-    const params = new URLSearchParams({ page, size });
+    const params = new URLSearchParams({ page, size, dueOnly });
     if (organizationCode) {
         params.set("organizationCode", organizationCode);
     }
@@ -2103,7 +2167,7 @@ async function loadNormalPromotions() {
         document.getElementById("normal-promotion-select-all").checked = false;
         rows.innerHTML = (result.content || []).map(row => `
             <tr>
-                <td><input type="checkbox" data-normal-select="${escapeHtml(row.payrollHistoryId)}" aria-label="选择${escapeHtml(row.name)}"></td>
+                <td><input type="checkbox" data-normal-select="${escapeHtml(row.payrollHistoryId)}" data-normal-eligible="${row.eligible ? "true" : "false"}" ${row.eligible ? "" : "disabled"} aria-label="选择${escapeHtml(row.name)}"></td>
                 <td>${escapeHtml(row.organizationCode)}</td>
                 <td>${escapeHtml(row.personCode)}</td>
                 <td>${escapeHtml(row.name)}</td>
@@ -2117,6 +2181,9 @@ async function loadNormalPromotions() {
                 <td>${escapeHtml(row.gradeSalaryLevel || "")}</td>
                 <td>${escapeHtml(row.levelAssessmentStartYear || "")}</td>
                 <td>${escapeHtml(row.stepAssessmentStartYear || "")}</td>
+                <td>${escapeHtml(row.qualifiedYears ?? "")}</td>
+                <td>${escapeHtml(row.requiredYears ?? "")}</td>
+                <td>${row.eligible ? "是" : "否"}</td>
                 <td>${money(row.currentBaseSalary)}</td>
                 <td>${money(row.promotedBaseSalary)}</td>
                 <td>${money(row.increaseAmount)}</td>
@@ -2231,6 +2298,7 @@ async function applyPromotionAction(type, payrollHistoryId) {
 
 async function applySelectedNormalPromotions() {
     const selectedIds = Array.from(document.querySelectorAll("[data-normal-select]:checked"))
+        .filter(checkbox => checkbox.dataset.normalEligible === "true")
         .map(checkbox => checkbox.dataset.normalSelect)
         .filter(Boolean);
     const status = document.getElementById("normal-promotion-status");
@@ -2329,6 +2397,11 @@ async function loadPositionChangePromotions() {
                 <td>${escapeHtml(row.policeSameRankLevel || "")}</td>
                 <td>${escapeHtml(row.policeSameRankStep || "")}</td>
                 <td>${row.policeHighPositionPromotion ? "是" : "否"}</td>
+                <td>${escapeHtml(row.judicialConversionStep || "")}</td>
+                <td>${escapeHtml(row.administrativeReplayLevel || "")}</td>
+                <td>${escapeHtml(row.administrativeReplayStep || "")}</td>
+                <td>${escapeHtml(row.administrativeReplayLevelStartYear || "")}</td>
+                <td>${escapeHtml(row.administrativeReplayStepStartYear || "")}</td>
                 <td>${escapeHtml(row.promotedLevel || "")}</td>
                 <td>${escapeHtml(row.promotedStep || "")}</td>
                 <td>${money(row.currentPositionSalary)}</td>

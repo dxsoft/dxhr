@@ -469,6 +469,21 @@ class PayrollRepository {
         return count == null ? 0 : count;
     }
 
+    Optional<WageReformStandard> findWageReformStandard(String positionCode, int appointmentYears, int reformYears) {
+        return jdbcTemplate.query("""
+                SELECT zwbm, rzns, rznz, tgns, tgnz, jb, dc
+                FROM bz06_tgb
+                WHERE zwbm = :positionCode
+                  AND :appointmentYears BETWEEN rzns AND rznz
+                  AND :reformYears BETWEEN tgns AND tgnz
+                ORDER BY rzns, tgns
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("positionCode", emptyToNull(positionCode))
+                .addValue("appointmentYears", appointmentYears)
+                .addValue("reformYears", reformYears), WAGE_REFORM_STANDARD_MAPPER).stream().findFirst();
+    }
+
     List<OtherAllowanceStandard> findOtherAllowanceStandards(
             String standardType,
             String standardYearMonth,
@@ -550,6 +565,68 @@ class PayrollRepository {
                          h.jsnf DESC, h.jsyf DESC, h.id DESC
                 LIMIT 1
                 """, new MapSqlParameterSource("uid", uid), HISTORY_MAPPER).stream().findFirst();
+    }
+
+    List<PayrollHistorySnapshot> findHistoryChain(String organizationCode, String personCode) {
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                       h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.gwjtbz, h.gwjtlb,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf,
+                       h.pgbc, h.njbt, h.hj2
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE h.dwbm = :organizationCode AND h.grbm = :personCode
+                ORDER BY h.jsnf, h.jsyf, h.id
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode), HISTORY_MAPPER);
+    }
+
+    String findRegularizationYearMonth(String organizationCode, String personCode) {
+        return jdbcTemplate.queryForList("""
+                SELECT zzny
+                FROM dryjbxx
+                WHERE dwbm = :organizationCode AND grbm = :personCode
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode), String.class).stream().findFirst().map(SqlText::trim).orElse("");
+    }
+
+    Optional<PositionChangeCandidate> findAdministrativePositionBeforeReform(String organizationCode, String personCode) {
+        return jdbcTemplate.query("""
+                SELECT zwbm, xzzw, srny
+                FROM dryzwbh
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND LEFT(zwbm, 2) = '01'
+                  AND REPLACE(srny, '.', '') < '200607'
+                ORDER BY srny DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode), POSITION_CHANGE_CANDIDATE_MAPPER).stream().findFirst();
+    }
+
+    Optional<PositionChangeCandidate> findPositionAtPeriod(String organizationCode, String personCode, String period) {
+        String normalizedPeriod = period == null ? "" : period.replace(".", "");
+        return jdbcTemplate.query("""
+                SELECT zwbm, xzzw, srny
+                FROM dryzwbh
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND REPLACE(srny, '.', '') = :period
+                ORDER BY srny DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("period", normalizedPeriod), POSITION_CHANGE_CANDIDATE_MAPPER).stream().findFirst();
     }
 
     List<PayrollHistoryRecord> findPayrollHistories(
@@ -1217,6 +1294,24 @@ class PayrollRepository {
                 .addValue("gradeLevel", intValue(gradeLevel)));
     }
 
+    String judicialConversionStep(String currentLevel, String currentStep, String targetPositionCode) {
+        int level = intValue(currentLevel);
+        int step = intValue(currentStep);
+        if (level < 8 || level > 26 || step <= 0 || targetPositionCode == null || targetPositionCode.length() < 4) {
+            return "";
+        }
+        String targetRank = targetPositionCode.substring(3, 4).toLowerCase();
+        if (!targetRank.matches("[5-9a-d]")) {
+            return "";
+        }
+        return queryString("""
+                SELECT d03%s
+                FROM bz06_fjtgb
+                WHERE TRIM(jb%d) = :currentStep
+                LIMIT 1
+                """.formatted(targetRank, level), new MapSqlParameterSource("currentStep", String.valueOf(step)));
+    }
+
     int salaryLevelSalary(String salaryLevel, String inversionStep, String standardYearMonth, String positionCode) {
         String normalizedLevel = leftPadTwo(salaryLevel);
         if (normalizedLevel == null || emptyToNull(positionCode) == null) {
@@ -1723,6 +1818,14 @@ class PayrollRepository {
             return 0;
         }
         return values.getFirst();
+    }
+
+    private String queryString(String sql, MapSqlParameterSource parameters) {
+        List<String> values = jdbcTemplate.queryForList(sql, parameters, String.class);
+        if (values.isEmpty() || values.getFirst() == null) {
+            return "";
+        }
+        return SqlText.trim(values.getFirst());
     }
 
     private int highestGradeStep(String gradeLevel) {
