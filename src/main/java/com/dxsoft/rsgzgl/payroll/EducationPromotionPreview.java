@@ -25,6 +25,7 @@ public record EducationPromotionPreview(
         Integer positionSalaryIncrease,
         Integer gradeSalaryIncrease,
         Integer totalIncrease,
+        String nextStepAssessmentStartYear,
         Boolean eligible,
         String note
 ) {

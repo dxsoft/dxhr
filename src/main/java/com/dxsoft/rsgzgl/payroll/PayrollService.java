@@ -1212,21 +1212,33 @@ public class PayrollService {
         String promotedPositionCode = history.positionCode();
         String promotedLevel = history.gradeSalaryLevel();
         String promotedStep = currentStep;
+        String nextStepAssessmentStartYear = history.stepAssessmentStartYear();
         boolean eligible = education != null && standard != null;
-        if (eligible) {
+        boolean institutionEducationPromotion = eligible && isInstitutionPosition(history.positionCode());
+        if (institutionEducationPromotion) {
+            int currentSalaryLevel = payrollRepository.intValue(currentStep);
+            int standardSalaryLevel = payrollRepository.intValue(standard.gradeStep());
+            if (standardSalaryLevel > currentSalaryLevel) {
+                promotedStep = standard.gradeStep();
+                nextStepAssessmentStartYear = nextAssessmentYear(history.calculationYear() + history.calculationMonth(), history.calculationYear());
+            }
+        } else if (eligible) {
             if (standard.positionCode().compareTo(history.positionCode()) <= 0) {
                 promotedPositionCode = normalizeEducationPromotionPositionCode(standard.positionCode());
             }
             promotedLevel = educationPromotionLevel(history, standard, currentStep);
             promotedStep = educationPromotionStep(history, standard, promotedLevel, currentStep);
         }
+        BasicPayrollCalculation currentBasic = basicCalculation(history);
         Integer currentPositionSalary = payrollRepository.positionSalary(history.positionCode(), history.salaryStandardYearMonth());
         Integer promotedPositionSalary = payrollRepository.positionSalary(promotedPositionCode, history.salaryStandardYearMonth());
-        Integer currentGradeSalary = payrollRepository.gradeSalary(history.gradeSalaryLevel(), currentStep, history.salaryStandardYearMonth());
-        Integer promotedGradeSalary = payrollRepository.gradeSalary(promotedLevel, promotedStep, history.salaryStandardYearMonth());
+        Integer currentGradeSalary = currentBasic.selectedBaseSalary();
+        Integer promotedGradeSalary = regularizedBaseSalary(promotedPositionCode, promotedLevel, promotedStep, history.salaryStandardYearMonth());
         int currentBasicSalary = nullToZero(currentPositionSalary) + nullToZero(currentGradeSalary);
         int promotedBasicSalary = nullToZero(promotedPositionSalary) + nullToZero(promotedGradeSalary);
-        eligible = eligible && promotedBasicSalary > currentBasicSalary;
+        eligible = institutionEducationPromotion
+                ? payrollRepository.intValue(promotedStep) > payrollRepository.intValue(currentStep)
+                : eligible && promotedBasicSalary > currentBasicSalary;
         return new EducationPromotionPreview(
                 history.id(),
                 history.organizationCode(),
@@ -1253,8 +1265,9 @@ public class PayrollService {
                 nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
                 nullToZero(promotedPositionSalary) - nullToZero(currentPositionSalary)
                         + nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary),
+                nextStepAssessmentStartYear,
                 eligible,
-                educationPromotionNote(education, standard, promotedBasicSalary, currentBasicSalary));
+                educationPromotionNote(education, standard, promotedBasicSalary, currentBasicSalary, institutionEducationPromotion, eligible));
     }
 
     private RegularizationPreview regularizationPreview(int uid) {
@@ -1390,12 +1403,19 @@ public class PayrollService {
             EducationPromotionSource education,
             EducationRegularizationStandard standard,
             int promotedBasicSalary,
-            int currentBasicSalary) {
+            int currentBasicSalary,
+            boolean institutionEducationPromotion,
+            boolean eligible) {
         if (education == null) {
             return "未找到可用于学历晋升的学历记录。";
         }
         if (standard == null) {
             return "未找到当前岗位前缀和学历编码对应的转正定级标准。";
+        }
+        if (institutionEducationPromotion) {
+            return eligible
+                    ? "事业人员取得新学历后，现薪级低于新学历转正定级标准，执行新学历转正定级薪级；第二年不再正常晋升薪级。"
+                    : "事业人员取得新学历后，现薪级不低于新学历转正定级标准，薪级不变。";
         }
         if (promotedBasicSalary <= currentBasicSalary) {
             return "当前基本工资不低于相同学历新录用公务员转正定级工资待遇，不执行学历晋升。";

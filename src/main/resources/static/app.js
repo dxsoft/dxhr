@@ -2479,6 +2479,7 @@ async function loadEducationPromotions() {
                 <td>${money(row.positionSalaryIncrease)}</td>
                 <td>${money(row.gradeSalaryIncrease)}</td>
                 <td>${money(row.totalIncrease)}</td>
+                <td>${escapeHtml(row.nextStepAssessmentStartYear || "")}</td>
                 <td>${row.eligible ? "是" : "否"}</td>
                 <td>${escapeHtml(row.note || "")}</td>
             </tr>
