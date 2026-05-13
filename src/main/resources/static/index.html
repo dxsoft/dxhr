@@ -1173,10 +1173,23 @@
                     <th>超过下一级别档差</th>
                     <th>是否适用</th>
                     <th>说明</th>
+                    <th>明细</th>
                 </tr>
                 </thead>
                 <tbody id="position-change-rows"></tbody>
             </table>
+        </div>
+        <div id="position-change-detail-modal" class="modal-overlay hidden">
+            <div class="modal-card wide-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>职务变化试算明细</h3>
+                        <p id="position-change-detail-summary">查看规则识别、推算过程和考核起算年说明。</p>
+                    </div>
+                    <button id="position-change-detail-close" type="button">关闭</button>
+                </div>
+                <div id="position-change-detail-content" class="note-card"></div>
+            </div>
         </div>
     </section>
 

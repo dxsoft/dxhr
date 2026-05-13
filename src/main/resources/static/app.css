@@ -499,6 +499,15 @@ tr:last-child td {
     border-radius: 8px;
 }
 
+.note-card ol {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.note-card li + li {
+    margin-top: 6px;
+}
+
 .modal-overlay {
     position: fixed;
     inset: 0;

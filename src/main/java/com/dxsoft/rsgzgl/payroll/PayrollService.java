@@ -1126,6 +1126,44 @@ public class PayrollService {
                 : 0;
         int netPositionSalaryIncrease = positionSalaryIncrease - pgbcOffsetAmount;
         int gradeSalaryIncrease = nullToZero(promotedGradeSalary) - nullToZero(currentGradeSalary);
+        String note = positionChangePromotionNote(
+                history,
+                candidate,
+                levelRange,
+                eligible,
+                promotedLevels,
+                gradeIncreaseExceedsStepDifference,
+                sequenceConversion,
+                policeOfficerConversion,
+                judicialConversion,
+                rankConversion,
+                rankConversionResult,
+                institutionResult,
+                judicialConversionStep,
+                administrativeReplayResult,
+                policeOfficerResult);
+        List<String> explanationLines = positionChangeExplanationLines(
+                history,
+                candidate,
+                changeType,
+                currentStep,
+                levelRange,
+                policeOfficerResult,
+                rankConversionResult,
+                institutionResult,
+                judicialConversionStep,
+                administrativeReplayResult,
+                promotedLevel,
+                promotedStep,
+                nextLevelAssessmentStartYear,
+                nextStepAssessmentStartYear,
+                positionSalaryIncrease,
+                pgbcRetainedAmount,
+                pgbcOffsetAmount,
+                netPositionSalaryIncrease,
+                gradeSalaryIncrease,
+                gradeIncreaseExceedsStepDifference,
+                note);
         return new PositionChangePromotionPreview(
                 history.id(),
                 history.organizationCode(),
@@ -1179,22 +1217,8 @@ public class PayrollService {
                 nextStepAssessmentStartYear,
                 gradeIncreaseExceedsStepDifference,
                 eligible,
-                positionChangePromotionNote(
-                        history,
-                        candidate,
-                        levelRange,
-                        eligible,
-                        promotedLevels,
-                        gradeIncreaseExceedsStepDifference,
-                        sequenceConversion,
-                        policeOfficerConversion,
-                        judicialConversion,
-                        rankConversion,
-                        rankConversionResult,
-                        institutionResult,
-                        judicialConversionStep,
-                        administrativeReplayResult,
-                        policeOfficerResult));
+                note,
+                explanationLines);
     }
 
     private EducationPromotionPreview educationPromotionPreview(int uid) {
@@ -2120,6 +2144,91 @@ public class PayrollService {
                     : "晋升职务相应晋升一个级别，xckhndjb 继续从上一次按考核结果晋升级别当年计算；增资额未超过下一级别一个档差，xckhndzw 沿用原起算年。";
         }
         return "新任职务级别范围未导致级别晋升，仅试算职务工资变化。";
+    }
+
+    private List<String> positionChangeExplanationLines(
+            PayrollHistorySnapshot history,
+            PositionChangeCandidate candidate,
+            String changeType,
+            String currentStep,
+            PositionLevelRange levelRange,
+            PoliceOfficerConversionResult policeOfficerResult,
+            RankConversionResult rankConversionResult,
+            InstitutionPositionChangeResult institutionResult,
+            String judicialConversionStep,
+            AdministrativeReplayResult administrativeReplayResult,
+            String promotedLevel,
+            String promotedStep,
+            String nextLevelAssessmentStartYear,
+            String nextStepAssessmentStartYear,
+            int positionSalaryIncrease,
+            int pgbcRetainedAmount,
+            int pgbcOffsetAmount,
+            int netPositionSalaryIncrease,
+            int gradeSalaryIncrease,
+            boolean gradeIncreaseExceedsStepDifference,
+            String note) {
+        List<String> lines = new ArrayList<>();
+        lines.add("识别类型：" + changeType + "。");
+        lines.add("当前执行工资：" + history.calculationYear() + history.calculationMonth()
+                + "，原职务 " + history.positionCode() + " " + history.positionName()
+                + "，原级别/薪级 " + emptyToDash(history.gradeSalaryLevel()) + "/" + emptyToDash(currentStep) + "。");
+        lines.add("新任职务：" + emptyToDash(candidate.positionCode()) + " " + emptyToDash(candidate.positionName())
+                + "，任职年月 " + emptyToDash(candidate.startYearMonth())
+                + "，执行年月 " + emptyToDash(nextMonth(candidate.startYearMonth())) + "。");
+        if (levelRange != null) {
+            lines.add("新职务级别范围：最低 " + levelRange.minimumLevel() + "，最高 " + levelRange.maximumLevel() + "。");
+        }
+        if (policeOfficerResult != null) {
+            if (policeOfficerResult.eligible()) {
+                lines.add("警员套改：平套等级/档次 " + policeOfficerResult.sameRankLevel() + "/" + policeOfficerResult.sameRankStep()
+                        + (policeOfficerResult.highPositionPromotion() ? "，高套职务后再晋升一级。" : "。"));
+            } else {
+                lines.add("警员套改：未能取得目标等级范围，未参与试算。");
+            }
+        }
+        if (rankConversionResult != null) {
+            lines.add(rankConversionResult.eligible()
+                    ? "职级套改：按最低级别/跨层晋升规则试算为 " + rankConversionResult.promotedLevel() + "级" + rankConversionResult.promotedStep() + "档。"
+                    : "职级套改：未找到目标职级级别范围。");
+        }
+        if (judicialConversionStep != null) {
+            lines.add(judicialConversionStep.isBlank()
+                    ? "法检套改：未在 bz06_fjtgb 找到对应套改档次。"
+                    : "法检套改：按 bz06_fjtgb 取得套改档次 " + judicialConversionStep + "。");
+        }
+        if (administrativeReplayResult != null) {
+            lines.add(administrativeReplayResult.note());
+            if (administrativeReplayResult.eligible()) {
+                lines.add("回放结果：级别/档次 " + administrativeReplayResult.replayedLevel() + "/" + administrativeReplayResult.replayedStep()
+                        + "，xckhndjb/xckhndzw " + emptyToDash(administrativeReplayResult.levelStartYear())
+                        + "/" + emptyToDash(administrativeReplayResult.stepStartYear()) + "。");
+            }
+        }
+        if (institutionResult != null) {
+            lines.add(institutionResult.note());
+            if (institutionResult.eligible()) {
+                lines.add("事业岗位变动薪级：起点 " + institutionResult.startSalaryLevel()
+                        + "，试算 " + institutionResult.promotedSalaryLevel()
+                        + "，更新后 xckhndzw=" + emptyToDash(institutionResult.nextStepAssessmentStartYear()) + "。");
+            }
+        }
+        lines.add("试算结果：级别/薪级 " + emptyToDash(promotedLevel) + "/" + emptyToDash(promotedStep)
+                + "，更新后 xckhndjb/xckhndzw " + emptyToDash(nextLevelAssessmentStartYear) + "/" + emptyToDash(nextStepAssessmentStartYear) + "。");
+        lines.add("增资分解：职务增资 " + positionSalaryIncrease
+                + "，PGBC保留 " + pgbcRetainedAmount
+                + "，PGBC冲销 " + pgbcOffsetAmount
+                + "，职务净增 " + netPositionSalaryIncrease
+                + "，级别/薪级增资 " + gradeSalaryIncrease + "。");
+        if (gradeIncreaseExceedsStepDifference) {
+            lines.add("级别增资超过下一级别一个档差，xckhndzw 需从本次变动年度重新计算。");
+        }
+        lines.add("结论：" + note);
+        return lines;
+    }
+
+    private String emptyToDash(String value) {
+        return value == null || value.isBlank() ? "-" : value;
     }
 
     private String firstHigherGradeStep(String gradeLevel, Integer currentGradeSalary, String standardYearMonth) {

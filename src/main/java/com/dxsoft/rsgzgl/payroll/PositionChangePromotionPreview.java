@@ -1,5 +1,7 @@
 package com.dxsoft.rsgzgl.payroll;
 
+import java.util.List;
+
 public record PositionChangePromotionPreview(
         String payrollHistoryId,
         String organizationCode,
@@ -53,6 +55,7 @@ public record PositionChangePromotionPreview(
         String nextStepAssessmentStartYear,
         Boolean gradeIncreaseExceedsStepDifference,
         Boolean eligible,
-        String note
+        String note,
+        List<String> explanationLines
 ) {
 }

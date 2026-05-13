@@ -127,6 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.getElementById("level-promotion-form").addEventListener("submit", onLevelPromotionSearch);
     document.getElementById("position-change-promotion-form").addEventListener("submit", onPositionChangePromotionSearch);
+    document.getElementById("position-change-detail-close").addEventListener("click", closePositionChangeDetailModal);
     document.getElementById("education-promotion-form").addEventListener("submit", onEducationPromotionSearch);
     document.getElementById("regularization-form").addEventListener("submit", onRegularizationSearch);
     document.getElementById("basic-standards-form").addEventListener("submit", onBasicStandardsSearch);
@@ -2373,6 +2374,7 @@ async function loadPositionChangePromotions() {
 
     try {
         const result = await getJson(`/api/payroll/position-change-promotions?${params}`);
+        state.positionChangePreviews = result.content || [];
         rows.innerHTML = (result.content || []).map(row => `
             <tr>
                 <td>${escapeHtml(row.organizationCode)}</td>
@@ -2425,12 +2427,35 @@ async function loadPositionChangePromotions() {
                 <td>${row.gradeIncreaseExceedsStepDifference ? "是" : "否"}</td>
                 <td>${row.eligible ? "是" : "否"}</td>
                 <td>${escapeHtml(row.note || "")}</td>
+                <td><button class="row-action" data-position-change-detail="${escapeHtml(row.payrollHistoryId)}" type="button">明细</button></td>
             </tr>
         `).join("");
+        rows.querySelectorAll("button[data-position-change-detail]").forEach(button => {
+            button.addEventListener("click", () => openPositionChangeDetailModal(button.dataset.positionChangeDetail));
+        });
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条试算记录`;
     } catch (error) {
         showError(status, error);
     }
+}
+
+function openPositionChangeDetailModal(payrollHistoryId) {
+    const row = (state.positionChangePreviews || []).find(item => item.payrollHistoryId === payrollHistoryId);
+    if (!row) {
+        return;
+    }
+    document.getElementById("position-change-detail-summary").textContent =
+        `${row.organizationCode}-${row.personCode} ${row.name} / ${row.currentPositionCode || ""} -> ${row.newPositionCode || ""} / ${row.changeType || ""}`;
+    document.getElementById("position-change-detail-content").innerHTML = `
+        <ol>
+            ${(row.explanationLines || [row.note || "暂无明细"]).map(line => `<li>${escapeHtml(line)}</li>`).join("")}
+        </ol>
+    `;
+    document.getElementById("position-change-detail-modal").classList.remove("hidden");
+}
+
+function closePositionChangeDetailModal() {
+    document.getElementById("position-change-detail-modal").classList.add("hidden");
 }
 
 async function loadEducationPromotions() {
