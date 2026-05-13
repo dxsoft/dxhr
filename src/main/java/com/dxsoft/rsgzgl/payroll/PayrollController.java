@@ -245,6 +245,13 @@ class PayrollController {
         return payrollService.calculationPreview(uid);
     }
 
+    @GetMapping("/personnel/{uid}/wage-projection")
+    WageProjectionPreview wageProjection(
+            @PathVariable int uid,
+            @RequestParam(required = false) String period) {
+        return payrollService.wageProjection(uid, period);
+    }
+
     @GetMapping("/calculation-audits")
     PageResponse<PayrollCalculationAudit> calculationAudits(
             @RequestParam(required = false) String organizationCode,

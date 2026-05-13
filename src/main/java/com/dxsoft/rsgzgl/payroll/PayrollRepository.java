@@ -568,6 +568,27 @@ class PayrollRepository {
                 """, new MapSqlParameterSource("uid", uid), HISTORY_MAPPER).stream().findFirst();
     }
 
+    Optional<PayrollHistorySnapshot> findHistoryAtOrBefore(int uid, String period) {
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                       h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.gwjtbz, h.gwjtlb,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf,
+                       h.pgbc, h.njbt, h.hj2
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE p.uid = :uid AND CONCAT(h.jsnf, h.jsyf) <= :period
+                ORDER BY h.jsnf DESC, h.jsyf DESC, h.id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("uid", uid)
+                .addValue("period", period), HISTORY_MAPPER).stream().findFirst();
+    }
+
     List<PayrollHistorySnapshot> findHistoryChain(String organizationCode, String personCode) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
@@ -622,6 +643,22 @@ class PayrollRepository {
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
                   AND REPLACE(srny, '.', '') = :period
+                ORDER BY srny DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("period", normalizedPeriod), POSITION_CHANGE_CANDIDATE_MAPPER).stream().findFirst();
+    }
+
+    Optional<PositionChangeCandidate> findPositionAtOrBefore(String organizationCode, String personCode, String period) {
+        String normalizedPeriod = period == null ? "" : period.replace(".", "");
+        return jdbcTemplate.query("""
+                SELECT zwbm, xzzw, srny
+                FROM dryzwbh
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND REPLACE(srny, '.', '') <= :period
                 ORDER BY srny DESC, id DESC
                 LIMIT 1
                 """, new MapSqlParameterSource()

@@ -226,6 +226,11 @@
                 </div>
                 <div id="personnel-tab-projection" class="tab-panel hidden">
                     <div class="subrecord-toolbar"><strong>工资推算</strong></div>
+                    <form id="maint-wage-projection-form" class="toolbar compact-toolbar">
+                        <label>推算年月<input id="maint-wage-projection-period" type="month"></label>
+                        <button type="submit">重新推算</button>
+                    </form>
+                    <div id="maint-wage-projection-result" class="note-card">暂无岗位级别推算结果</div>
                     <div class="summary-grid">
                         <div><span>试算年月</span><strong id="maint-projection-period">-</strong></div>
                         <div><span>试算合计</span><strong id="maint-projection-total">-</strong></div>

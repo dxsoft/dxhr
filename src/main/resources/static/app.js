@@ -88,6 +88,7 @@ const menuGroups = [
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("personnel-search").addEventListener("submit", onPersonnelSearch);
     document.getElementById("personnel-maintenance-form").addEventListener("submit", onPersonnelMaintenanceSave);
+    document.getElementById("maint-wage-projection-form").addEventListener("submit", onPersonnelWageProjectionSearch);
     document.getElementById("personnel-maintenance-search").addEventListener("submit", onPersonnelMaintenanceSearch);
     document.getElementById("personnel-maintenance-reset").addEventListener("click", resetPersonnelMaintenanceForm);
     document.getElementById("personnel-maintenance-new").addEventListener("click", openNewPersonnelMaintenance);
@@ -791,6 +792,16 @@ async function onPersonnelMaintenanceSave(event) {
     }
 }
 
+async function onPersonnelWageProjectionSearch(event) {
+    event.preventDefault();
+    const person = state.activePersonnelMaintenance;
+    if (!person?.uid) {
+        alert("请先选择或保存人员。");
+        return;
+    }
+    await loadPersonnelWageProjection(person.uid);
+}
+
 function openNewPersonnelMaintenance() {
     resetPersonnelMaintenanceForm();
     openPersonnelMaintenanceModal("新增人员", "填写人员基本信息后保存；保存成功后可继续维护多条附属记录。");
@@ -1223,6 +1234,8 @@ function resetPersonnelMaintenanceForm() {
         document.getElementById(id).textContent = "-";
     });
     document.getElementById("maint-projection-pgbc").textContent = "暂无推算结果";
+    document.getElementById("maint-wage-projection-period").value = "";
+    document.getElementById("maint-wage-projection-result").textContent = "暂无岗位级别推算结果";
 }
 
 function openSubrecordEditor(type, record = null) {
@@ -1359,6 +1372,7 @@ async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
         getJson(`/api/payroll/personnel/${uid}/calculation-preview`),
     ]);
     renderPersonnelProjection(projection);
+    renderWageProjection(await getJson(`/api/payroll/personnel/${uid}/wage-projection`));
     document.getElementById("maint-education-rows").innerHTML = education.length ? education.map(row => `
         <tr>
             <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
@@ -1453,6 +1467,32 @@ function renderPersonnelProjection(preview) {
         <strong>旧值：</strong>${money(pgbc.storedAmount)}
         <strong>建议值：</strong>${money(pgbc.recommendedAmount)}<br>
         <span>${escapeHtml(pgbc.note || "")}</span>
+    `;
+}
+
+async function loadPersonnelWageProjection(uid) {
+    const period = document.getElementById("maint-wage-projection-period").value.trim();
+    const params = new URLSearchParams();
+    if (period) {
+        params.set("period", period);
+    }
+    const suffix = params.toString() ? `?${params}` : "";
+    renderWageProjection(await getJson(`/api/payroll/personnel/${uid}/wage-projection${suffix}`));
+}
+
+function renderWageProjection(projection) {
+    document.getElementById("maint-wage-projection-period").value = projection.targetPeriod
+        ? `${projection.targetPeriod.slice(0, 4)}-${projection.targetPeriod.slice(4, 6)}`
+        : "";
+    document.getElementById("maint-wage-projection-result").innerHTML = `
+        <strong>目标年月：</strong>${escapeHtml(projection.targetPeriod || "-")}
+        <strong>起点年月：</strong>${escapeHtml(projection.basePeriod || "-")}<br>
+        <strong>岗位：</strong>${escapeHtml(projection.positionCode || "")} ${escapeHtml(projection.positionName || "")}<br>
+        <strong>级别/档次薪级：</strong>${escapeHtml(projection.level || "-")} / ${escapeHtml(projection.stepOrSalaryLevel || "-")}
+        <strong>工资类型：</strong>${escapeHtml(baseSalarySourceName(projection.baseSalarySource))}<br>
+        <strong>xckhndjb：</strong>${escapeHtml(projection.levelAssessmentStartYear || "-")}
+        <strong>xckhndzw：</strong>${escapeHtml(projection.stepAssessmentStartYear || "-")}
+        <ol>${(projection.explanationLines || []).map(line => `<li>${escapeHtml(line)}</li>`).join("")}</ol>
     `;
 }
 

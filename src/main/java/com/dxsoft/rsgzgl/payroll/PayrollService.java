@@ -6,6 +6,7 @@ import com.dxsoft.rsgzgl.common.PageResponse;
 import com.dxsoft.rsgzgl.security.AccessControlService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -181,6 +182,81 @@ public class PayrollService {
                 total.recalculatedKnownTotal(),
                 total.storedTotal(),
                 total.totalDifference());
+    }
+
+    public WageProjectionPreview wageProjection(int uid, String period) {
+        String targetPeriod = projectionPeriod(period);
+        PayrollHistorySnapshot base = payrollRepository.findHistoryAtOrBefore(uid, targetPeriod)
+                .orElseGet(() -> payrollRepository.findLatestHistory(uid)
+                        .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid)));
+        accessControlService.requireOrganization(base.organizationCode());
+        String positionCode = base.positionCode();
+        String positionName = base.positionName();
+        List<String> lines = new ArrayList<>();
+        lines.add("目标年月：" + targetPeriod + "。");
+        lines.add("起点工资记录：" + base.calculationYear() + base.calculationMonth() + " " + base.calculationType()
+                + "，岗位 " + base.positionCode() + " " + base.positionName() + "。");
+        payrollRepository.findPositionAtOrBefore(base.organizationCode(), base.personCode(), targetPeriod)
+                .ifPresent(position -> {
+                    lines.add("目标年月任职记录：" + position.startYearMonth() + " " + position.positionCode() + " " + position.positionName() + "。");
+                });
+        Optional<PositionChangeCandidate> targetPosition = payrollRepository.findPositionAtOrBefore(base.organizationCode(), base.personCode(), targetPeriod);
+        if (targetPosition.isPresent()) {
+            positionCode = targetPosition.get().positionCode();
+            positionName = targetPosition.get().positionName();
+        }
+        String baseSalarySource = baseSalarySource(positionCode);
+        String level = base.gradeSalaryLevel();
+        String step = String.valueOf(payrollRepository.intValue(base.positionSalaryGrade()) + payrollRepository.intValue(base.gradeSalaryStep()));
+        String levelStartYear = base.levelAssessmentStartYear();
+        String stepStartYear = base.stepAssessmentStartYear();
+        int baseYear = yearOf(base.calculationYear());
+        int targetYear = yearOf(targetPeriod);
+        for (int year = Math.max(2007, baseYear + 1); year <= targetYear; year++) {
+            if ("GRADE".equals(baseSalarySource) && payrollRepository.intValue(level) > 1) {
+                int levelStart = assessmentStartYear(levelStartYear, base.positionStartYearMonth(), positionCode);
+                int stepStart = assessmentStartYear(stepStartYear, base.positionStartYearMonth(), positionCode);
+                int qualifiedLevel = payrollRepository.countQualifiedAssessmentYears(base.organizationCode(), base.personCode(), levelStart, year - 1);
+                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(base.organizationCode(), base.personCode(), stepStart, year - 1);
+                if (qualifiedLevel >= 5) {
+                    int currentSalary = payrollRepository.gradeSalary(level, step, base.salaryStandardYearMonth());
+                    String nextLevel = String.valueOf(Math.max(1, payrollRepository.intValue(level) - 1));
+                    String nextStep = firstHigherGradeStep(nextLevel, currentSalary, base.salaryStandardYearMonth());
+                    lines.add(year + " 年：累计 " + qualifiedLevel + " 年考核合格，晋升级别 " + level + " -> " + nextLevel + "，档次 " + step + " -> " + nextStep + "。");
+                    level = nextLevel;
+                    step = nextStep;
+                    levelStartYear = String.valueOf(year);
+                    stepStartYear = String.valueOf(year);
+                } else if (qualifiedStep >= 2) {
+                    step = String.valueOf(payrollRepository.intValue(step) + 1);
+                    stepStartYear = String.valueOf(year);
+                    lines.add(year + " 年：累计 " + qualifiedStep + " 年考核合格，晋升档次/薪级到 " + step + "。");
+                }
+            } else if ("SALARY_LEVEL".equals(baseSalarySource)) {
+                int stepStart = assessmentStartYear(stepStartYear, base.positionStartYearMonth(), positionCode);
+                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(base.organizationCode(), base.personCode(), stepStart, year - 1);
+                if (qualifiedStep >= 1) {
+                    step = String.valueOf(payrollRepository.intValue(step) + 1);
+                    stepStartYear = String.valueOf(year);
+                    lines.add(year + " 年：事业岗位累计 " + qualifiedStep + " 年考核合格，晋升薪级到 " + step + "。");
+                }
+            }
+        }
+        return new WageProjectionPreview(
+                uid,
+                base.organizationCode(),
+                base.personCode(),
+                base.name(),
+                targetPeriod,
+                base.calculationYear() + base.calculationMonth(),
+                positionCode,
+                positionName,
+                level,
+                step,
+                levelStartYear,
+                stepStartYear,
+                baseSalarySource,
+                lines);
     }
 
     public PageResponse<PayrollCalculationAudit> calculationAudits(String organizationCode, PageRequest pageRequest) {
@@ -2428,5 +2504,14 @@ public class PayrollService {
 
     private String emptyToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String projectionPeriod(String period) {
+        String normalized = period == null ? "" : period.replace(".", "").replace("-", "").trim();
+        if (normalized.length() >= 6) {
+            return normalized.substring(0, 6);
+        }
+        YearMonth now = YearMonth.now();
+        return "%04d%02d".formatted(now.getYear(), now.getMonthValue());
     }
 }
