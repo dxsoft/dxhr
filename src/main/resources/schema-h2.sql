@@ -127,10 +127,17 @@ CREATE TABLE IF NOT EXISTS hisbase (
     xm VARCHAR(20),
     ny VARCHAR(6),
     bdlb VARCHAR(20),
+    jsnf VARCHAR(4),
+    jsyf VARCHAR(2),
+    jslb VARCHAR(20),
     gw VARCHAR(20),
     zw VARCHAR(30),
     jb VARCHAR(10),
     dc VARCHAR(10),
+    zwbm2 VARCHAR(20),
+    zwgw2 VARCHAR(30),
+    jbgzjb2 VARCHAR(10),
+    zwgzdc2 VARCHAR(10),
     zwgz DECIMAL(10,2) DEFAULT 0,
     jbgz DECIMAL(10,2) DEFAULT 0,
     jsdjgz DECIMAL(10,2) DEFAULT 0,
@@ -144,6 +151,12 @@ CREATE TABLE IF NOT EXISTS hisbase (
     jjjy DECIMAL(10,2) DEFAULT 0,
     pgbc DECIMAL(10,2) DEFAULT 0,
     hj DECIMAL(10,2) DEFAULT 0,
+    zwgzse2 DECIMAL(10,2) DEFAULT 0,
+    jbgzse2 DECIMAL(10,2) DEFAULT 0,
+    jsdjgz2 DECIMAL(10,2) DEFAULT 0,
+    dfbt2 DECIMAL(10,2) DEFAULT 0,
+    blfb2 DECIMAL(10,2) DEFAULT 0,
+    hj2 DECIMAL(10,2) DEFAULT 0,
     dq VARCHAR(2) DEFAULT ''
 );
 
@@ -279,10 +292,24 @@ INSERT INTO dryjbxx (dwbm, grbm, xm, sfzh, xb, csn_yf, rylb, xl, zgxl, dqzw) VAL
 ('001', '00002', '李四', '110101198505056789', '女', '1985.05', '公务员', '002', '硕士研究生', '副主任科员'),
 ('002', '00001', '王五', '110101197808082345', '男', '1978.08', '公务员', '001', '大学本科', '科长');
 
-INSERT INTO hisbase (uid, dwbm, grbm, xm, ny, bdlb, gw, zw, jb, dc, zwgz, jbgz, hj, dq) VALUES
-(1, '001', '00001', '张三', '202401', '正常晋升', '0701', '科员', '21', '5', 1200, 2500, 5000, '是'),
-(2, '001', '00002', '李四', '202401', '正常晋升', '0702', '副主任科员', '20', '8', 1500, 3200, 6000, '是'),
-(3, '002', '00001', '王五', '202401', '正常晋升', '0703', '科长', '19', '10', 1800, 3800, 7000, '是');
+INSERT INTO hisbase (
+    uid, dwbm, grbm, xm, ny, bdlb, jsnf, jsyf, jslb,
+    gw, zw, jb, dc, zwbm2, zwgw2, jbgzjb2, zwgzdc2,
+    zwgz, jbgz, jsdjgz, jxgz, blfb, jxjt, njbt, pgbc, hj,
+    zwgzse2, jbgzse2, jsdjgz2, dfbt2, blfb2, hj2, dq
+) VALUES
+(1, '001', '00001', '张三', '202401', '正常晋升', '2024', '01', '正常晋升',
+ '0701', '科员', '21', '5', '0701', '科员', '21', '5',
+ 1200, 2500, 0, 0, 300, 0, 120, 0, 5000,
+ 1200, 2500, 0, 880, 300, 5000, '是'),
+(2, '001', '00002', '李四', '202401', '正常晋升', '2024', '01', '正常晋升',
+ '0702', '副主任科员', '20', '8', '0702', '副主任科员', '20', '8',
+ 1500, 3200, 0, 0, 360, 0, 140, 0, 6000,
+ 1500, 3200, 0, 800, 360, 6000, '是'),
+(3, '002', '00001', '王五', '202401', '正常晋升', '2024', '01', '正常晋升',
+ '0703', '科长', '19', '10', '0703', '科长', '19', '10',
+ 1800, 3800, 0, 0, 420, 0, 160, 0, 7000,
+ 1800, 3800, 0, 820, 420, 7000, '是');
 
 INSERT INTO dmb (bm, mc, czbm, sfbz, sybz) VALUES
 ('001', '大学本科', '', 1, 1),
