@@ -2200,7 +2200,7 @@ async function loadPayrollChangeApproval(payrollHistoryId) {
         document.getElementById("report-approval-before-total").textContent = money(totals.beforeAmount);
         document.getElementById("report-approval-after-total").textContent = money(totals.afterAmount);
         document.getElementById("report-approval-difference-total").textContent = money(totals.difference);
-        document.getElementById("report-approval-next-step-year").textContent = period ? String(Number(period.slice(0, 4)) : "") : "-";
+        document.getElementById("report-approval-next-step-year").textContent = period ? String(Number(period.slice(0, 4))) : "-";
         document.getElementById("report-approval-next-level-year").textContent = report.previousCalculationPeriod ? report.previousCalculationPeriod.slice(0, 4) : "-";
         document.getElementById("report-approval-basis-title").textContent = approvalBasisTitle(report.changeType);
         document.getElementById("report-approval-basis-detail").innerHTML = approvalBasisDetail(report);
