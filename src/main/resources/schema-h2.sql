@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS dryjbxx (
 
 CREATE TABLE IF NOT EXISTS hisbase (
     id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    sid VARCHAR(40),
     uid INTEGER NOT NULL,
     dwbm VARCHAR(9) NOT NULL,
     grbm VARCHAR(5) NOT NULL,
@@ -158,6 +159,33 @@ CREATE TABLE IF NOT EXISTS hisbase (
     blfb2 DECIMAL(10,2) DEFAULT 0,
     hj2 DECIMAL(10,2) DEFAULT 0,
     dq VARCHAR(2) DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS fldgz (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    sequence INTEGER,
+    field_cate INTEGER DEFAULT 0,
+    tblname VARCHAR(40) DEFAULT 'hisbase',
+    field_name VARCHAR(40) NOT NULL,
+    field_type VARCHAR(4) DEFAULT 'N',
+    field_len INTEGER DEFAULT 10,
+    field_dec INTEGER DEFAULT 2,
+    field_cap VARCHAR(80),
+    field_caps VARCHAR(80),
+    field_capj VARCHAR(80),
+    sfsy06 VARCHAR(4) DEFAULT '√',
+    sfsy VARCHAR(4) DEFAULT '√',
+    lrfs VARCHAR(20),
+    category VARCHAR(40),
+    jbt BOOLEAN DEFAULT FALSE,
+    gld VARCHAR(40),
+    jxryff INTEGER DEFAULT 0,
+    jbtbz BOOLEAN DEFAULT FALSE,
+    qsff VARCHAR(40),
+    gdz DECIMAL(10,2) DEFAULT 0,
+    readonly BOOLEAN DEFAULT FALSE,
+    isgroup BOOLEAN DEFAULT FALSE,
+    iscount BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS dryjbxxb (
@@ -293,23 +321,33 @@ INSERT INTO dryjbxx (dwbm, grbm, xm, sfzh, xb, csn_yf, rylb, xl, zgxl, dqzw) VAL
 ('002', '00001', '王五', '110101197808082345', '男', '1978.08', '公务员', '001', '大学本科', '科长');
 
 INSERT INTO hisbase (
-    uid, dwbm, grbm, xm, ny, bdlb, jsnf, jsyf, jslb,
+    sid, uid, dwbm, grbm, xm, ny, bdlb, jsnf, jsyf, jslb,
     gw, zw, jb, dc, zwbm2, zwgw2, jbgzjb2, zwgzdc2,
     zwgz, jbgz, jsdjgz, jxgz, blfb, jxjt, njbt, pgbc, hj,
     zwgzse2, jbgzse2, jsdjgz2, dfbt2, blfb2, hj2, dq
 ) VALUES
-(1, '001', '00001', '张三', '202401', '正常晋升', '2024', '01', '正常晋升',
+('', 1, '001', '00001', '张三', '202401', '正常晋升', '2024', '01', '正常晋升',
  '0701', '科员', '21', '5', '0701', '科员', '21', '5',
  1200, 2500, 0, 0, 300, 0, 120, 0, 5000,
  1200, 2500, 0, 880, 300, 5000, '是'),
-(2, '001', '00002', '李四', '202401', '正常晋升', '2024', '01', '正常晋升',
+('', 2, '001', '00002', '李四', '202401', '正常晋升', '2024', '01', '正常晋升',
  '0702', '副主任科员', '20', '8', '0702', '副主任科员', '20', '8',
  1500, 3200, 0, 0, 360, 0, 140, 0, 6000,
  1500, 3200, 0, 800, 360, 6000, '是'),
-(3, '002', '00001', '王五', '202401', '正常晋升', '2024', '01', '正常晋升',
+('', 3, '002', '00001', '王五', '202401', '正常晋升', '2024', '01', '正常晋升',
  '0703', '科长', '19', '10', '0703', '科长', '19', '10',
  1800, 3800, 0, 0, 420, 0, 160, 0, 7000,
  1800, 3800, 0, 820, 420, 7000, '是');
+
+INSERT INTO fldgz (sequence, field_name, field_cap, field_caps, field_capj, category) VALUES
+(10, 'ZWGZSE2', '职务工资', '职务', '职务工资', '基本工资'),
+(20, 'JBGZSE2', '级别/薪级工资', '级别', '级别工资', '基本工资'),
+(30, 'JSDJGZ2', '技术等级工资', '技术', '技术等级', '基本工资'),
+(40, 'DFBT2', '绩效/生活补贴', '绩效', '绩效/生活', '津贴补贴'),
+(50, 'BLFB2', '保留福补', '福补', '保留福补', '津贴补贴'),
+(60, 'JXJT', '警衔津贴', '警衔', '警衔津贴', '津贴补贴'),
+(70, 'NJBT', '年补贴', '年补', '年补贴', '津贴补贴'),
+(80, 'PGBC', 'PGBC', 'PGBC', 'PGBC', '保留项');
 
 INSERT INTO dmb (bm, mc, czbm, sfbz, sybz) VALUES
 ('001', '大学本科', '', 1, 1),
