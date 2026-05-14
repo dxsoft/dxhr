@@ -374,6 +374,14 @@ public class PayrollService {
                 textValue(afterValues, "approval_jxbl"),
                 textValue(afterValues, "grbm"),
                 textValue(afterValues, "xm"),
+                textValue(afterValues, "approval_sfzh"),
+                textValue(afterValues, "approval_xb"),
+                textValue(afterValues, "approval_csn_yf"),
+                textValue(afterValues, "approval_zgxl"),
+                textValue(afterValues, "approval_cjgz_yf"),
+                intValue(afterValues, "approval_gznx"),
+                textValue(afterValues, "approval_dah"),
+                textValue(afterValues, "approval_rzny"),
                 textValue(afterValues, "jsnf") + textValue(afterValues, "jsyf"),
                 textValue(afterValues, "jslb"),
                 beforeValues.map(values -> textValue(values, "zwgw2")).orElse(null),
@@ -385,6 +393,18 @@ public class PayrollService {
                 beforeValues.map(values -> textValue(values, "jsnf") + textValue(values, "jsyf")).orElse(null),
                 beforeValues.map(values -> textValue(values, "jslb")).orElse(null),
                 components);
+    }
+
+    private Integer intValue(Map<String, Object> values, String fieldName) {
+        String text = textValue(values, fieldName);
+        if (text.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public PageResponse<PayrollHistoryRecord> createPayrollHistory(int uid, PayrollHistoryMaintenanceRequest request) {

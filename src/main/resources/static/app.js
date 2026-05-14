@@ -2324,7 +2324,7 @@ function registerBeforeAfterRow(report, index, marker, values) {
     const firstRow = marker === "前";
     return `
         <tr>
-            ${firstRow ? `<td rowspan="2">${escapeHtml(report.name || "")}<br>${escapeHtml(report.personCode || "")}</td><td rowspan="2"></td>` : ""}
+            ${firstRow ? `<td rowspan="2">${escapeHtml(report.name || "")}<br>${escapeHtml(report.personCode || "")}</td><td rowspan="2">${escapeHtml(maskIdCardClient(report.idCard || ""))}</td>` : ""}
             <td>${marker}</td>
             <td>${moneyOrDash(values.total)}</td>
             <td>${escapeHtml(values.position || "")}</td>
@@ -2588,13 +2588,13 @@ function renderPayrollChangeApprovalSheet(report) {
             <div class="approval-topline">
                 <span>单位编码：<strong>${escapeHtml(report.organizationCode || "-")}</strong></span>
                 <span>个人编码：<strong>${escapeHtml(report.personCode || "-")}</strong></span>
-                <span>档案号：<strong></strong></span>
+                <span>档案号：<strong>${escapeHtml(report.archiveNumber || "")}</strong></span>
             </div>
             <div class="approval-sheet-header"><h3>${escapeHtml(reportTitle)}</h3></div>
             <table class="approval-meta-table"><tbody>
-                <tr><th>姓名</th><td>${escapeHtml(report.name || "-")}</td><th>性别</th><td>-</td><th>出生日期</th><td>-</td><th>学历</th><td>-</td></tr>
-                <tr><th>工作单位</th><td colspan="3">${escapeHtml(report.organizationName || report.organizationCode || "-")}</td><th>参加工作时间</th><td>-</td><th>工作年限</th><td>-</td></tr>
-                <tr><th>现任职务</th><td colspan="3">${escapeHtml(report.currentPositionName || "-")}</td><th>任职时间</th><td>-</td><th>前次变动</th><td>${escapeHtml(report.previousPayrollHistoryId ? `${report.previousCalculationPeriod || ""} ${report.previousChangeType || ""}` : "无")}</td></tr>
+                <tr><th>姓名</th><td>${escapeHtml(report.name || "-")}</td><th>性别</th><td>${escapeHtml(report.gender || "-")}</td><th>出生日期</th><td>${escapeHtml(report.birthDate || "-")}</td><th>学历</th><td>${escapeHtml(report.education || "-")}</td></tr>
+                <tr><th>工作单位</th><td colspan="3">${escapeHtml(report.organizationName || report.organizationCode || "-")}</td><th>参加工作时间</th><td>${escapeHtml(report.workStartDate || "-")}</td><th>工作年限</th><td>${escapeHtml(report.workYears ?? "-")}</td></tr>
+                <tr><th>现任职务</th><td colspan="3">${escapeHtml(report.currentPositionName || "-")}</td><th>任职时间</th><td>${escapeHtml(report.positionStartDate || "-")}</td><th>前次变动</th><td>${escapeHtml(report.previousPayrollHistoryId ? `${report.previousCalculationPeriod || ""} ${report.previousChangeType || ""}` : "无")}</td></tr>
             </tbody></table>
             <div class="approval-main-grid">
                 <table class="approval-component-table">
