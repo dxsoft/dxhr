@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS dwbm (
     dwmc VARCHAR(80),
     dwjc VARCHAR(40),
     dwxz VARCHAR(20),
+    dwsx VARCHAR(20),
+    jxbl VARCHAR(10),
     gzlbbm VARCHAR(10),
     jbtbz VARCHAR(10),
     bzrs INTEGER DEFAULT 0,
@@ -337,15 +339,16 @@ CREATE TABLE IF NOT EXISTS rptinfo (
 );
 
 -- Sample data for demonstration
-INSERT INTO dwbm (dwbm, dwmc, dwjc, dwxz, gzlbbm) VALUES
-('001', '市委组织部', '组织部', '机关', '001'),
-('002', '市人社局', '人社局', '机关', '001'),
-('003', '市财政局', '财政局', '机关', '001');
+INSERT INTO dwbm (dwbm, dwmc, dwjc, dwxz, dwsx, jxbl, gzlbbm) VALUES
+('001', '市委组织部', '组织部', '机关', '机关', '', '001'),
+('002', '市人社局', '人社局', '机关', '机关', '', '001'),
+('003', '市财政局', '财政局', '事业', '事业', '7:3', '001');
 
 INSERT INTO dryjbxx (dwbm, grbm, xm, sfzh, xb, csn_yf, rylb, xl, zgxl, dqzw) VALUES
 ('001', '00001', '张三', '110101199001011234', '男', '1990.01', '公务员', '001', '大学本科', '科员'),
 ('001', '00002', '李四', '110101198505056789', '女', '1985.05', '公务员', '002', '硕士研究生', '副主任科员'),
-('002', '00001', '王五', '110101197808082345', '男', '1978.08', '公务员', '001', '大学本科', '科长');
+('002', '00001', '王五', '110101197808082345', '男', '1978.08', '公务员', '001', '大学本科', '科长'),
+('003', '00001', '赵六', '110101198201012345', '男', '1982.01', '事业人员', '001', '大学本科', '七级管理岗位');
 
 INSERT INTO hisbase (
     sid, uid, dwbm, grbm, xm, ny, bdlb, jsnf, jsyf, jslb,
@@ -376,7 +379,15 @@ INSERT INTO hisbase (
 ('', 3, '002', '00001', '王五', '202301', '上次变动', '2023', '01', '上次变动',
  '0703', '科长', '19', '9', '0703', '科长', '19', '9',
  1700, 3600, 0, 0, 400, 0, 140, 0, 6600,
- 1700, 3600, 0, 760, 400, 6600, '');
+ 1700, 3600, 0, 760, 400, 6600, ''),
+('', 4, '003', '00001', '赵六', '202501', '正常晋升薪级', '2025', '01', '正常晋升薪级',
+ 'S07', '七级管理岗位', '31', '', 'S07', '七级管理岗位', '31', '',
+ 2520, 2582, 0, 0, 38, 0, 0, 0, 6449,
+ 2520, 2582, 0, 1305, 38, 6449, '是'),
+('', 4, '003', '00001', '赵六', '202401', '上次变动', '2024', '01', '上次变动',
+ 'S07', '七级管理岗位', '30', '', 'S07', '七级管理岗位', '30', '',
+ 2520, 2475, 0, 0, 38, 0, 0, 0, 6342,
+ 2520, 2475, 0, 1305, 38, 6342, '');
 
 INSERT INTO fldgz (sequence, field_name, field_cap, field_caps, field_capj, category) VALUES
 (10, 'ZWGZSE2', '职务工资', '职务', '职务工资', '基本工资'),
@@ -386,7 +397,10 @@ INSERT INTO fldgz (sequence, field_name, field_cap, field_caps, field_capj, cate
 (50, 'BLFB2', '保留福补', '福补', '保留福补', '津贴补贴'),
 (60, 'JXJT', '警衔津贴', '警衔', '警衔津贴', '津贴补贴'),
 (70, 'NJBT', '农教补贴', '农教', '农教补贴', '津贴补贴'),
-(80, 'PGBC', '工改保留职务工资', '工改保留', '工改保留职务工资', '保留项');
+(80, 'PGBC', '工改保留职务工资', '工改保留', '工改保留职务工资', '保留项'),
+(90, 'JJJY2', '保留奖金', '奖金', '保留奖金', '保留项'),
+(100, 'FDGZ2', '浮动工资', '浮动', '浮动工资', '津贴补贴'),
+(110, 'JSFSZWTG2', '教护提高部分', '教护提高', '教护提高部分', '津贴补贴');
 
 INSERT INTO dmb (bm, mc, czbm, sfbz, sybz) VALUES
 ('001', '大学本科', '', 1, 1),
@@ -403,7 +417,8 @@ INSERT INTO xtcs (qydrdk, tgdcglbxl, xsws, jwbz, tgjjjy, fdgz) VALUES
 
 INSERT INTO rptinfo (lbbm, cname, ctitle, cfilename, rpttype, bblb, dyclb, dycfw, mrhs, copies, cdefault, lbmc) VALUES
 ('001', '机关正常档次晋升工资变动审批表', '河南省机关工作人员正常档次晋升工资变动审批表', 'jgjdspb', '工资', '审批表', '工资变动', '逐人', 1, 1, '国发2006-22号', '审批表'),
-('002', '工资变动花名册', '工资变动花名册', 'gzbghmc', '工资', '花名册', '工资变动', '批量', 20, 1, '国发2006-22号', '花名册');
+('002', '事业单位正常晋升薪级工资审批表', '河南省事业单位工作人员正常晋升薪级工资审批表', 'sydwxjspb', '工资', '审批表', '工资变动', '逐人', 1, 1, '国发2006-22号', '审批表'),
+('003', '工资变动花名册', '工资变动花名册', 'gzbghmc', '工资', '花名册', '工资变动', '批量', 20, 1, '国发2006-22号', '花名册');
 
 -- Security roles, permissions, menus and the admin user are seeded by
 -- SecuritySchemaInitializer so the demo password uses the configured encoder.

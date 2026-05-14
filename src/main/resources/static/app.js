@@ -2246,6 +2246,9 @@ function renderPayrollChangeApprovalSheet(report) {
     const period = report.calculationPeriod || "";
     const components = report.components || [];
     const totals = approvalTotalsFromHj(components);
+    const institution = isInstitutionApproval(report);
+    const reportTitle = selectedApprovalReportTitle() || approvalTitle(report);
+    const ratioRow = institution ? `<tr><th colspan="2">基础性绩效工资与奖励性绩效工资变化比例</th><th colspan="2">${escapeHtml(report.performanceRatio || "7:3")}</th></tr>` : "";
     return `
         <div class="approval-sheet">
             <div class="approval-topline">
@@ -2253,17 +2256,17 @@ function renderPayrollChangeApprovalSheet(report) {
                 <span>个人编码：<strong>${escapeHtml(report.personCode || "-")}</strong></span>
                 <span>档案号：<strong></strong></span>
             </div>
-            <div class="approval-sheet-header"><h3>${escapeHtml(approvalTitle(report.changeType))}</h3></div>
+            <div class="approval-sheet-header"><h3>${escapeHtml(reportTitle)}</h3></div>
             <table class="approval-meta-table"><tbody>
                 <tr><th>姓名</th><td>${escapeHtml(report.name || "-")}</td><th>性别</th><td>-</td><th>出生日期</th><td>-</td><th>学历</th><td>-</td></tr>
-                <tr><th>工作单位</th><td colspan="3">${escapeHtml(report.organizationCode || "-")}</td><th>参加工作时间</th><td>-</td><th>工作年限</th><td>-</td></tr>
+                <tr><th>工作单位</th><td colspan="3">${escapeHtml(report.organizationName || report.organizationCode || "-")}</td><th>参加工作时间</th><td>-</td><th>工作年限</th><td>-</td></tr>
                 <tr><th>现任职务</th><td colspan="3">${escapeHtml(report.currentPositionName || "-")}</td><th>任职时间</th><td>-</td><th>前次变动</th><td>${escapeHtml(report.previousPayrollHistoryId ? `${report.previousCalculationPeriod || ""} ${report.previousChangeType || ""}` : "无")}</td></tr>
             </tbody></table>
             <div class="approval-main-grid">
                 <table class="approval-component-table">
                     <thead><tr><th class="approval-item-header">项目</th><th>变动前</th><th>变动后</th><th>增资额</th></tr></thead>
                     <tbody>${approvalRows(report, components).map(row => `<tr class="${Number(row.difference || 0) !== 0 ? "highlight-row" : ""}"><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.beforeText)}</td><td>${escapeHtml(row.afterText)}</td><td>${escapeHtml(row.differenceText)}</td></tr>`).join("")}</tbody>
-                    <tfoot><tr><th>月工资合计</th><th>${money(totals.beforeAmount)}</th><th>${money(totals.afterAmount)}</th><th>${money(totals.difference)}</th></tr></tfoot>
+                    <tfoot><tr><th>月工资合计</th><th>${money(totals.beforeAmount)}</th><th>${money(totals.afterAmount)}</th><th>${money(totals.difference)}</th></tr>${ratioRow}</tfoot>
                 </table>
                 <div class="approval-basis-panel">
                     <table><tbody>
@@ -2283,6 +2286,13 @@ function renderPayrollChangeApprovalSheet(report) {
 }
 
 function approvalRows(report, components) {
+    if (isInstitutionApproval(report)) {
+        return institutionApprovalRows(report, components);
+    }
+    return agencyApprovalRows(report, components);
+}
+
+function agencyApprovalRows(report, components) {
     const amount = field => componentByField(components, field);
     return [
         textApprovalRow("执行工资职务层次", report.previousPositionName, report.currentPositionName),
@@ -2303,6 +2313,39 @@ function approvalRows(report, components) {
         amountApprovalRow("农教补贴", amount("NJBT")),
         amountApprovalRow("其它补贴", amount("QTBT")),
     ];
+}
+
+function institutionApprovalRows(report, components) {
+    const amount = field => componentByField(components, field);
+    return [
+        textApprovalRow("执行工资岗位等级", report.previousPositionName, report.currentPositionName),
+        textApprovalRow("薪级", report.previousStepOrSalaryLevel, report.currentStepOrSalaryLevel),
+        amountApprovalRow("岗位工资", amount("ZWGZSE2")),
+        amountApprovalRow("薪级工资", amount("JBGZSE2")),
+        amountApprovalRow("教护提高部分", amount("JSFSZWTG2")),
+        amountApprovalRow("教护龄津贴", amount("JHLJT")),
+        amountApprovalRow("保留副补", amount("BLFB2")),
+        amountApprovalRow("保留奖金", amount("JJJY2")),
+        amountApprovalRow("工改保留津贴", amount("TGBLBF")),
+        amountApprovalRow("基础绩效", amount("DFBT2")),
+        amountApprovalRow("浮动工资", amount("FDGZ2")),
+        amountApprovalRow("特殊岗位津贴", amount("SIDBT")),
+        amountApprovalRow("特岗保留部分", null),
+        amountApprovalRow("农村学校教师补贴", amount("NJBT")),
+        amountApprovalRow("其它补贴", amount("QTBT")),
+    ];
+}
+
+function isInstitutionApproval(report) {
+    const nature = String(report.organizationNature || "").trim();
+    const title = selectedApprovalReportTitle();
+    return nature.includes("事") || String(title || "").includes("事业");
+}
+
+function selectedApprovalReportTitle() {
+    const select = document.getElementById("report-approval-type-select");
+    const selected = select?.selectedOptions?.[0];
+    return selected?.dataset?.title || selected?.textContent?.trim() || "";
 }
 
 function componentByField(components, fieldName) {

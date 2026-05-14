@@ -999,8 +999,9 @@ class PayrollRepository {
 
     Map<String, Object> findHistoryValuesById(String id) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT h.*
+                SELECT h.*, dw.dwmc AS approval_dwmc, dw.dwsx AS approval_dwsx, dw.jxbl AS approval_jxbl
                 FROM hisbase h
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
                 WHERE h.id = :id
                 LIMIT 1
                 """, new MapSqlParameterSource("id", id));
