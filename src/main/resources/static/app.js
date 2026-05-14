@@ -82,7 +82,7 @@ const menuGroups = [
     { title: "信息维护", codes: ["PERSONNEL", "PERSONNEL_MAINTENANCE", "ANNUAL_ASSESSMENTS", "CHANGED_PERSONNEL", "ASSESSMENT_SUMMARY", "POSITION_HISTORY", "EDUCATION_HISTORY", "ORGANIZATION_MAINTENANCE"] },
     { title: "工资变动", codes: ["PAYROLL", "PAYROLL_HISTORY", "TEACHING_ALLOWANCE_ADJUSTMENT", "NORMAL_PROMOTION", "LEVEL_PROMOTION", "POSITION_CHANGE_PROMOTION", "EDUCATION_PROMOTION", "REGULARIZATION", "AUDIT"] },
     { title: "标准维护", codes: ["BASIC_STANDARDS", "ALLOWANCE_STANDARDS", "INTERN_SALARY_STANDARDS", "RANK_ALLOWANCE_STANDARDS", "RETAINED_ALLOWANCE_STANDARDS", "YEAR_ALLOWANCE_STANDARDS", "WAGE_REFORM_STANDARDS", "OTHER_ALLOWANCE_STANDARDS"] },
-    { title: "报表查询", codes: ["PAYROLL_CHANGE_REGISTER_REPORT", "PAYROLL_CHANGE_APPROVAL_REPORT"] },
+    { title: "报表查询", codes: ["PAYROLL_CHANGE_REGISTER_REPORT", "PAYROLL_CHANGE_APPROVAL_REPORT", "DATA_EXCHANGE"] },
     { title: "系统管理", codes: ["LOCAL_POLICY_CONFIG", "DICTIONARY_MAINTENANCE", "SECURITY"] },
 ];
 
@@ -120,6 +120,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("payroll-change-register-print").addEventListener("click", () => window.print());
     document.getElementById("payroll-change-approval-report-form").addEventListener("submit", onPayrollChangeApprovalReportSearch);
     document.getElementById("payroll-change-approval-print").addEventListener("click", () => window.print());
+    document.getElementById("data-exchange-personnel-form").addEventListener("submit", onDataExchangePersonnelSearch);
+    document.getElementById("data-exchange-personnel-download").addEventListener("click", downloadPersonnelCsv);
+    document.getElementById("data-exchange-annual-form").addEventListener("submit", onDataExchangeAnnualSearch);
+    document.getElementById("data-exchange-annual-download").addEventListener("click", downloadAnnualCsv);
     document.getElementById("payroll-history-form").addEventListener("submit", onPayrollHistorySearch);
     document.getElementById("payroll-change-close").addEventListener("click", closePayrollChangeModal);
     document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
@@ -264,6 +268,9 @@ async function initializeAuth() {
         }
         if (hasMenu("OTHER_ALLOWANCE_STANDARDS")) {
             await loadOtherAllowanceStandards();
+        }
+        if (hasMenu("DATA_EXCHANGE")) {
+            await loadDataExchange();
         }
     } catch (error) {
         window.location.href = "/login.html";
@@ -3415,4 +3422,135 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+async function loadDataExchange() {
+    const personnelStatus = document.getElementById("data-exchange-personnel-status");
+    const annualStatus = document.getElementById("data-exchange-annual-status");
+    personnelStatus.textContent = "准备就绪";
+    annualStatus.textContent = "准备就绪";
+}
+
+async function onDataExchangePersonnelSearch(event) {
+    event.preventDefault();
+    const organizationCode = document.getElementById("data-exchange-personnel-organization").value;
+    const keyword = document.getElementById("data-exchange-personnel-keyword").value;
+    const status = document.getElementById("data-exchange-personnel-status");
+    const tbody = document.getElementById("data-exchange-personnel-rows");
+
+    status.className = "status";
+    status.textContent = "正在查询...";
+
+    try {
+        const data = await getJson(`/api/data-exchange/personnel?organizationCode=${encodeURIComponent(organizationCode)}&keyword=${encodeURIComponent(keyword)}&page=0&size=50`);
+        tbody.innerHTML = data.content.map(r => `
+            <tr>
+                <td>${escapeHtml(r.organizationName || r.organizationCode)}</td>
+                <td>${escapeHtml(r.personCode)}</td>
+                <td>${escapeHtml(r.name)}</td>
+                <td>${escapeHtml(r.idCard ? r.idCard.substring(0, 4) + "****" + r.idCard.substring(r.idCard.length - 4) : "")}</td>
+                <td>${escapeHtml(r.gender)}</td>
+                <td>${escapeHtml(r.birthYearMonth)}</td>
+                <td>${escapeHtml(r.personnelCategory)}</td>
+                <td>${escapeHtml(r.currentJob)}</td>
+                <td>${escapeHtml(r.currentGrade)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `查询完成，共 ${data.totalElements} 条记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function downloadPersonnelCsv() {
+    const organizationCode = document.getElementById("data-exchange-personnel-organization").value;
+    const keyword = document.getElementById("data-exchange-personnel-keyword").value;
+    const status = document.getElementById("data-exchange-personnel-status");
+
+    status.className = "status";
+    status.textContent = "正在下载...";
+
+    try {
+        const response = await fetch(`/api/data-exchange/personnel/download?organizationCode=${encodeURIComponent(organizationCode)}&keyword=${encodeURIComponent(keyword)}`, {
+            headers: { Accept: "text/csv" }
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `personnel_export_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        status.textContent = "下载完成";
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function onDataExchangeAnnualSearch(event) {
+    event.preventDefault();
+    const organizationCode = document.getElementById("data-exchange-annual-organization").value;
+    const period = document.getElementById("data-exchange-annual-period").value;
+    const keyword = document.getElementById("data-exchange-annual-keyword").value;
+    const status = document.getElementById("data-exchange-annual-status");
+    const tbody = document.getElementById("data-exchange-annual-rows");
+
+    status.className = "status";
+    status.textContent = "正在查询...";
+
+    try {
+        const data = await getJson(`/api/data-exchange/annual-report?organizationCode=${encodeURIComponent(organizationCode)}&period=${encodeURIComponent(period)}&keyword=${encodeURIComponent(keyword)}&page=0&size=50`);
+        tbody.innerHTML = data.content.map(r => `
+            <tr>
+                <td>${escapeHtml(r.organizationName || r.organizationCode)}</td>
+                <td>${escapeHtml(r.personCode)}</td>
+                <td>${escapeHtml(r.name)}</td>
+                <td>${escapeHtml(r.period)}</td>
+                <td>${escapeHtml(r.changeType)}</td>
+                <td>${escapeHtml(r.currentPosition)}</td>
+                <td>${money(r.positionSalary)}</td>
+                <td>${money(r.gradeSalary)}</td>
+                <td>${money(r.total)}</td>
+            </tr>
+        `).join("");
+        status.textContent = `查询完成，共 ${data.totalElements} 条记录`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function downloadAnnualCsv() {
+    const organizationCode = document.getElementById("data-exchange-annual-organization").value;
+    const period = document.getElementById("data-exchange-annual-period").value;
+    const keyword = document.getElementById("data-exchange-annual-keyword").value;
+    const status = document.getElementById("data-exchange-annual-status");
+
+    status.className = "status";
+    status.textContent = "正在下载...";
+
+    try {
+        const response = await fetch(`/api/data-exchange/annual-report/download?organizationCode=${encodeURIComponent(organizationCode)}&period=${encodeURIComponent(period)}&keyword=${encodeURIComponent(keyword)}`, {
+            headers: { Accept: "text/csv" }
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `annual_report_${period || new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        status.textContent = "下载完成";
+    } catch (error) {
+        showError(status, error);
+    }
 }

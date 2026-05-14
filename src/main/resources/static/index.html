@@ -1482,6 +1482,70 @@
         </div>
     </section>
 
+    <section id="data-exchange" class="panel hidden" data-menu-code="DATA_EXCHANGE">
+        <div class="panel-title">
+            <div>
+                <h2>数据交换</h2>
+                <p>人员信息和工资数据导出为 CSV 格式，支持批量下载。导入功能开发中。</p>
+            </div>
+        </div>
+
+        <h3>人员信息导出</h3>
+        <form id="data-exchange-personnel-form" class="toolbar">
+            <label>单位名称<input id="data-exchange-personnel-organization" placeholder="输入单位名称或编码"></label>
+            <label>关键词<input id="data-exchange-personnel-keyword" placeholder="人员编码 / 姓名 / 身份证"></label>
+            <button type="submit">查询预览</button>
+            <button id="data-exchange-personnel-download" type="button">下载 CSV</button>
+        </form>
+        <div id="data-exchange-personnel-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>身份证</th>
+                    <th>性别</th>
+                    <th>出生年月</th>
+                    <th>人员类别</th>
+                    <th>当前岗位</th>
+                    <th>当前职务</th>
+                </tr>
+                </thead>
+                <tbody id="data-exchange-personnel-rows"></tbody>
+            </table>
+        </div>
+
+        <h3>工资年报数据导出</h3>
+        <form id="data-exchange-annual-form" class="toolbar">
+            <label>单位名称<input id="data-exchange-annual-organization" placeholder="输入单位名称或编码"></label>
+            <label>年月<input id="data-exchange-annual-period" placeholder="例如 202407"></label>
+            <label>关键词<input id="data-exchange-annual-keyword" placeholder="人员编码 / 姓名"></label>
+            <button type="submit">查询预览</button>
+            <button id="data-exchange-annual-download" type="button">下载 CSV</button>
+        </form>
+        <div id="data-exchange-annual-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>年月</th>
+                    <th>变动类别</th>
+                    <th>岗位</th>
+                    <th>职务工资</th>
+                    <th>级别工资</th>
+                    <th>合计</th>
+                </tr>
+                </thead>
+                <tbody id="data-exchange-annual-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
     <section id="basic-standards" class="panel hidden" data-menu-code="BASIC_STANDARDS">
         <div class="panel-title">
             <div>

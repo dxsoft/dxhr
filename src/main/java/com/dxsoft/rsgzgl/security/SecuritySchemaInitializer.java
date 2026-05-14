@@ -172,6 +172,7 @@ class SecuritySchemaInitializer {
         upsertMenu("SECURITY", "权限管理", "#security", "SECURITY_ADMIN", 90);
         upsertMenu("PAYROLL_CHANGE_REGISTER_REPORT", "工资变动花名册", "#payroll-change-register-report", "REPORT_READ", 100);
         upsertMenu("PAYROLL_CHANGE_APPROVAL_REPORT", "工资变动审批表", "#payroll-change-approval-report", "REPORT_READ", 101);
+        upsertMenu("DATA_EXCHANGE", "数据交换", "#data-exchange", "DATA_EXCHANGE_READ", 105);
         upsertMenu("LEGACY_INFO_MAINTENANCE", "VFP-信息维护（待迁移）", "#legacy-info", "PERSONNEL_READ", 110, false);
         upsertMenu("LEGACY_PAYROLL_CHANGE", "VFP-工资变动（待迁移）", "#legacy-payroll-change", "PAYROLL_READ", 120, false);
         upsertMenu("LEGACY_DATA_EXCHANGE", "VFP-数据交换（待迁移）", "#legacy-data-exchange", "DATA_EXCHANGE_READ", 130, false);

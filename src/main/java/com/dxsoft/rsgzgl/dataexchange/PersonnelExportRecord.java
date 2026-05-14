@@ -1,0 +1,30 @@
+package com.dxsoft.rsgzgl.dataexchange;
+
+record PersonnelExportRecord(
+        String organizationCode,
+        String organizationName,
+        String personCode,
+        String name,
+        String idCard,
+        String gender,
+        String birthYearMonth,
+        String personnelCategory,
+        String organizationType,
+        String postCategory,
+        String workStart,
+        String regularization,
+        Integer salaryYears,
+        String educationCode,
+        String highestEducation,
+        String positionLevel,
+        String rankCode,
+        String currentPosition,
+        String positionStart,
+        String ethnicity,
+        String politicalStatus,
+        String archiveNumber,
+        String currentJob,
+        String currentGrade,
+        String currentLevel,
+        String currentTechGrade) {
+}
