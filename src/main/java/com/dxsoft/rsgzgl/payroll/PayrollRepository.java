@@ -1012,9 +1012,21 @@ class PayrollRepository {
 
     Optional<Map<String, Object>> findPredecessorHistoryValues(String id) {
         return jdbcTemplate.queryForList("""
-                SELECT h.*
-                FROM hisbase h
-                WHERE h.sid = :id
+                SELECT previous.*
+                FROM hisbase current
+                JOIN hisbase previous ON previous.dwbm = current.dwbm
+                                      AND previous.grbm = current.grbm
+                                      AND CAST(previous.id AS CHAR) <> CAST(current.id AS CHAR)
+                WHERE CAST(current.id AS CHAR) = CAST(:id AS CHAR)
+                  AND (
+                      CAST(previous.sid AS CHAR) = CAST(current.id AS CHAR)
+                      OR (
+                          CONCAT(previous.jsnf, previous.jsyf) < CONCAT(current.jsnf, current.jsyf)
+                          AND (previous.sid IS NULL OR TRIM(previous.sid) = '')
+                      )
+                  )
+                ORDER BY CASE WHEN CAST(previous.sid AS CHAR) = CAST(current.id AS CHAR) THEN 0 ELSE 1 END,
+                         previous.jsnf DESC, previous.jsyf DESC, previous.id DESC
                 LIMIT 1
                 """, new MapSqlParameterSource("id", id))
                 .stream()

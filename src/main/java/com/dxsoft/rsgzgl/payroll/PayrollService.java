@@ -360,7 +360,7 @@ public class PayrollService {
         Optional<Map<String, Object>> beforeValues = payrollRepository.findPredecessorHistoryValues(payrollHistoryId);
         List<PayrollFieldMetadata> fields = payrollRepository.findCalculationFields();
         List<PayrollChangeComponentComparison> components = new ArrayList<>(fields.stream()
-                .map(field -> componentComparison(field.fieldName(), field.caption(), beforeValues.orElse(null), afterValues))
+                .map(field -> componentComparison(field.fieldName(), approvalCaption(field.fieldName(), field.caption()), beforeValues.orElse(null), afterValues))
                 .toList());
         if (fields.stream().noneMatch(field -> "HJ2".equalsIgnoreCase(field.fieldName()))) {
             components.add(componentComparison("HJ2", "合计", beforeValues.orElse(null), afterValues));
@@ -2598,6 +2598,15 @@ public class PayrollService {
                 beforeAmount,
                 afterAmount,
                 afterAmount.subtract(beforeAmount));
+    }
+
+    private String approvalCaption(String fieldName, String fallbackCaption) {
+        String normalized = fieldName == null ? "" : fieldName.trim().toUpperCase();
+        return switch (normalized) {
+            case "PGBC" -> "工改保留职务工资";
+            case "NJBT" -> "农教补贴";
+            default -> fallbackCaption;
+        };
     }
 
     private String textValue(Map<String, Object> values, String fieldName) {
