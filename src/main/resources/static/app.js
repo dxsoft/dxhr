@@ -2170,29 +2170,42 @@ async function loadPayrollChangeApproval(payrollHistoryId) {
     status.textContent = "正在生成工资变动审批表...";
     try {
         const report = await getJson(`/api/reports/payroll-change-approval?payrollHistoryId=${encodeURIComponent(payrollHistoryId)}`);
+        const period = report.calculationPeriod || "";
         document.getElementById("report-approval-organization").textContent = report.organizationCode || "-";
         document.getElementById("report-approval-person-code").textContent = report.personCode || "-";
+        document.getElementById("report-approval-archive-code").textContent = "";
         document.getElementById("report-approval-person-name").textContent = report.name || "-";
-        document.getElementById("report-approval-period-title").textContent = report.calculationPeriod || "-";
-        document.getElementById("report-approval-type").textContent = report.changeType || "-";
+        document.getElementById("report-approval-gender").textContent = "-";
+        document.getElementById("report-approval-birthday").textContent = "-";
+        document.getElementById("report-approval-education").textContent = "-";
+        document.getElementById("report-approval-work-unit").textContent = report.organizationCode || "-";
+        document.getElementById("report-approval-work-start").textContent = "-";
+        document.getElementById("report-approval-work-years").textContent = "-";
+        document.getElementById("report-approval-current-position").textContent = report.currentPositionName || "-";
+        document.getElementById("report-approval-position-start").textContent = "-";
+        document.getElementById("report-approval-title").textContent = approvalTitle(report.changeType);
+        document.getElementById("report-approval-period-title").textContent = formatApprovalPeriod(period);
         document.getElementById("report-approval-previous").textContent =
             report.previousPayrollHistoryId ? `${report.previousCalculationPeriod || ""} ${report.previousChangeType || ""}` : "无";
         const components = report.components || [];
-        document.getElementById("report-approval-component-rows").innerHTML = components.map((component, index) => `
-            <tr class="${Number(component.difference || 0) !== 0 ? "highlight-row" : ""}">
-                <td>${index + 1}</td>
-                <td>${escapeHtml(component.caption || "")}</td>
-                <td>${escapeHtml(component.fieldName || "")}</td>
-                <td>${money(component.beforeAmount)}</td>
-                <td>${money(component.afterAmount)}</td>
-                <td>${money(component.difference)}</td>
+        document.getElementById("report-approval-component-rows").innerHTML = approvalRows(report, components).map(row => `
+            <tr class="${Number(row.difference || 0) !== 0 ? "highlight-row" : ""}">
+                <td>${escapeHtml(row.label)}</td>
+                <td>${escapeHtml(row.beforeText)}</td>
+                <td>${escapeHtml(row.afterText)}</td>
+                <td>${escapeHtml(row.differenceText)}</td>
             </tr>
         `).join("");
-        const totals = approvalComponentTotals(components);
+        const totals = approvalTotalsFromHj(components);
         document.getElementById("report-approval-before-total").textContent = money(totals.beforeAmount);
         document.getElementById("report-approval-after-total").textContent = money(totals.afterAmount);
         document.getElementById("report-approval-difference-total").textContent = money(totals.difference);
-        document.getElementById("report-approval-generated-date").textContent = new Date().toLocaleDateString("zh-CN");
+        document.getElementById("report-approval-next-step-year").textContent = period ? String(Number(period.slice(0, 4)) : "") : "-";
+        document.getElementById("report-approval-next-level-year").textContent = report.previousCalculationPeriod ? report.previousCalculationPeriod.slice(0, 4) : "-";
+        document.getElementById("report-approval-basis-title").textContent = approvalBasisTitle(report.changeType);
+        document.getElementById("report-approval-basis-detail").innerHTML = approvalBasisDetail(report);
+        document.getElementById("report-approval-execute-year").textContent = period ? period.slice(0, 4) : "-";
+        document.getElementById("report-approval-execute-month").textContent = period ? period.slice(4, 6) : "-";
         document.getElementById("report-approval-preview").classList.remove("hidden");
         document.getElementById("report-approval-preview").scrollIntoView({ behavior: "smooth", block: "start" });
         status.textContent = "工资变动审批表已生成";
@@ -2201,18 +2214,127 @@ async function loadPayrollChangeApproval(payrollHistoryId) {
     }
 }
 
-function approvalComponentTotals(components) {
-    const rows = components.filter(component => String(component.fieldName || "").toUpperCase() !== "HJ2");
-    return rows.reduce((totals, component) => {
-        const beforeAmount = Number(component.beforeAmount || 0);
-        const afterAmount = Number(component.afterAmount || 0);
-        const difference = Number(component.difference || 0);
+function approvalRows(report, components) {
+    const amount = field => componentByField(components, field);
+    return [
+        textApprovalRow("执行工资职务层次", report.previousPositionName, report.currentPositionName),
+        textApprovalRow("级别", joinNonEmpty(report.previousGradeLevel, report.previousStepOrSalaryLevel), joinNonEmpty(report.currentGradeLevel, report.currentStepOrSalaryLevel)),
+        amountApprovalRow("职务(岗位)工资", amount("ZWGZSE2")),
+        amountApprovalRow("级别工资", amount("JBGZSE2")),
+        amountApprovalRow("技术等级工资", amount("JSDJGZ2")),
+        amountApprovalRow("教护龄津贴", amount("JHLJT")),
+        amountApprovalRow("保留副补", amount("BLFB2")),
+        amountApprovalRow("保留奖金", null),
+        amountApprovalRow("岗位津贴", amount("GWJT2")),
+        amountApprovalRow("生活性补贴", amount("DFBT2")),
+        amountApprovalRow("工作性津贴", amount("SDBT")),
+        amountApprovalRow("警衔/监察津贴", amount("JXJT")),
+        amountApprovalRow("特殊岗位津贴", amount("SIDBT")),
+        amountApprovalRow("工改保留津贴", amount("TGBLBF")),
+        amountApprovalRow("工改保留职务工资", amount("PGBC")),
+        amountApprovalRow("农教补贴", amount("NJBT")),
+        amountApprovalRow("其它补贴", amount("QTBT")),
+    ];
+}
+
+function componentByField(components, fieldName) {
+    return (components || []).find(component => String(component.fieldName || "").toUpperCase() === fieldName);
+}
+
+function textApprovalRow(label, beforeValue, afterValue) {
+    const beforeText = beforeValue || "-";
+    const afterText = afterValue || "-";
+    return {
+        label,
+        beforeText,
+        afterText,
+        differenceText: beforeText === afterText ? "——" : "",
+        difference: beforeText === afterText ? 0 : 1,
+    };
+}
+
+function amountApprovalRow(label, component) {
+    if (!component) {
+        return { label, beforeText: "——", afterText: "——", differenceText: "——", difference: 0 };
+    }
+    const difference = Number(component.difference || 0);
+    return {
+        label,
+        beforeText: moneyOrDash(component.beforeAmount),
+        afterText: moneyOrDash(component.afterAmount),
+        differenceText: difference === 0 ? "——" : money(component.difference),
+        difference,
+    };
+}
+
+function approvalTotalsFromHj(components) {
+    const total = componentByField(components, "HJ2");
+    if (total) {
         return {
-            beforeAmount: totals.beforeAmount + (Number.isFinite(beforeAmount) ? beforeAmount : 0),
-            afterAmount: totals.afterAmount + (Number.isFinite(afterAmount) ? afterAmount : 0),
-            difference: totals.difference + (Number.isFinite(difference) ? difference : 0),
+            beforeAmount: Number(total.beforeAmount || 0),
+            afterAmount: Number(total.afterAmount || 0),
+            difference: Number(total.difference || 0),
         };
-    }, { beforeAmount: 0, afterAmount: 0, difference: 0 });
+    }
+    return approvalComponentTotals(components);
+}
+
+function approvalComponentTotals(components) {
+    return (components || [])
+        .filter(component => String(component.fieldName || "").toUpperCase() !== "HJ2")
+        .reduce((totals, component) => {
+            const beforeAmount = Number(component.beforeAmount || 0);
+            const afterAmount = Number(component.afterAmount || 0);
+            const difference = Number(component.difference || 0);
+            return {
+                beforeAmount: totals.beforeAmount + (Number.isFinite(beforeAmount) ? beforeAmount : 0),
+                afterAmount: totals.afterAmount + (Number.isFinite(afterAmount) ? afterAmount : 0),
+                difference: totals.difference + (Number.isFinite(difference) ? difference : 0),
+            };
+        }, { beforeAmount: 0, afterAmount: 0, difference: 0 });
+}
+
+function approvalTitle(changeType) {
+    return `河南省机关工作人员${changeType || ""}工资变动审批表`;
+}
+
+function approvalBasisTitle(changeType) {
+    if (String(changeType || "").includes("档")) {
+        return "按年度考核结果晋升级别工资档次";
+    }
+    if (String(changeType || "").includes("级")) {
+        return "按年度考核结果晋升级别工资";
+    }
+    return changeType || "工资变动";
+}
+
+function approvalBasisDetail(report) {
+    const previousYear = report.previousCalculationPeriod ? report.previousCalculationPeriod.slice(0, 4) : "";
+    const currentYear = report.calculationPeriod ? report.calculationPeriod.slice(0, 4) : "";
+    const lines = [];
+    if (currentYear) {
+        lines.push(`${escapeHtml(currentYear)}年：${escapeHtml(report.changeType || "工资变动")}`);
+    }
+    if (previousYear) {
+        lines.push(`${escapeHtml(previousYear)}年：${escapeHtml(report.previousChangeType || "上次变动")}`);
+    }
+    return lines.map(line => `<p>${line}</p>`).join("");
+}
+
+function formatApprovalPeriod(period) {
+    if (!period || period.length < 6) {
+        return "-";
+    }
+    return `${period.slice(0, 4)}年${period.slice(4, 6)}月`;
+}
+
+function joinNonEmpty(...values) {
+    return values.filter(value => value !== null && value !== undefined && String(value).trim() !== "").join("");
+}
+
+function moneyOrDash(value) {
+    const number = Number(value || 0);
+    return number === 0 ? "——" : money(value);
 }
 
 async function loadPayrollHistory() {

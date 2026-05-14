@@ -509,34 +509,50 @@ tr:last-child td {
 }
 
 .approval-sheet {
+    max-width: 760px;
     margin-top: 22px;
-    padding: 24px;
+    margin-right: auto;
+    margin-left: auto;
+    padding: 20px 22px;
     color: #111827;
     background: #fff;
-    border: 1px solid #111827;
+    border: 0;
     box-shadow: 0 18px 45px rgba(23, 32, 51, 0.08);
 }
 
+.approval-topline {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 4px;
+    font-family: "SimSun", "Songti SC", serif;
+    font-size: 13px;
+}
+
+.approval-topline span:nth-child(2) {
+    text-align: center;
+}
+
+.approval-topline span:nth-child(3) {
+    text-align: right;
+}
+
 .approval-sheet-header {
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     text-align: center;
 }
 
 .approval-sheet-header h3 {
     margin: 0;
+    font-family: "SimHei", "Microsoft YaHei", sans-serif;
     font-size: 28px;
-    letter-spacing: 0.18em;
-}
-
-.approval-sheet-header p {
-    margin: 6px 0 0;
-    color: var(--muted);
+    line-height: 1.25;
+    letter-spacing: 0.04em;
 }
 
 .approval-meta-table,
 .approval-component-table,
-.approval-signature-table {
-    margin-top: 12px;
+.approval-basis-panel table {
+    margin: 0;
     border: 1px solid #111827;
 }
 
@@ -544,44 +560,143 @@ tr:last-child td {
 .approval-meta-table td,
 .approval-component-table th,
 .approval-component-table td,
-.approval-signature-table th,
-.approval-signature-table td {
+.approval-basis-panel th,
+.approval-basis-panel td {
+    padding: 7px 8px;
     border: 1px solid #111827;
     white-space: normal;
-}
-
-.approval-meta-table th,
-.approval-signature-table th {
-    width: 110px;
-    text-align: center;
-    background: #f3f4f6;
-}
-
-.approval-component-table th,
-.approval-component-table td {
-    text-align: right;
-}
-
-.approval-component-table th:nth-child(1),
-.approval-component-table td:nth-child(1) {
-    width: 64px;
+    font-family: "SimSun", "Songti SC", serif;
     text-align: center;
 }
 
-.approval-component-table th:nth-child(2),
-.approval-component-table td:nth-child(2),
-.approval-component-table th:nth-child(3),
-.approval-component-table td:nth-child(3) {
+.approval-meta-table th {
+    width: 80px;
+    text-align: center;
+    background: #fff;
+    font-weight: 400;
+}
+
+.approval-meta-table td {
+    font-weight: 700;
+}
+
+.approval-main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 210px;
+    align-items: stretch;
+}
+
+.approval-component-table {
+    height: 100%;
+    border-top: 0;
+}
+
+.approval-component-table th:first-child,
+.approval-component-table td:first-child {
     text-align: left;
+    font-weight: 400;
+}
+
+.approval-component-table th:not(:first-child),
+.approval-component-table td:not(:first-child) {
+    text-align: center;
+    font-weight: 700;
+}
+
+.approval-component-table .approval-item-header {
+    text-align: center;
 }
 
 .approval-component-table tfoot th {
-    background: #f3f4f6;
-    font-size: 15px;
+    background: #fff;
 }
 
-.approval-signature-table td {
-    height: 64px;
+.approval-basis-panel {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    border-top: 0;
+    border-right: 1px solid #111827;
+    border-bottom: 1px solid #111827;
+}
+
+.approval-basis-panel table {
+    border-top: 0;
+    border-right: 0;
+    border-left: 0;
+}
+
+.approval-basis-panel th {
+    width: 126px;
+    font-weight: 400;
+    line-height: 1.25;
+}
+
+.approval-basis-panel td {
+    width: 70px;
+    font-weight: 700;
+}
+
+.approval-basis-text {
+    padding: 18px 10px;
+    font-family: "SimSun", "Songti SC", serif;
+    font-size: 16px;
+    line-height: 1.45;
+}
+
+.approval-basis-text p {
+    margin: 0 0 10px;
+}
+
+.approval-basis-text strong {
+    display: block;
+    margin: 4px 0 12px;
+    font-size: 18px;
+}
+
+.approval-signature-grid {
+    display: grid;
+    grid-template-columns: 36px 1fr 36px 1fr 36px 1.18fr;
+    min-height: 180px;
+    border: 1px solid #111827;
+    border-top: 0;
+    font-family: "SimSun", "Songti SC", serif;
+}
+
+.approval-signature-label {
+    display: grid;
+    place-items: center;
+    padding: 8px 4px;
+    border-right: 1px solid #111827;
+    writing-mode: vertical-rl;
+    letter-spacing: 0.16em;
+}
+
+.approval-signature-box {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 26px;
+    padding: 14px;
+    border-right: 1px solid #111827;
+    text-align: center;
+}
+
+.approval-signature-box:last-child {
+    border-right: 0;
+}
+
+.approval-signature-box strong {
+    font-size: 24px;
+    line-height: 1.25;
+}
+
+.approval-signature-box p {
+    margin: -14px 0 0;
+    font-weight: 700;
+}
+
+.approval-signature-box span {
+    justify-self: end;
 }
 
 .modal-overlay {
@@ -883,6 +998,7 @@ tr:last-child td {
     }
 
     .approval-sheet {
+        max-width: none;
         margin: 0;
         padding: 0;
         border: 0;
@@ -891,10 +1007,6 @@ tr:last-child td {
 
     .approval-sheet-header h3 {
         font-size: 24px;
-    }
-
-    .approval-sheet-header p {
-        color: #111827;
     }
 
     .table-wrap {

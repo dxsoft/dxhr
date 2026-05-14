@@ -373,6 +373,12 @@ public class PayrollService {
                 textValue(afterValues, "xm"),
                 textValue(afterValues, "jsnf") + textValue(afterValues, "jsyf"),
                 textValue(afterValues, "jslb"),
+                beforeValues.map(values -> textValue(values, "zwgw2")).orElse(null),
+                textValue(afterValues, "zwgw2"),
+                beforeValues.map(values -> textValue(values, "jbgzjb2")).orElse(null),
+                textValue(afterValues, "jbgzjb2"),
+                beforeValues.map(values -> textValue(values, "zwgzdc2")).orElse(null),
+                textValue(afterValues, "zwgzdc2"),
                 beforeValues.map(values -> textValue(values, "jsnf") + textValue(values, "jsyf")).orElse(null),
                 beforeValues.map(values -> textValue(values, "jslb")).orElse(null),
                 components);

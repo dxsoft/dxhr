@@ -10,6 +10,12 @@ public record PayrollChangeComparison(
         String name,
         String calculationPeriod,
         String changeType,
+        String previousPositionName,
+        String currentPositionName,
+        String previousGradeLevel,
+        String currentGradeLevel,
+        String previousStepOrSalaryLevel,
+        String currentStepOrSalaryLevel,
         String previousCalculationPeriod,
         String previousChangeType,
         List<PayrollChangeComponentComparison> components
