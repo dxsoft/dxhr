@@ -83,6 +83,9 @@ class ReportRepository {
         if (scope.noneScope()) {
             return List.of();
         }
+        MapSqlParameterSource params = candidateParameters(scope, organizationFilter, reportTypeCode, year, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
         return jdbc.query("""
                 SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
                        h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
@@ -93,14 +96,16 @@ class ReportRepository {
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR h.jsnf = :year)
+                  AND (:reportText IS NULL OR :isRegister = TRUE
+                       OR (:isSalaryLevel = TRUE AND h.jslb LIKE '%薪级%')
+                       OR (:isStepPromotion = TRUE AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
+                       OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级%')
+                       OR h.jslb LIKE :reportTextLike)
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
                        OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
                 ORDER BY h.dwbm, h.grbm, h.jsnf DESC, h.jsyf DESC, h.jslb
                 LIMIT :limit OFFSET :offset
-                """, parameters(scope, organizationFilter, null, keyword)
-                .addValue("year", emptyToNull(year))
-                .addValue("limit", pageRequest.size())
-                .addValue("offset", pageRequest.offset()), PAYROLL_CHANGE_REGISTER_MAPPER);
+                """, params, PAYROLL_CHANGE_REGISTER_MAPPER);
     }
 
     long countPayrollChangeCandidates(
@@ -112,6 +117,7 @@ class ReportRepository {
         if (scope.noneScope()) {
             return 0;
         }
+        MapSqlParameterSource params = candidateParameters(scope, organizationFilter, reportTypeCode, year, keyword);
         Long count = jdbc.queryForObject("""
                 SELECT COUNT(*)
                 FROM hisbase h
@@ -119,11 +125,50 @@ class ReportRepository {
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR h.jsnf = :year)
+                  AND (:reportText IS NULL OR :isRegister = TRUE
+                       OR (:isSalaryLevel = TRUE AND h.jslb LIKE '%薪级%')
+                       OR (:isStepPromotion = TRUE AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
+                       OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级%')
+                       OR h.jslb LIKE :reportTextLike)
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
                        OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
-                """, parameters(scope, organizationFilter, null, keyword)
-                .addValue("year", emptyToNull(year)), Long.class);
+                """, params, Long.class);
         return count == null ? 0 : count;
+    }
+
+    private MapSqlParameterSource candidateParameters(
+            OrganizationScope scope,
+            String organizationFilter,
+            String reportTypeCode,
+            String year,
+            String keyword) {
+        String reportText = reportTypeText(reportTypeCode);
+        String normalized = reportText == null ? "" : reportText;
+        return parameters(scope, organizationFilter, null, keyword)
+                .addValue("year", emptyToNull(year))
+                .addValue("reportText", emptyToNull(reportText))
+                .addValue("reportTextLike", reportText == null ? null : "%" + reportText + "%")
+                .addValue("isRegister", normalized.contains("名册"))
+                .addValue("isSalaryLevel", normalized.contains("薪级"))
+                .addValue("isStepPromotion", normalized.contains("档次") || normalized.contains("晋档"))
+                .addValue("isGradePromotion", normalized.contains("级别") || normalized.contains("晋级"));
+    }
+
+    private String reportTypeText(String reportTypeCode) {
+        String code = emptyToNull(reportTypeCode);
+        if (code == null) {
+            return null;
+        }
+        return jdbc.queryForList("""
+                        SELECT CONCAT(cname, ' ', ctitle, ' ', bblb, ' ', dyclb)
+                        FROM rptinfo
+                        WHERE lbbm = :code
+                        LIMIT 1
+                        """, new MapSqlParameterSource("code", code), String.class)
+                .stream()
+                .findFirst()
+                .map(SqlText::trim)
+                .orElse(null);
     }
 
     List<PayrollChangeRegisterRow> findPayrollChangeRegister(
