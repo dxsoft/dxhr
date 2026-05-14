@@ -30,4 +30,5 @@ rsgzgl:
     admin:
       username: admin
       password: admin123
+      reset-password: true
       display-name: 系统管理员

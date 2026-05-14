@@ -28,6 +28,7 @@ rsgzgl:
     admin:
       username: admin
       password: ${LOCAL_ADMIN_PASSWORD:admin123}
+      reset-password: ${LOCAL_RESET_ADMIN_PASSWORD:true}
       display-name: 系统管理员
 
 logging:

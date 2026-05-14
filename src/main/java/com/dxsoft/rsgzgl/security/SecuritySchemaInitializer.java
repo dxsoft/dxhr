@@ -12,6 +12,7 @@ class SecuritySchemaInitializer {
     private final JdbcTemplate jdbcTemplate;
     private final PasswordEncoder passwordEncoder;
     private final boolean initializeSchema;
+    private final boolean resetAdminPassword;
     private final String adminUsername;
     private final String adminPassword;
     private final String adminDisplayName;
@@ -20,12 +21,14 @@ class SecuritySchemaInitializer {
             JdbcTemplate jdbcTemplate,
             PasswordEncoder passwordEncoder,
             @Value("${rsgzgl.security.initialize-schema:true}") boolean initializeSchema,
+            @Value("${rsgzgl.security.admin.reset-password:false}") boolean resetAdminPassword,
             @Value("${rsgzgl.security.admin.username:admin}") String adminUsername,
             @Value("${rsgzgl.security.admin.password:}") String adminPassword,
             @Value("${rsgzgl.security.admin.display-name:系统管理员}") String adminDisplayName) {
         this.jdbcTemplate = jdbcTemplate;
         this.passwordEncoder = passwordEncoder;
         this.initializeSchema = initializeSchema;
+        this.resetAdminPassword = resetAdminPassword;
         this.adminUsername = adminUsername;
         this.adminPassword = adminPassword;
         this.adminDisplayName = adminDisplayName;
@@ -198,6 +201,12 @@ class SecuritySchemaInitializer {
                     INSERT INTO app_user (username, password_hash, display_name, enabled)
                     VALUES (?, ?, ?, 1)
                     """, adminUsername, passwordEncoder.encode(adminPassword), adminDisplayName);
+        } else if (resetAdminPassword && adminPassword != null && !adminPassword.isBlank()) {
+            jdbcTemplate.update("""
+                    UPDATE app_user
+                    SET password_hash = ?, display_name = ?, enabled = 1
+                    WHERE username = ?
+                    """, passwordEncoder.encode(adminPassword), adminDisplayName, adminUsername);
         }
         jdbcTemplate.update("""
                 INSERT IGNORE INTO app_user_role (user_id, role_id)
