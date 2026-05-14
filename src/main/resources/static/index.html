@@ -1487,6 +1487,69 @@
             </div>
         </div>
 
+        <h3>单位/人员下发</h3>
+        <form id="data-exchange-dispatch-form" class="toolbar">
+            <label>选择单位
+                <div class="dict-input-combo">
+                    <input id="data-exchange-dispatch-organization" readonly placeholder="点击选择下发单位">
+                    <button id="data-exchange-dispatch-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择下发单位">⌄</button>
+                </div>
+            </label>
+            <label><input id="data-exchange-include-descendants" type="checkbox" checked> 包含下属单位</label>
+            <label>关键词<input id="data-exchange-dispatch-keyword" placeholder="人员编码 / 姓名 / 身份证"></label>
+            <button type="submit">筛选人员</button>
+            <button id="data-exchange-dispatch-download" type="button">生成下发包</button>
+        </form>
+        <div id="data-exchange-dispatch-organizations" class="permission-list"></div>
+        <div id="data-exchange-dispatch-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th><input id="data-exchange-dispatch-select-all" type="checkbox" aria-label="全选下发人员"></th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>身份证</th>
+                    <th>当前岗位</th>
+                    <th>当前职务</th>
+                </tr>
+                </thead>
+                <tbody id="data-exchange-dispatch-rows"></tbody>
+            </table>
+        </div>
+
+        <h3>数据接收</h3>
+        <form id="data-exchange-receive-form" class="toolbar">
+            <label style="grid-column: span 2;">数据包 JSON<textarea id="data-exchange-receive-json" rows="4" placeholder="粘贴下发 JSON 数据包内容"></textarea></label>
+            <label>追加接收到单位
+                <div class="dict-input-combo">
+                    <input id="data-exchange-receive-target-organization" readonly placeholder="追加接收时选择">
+                    <button id="data-exchange-receive-target-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择接收单位">⌄</button>
+                </div>
+            </label>
+            <button type="submit">预览接收</button>
+            <button id="data-exchange-receive-all" type="button">整体接收</button>
+            <button id="data-exchange-receive-selected" type="button">勾选追加接收</button>
+        </form>
+        <div id="data-exchange-receive-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th><input id="data-exchange-receive-select-all" type="checkbox" aria-label="全选接收人员"></th>
+                    <th>原单位</th>
+                    <th>原人员编码</th>
+                    <th>姓名</th>
+                    <th>身份证</th>
+                    <th>岗位</th>
+                    <th>职务</th>
+                </tr>
+                </thead>
+                <tbody id="data-exchange-receive-rows"></tbody>
+            </table>
+        </div>
+
         <h3>人员信息导出</h3>
         <form id="data-exchange-personnel-form" class="toolbar">
             <label>单位名称<input id="data-exchange-personnel-organization" placeholder="输入单位名称或编码"></label>

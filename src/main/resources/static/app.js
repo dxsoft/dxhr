@@ -19,6 +19,9 @@ const state = {
     pendingPersonnelChange: null,
     activePersonnelMaintenance: null,
     activeSubrecordEditor: null,
+    dataExchangeDispatchOrganizations: [],
+    dataExchangeDispatchRows: [],
+    dataExchangeReceiveRows: [],
 };
 
 const personnelChangeTypes = [
@@ -132,6 +135,17 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("data-exchange-personnel-download").addEventListener("click", downloadPersonnelCsv);
     document.getElementById("data-exchange-annual-form").addEventListener("submit", onDataExchangeAnnualSearch);
     document.getElementById("data-exchange-annual-download").addEventListener("click", downloadAnnualCsv);
+    document.getElementById("data-exchange-dispatch-form").addEventListener("submit", onDataExchangeDispatchSearch);
+    document.getElementById("data-exchange-dispatch-download").addEventListener("click", downloadDispatchPackage);
+    document.getElementById("data-exchange-dispatch-select-all").addEventListener("change", event => {
+        document.querySelectorAll("[data-dispatch-select]").forEach(checkbox => checkbox.checked = event.target.checked);
+    });
+    document.getElementById("data-exchange-receive-form").addEventListener("submit", onDataExchangeReceivePreview);
+    document.getElementById("data-exchange-receive-all").addEventListener("click", () => applyDataExchangeReceive("REPLACE"));
+    document.getElementById("data-exchange-receive-selected").addEventListener("click", () => applyDataExchangeReceive("APPEND"));
+    document.getElementById("data-exchange-receive-select-all").addEventListener("change", event => {
+        document.querySelectorAll("[data-receive-select]").forEach(checkbox => checkbox.checked = event.target.checked);
+    });
     document.getElementById("payroll-history-form").addEventListener("submit", onPayrollHistorySearch);
     document.getElementById("payroll-change-close").addEventListener("click", closePayrollChangeModal);
     document.getElementById("teaching-allowance-form").addEventListener("submit", onTeachingAllowanceSearch);
@@ -442,6 +456,8 @@ function initializeOrganizationPickerInput() {
     bindOrganizationPickerInput("maint-search-organization-code", "maint-search-organization-picker-button", "maintenanceSearch");
     bindOrganizationPickerInput("report-approval-organization-code", "report-approval-organization-picker-button", "reportApproval");
     bindOrganizationPickerInput("report-payroll-change-organization-code", "report-payroll-change-organization-picker-button", "reportRegister");
+    bindOrganizationPickerInput("data-exchange-dispatch-organization", "data-exchange-dispatch-organization-picker-button", "dataExchangeDispatch");
+    bindOrganizationPickerInput("data-exchange-receive-target-organization", "data-exchange-receive-target-picker-button", "dataExchangeReceiveTarget");
 }
 
 function bindOrganizationPickerInput(inputId, buttonId, target) {
@@ -572,6 +588,20 @@ function selectOrganizationNode(code, name) {
     }
     if (state.activeOrganizationTarget === "reportRegister") {
         const input = document.getElementById("report-payroll-change-organization-code");
+        input.value = code;
+        input.title = name || code;
+        return;
+    }
+    if (state.activeOrganizationTarget === "dataExchangeDispatch") {
+        if (!state.dataExchangeDispatchOrganizations.some(item => item.code === code)) {
+            state.dataExchangeDispatchOrganizations.push({ code, name: name || code });
+            renderDataExchangeDispatchOrganizations();
+        }
+        document.getElementById("data-exchange-dispatch-organization").value = "";
+        return;
+    }
+    if (state.activeOrganizationTarget === "dataExchangeReceiveTarget") {
+        const input = document.getElementById("data-exchange-receive-target-organization");
         input.value = code;
         input.title = name || code;
         return;
@@ -3996,6 +4026,164 @@ async function loadDataExchange() {
     const annualStatus = document.getElementById("data-exchange-annual-status");
     personnelStatus.textContent = "准备就绪";
     annualStatus.textContent = "准备就绪";
+    renderDataExchangeDispatchOrganizations();
+}
+
+function renderDataExchangeDispatchOrganizations() {
+    const container = document.getElementById("data-exchange-dispatch-organizations");
+    if (!container) {
+        return;
+    }
+    if (!state.dataExchangeDispatchOrganizations.length) {
+        container.innerHTML = "<span>尚未选择下发单位</span>";
+        return;
+    }
+    container.innerHTML = state.dataExchangeDispatchOrganizations.map(item => `
+        <span>${escapeHtml(item.name)} (${escapeHtml(item.code)})
+            <button type="button" class="row-action" data-remove-dispatch-org="${escapeHtml(item.code)}">移除</button>
+        </span>
+    `).join("");
+    container.querySelectorAll("[data-remove-dispatch-org]").forEach(button => {
+        button.addEventListener("click", () => {
+            state.dataExchangeDispatchOrganizations = state.dataExchangeDispatchOrganizations.filter(item => item.code !== button.dataset.removeDispatchOrg);
+            renderDataExchangeDispatchOrganizations();
+        });
+    });
+}
+
+async function onDataExchangeDispatchSearch(event) {
+    event.preventDefault();
+    await loadDispatchPackagePreview();
+}
+
+async function loadDispatchPackagePreview() {
+    const status = document.getElementById("data-exchange-dispatch-status");
+    const rows = document.getElementById("data-exchange-dispatch-rows");
+    status.className = "status";
+    status.textContent = "正在生成下发预览...";
+    rows.innerHTML = "";
+    try {
+        const payload = await fetchDispatchPackage(false);
+        state.dataExchangeDispatchRows = payload.personnel || [];
+        rows.innerHTML = state.dataExchangeDispatchRows.map(row => `
+            <tr>
+                <td><input type="checkbox" data-dispatch-select value="${escapeHtml(row.organizationCode)}|${escapeHtml(row.personCode)}"></td>
+                <td>${escapeHtml(row.organizationName || row.organizationCode)}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(maskIdCardClient(row.idCard))}</td>
+                <td>${escapeHtml(row.currentJob || "")}</td>
+                <td>${escapeHtml(row.currentGrade || "")}</td>
+            </tr>
+        `).join("");
+        status.textContent = `下发预览 ${state.dataExchangeDispatchRows.length} 人；勾选人员后可只下发勾选人员。`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function downloadDispatchPackage() {
+    const status = document.getElementById("data-exchange-dispatch-status");
+    status.className = "status";
+    status.textContent = "正在生成下发包...";
+    try {
+        const response = await fetchDispatchPackage(true);
+        const blob = new Blob([JSON.stringify(response, null, 2)], { type: "application/json;charset=UTF-8" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `rsgzgl_personnel_package_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        status.textContent = `下发包已生成，共 ${response.personnel?.length || 0} 人`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function fetchDispatchPackage(onlySelected) {
+    const selectedKeys = onlySelected ? selectedExchangeKeys("[data-dispatch-select]:checked") : [];
+    const response = await fetch("/api/data-exchange/dispatch/personnel", {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({
+            organizationCodes: state.dataExchangeDispatchOrganizations.map(item => item.code),
+            includeDescendants: document.getElementById("data-exchange-include-descendants").checked,
+            selectedPersonnel: selectedKeys,
+        }),
+    });
+    if (!response.ok) {
+        throw new Error(await response.text() || `HTTP ${response.status}`);
+    }
+    return response.json();
+}
+
+async function onDataExchangeReceivePreview(event) {
+    event.preventDefault();
+    await previewDataExchangeReceive();
+}
+
+async function previewDataExchangeReceive() {
+    const status = document.getElementById("data-exchange-receive-status");
+    const rows = document.getElementById("data-exchange-receive-rows");
+    status.className = "status";
+    status.textContent = "正在解析数据包...";
+    rows.innerHTML = "";
+    try {
+        const result = await postJson("/api/data-exchange/receive/preview", {
+            packageJson: document.getElementById("data-exchange-receive-json").value,
+            mode: "PREVIEW",
+            selectedPersonnel: [],
+        });
+        state.dataExchangeReceiveRows = result.rows || [];
+        rows.innerHTML = state.dataExchangeReceiveRows.map(row => `
+            <tr>
+                <td><input type="checkbox" data-receive-select value="${escapeHtml(row.organizationCode)}|${escapeHtml(row.personCode)}"></td>
+                <td>${escapeHtml(row.organizationName || row.organizationCode)}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(maskIdCardClient(row.idCard))}</td>
+                <td>${escapeHtml(row.currentJob || "")}</td>
+                <td>${escapeHtml(row.currentGrade || "")}</td>
+            </tr>
+        `).join("");
+        status.textContent = result.message || `预览 ${result.totalRecords} 人`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function applyDataExchangeReceive(mode) {
+    const status = document.getElementById("data-exchange-receive-status");
+    status.className = "status";
+    status.textContent = mode === "APPEND" ? "正在追加接收勾选人员..." : "正在整体接收并替换数据...";
+    try {
+        const result = await postJson("/api/data-exchange/receive/apply", {
+            packageJson: document.getElementById("data-exchange-receive-json").value,
+            mode,
+            targetOrganizationCode: document.getElementById("data-exchange-receive-target-organization").value,
+            selectedPersonnel: mode === "APPEND" ? selectedExchangeKeys("[data-receive-select]:checked") : [],
+        });
+        status.textContent = result.message || `已接收 ${result.receivedRecords} 人`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function selectedExchangeKeys(selector) {
+    return Array.from(document.querySelectorAll(selector)).map(input => {
+        const [organizationCode, personCode] = String(input.value || "").split("|");
+        return { organizationCode, personCode };
+    });
+}
+
+function maskIdCardClient(idCard) {
+    if (!idCard || idCard.length < 8) {
+        return idCard || "";
+    }
+    return `${idCard.slice(0, 4)}****${idCard.slice(-4)}`;
 }
 
 async function onDataExchangePersonnelSearch(event) {

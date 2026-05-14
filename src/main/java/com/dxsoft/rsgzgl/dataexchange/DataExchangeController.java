@@ -37,6 +37,21 @@ class DataExchangeController {
         return dataExchangeService.downloadPersonnelCsv(organizationCode, keyword);
     }
 
+    @PostMapping("/dispatch/personnel")
+    ResponseEntity<byte[]> dispatchPersonnelPackage(@RequestBody PersonnelDispatchRequest request) {
+        return dataExchangeService.dispatchPersonnelPackage(request);
+    }
+
+    @PostMapping("/receive/preview")
+    ReceivePreviewResponse previewReceive(@RequestBody ReceiveRequest request) {
+        return dataExchangeService.previewReceive(request);
+    }
+
+    @PostMapping("/receive/apply")
+    ReceiveApplyResponse applyReceive(@RequestBody ReceiveRequest request) {
+        return dataExchangeService.applyReceive(request);
+    }
+
     @GetMapping("/annual-report")
     PageResponse<AnnualReportRecord> exportAnnualReport(
             @RequestParam(required = false) String organizationCode,
@@ -55,17 +70,25 @@ class DataExchangeController {
         return dataExchangeService.downloadAnnualReportCsv(organizationCode, period, keyword);
     }
 
-    @PostMapping("/import/preview")
-    ImportPreviewResponse previewImport(@RequestBody ImportRequest request) {
-        return new ImportPreviewResponse(
-                0,
-                List.of(),
-                "导入功能开发中，当前仅支持导出");
+    record PersonnelDispatchRequest(
+            List<String> organizationCodes,
+            boolean includeDescendants,
+            List<PersonKey> selectedPersonnel) {
     }
 
-    record ImportRequest(String importType, String data, boolean overwriteExisting) {
+    record PersonKey(String organizationCode, String personCode) {
     }
 
-    record ImportPreviewResponse(int totalRecords, List<String> sampleErrors, String message) {
+    record ReceiveRequest(
+            String packageJson,
+            String mode,
+            String targetOrganizationCode,
+            List<PersonKey> selectedPersonnel) {
+    }
+
+    record ReceivePreviewResponse(int totalRecords, List<PersonnelExportRecord> rows, List<String> sampleErrors, String message) {
+    }
+
+    record ReceiveApplyResponse(int receivedRecords, String message) {
     }
 }

@@ -8,8 +8,10 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -264,5 +266,137 @@ class DataExchangeRepository {
                 """.formatted(whereClause);
 
         return jdbcTemplate.query(querySql, this::mapPersonnelExport, params.toArray());
+    }
+
+    List<PersonnelExportRecord> exportPersonnelPackageByOrganizations(List<String> organizationCodes, boolean includeDescendants) {
+        List<String> resolvedCodes = resolveOrganizationCodes(organizationCodes, includeDescendants);
+        if (resolvedCodes.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = resolvedCodes.stream().map(code -> "?").collect(Collectors.joining(", "));
+        String querySql = """
+                SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csn_yf,
+                       r.rylb, r.dwsx, r.gwfl, r.cjgz_yf, r.zz_yf, r.gznx,
+                       r.xl, r.zgxl, r.dqzwjb, r.zjbm, r.dqzw, r.rzny,
+                       r.mz, r.zzmm, r.dah,
+                       h.gw, h.zw, h.jb, h.dc
+                FROM dryjbxx r
+                LEFT JOIN dwbm d ON r.dwbm = d.dwbm
+                LEFT JOIN hisbase h ON r.uid = h.uid AND h.dq = '是'
+                WHERE r.dwbm IN (%s)
+                ORDER BY r.dwbm, r.grbm
+                """.formatted(placeholders);
+        return jdbcTemplate.query(querySql, this::mapPersonnelExport, resolvedCodes.toArray());
+    }
+
+    List<PersonnelExportRecord> exportSelectedPersonnel(List<DataExchangeController.PersonKey> selectedPersonnel) {
+        if (selectedPersonnel == null || selectedPersonnel.isEmpty()) {
+            return List.of();
+        }
+        List<PersonnelExportRecord> rows = new ArrayList<>();
+        for (DataExchangeController.PersonKey key : selectedPersonnel) {
+            rows.addAll(jdbcTemplate.query("""
+                    SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csn_yf,
+                           r.rylb, r.dwsx, r.gwfl, r.cjgz_yf, r.zz_yf, r.gznx,
+                           r.xl, r.zgxl, r.dqzwjb, r.zjbm, r.dqzw, r.rzny,
+                           r.mz, r.zzmm, r.dah,
+                           h.gw, h.zw, h.jb, h.dc
+                    FROM dryjbxx r
+                    LEFT JOIN dwbm d ON r.dwbm = d.dwbm
+                    LEFT JOIN hisbase h ON r.uid = h.uid AND h.dq = '是'
+                    WHERE r.dwbm = ? AND r.grbm = ?
+                    """, this::mapPersonnelExport, key.organizationCode(), key.personCode()));
+        }
+        return rows;
+    }
+
+    int replaceReceivedPersonnel(List<PersonnelExportRecord> rows) {
+        int count = 0;
+        for (PersonnelExportRecord row : rows) {
+            jdbcTemplate.update("DELETE FROM dryjbxx WHERE dwbm = ? AND grbm = ?", row.organizationCode(), row.personCode());
+            insertPersonnel(row, row.organizationCode(), row.personCode());
+            count++;
+        }
+        return count;
+    }
+
+    int appendReceivedPersonnel(List<PersonnelExportRecord> rows, String targetOrganizationCode) {
+        int count = 0;
+        int nextCode = nextPersonCode(targetOrganizationCode);
+        for (PersonnelExportRecord row : rows) {
+            String personCode = "%05d".formatted(nextCode++);
+            insertPersonnel(row, targetOrganizationCode, personCode);
+            count++;
+        }
+        return count;
+    }
+
+    private List<String> resolveOrganizationCodes(List<String> organizationCodes, boolean includeDescendants) {
+        List<String> selected = organizationCodes == null ? List.of() : organizationCodes.stream()
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (selected.isEmpty()) {
+            return List.of();
+        }
+        if (!includeDescendants) {
+            return selected;
+        }
+        List<String> allCodes = jdbcTemplate.queryForList("SELECT dwbm FROM dwbm ORDER BY dwbm", String.class);
+        Set<String> resolved = allCodes.stream()
+                .filter(code -> selected.stream().anyMatch(code::startsWith))
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        return new ArrayList<>(resolved);
+    }
+
+    private int nextPersonCode(String organizationCode) {
+        return jdbcTemplate.queryForList(
+                        "SELECT grbm FROM dryjbxx WHERE dwbm = ?",
+                        String.class,
+                        organizationCode)
+                .stream()
+                .map(this::parseIntOrZero)
+                .max(Comparator.naturalOrder())
+                .orElse(0) + 1;
+    }
+
+    private int parseIntOrZero(String value) {
+        try {
+            return Integer.parseInt(value == null ? "" : value.trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private void insertPersonnel(PersonnelExportRecord row, String organizationCode, String personCode) {
+        jdbcTemplate.update("""
+                INSERT INTO dryjbxx (
+                    dwbm, grbm, xm, sfzh, xb, csn_yf, rylb, dwsx, gwfl,
+                    cjgz_yf, zz_yf, gznx, xl, zgxl, dqzwjb, zjbm, dqzw,
+                    rzny, mz, zzmm, dah
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                organizationCode,
+                personCode,
+                row.name(),
+                row.idCard(),
+                row.gender(),
+                row.birthYearMonth(),
+                row.personnelCategory(),
+                row.organizationType(),
+                row.postCategory(),
+                row.workStart(),
+                row.regularization(),
+                row.salaryYears(),
+                row.educationCode(),
+                row.highestEducation(),
+                row.positionLevel(),
+                row.rankCode(),
+                row.currentPosition(),
+                row.positionStart(),
+                row.ethnicity(),
+                row.politicalStatus(),
+                row.archiveNumber());
     }
 }

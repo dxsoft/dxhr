@@ -231,7 +231,18 @@ input {
     color: var(--text);
 }
 
+textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+    color: var(--text);
+    resize: vertical;
+}
+
 input:focus,
+textarea:focus,
 select:focus {
     outline: 3px solid rgba(37, 99, 235, 0.14);
     border-color: rgba(37, 99, 235, 0.55);

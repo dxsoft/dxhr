@@ -5,6 +5,7 @@ import com.dxsoft.rsgzgl.common.PageResponse;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
@@ -12,14 +13,17 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 class DataExchangeService {
 
     private final DataExchangeRepository dataExchangeRepository;
+    private final ObjectMapper objectMapper;
 
-    DataExchangeService(DataExchangeRepository dataExchangeRepository) {
+    DataExchangeService(DataExchangeRepository dataExchangeRepository, ObjectMapper objectMapper) {
         this.dataExchangeRepository = dataExchangeRepository;
+        this.objectMapper = objectMapper;
     }
 
     PageResponse<PersonnelExportRecord> exportPersonnel(
@@ -70,6 +74,49 @@ class DataExchangeService {
         return ResponseEntity.ok().headers(headers).body(bytes);
     }
 
+    ResponseEntity<byte[]> dispatchPersonnelPackage(DataExchangeController.PersonnelDispatchRequest request) {
+        List<PersonnelExportRecord> records = request.selectedPersonnel() != null && !request.selectedPersonnel().isEmpty()
+                ? dataExchangeRepository.exportSelectedPersonnel(request.selectedPersonnel())
+                : dataExchangeRepository.exportPersonnelPackageByOrganizations(request.organizationCodes(), request.includeDescendants());
+        PersonnelExchangePackage payload = new PersonnelExchangePackage(
+                "PERSONNEL",
+                LocalDateTime.now().toString(),
+                request.organizationCodes() == null ? List.of() : request.organizationCodes(),
+                request.includeDescendants(),
+                records);
+        byte[] bytes = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(payload);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setContentDispositionFormData("attachment", "rsgzgl_personnel_package.json");
+        headers.setContentLength(bytes.length);
+        return ResponseEntity.ok().headers(headers).body(bytes);
+    }
+
+    DataExchangeController.ReceivePreviewResponse previewReceive(DataExchangeController.ReceiveRequest request) {
+        PersonnelExchangePackage payload = parsePackage(request.packageJson());
+        List<PersonnelExportRecord> rows = filterReceiveRows(payload.personnel(), request.selectedPersonnel());
+        return new DataExchangeController.ReceivePreviewResponse(
+                rows.size(),
+                rows.stream().limit(50).toList(),
+                List.of(),
+                "预览成功，可选择整体接收或勾选人员追加接收");
+    }
+
+    DataExchangeController.ReceiveApplyResponse applyReceive(DataExchangeController.ReceiveRequest request) {
+        PersonnelExchangePackage payload = parsePackage(request.packageJson());
+        List<PersonnelExportRecord> rows = filterReceiveRows(payload.personnel(), request.selectedPersonnel());
+        boolean append = "APPEND".equalsIgnoreCase(request.mode());
+        if (append && (request.targetOrganizationCode() == null || request.targetOrganizationCode().isBlank())) {
+            throw new IllegalArgumentException("追加接收需要选择接收单位");
+        }
+        int count = append
+                ? dataExchangeRepository.appendReceivedPersonnel(rows, request.targetOrganizationCode())
+                : dataExchangeRepository.replaceReceivedPersonnel(rows);
+        return new DataExchangeController.ReceiveApplyResponse(
+                count,
+                append ? "已按追加方式接收并重新编码" : "已整体接收并替换相同单位编码和个人编码数据");
+    }
+
     ResponseEntity<byte[]> downloadAnnualReportCsv(String organizationCode, String period, String keyword) {
         PageResponse<AnnualReportRecord> page = dataExchangeRepository.exportAnnualReport(
                 organizationCode, period, keyword, PageRequest.of(0, 10000));
@@ -116,5 +163,40 @@ class DataExchangeService {
             return idCard;
         }
         return idCard.substring(0, 4) + "****" + idCard.substring(idCard.length() - 4);
+    }
+
+    private PersonnelExchangePackage parsePackage(String packageJson) {
+        if (packageJson == null || packageJson.isBlank()) {
+            throw new IllegalArgumentException("数据包内容不能为空");
+        }
+        return objectMapper.readValue(packageJson, PersonnelExchangePackage.class);
+    }
+
+    private List<PersonnelExportRecord> filterReceiveRows(
+            List<PersonnelExportRecord> rows,
+            List<DataExchangeController.PersonKey> selectedPersonnel) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        if (selectedPersonnel == null || selectedPersonnel.isEmpty()) {
+            return rows;
+        }
+        return rows.stream()
+                .filter(row -> selectedPersonnel.stream().anyMatch(key ->
+                        equalsText(key.organizationCode(), row.organizationCode())
+                                && equalsText(key.personCode(), row.personCode())))
+                .toList();
+    }
+
+    private boolean equalsText(String left, String right) {
+        return String.valueOf(left == null ? "" : left).trim().equals(String.valueOf(right == null ? "" : right).trim());
+    }
+
+    record PersonnelExchangePackage(
+            String packageType,
+            String generatedAt,
+            List<String> organizationCodes,
+            boolean includeDescendants,
+            List<PersonnelExportRecord> personnel) {
     }
 }
