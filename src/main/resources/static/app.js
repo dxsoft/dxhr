@@ -120,6 +120,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("payroll-change-register-print").addEventListener("click", () => window.print());
     document.getElementById("payroll-change-approval-report-form").addEventListener("submit", onPayrollChangeApprovalReportSearch);
     document.getElementById("payroll-change-approval-print").addEventListener("click", () => window.print());
+    document.getElementById("report-approval-generate-selected").addEventListener("click", generateSelectedPayrollChangeApprovals);
+    document.getElementById("report-approval-select-all").addEventListener("change", event => {
+        document.querySelectorAll("[data-approval-select]").forEach(checkbox => checkbox.checked = event.target.checked);
+    });
     document.getElementById("data-exchange-personnel-form").addEventListener("submit", onDataExchangePersonnelSearch);
     document.getElementById("data-exchange-personnel-download").addEventListener("click", downloadPersonnelCsv);
     document.getElementById("data-exchange-annual-form").addEventListener("submit", onDataExchangeAnnualSearch);
@@ -225,6 +229,7 @@ async function initializeAuth() {
             await loadPayrollChangeRegisterReport();
         }
         if (hasMenu("PAYROLL_CHANGE_APPROVAL_REPORT")) {
+            await loadReportTypes();
             await loadPayrollChangeApprovalReport();
         }
         if (hasMenu("TEACHING_ALLOWANCE_ADJUSTMENT")) {
@@ -2121,17 +2126,41 @@ async function onPayrollChangeApprovalReportSearch(event) {
     await loadPayrollChangeApprovalReport();
 }
 
+async function loadReportTypes() {
+    const select = document.getElementById("report-approval-type-select");
+    if (!select || select.options.length > 0) {
+        return;
+    }
+    try {
+        const result = await getJson("/api/reports/types?size=100");
+        select.innerHTML = (result.content || []).map(type => `
+            <option value="${escapeHtml(type.code || "")}" data-title="${escapeHtml(type.title || "")}">
+                ${escapeHtml(type.name || type.title || type.code)}
+            </option>
+        `).join("");
+        if (!select.innerHTML) {
+            select.innerHTML = `<option value="">工资变动审批表</option>`;
+        }
+    } catch (error) {
+        select.innerHTML = `<option value="">工资变动审批表</option>`;
+    }
+}
+
 async function loadPayrollChangeApprovalReport() {
     const organizationCode = document.getElementById("report-approval-organization-code").value.trim();
-    const period = document.getElementById("report-approval-period").value.trim();
+    const reportTypeCode = document.getElementById("report-approval-type-select").value.trim();
+    const year = document.getElementById("report-approval-year").value.trim();
     const keyword = document.getElementById("report-approval-keyword").value.trim();
     const size = document.getElementById("report-approval-size").value || "20";
     const params = new URLSearchParams({ page: "0", size });
     if (organizationCode) {
         params.set("organizationCode", organizationCode);
     }
-    if (period) {
-        params.set("period", period);
+    if (reportTypeCode) {
+        params.set("reportTypeCode", reportTypeCode);
+    }
+    if (year) {
+        params.set("year", year);
     }
     if (keyword) {
         params.set("keyword", keyword);
@@ -2141,10 +2170,15 @@ async function loadPayrollChangeApprovalReport() {
     status.className = "status";
     status.textContent = "正在加载工资变动记录...";
     rows.innerHTML = "";
+    document.getElementById("report-approval-preview").classList.add("hidden");
+    document.getElementById("report-approval-preview").innerHTML = "";
+    document.getElementById("report-approval-select-all").checked = false;
     try {
-        const result = await getJson(`/api/reports/payroll-change-register?${params}`);
+        const result = await getJson(`/api/reports/payroll-change-candidates?${params}`);
+        document.getElementById("report-approval-total-count").textContent = result.totalElements || 0;
         rows.innerHTML = (result.content || []).map(row => `
             <tr>
+                <td><input type="checkbox" data-approval-select value="${escapeHtml(row.payrollHistoryId)}"></td>
                 <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
                 <td>${escapeHtml(row.personCode)}</td>
                 <td>${escapeHtml(row.name)}</td>
@@ -2164,54 +2198,88 @@ async function loadPayrollChangeApprovalReport() {
     }
 }
 
+async function generateSelectedPayrollChangeApprovals() {
+    const selectedIds = Array.from(document.querySelectorAll("[data-approval-select]:checked"))
+        .map(input => input.value)
+        .filter(Boolean);
+    const status = document.getElementById("report-approval-status");
+    if (selectedIds.length === 0) {
+        status.className = "status error";
+        status.textContent = "请先勾选需要打印的人员。";
+        return;
+    }
+    status.className = "status";
+    status.textContent = `正在生成 ${selectedIds.length} 份审批表...`;
+    try {
+        const reports = [];
+        for (const id of selectedIds) {
+            reports.push(await getJson(`/api/reports/payroll-change-approval?payrollHistoryId=${encodeURIComponent(id)}`));
+        }
+        renderPayrollChangeApprovals(reports);
+        status.textContent = `已生成 ${reports.length} 份审批表`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
 async function loadPayrollChangeApproval(payrollHistoryId) {
     const status = document.getElementById("report-approval-status");
     status.className = "status";
     status.textContent = "正在生成工资变动审批表...";
     try {
         const report = await getJson(`/api/reports/payroll-change-approval?payrollHistoryId=${encodeURIComponent(payrollHistoryId)}`);
-        const period = report.calculationPeriod || "";
-        document.getElementById("report-approval-organization").textContent = report.organizationCode || "-";
-        document.getElementById("report-approval-person-code").textContent = report.personCode || "-";
-        document.getElementById("report-approval-archive-code").textContent = "";
-        document.getElementById("report-approval-person-name").textContent = report.name || "-";
-        document.getElementById("report-approval-gender").textContent = "-";
-        document.getElementById("report-approval-birthday").textContent = "-";
-        document.getElementById("report-approval-education").textContent = "-";
-        document.getElementById("report-approval-work-unit").textContent = report.organizationCode || "-";
-        document.getElementById("report-approval-work-start").textContent = "-";
-        document.getElementById("report-approval-work-years").textContent = "-";
-        document.getElementById("report-approval-current-position").textContent = report.currentPositionName || "-";
-        document.getElementById("report-approval-position-start").textContent = "-";
-        document.getElementById("report-approval-title").textContent = approvalTitle(report.changeType);
-        document.getElementById("report-approval-period-title").textContent = formatApprovalPeriod(period);
-        document.getElementById("report-approval-previous").textContent =
-            report.previousPayrollHistoryId ? `${report.previousCalculationPeriod || ""} ${report.previousChangeType || ""}` : "无";
-        const components = report.components || [];
-        document.getElementById("report-approval-component-rows").innerHTML = approvalRows(report, components).map(row => `
-            <tr class="${Number(row.difference || 0) !== 0 ? "highlight-row" : ""}">
-                <td>${escapeHtml(row.label)}</td>
-                <td>${escapeHtml(row.beforeText)}</td>
-                <td>${escapeHtml(row.afterText)}</td>
-                <td>${escapeHtml(row.differenceText)}</td>
-            </tr>
-        `).join("");
-        const totals = approvalTotalsFromHj(components);
-        document.getElementById("report-approval-before-total").textContent = money(totals.beforeAmount);
-        document.getElementById("report-approval-after-total").textContent = money(totals.afterAmount);
-        document.getElementById("report-approval-difference-total").textContent = money(totals.difference);
-        document.getElementById("report-approval-next-step-year").textContent = period ? String(Number(period.slice(0, 4))) : "-";
-        document.getElementById("report-approval-next-level-year").textContent = report.previousCalculationPeriod ? report.previousCalculationPeriod.slice(0, 4) : "-";
-        document.getElementById("report-approval-basis-title").textContent = approvalBasisTitle(report.changeType);
-        document.getElementById("report-approval-basis-detail").innerHTML = approvalBasisDetail(report);
-        document.getElementById("report-approval-execute-year").textContent = period ? period.slice(0, 4) : "-";
-        document.getElementById("report-approval-execute-month").textContent = period ? period.slice(4, 6) : "-";
-        document.getElementById("report-approval-preview").classList.remove("hidden");
-        document.getElementById("report-approval-preview").scrollIntoView({ behavior: "smooth", block: "start" });
+        renderPayrollChangeApprovals([report]);
         status.textContent = "工资变动审批表已生成";
     } catch (error) {
         showError(status, error);
     }
+}
+
+function renderPayrollChangeApprovals(reports) {
+    const preview = document.getElementById("report-approval-preview");
+    preview.innerHTML = reports.map(renderPayrollChangeApprovalSheet).join("");
+    preview.classList.remove("hidden");
+    preview.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderPayrollChangeApprovalSheet(report) {
+    const period = report.calculationPeriod || "";
+    const components = report.components || [];
+    const totals = approvalTotalsFromHj(components);
+    return `
+        <div class="approval-sheet">
+            <div class="approval-topline">
+                <span>单位编码：<strong>${escapeHtml(report.organizationCode || "-")}</strong></span>
+                <span>个人编码：<strong>${escapeHtml(report.personCode || "-")}</strong></span>
+                <span>档案号：<strong></strong></span>
+            </div>
+            <div class="approval-sheet-header"><h3>${escapeHtml(approvalTitle(report.changeType))}</h3></div>
+            <table class="approval-meta-table"><tbody>
+                <tr><th>姓名</th><td>${escapeHtml(report.name || "-")}</td><th>性别</th><td>-</td><th>出生日期</th><td>-</td><th>学历</th><td>-</td></tr>
+                <tr><th>工作单位</th><td colspan="3">${escapeHtml(report.organizationCode || "-")}</td><th>参加工作时间</th><td>-</td><th>工作年限</th><td>-</td></tr>
+                <tr><th>现任职务</th><td colspan="3">${escapeHtml(report.currentPositionName || "-")}</td><th>任职时间</th><td>-</td><th>前次变动</th><td>${escapeHtml(report.previousPayrollHistoryId ? `${report.previousCalculationPeriod || ""} ${report.previousChangeType || ""}` : "无")}</td></tr>
+            </tbody></table>
+            <div class="approval-main-grid">
+                <table class="approval-component-table">
+                    <thead><tr><th class="approval-item-header">项目</th><th>变动前</th><th>变动后</th><th>增资额</th></tr></thead>
+                    <tbody>${approvalRows(report, components).map(row => `<tr class="${Number(row.difference || 0) !== 0 ? "highlight-row" : ""}"><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.beforeText)}</td><td>${escapeHtml(row.afterText)}</td><td>${escapeHtml(row.differenceText)}</td></tr>`).join("")}</tbody>
+                    <tfoot><tr><th>月工资合计</th><th>${money(totals.beforeAmount)}</th><th>${money(totals.afterAmount)}</th><th>${money(totals.difference)}</th></tr></tfoot>
+                </table>
+                <div class="approval-basis-panel">
+                    <table><tbody>
+                        <tr><th>下次档次晋升<br>起始考核年度</th><td>${period ? String(Number(period.slice(0, 4))) : "-"}</td></tr>
+                        <tr><th>下次级别晋升<br>起始考核年度</th><td>${escapeHtml(report.previousCalculationPeriod ? report.previousCalculationPeriod.slice(0, 4) : "-")}</td></tr>
+                    </tbody></table>
+                    <div class="approval-basis-text"><p>工资变动原因及依据</p><strong>${escapeHtml(approvalBasisTitle(report.changeType))}</strong><p>执行时间：</p><strong>${escapeHtml(formatApprovalPeriod(period))}</strong><div>${approvalBasisDetail(report)}</div></div>
+                </div>
+            </div>
+            <div class="approval-signature-grid">
+                <div class="approval-signature-label">单位意见</div><div class="approval-signature-box"><strong>同 意</strong><span>年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日</span></div>
+                <div class="approval-signature-label">主管部门意见</div><div class="approval-signature-box"><strong>同意单位意见</strong><span>年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日</span></div>
+                <div class="approval-signature-label">批准机关意见</div><div class="approval-signature-box"><strong>同意主管<br>部门意见</strong><p>从 ${escapeHtml(period ? period.slice(0, 4) : "-")} 年 ${escapeHtml(period ? period.slice(4, 6) : "-")} 月执行</p><span>年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日</span></div>
+            </div>
+        </div>
+    `;
 }
 
 function approvalRows(report, components) {

@@ -1427,23 +1427,27 @@
     <section id="payroll-change-approval-report" class="panel hidden" data-menu-code="PAYROLL_CHANGE_APPROVAL_REPORT">
         <div class="panel-title">
             <div>
-                <h2>工资变动审批表</h2>
-                <p>选择一条工资变动记录，预览变动前后工资项目和增减额，可使用浏览器打印。</p>
+                <h2>报表打印</h2>
+                <p>选择单位、审批表类别和变动年度，筛选符合条件人员，勾选后生成审批表并打印。</p>
             </div>
             <button id="payroll-change-approval-print" type="button">打印审批表</button>
         </div>
         <form id="payroll-change-approval-report-form" class="toolbar">
             <label>单位名称<input id="report-approval-organization-code" placeholder="输入单位名称或编码"></label>
-            <label>变动年月<input id="report-approval-period" placeholder="例如 202407"></label>
+            <label>审批表类别<select id="report-approval-type-select"></select></label>
+            <label>变动年度<input id="report-approval-year" type="number" min="1900" max="2100" value="2024"></label>
             <label>关键词<input id="report-approval-keyword" placeholder="人员编码 / 姓名 / 变动类别 / 岗位"></label>
             <label>每页数量<input id="report-approval-size" type="number" min="1" max="100" value="20"></label>
             <button type="submit">查询记录</button>
+            <button id="report-approval-generate-selected" type="button">生成选中审批表</button>
         </form>
+        <div class="report-count-pill">总人数 <strong id="report-approval-total-count">0</strong></div>
         <div id="report-approval-status" class="status"></div>
         <div class="table-wrap">
             <table>
                 <thead>
                 <tr>
+                    <th><input id="report-approval-select-all" type="checkbox" aria-label="全选审批表人员"></th>
                     <th>单位</th>
                     <th>人员编码</th>
                     <th>姓名</th>
@@ -1457,107 +1461,7 @@
                 <tbody id="report-approval-select-rows"></tbody>
             </table>
         </div>
-        <div id="report-approval-preview" class="report-print-area approval-sheet hidden">
-            <div class="approval-topline">
-                <span>单位编码：<strong id="report-approval-organization">-</strong></span>
-                <span>个人编码：<strong id="report-approval-person-code">-</strong></span>
-                <span>档案号：<strong id="report-approval-archive-code"></strong></span>
-            </div>
-            <div class="approval-sheet-header">
-                <h3 id="report-approval-title">工资变动审批表</h3>
-            </div>
-            <table class="approval-meta-table">
-                <tbody>
-                <tr>
-                    <th>姓名</th>
-                    <td id="report-approval-person-name">-</td>
-                    <th>性别</th>
-                    <td id="report-approval-gender">-</td>
-                    <th>出生日期</th>
-                    <td id="report-approval-birthday">-</td>
-                    <th>学历</th>
-                    <td id="report-approval-education">-</td>
-                </tr>
-                <tr>
-                    <th>工作单位</th>
-                    <td colspan="3" id="report-approval-work-unit">-</td>
-                    <th>参加工作时间</th>
-                    <td id="report-approval-work-start">-</td>
-                    <th>工作年限</th>
-                    <td id="report-approval-work-years">-</td>
-                </tr>
-                <tr>
-                    <th>现任职务</th>
-                    <td colspan="3" id="report-approval-current-position">-</td>
-                    <th>任职时间</th>
-                    <td id="report-approval-position-start">-</td>
-                    <th>前次变动</th>
-                    <td id="report-approval-previous">-</td>
-                    <td></td>
-                </tr>
-                </tbody>
-            </table>
-            <div class="approval-main-grid">
-                <table class="approval-component-table">
-                    <thead>
-                    <tr>
-                        <th class="approval-item-header">项目</th>
-                        <th>变动前</th>
-                        <th>变动后</th>
-                        <th>增资额</th>
-                    </tr>
-                    </thead>
-                    <tbody id="report-approval-component-rows"></tbody>
-                    <tfoot>
-                    <tr>
-                        <th>月工资合计</th>
-                        <th id="report-approval-before-total">-</th>
-                        <th id="report-approval-after-total">-</th>
-                        <th id="report-approval-difference-total">-</th>
-                    </tr>
-                    </tfoot>
-                </table>
-                <div class="approval-basis-panel">
-                    <table>
-                        <tbody>
-                        <tr>
-                            <th>下次档次晋升<br>起始考核年度</th>
-                            <td id="report-approval-next-step-year">-</td>
-                        </tr>
-                        <tr>
-                            <th>下次级别晋升<br>起始考核年度</th>
-                            <td id="report-approval-next-level-year">-</td>
-                        </tr>
-                        </tbody>
-                    </table>
-                    <div class="approval-basis-text">
-                        <p>工资变动原因及依据</p>
-                        <strong id="report-approval-basis-title">按年度考核结果晋升工资档次</strong>
-                        <p>执行时间：</p>
-                        <strong id="report-approval-period-title">-</strong>
-                        <div id="report-approval-basis-detail"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="approval-signature-grid">
-                <div class="approval-signature-label">单位意见</div>
-                <div class="approval-signature-box">
-                    <strong>同 意</strong>
-                    <span>年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日</span>
-                </div>
-                <div class="approval-signature-label">主管部门意见</div>
-                <div class="approval-signature-box">
-                    <strong>同意单位意见</strong>
-                    <span>年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日</span>
-                </div>
-                <div class="approval-signature-label">批准机关意见</div>
-                <div class="approval-signature-box">
-                    <strong>同意主管<br>部门意见</strong>
-                    <p>从 <span id="report-approval-execute-year">-</span> 年 <span id="report-approval-execute-month">-</span> 月执行</p>
-                    <span>年&nbsp;&nbsp;&nbsp;&nbsp;月&nbsp;&nbsp;&nbsp;&nbsp;日</span>
-                </div>
-            </div>
-        </div>
+        <div id="report-approval-preview" class="report-print-area hidden"></div>
     </section>
 
     <section id="data-exchange" class="panel hidden" data-menu-code="DATA_EXCHANGE">

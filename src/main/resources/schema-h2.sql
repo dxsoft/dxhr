@@ -309,6 +309,33 @@ CREATE TABLE IF NOT EXISTS xtcs (
     fdgz INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS rptinfo (
+    lbbm VARCHAR(3) PRIMARY KEY,
+    cname VARCHAR(50) NOT NULL,
+    ctitle VARCHAR(50) NOT NULL,
+    cfilename VARCHAR(20) NOT NULL,
+    rpttype VARCHAR(4) NOT NULL,
+    bblb VARCHAR(8) NOT NULL,
+    dyclb VARCHAR(8) NOT NULL,
+    dycfw VARCHAR(5) NOT NULL,
+    mrhs INTEGER NOT NULL DEFAULT 1,
+    copies INTEGER NOT NULL DEFAULT 1,
+    ptop DECIMAL(2,1) NOT NULL DEFAULT 0,
+    ptop2 DECIMAL(2,1) NOT NULL DEFAULT 0,
+    pleft DECIMAL(2,1) NOT NULL DEFAULT 0,
+    pleft2 DECIMAL(2,1) NOT NULL DEFAULT 0,
+    ptoph DECIMAL(2,1) NOT NULL DEFAULT 0,
+    plefth DECIMAL(2,1) NOT NULL DEFAULT 0,
+    para1 VARCHAR(50) NOT NULL DEFAULT '',
+    para2 VARCHAR(8) NOT NULL DEFAULT '',
+    para3 VARCHAR(10) NOT NULL DEFAULT '',
+    para4 VARCHAR(2) NOT NULL DEFAULT '',
+    reportname VARCHAR(8) NOT NULL DEFAULT '',
+    haddb BOOLEAN NOT NULL DEFAULT FALSE,
+    cdefault VARCHAR(10) NOT NULL DEFAULT '',
+    lbmc VARCHAR(12) NOT NULL DEFAULT ''
+);
+
 -- Sample data for demonstration
 INSERT INTO dwbm (dwbm, dwmc, dwjc, dwxz, gzlbbm) VALUES
 ('001', '市委组织部', '组织部', '机关', '001'),
@@ -373,6 +400,10 @@ INSERT INTO cyxx (dwbm, dwmc, ds, sprq, gzbt, jxmc, shbtmc) VALUES
 
 INSERT INTO xtcs (qydrdk, tgdcglbxl, xsws, jwbz, tgjjjy, fdgz) VALUES
 (1, 1, 2, 1, 1, 1);
+
+INSERT INTO rptinfo (lbbm, cname, ctitle, cfilename, rpttype, bblb, dyclb, dycfw, mrhs, copies, cdefault, lbmc) VALUES
+('001', '机关正常档次晋升工资变动审批表', '河南省机关工作人员正常档次晋升工资变动审批表', 'jgjdspb', '工资', '审批表', '工资变动', '逐人', 1, 1, '国发2006-22号', '审批表'),
+('002', '工资变动花名册', '工资变动花名册', 'gzbghmc', '工资', '花名册', '工资变动', '批量', 20, 1, '国发2006-22号', '花名册');
 
 -- Security roles, permissions, menus and the admin user are seeded by
 -- SecuritySchemaInitializer so the demo password uses the configured encoder.

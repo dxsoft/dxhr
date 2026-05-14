@@ -22,6 +22,26 @@ class ReportService {
         this.accessControlService = accessControlService;
     }
 
+    PageResponse<ReportTypeOption> reportTypes(String category, PageRequest pageRequest) {
+        return PageResponse.of(
+                reportRepository.findReportTypes(category, pageRequest),
+                pageRequest,
+                reportRepository.countReportTypes(category));
+    }
+
+    PageResponse<PayrollChangeRegisterRow> payrollChangeCandidates(
+            String organizationFilter,
+            String reportTypeCode,
+            String year,
+            String keyword,
+            PageRequest pageRequest) {
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
+        return PageResponse.of(
+                reportRepository.findPayrollChangeCandidates(scope, organizationFilter, reportTypeCode, year, keyword, pageRequest),
+                pageRequest,
+                reportRepository.countPayrollChangeCandidates(scope, organizationFilter, reportTypeCode, year, keyword));
+    }
+
     PageResponse<PayrollChangeRegisterRow> payrollChangeRegister(
             String organizationFilter,
             String period,

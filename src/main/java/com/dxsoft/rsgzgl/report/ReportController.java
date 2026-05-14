@@ -18,6 +18,25 @@ class ReportController {
         this.reportService = reportService;
     }
 
+    @GetMapping("/types")
+    PageResponse<ReportTypeOption> reportTypes(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return reportService.reportTypes(category, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/payroll-change-candidates")
+    PageResponse<PayrollChangeRegisterRow> payrollChangeCandidates(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String reportTypeCode,
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return reportService.payrollChangeCandidates(organizationCode, reportTypeCode, year, keyword, PageRequest.of(page, size));
+    }
+
     @GetMapping("/payroll-change-register")
     PageResponse<PayrollChangeRegisterRow> payrollChangeRegister(
             @RequestParam(required = false) String organizationCode,

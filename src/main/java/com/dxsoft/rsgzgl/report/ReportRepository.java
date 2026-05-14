@@ -12,6 +12,16 @@ import org.springframework.stereotype.Repository;
 @Repository
 class ReportRepository {
 
+    private static final RowMapper<ReportTypeOption> REPORT_TYPE_MAPPER = (rs, rowNum) -> new ReportTypeOption(
+            SqlText.trim(rs.getString("lbbm")),
+            SqlText.trim(rs.getString("cname")),
+            SqlText.trim(rs.getString("ctitle")),
+            SqlText.trim(rs.getString("cfilename")),
+            SqlText.trim(rs.getString("rpttype")),
+            SqlText.trim(rs.getString("bblb")),
+            SqlText.trim(rs.getString("dyclb")),
+            SqlText.trim(rs.getString("cdefault")));
+
     private static final RowMapper<PayrollChangeRegisterRow> PAYROLL_CHANGE_REGISTER_MAPPER = (rs, rowNum) -> new PayrollChangeRegisterRow(
             SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("dwbm")),
@@ -39,6 +49,81 @@ class ReportRepository {
 
     ReportRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
+    }
+
+    List<ReportTypeOption> findReportTypes(String category, PageRequest pageRequest) {
+        return jdbc.query("""
+                SELECT lbbm, cname, ctitle, cfilename, rpttype, bblb, dyclb, cdefault
+                FROM rptinfo
+                WHERE (:category IS NULL OR bblb = :category OR dyclb = :category)
+                ORDER BY lbbm
+                LIMIT :limit OFFSET :offset
+                """, new MapSqlParameterSource()
+                .addValue("category", emptyToNull(category))
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset()), REPORT_TYPE_MAPPER);
+    }
+
+    long countReportTypes(String category) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM rptinfo
+                WHERE (:category IS NULL OR bblb = :category OR dyclb = :category)
+                """, new MapSqlParameterSource("category", emptyToNull(category)), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<PayrollChangeRegisterRow> findPayrollChangeCandidates(
+            OrganizationScope scope,
+            String organizationFilter,
+            String reportTypeCode,
+            String year,
+            String keyword,
+            PageRequest pageRequest) {
+        if (scope.noneScope()) {
+            return List.of();
+        }
+        return jdbc.query("""
+                SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.blfb2,
+                       h.jxjt, h.njbt, h.pgbc, h.hj2
+                FROM hisbase h
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                  AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (:year IS NULL OR h.jsnf = :year)
+                  AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
+                       OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                ORDER BY h.dwbm, h.grbm, h.jsnf DESC, h.jsyf DESC, h.jslb
+                LIMIT :limit OFFSET :offset
+                """, parameters(scope, organizationFilter, null, keyword)
+                .addValue("year", emptyToNull(year))
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset()), PAYROLL_CHANGE_REGISTER_MAPPER);
+    }
+
+    long countPayrollChangeCandidates(
+            OrganizationScope scope,
+            String organizationFilter,
+            String reportTypeCode,
+            String year,
+            String keyword) {
+        if (scope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM hisbase h
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                  AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (:year IS NULL OR h.jsnf = :year)
+                  AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
+                       OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                """, parameters(scope, organizationFilter, null, keyword)
+                .addValue("year", emptyToNull(year)), Long.class);
+        return count == null ? 0 : count;
     }
 
     List<PayrollChangeRegisterRow> findPayrollChangeRegister(
