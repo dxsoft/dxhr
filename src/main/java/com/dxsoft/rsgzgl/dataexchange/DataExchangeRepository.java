@@ -9,15 +9,22 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
 class DataExchangeRepository {
+
+    private static final List<String> RELATED_TABLES = List.of("hisbase", "dryzwbh", "dxl", "dndkh");
 
     private final JdbcTemplate jdbcTemplate;
     private final AccessControlService accessControlService;
@@ -310,22 +317,43 @@ class DataExchangeRepository {
         return rows;
     }
 
-    int replaceReceivedPersonnel(List<PersonnelExportRecord> rows) {
+    List<DataExchangeService.ExchangeTable> exportRelatedTables(List<PersonnelExportRecord> personnelRows) {
+        if (personnelRows == null || personnelRows.isEmpty()) {
+            return List.of();
+        }
+        List<DataExchangeService.ExchangeTable> tables = new ArrayList<>();
+        for (String table : RELATED_TABLES) {
+            List<Map<String, Object>> rows = new ArrayList<>();
+            for (PersonnelExportRecord person : personnelRows) {
+                rows.addAll(jdbcTemplate.queryForList(
+                        "SELECT * FROM " + table + " WHERE dwbm = ? AND grbm = ?",
+                        person.organizationCode(),
+                        person.personCode()));
+            }
+            tables.add(new DataExchangeService.ExchangeTable(table, rows));
+        }
+        return tables;
+    }
+
+    int replaceReceivedPersonnel(List<PersonnelExportRecord> rows, List<DataExchangeService.ExchangeTable> relatedTables) {
         int count = 0;
         for (PersonnelExportRecord row : rows) {
+            deletePersonRelatedRows(row.organizationCode(), row.personCode());
             jdbcTemplate.update("DELETE FROM dryjbxx WHERE dwbm = ? AND grbm = ?", row.organizationCode(), row.personCode());
             insertPersonnel(row, row.organizationCode(), row.personCode());
+            insertRelatedRowsForPerson(relatedTables, row.organizationCode(), row.personCode(), row.organizationCode(), row.personCode(), false);
             count++;
         }
         return count;
     }
 
-    int appendReceivedPersonnel(List<PersonnelExportRecord> rows, String targetOrganizationCode) {
+    int appendReceivedPersonnel(List<PersonnelExportRecord> rows, List<DataExchangeService.ExchangeTable> relatedTables, String targetOrganizationCode) {
         int count = 0;
         int nextCode = nextPersonCode(targetOrganizationCode);
         for (PersonnelExportRecord row : rows) {
             String personCode = "%05d".formatted(nextCode++);
             insertPersonnel(row, targetOrganizationCode, personCode);
+            insertRelatedRowsForPerson(relatedTables, row.organizationCode(), row.personCode(), targetOrganizationCode, personCode, true);
             count++;
         }
         return count;
@@ -369,6 +397,17 @@ class DataExchangeRepository {
         }
     }
 
+    private Integer findPersonUid(String organizationCode, String personCode) {
+        return jdbcTemplate.queryForList(
+                        "SELECT uid FROM dryjbxx WHERE dwbm = ? AND grbm = ?",
+                        Integer.class,
+                        organizationCode,
+                        personCode)
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
     private void insertPersonnel(PersonnelExportRecord row, String organizationCode, String personCode) {
         jdbcTemplate.update("""
                 INSERT INTO dryjbxx (
@@ -398,5 +437,115 @@ class DataExchangeRepository {
                 row.ethnicity(),
                 row.politicalStatus(),
                 row.archiveNumber());
+    }
+
+    private void deletePersonRelatedRows(String organizationCode, String personCode) {
+        for (String table : RELATED_TABLES) {
+            jdbcTemplate.update("DELETE FROM " + table + " WHERE dwbm = ? AND grbm = ?", organizationCode, personCode);
+        }
+    }
+
+    private void insertRelatedRowsForPerson(
+            List<DataExchangeService.ExchangeTable> relatedTables,
+            String sourceOrganizationCode,
+            String sourcePersonCode,
+            String targetOrganizationCode,
+            String targetPersonCode,
+            boolean appendMode) {
+        if (relatedTables == null || relatedTables.isEmpty()) {
+            return;
+        }
+        for (DataExchangeService.ExchangeTable table : relatedTables) {
+            if (!RELATED_TABLES.contains(table.tableName()) || table.rows() == null) {
+                continue;
+            }
+            for (Map<String, Object> sourceRow : table.rows()) {
+                if (!matchesPerson(sourceRow, sourceOrganizationCode, sourcePersonCode)) {
+                    continue;
+                }
+                insertGenericRelatedRow(table.tableName(), sourceRow, targetOrganizationCode, targetPersonCode, appendMode);
+            }
+        }
+    }
+
+    private boolean matchesPerson(Map<String, Object> row, String organizationCode, String personCode) {
+        return textValue(row, "dwbm").equals(organizationCode) && textValue(row, "grbm").equals(personCode);
+    }
+
+    private void insertGenericRelatedRow(
+            String tableName,
+            Map<String, Object> sourceRow,
+            String targetOrganizationCode,
+            String targetPersonCode,
+            boolean appendMode) {
+        Map<String, String> columnTypes = tableColumnTypes(tableName);
+        Map<String, Object> row = new LinkedHashMap<>();
+        for (Map.Entry<String, String> column : columnTypes.entrySet()) {
+            Object value = valueIgnoreCase(sourceRow, column.getKey());
+            if ("dwbm".equalsIgnoreCase(column.getKey())) {
+                value = targetOrganizationCode;
+            } else if ("grbm".equalsIgnoreCase(column.getKey())) {
+                value = targetPersonCode;
+            } else if ("id".equalsIgnoreCase(column.getKey())) {
+                if (isIntegerType(column.getValue())) {
+                    continue;
+                }
+                if (appendMode || value == null || String.valueOf(value).isBlank()) {
+                    value = UUID.randomUUID().toString().toUpperCase(Locale.ROOT);
+                }
+            } else if ("uid".equalsIgnoreCase(column.getKey())) {
+                value = findPersonUid(targetOrganizationCode, targetPersonCode);
+            }
+            if (value != null) {
+                row.put(column.getKey(), value);
+            }
+        }
+        if (row.isEmpty()) {
+            return;
+        }
+        String columns = String.join(", ", row.keySet());
+        String placeholders = row.keySet().stream().map(key -> "?").collect(Collectors.joining(", "));
+        jdbcTemplate.update("INSERT INTO " + tableName + " (" + columns + ") VALUES (" + placeholders + ")", row.values().toArray());
+    }
+
+    private Map<String, String> tableColumnTypes(String tableName) {
+        return jdbcTemplate.execute((ConnectionCallback<Map<String, String>>) connection -> {
+            Map<String, String> columns = new LinkedHashMap<>();
+            try (ResultSet rs = connection.getMetaData().getColumns(null, null, tableName, null)) {
+                while (rs.next()) {
+                    columns.put(rs.getString("COLUMN_NAME"), rs.getString("TYPE_NAME"));
+                }
+            }
+            if (columns.isEmpty()) {
+                try (ResultSet rs = connection.getMetaData().getColumns(null, null, tableName.toUpperCase(Locale.ROOT), null)) {
+                    while (rs.next()) {
+                        columns.put(rs.getString("COLUMN_NAME"), rs.getString("TYPE_NAME"));
+                    }
+                }
+            }
+            return columns;
+        });
+    }
+
+    private boolean isIntegerType(String typeName) {
+        String normalized = typeName == null ? "" : typeName.toUpperCase(Locale.ROOT);
+        return normalized.contains("INT") || normalized.contains("SERIAL");
+    }
+
+    private Object valueIgnoreCase(Map<String, Object> row, String key) {
+        if (row.containsKey(key)) {
+            return row.get(key);
+        }
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(key)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    private String textValue(Map<String, Object> row, String key) {
+        Object value = valueIgnoreCase(row, key);
+        return value == null ? "" : String.valueOf(value).trim();
     }
 }

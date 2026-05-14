@@ -7,6 +7,7 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.springframework.http.HttpHeaders;
@@ -83,7 +84,8 @@ class DataExchangeService {
                 LocalDateTime.now().toString(),
                 request.organizationCodes() == null ? List.of() : request.organizationCodes(),
                 request.includeDescendants(),
-                records);
+                records,
+                dataExchangeRepository.exportRelatedTables(records));
         byte[] bytes = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(payload);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -110,8 +112,8 @@ class DataExchangeService {
             throw new IllegalArgumentException("追加接收需要选择接收单位");
         }
         int count = append
-                ? dataExchangeRepository.appendReceivedPersonnel(rows, request.targetOrganizationCode())
-                : dataExchangeRepository.replaceReceivedPersonnel(rows);
+                ? dataExchangeRepository.appendReceivedPersonnel(rows, payload.relatedTables(), request.targetOrganizationCode())
+                : dataExchangeRepository.replaceReceivedPersonnel(rows, payload.relatedTables());
         return new DataExchangeController.ReceiveApplyResponse(
                 count,
                 append ? "已按追加方式接收并重新编码" : "已整体接收并替换相同单位编码和个人编码数据");
@@ -197,6 +199,12 @@ class DataExchangeService {
             String generatedAt,
             List<String> organizationCodes,
             boolean includeDescendants,
-            List<PersonnelExportRecord> personnel) {
+            List<PersonnelExportRecord> personnel,
+            List<ExchangeTable> relatedTables) {
+    }
+
+    record ExchangeTable(
+            String tableName,
+            List<Map<String, Object>> rows) {
     }
 }
