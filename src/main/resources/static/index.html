@@ -1433,7 +1433,12 @@
             <button id="payroll-change-approval-print" type="button">打印审批表</button>
         </div>
         <form id="payroll-change-approval-report-form" class="toolbar">
-            <label>单位名称<input id="report-approval-organization-code" placeholder="输入单位名称或编码"></label>
+            <label>单位名称
+                <div class="dict-input-combo">
+                    <input id="report-approval-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="report-approval-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择报表单位">⌄</button>
+                </div>
+            </label>
             <label>审批表类别<select id="report-approval-type-select"></select></label>
             <label>变动年度<input id="report-approval-year" type="number" min="1900" max="2100" value="2024"></label>
             <label>关键词<input id="report-approval-keyword" placeholder="人员编码 / 姓名 / 变动类别 / 岗位"></label>

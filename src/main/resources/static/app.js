@@ -435,6 +435,7 @@ async function initializeDictionaryPickers() {
 function initializeOrganizationPickerInput() {
     bindOrganizationPickerInput("maint-organization-name", "maint-organization-picker-button", "maintenance");
     bindOrganizationPickerInput("maint-search-organization-code", "maint-search-organization-picker-button", "maintenanceSearch");
+    bindOrganizationPickerInput("report-approval-organization-code", "report-approval-organization-picker-button", "reportApproval");
 }
 
 function bindOrganizationPickerInput(inputId, buttonId, target) {
@@ -479,7 +480,9 @@ async function openOrganizationPicker(target = "maintenance") {
     document.getElementById("organization-picker-title").textContent = target === "personnelTransfer" ? "选择调往单位" : "选择单位";
     document.getElementById("organization-picker-subtitle").textContent = target === "personnelTransfer"
         ? "从单位树中选择调往本地其他单位，支持按单位名称或编码搜索。"
-        : "从单位树中选择人员所属单位，支持按单位名称或编码搜索。";
+        : target === "reportApproval"
+            ? "从单位信息树中选择报表打印单位，支持按单位名称或编码搜索。"
+            : "从单位树中选择人员所属单位，支持按单位名称或编码搜索。";
     document.getElementById("organization-picker-filter").value = "";
     document.getElementById("organization-picker-tree").innerHTML = "正在加载单位...";
     document.getElementById("organization-picker-modal").classList.remove("hidden");
@@ -531,8 +534,8 @@ function renderOrganizationPickerTree() {
         `;
     }).join("");
     container.querySelectorAll(".dictionary-node").forEach(button => {
-        button.addEventListener("click", () => {
-            if (button.dataset.hasChildren === "true") {
+        button.addEventListener("click", event => {
+            if (button.dataset.hasChildren === "true" && event.target.tagName === "EM") {
                 toggleOrganizationNode(button.dataset.orgCode);
                 return;
             }
@@ -553,6 +556,12 @@ function selectOrganizationNode(code, name) {
     }
     if (state.activeOrganizationTarget === "maintenanceSearch") {
         document.getElementById("maint-search-organization-code").value = name || code;
+        return;
+    }
+    if (state.activeOrganizationTarget === "reportApproval") {
+        const input = document.getElementById("report-approval-organization-code");
+        input.value = code;
+        input.title = name || code;
         return;
     }
     document.getElementById("maint-organization-code").value = code;

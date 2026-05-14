@@ -75,10 +75,13 @@ CREATE TABLE IF NOT EXISTS app_record_marker (
 CREATE TABLE IF NOT EXISTS dwbm (
     dwbm VARCHAR(9) PRIMARY KEY,
     dwmc VARCHAR(80),
+    dwmc1 VARCHAR(80),
     dwjc VARCHAR(40),
+    dwbz VARCHAR(20),
     dwxz VARCHAR(20),
     dwsx VARCHAR(20),
     jxbl VARCHAR(10),
+    gzczbz VARCHAR(20),
     gzlbbm VARCHAR(10),
     jbtbz VARCHAR(10),
     bzrs INTEGER DEFAULT 0,
@@ -339,10 +342,10 @@ CREATE TABLE IF NOT EXISTS rptinfo (
 );
 
 -- Sample data for demonstration
-INSERT INTO dwbm (dwbm, dwmc, dwjc, dwxz, dwsx, jxbl, gzlbbm) VALUES
-('001', '市委组织部', '组织部', '机关', '机关', '', '001'),
-('002', '市人社局', '人社局', '机关', '机关', '', '001'),
-('003', '市财政局', '财政局', '事业', '事业', '7:3', '001');
+INSERT INTO dwbm (dwbm, dwmc, dwmc1, dwjc, dwbz, dwxz, dwsx, jxbl, gzczbz, gzlbbm) VALUES
+('001', '市委组织部', '组织部', '组织部', '机关', '机关', '机关', '', '', '001'),
+('002', '市人社局', '人社局', '人社局', '机关', '机关', '机关', '', '', '001'),
+('003', '市财政局', '财政局', '财政局', '事业', '事业', '事业', '7:3', '', '001');
 
 INSERT INTO dryjbxx (dwbm, grbm, xm, sfzh, xb, csn_yf, rylb, xl, zgxl, dqzw) VALUES
 ('001', '00001', '张三', '110101199001011234', '男', '1990.01', '公务员', '001', '大学本科', '科员'),
