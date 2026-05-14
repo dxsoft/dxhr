@@ -2170,14 +2170,17 @@ async function loadPayrollChangeApproval(payrollHistoryId) {
     status.textContent = "正在生成工资变动审批表...";
     try {
         const report = await getJson(`/api/reports/payroll-change-approval?payrollHistoryId=${encodeURIComponent(payrollHistoryId)}`);
-        document.getElementById("report-approval-person").textContent =
-            `${report.organizationCode}-${report.personCode} ${report.name}`;
+        document.getElementById("report-approval-organization").textContent = report.organizationCode || "-";
+        document.getElementById("report-approval-person-code").textContent = report.personCode || "-";
+        document.getElementById("report-approval-person-name").textContent = report.name || "-";
         document.getElementById("report-approval-period-title").textContent = report.calculationPeriod || "-";
         document.getElementById("report-approval-type").textContent = report.changeType || "-";
         document.getElementById("report-approval-previous").textContent =
             report.previousPayrollHistoryId ? `${report.previousCalculationPeriod || ""} ${report.previousChangeType || ""}` : "无";
-        document.getElementById("report-approval-component-rows").innerHTML = (report.components || []).map(component => `
+        const components = report.components || [];
+        document.getElementById("report-approval-component-rows").innerHTML = components.map((component, index) => `
             <tr class="${Number(component.difference || 0) !== 0 ? "highlight-row" : ""}">
+                <td>${index + 1}</td>
                 <td>${escapeHtml(component.caption || "")}</td>
                 <td>${escapeHtml(component.fieldName || "")}</td>
                 <td>${money(component.beforeAmount)}</td>
@@ -2185,11 +2188,31 @@ async function loadPayrollChangeApproval(payrollHistoryId) {
                 <td>${money(component.difference)}</td>
             </tr>
         `).join("");
+        const totals = approvalComponentTotals(components);
+        document.getElementById("report-approval-before-total").textContent = money(totals.beforeAmount);
+        document.getElementById("report-approval-after-total").textContent = money(totals.afterAmount);
+        document.getElementById("report-approval-difference-total").textContent = money(totals.difference);
+        document.getElementById("report-approval-generated-date").textContent = new Date().toLocaleDateString("zh-CN");
         document.getElementById("report-approval-preview").classList.remove("hidden");
+        document.getElementById("report-approval-preview").scrollIntoView({ behavior: "smooth", block: "start" });
         status.textContent = "工资变动审批表已生成";
     } catch (error) {
         showError(status, error);
     }
+}
+
+function approvalComponentTotals(components) {
+    const rows = components.filter(component => String(component.fieldName || "").toUpperCase() !== "HJ2");
+    return rows.reduce((totals, component) => {
+        const beforeAmount = Number(component.beforeAmount || 0);
+        const afterAmount = Number(component.afterAmount || 0);
+        const difference = Number(component.difference || 0);
+        return {
+            beforeAmount: totals.beforeAmount + (Number.isFinite(beforeAmount) ? beforeAmount : 0),
+            afterAmount: totals.afterAmount + (Number.isFinite(afterAmount) ? afterAmount : 0),
+            difference: totals.difference + (Number.isFinite(difference) ? difference : 0),
+        };
+    }, { beforeAmount: 0, afterAmount: 0, difference: 0 });
 }
 
 async function loadPayrollHistory() {

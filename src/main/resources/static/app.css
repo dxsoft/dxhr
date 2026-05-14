@@ -508,6 +508,82 @@ tr:last-child td {
     margin-top: 6px;
 }
 
+.approval-sheet {
+    margin-top: 22px;
+    padding: 24px;
+    color: #111827;
+    background: #fff;
+    border: 1px solid #111827;
+    box-shadow: 0 18px 45px rgba(23, 32, 51, 0.08);
+}
+
+.approval-sheet-header {
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.approval-sheet-header h3 {
+    margin: 0;
+    font-size: 28px;
+    letter-spacing: 0.18em;
+}
+
+.approval-sheet-header p {
+    margin: 6px 0 0;
+    color: var(--muted);
+}
+
+.approval-meta-table,
+.approval-component-table,
+.approval-signature-table {
+    margin-top: 12px;
+    border: 1px solid #111827;
+}
+
+.approval-meta-table th,
+.approval-meta-table td,
+.approval-component-table th,
+.approval-component-table td,
+.approval-signature-table th,
+.approval-signature-table td {
+    border: 1px solid #111827;
+    white-space: normal;
+}
+
+.approval-meta-table th,
+.approval-signature-table th {
+    width: 110px;
+    text-align: center;
+    background: #f3f4f6;
+}
+
+.approval-component-table th,
+.approval-component-table td {
+    text-align: right;
+}
+
+.approval-component-table th:nth-child(1),
+.approval-component-table td:nth-child(1) {
+    width: 64px;
+    text-align: center;
+}
+
+.approval-component-table th:nth-child(2),
+.approval-component-table td:nth-child(2),
+.approval-component-table th:nth-child(3),
+.approval-component-table td:nth-child(3) {
+    text-align: left;
+}
+
+.approval-component-table tfoot th {
+    background: #f3f4f6;
+    font-size: 15px;
+}
+
+.approval-signature-table td {
+    height: 64px;
+}
+
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -788,7 +864,10 @@ tr:last-child td {
     .app-sidebar,
     .app-header,
     .toolbar,
-    .panel-title button,
+    .status,
+    .panel-title,
+    #report-approval-select-rows,
+    #payroll-change-approval-report > .table-wrap,
     .panel.hidden {
         display: none !important;
     }
@@ -798,13 +877,33 @@ tr:last-child td {
     }
 
     .panel {
+        padding: 0;
         box-shadow: none;
         border: 0;
+    }
+
+    .approval-sheet {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .approval-sheet-header h3 {
+        font-size: 24px;
+    }
+
+    .approval-sheet-header p {
+        color: #111827;
     }
 
     .table-wrap {
         overflow: visible;
         border: 0;
+    }
+
+    th, td {
+        padding: 7px 8px;
     }
 }
 
