@@ -2180,6 +2180,8 @@ function renderPayrollChangeRegister(reports) {
     const preview = document.getElementById("report-payroll-change-preview");
     const selectedTitle = selectedReportTitle("report-payroll-change-type-select") || "工资变动花名册";
     const organization = reports[0]?.organizationName || reports[0]?.organizationCode || "";
+    const institution = reports.some(report => isInstitutionApproval(report));
+    const registerLabels = registerColumnLabels(institution);
     preview.innerHTML = `
         <div class="register-sheet">
             <div class="approval-sheet-header"><h3>${escapeHtml(selectedTitle)}</h3></div>
@@ -2190,27 +2192,30 @@ function renderPayrollChangeRegister(reports) {
             <table class="register-table">
                 <thead>
                 <tr>
-                    <th>姓名</th>
-                    <th>身份证号</th>
-                    <th>变动前后</th>
-                    <th>月工资合计</th>
-                    <th>聘任岗位</th>
-                    <th>薪级</th>
-                    <th>岗位工资</th>
-                    <th>薪级工资</th>
-                    <th>教护提高<br>部分及工资提高</th>
-                    <th>保留奖金</th>
-                    <th>保留福补</th>
-                    <th>农村学校<br>教师补贴</th>
-                    <th>教护龄<br>津贴</th>
-                    <th>生活性补贴/<br>基础性绩效</th>
-                    <th>工作性津贴</th>
-                    <th>特岗津贴</th>
-                    <th>特岗保留<br>部分</th>
-                    <th>农村学校<br>教师补贴</th>
-                    <th>其它补贴</th>
-                    <th>增资额</th>
-                    <th>执行时间</th>
+                    <th rowspan="2">姓名</th>
+                    <th rowspan="2">身份证号</th>
+                    <th rowspan="2">变动前后</th>
+                    <th colspan="16">工资情况</th>
+                    <th rowspan="2">月增(+)<br>减(-)</th>
+                    <th rowspan="2">执行时间</th>
+                </tr>
+                <tr>
+                    <th>月工资<br>合计</th>
+                    <th>${registerLabels.position}</th>
+                    <th>${registerLabels.level}</th>
+                    <th>${registerLabels.positionSalary}</th>
+                    <th>${registerLabels.gradeSalary}</th>
+                    <th>技术<br>等级<br>工资</th>
+                    <th>保留<br>奖金</th>
+                    <th>保留<br>福补</th>
+                    <th>警衔<br>津贴</th>
+                    <th>工改<br>保留<br>津贴</th>
+                    <th>工作性<br>津贴</th>
+                    <th>生活性<br>补贴</th>
+                    <th>岗位<br>津贴</th>
+                    <th>工改<br>保留<br>工资</th>
+                    <th>其它<br>补贴</th>
+                    <th>农村<br>学校<br>教师<br>补贴</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -2231,12 +2236,13 @@ function renderPayrollChangeRegisterRow(report, index) {
     const performance = componentByField(components, "DFBT2");
     const retained = componentByField(components, "BLFB2");
     const bonus = componentByField(components, "JJJY2");
-    const teachingRaise = componentByField(components, "JSFSZWTG2");
-    const teachingAllowance = componentByField(components, "JHLJT");
     const ruralTeacher = componentByField(components, "NJBT");
     const workAllowance = componentByField(components, "SDBT");
-    const specialAllowance = componentByField(components, "SIDBT");
-    const specialRetained = componentByField(components, "TGBLBF");
+    const rankAllowance = componentByField(components, "JXJT");
+    const retainedReformAllowance = componentByField(components, "TGBLBF");
+    const retainedReformSalary = componentByField(components, "PGBC");
+    const technicalSalary = componentByField(components, "JSDJGZ2");
+    const positionAllowance = componentByField(components, "GWJT2");
     const otherAllowance = componentByField(components, "QTBT");
     const total = approvalTotalsFromHj(components);
     const executePeriod = formatCompactPeriod(report.calculationPeriod || "");
@@ -2247,16 +2253,17 @@ function renderPayrollChangeRegisterRow(report, index) {
             level: report.previousGradeLevel || report.previousStepOrSalaryLevel,
             positionSalary: positionSalary?.beforeAmount,
             gradeSalary: gradeSalary?.beforeAmount,
-            teachingRaise: teachingRaise?.beforeAmount,
+            technicalSalary: technicalSalary?.beforeAmount,
             bonus: bonus?.beforeAmount,
             retained: retained?.beforeAmount,
-            ruralTeacher: ruralTeacher?.beforeAmount,
-            teachingAllowance: teachingAllowance?.beforeAmount,
-            performance: performance?.beforeAmount,
+            rankAllowance: rankAllowance?.beforeAmount,
+            retainedReformAllowance: retainedReformAllowance?.beforeAmount,
             workAllowance: workAllowance?.beforeAmount,
-            specialAllowance: specialAllowance?.beforeAmount,
-            specialRetained: specialRetained?.beforeAmount,
+            performance: performance?.beforeAmount,
+            positionAllowance: positionAllowance?.beforeAmount,
+            retainedReformSalary: retainedReformSalary?.beforeAmount,
             otherAllowance: otherAllowance?.beforeAmount,
+            ruralTeacher: ruralTeacher?.beforeAmount,
             difference: "",
             executePeriod: "",
         })}
@@ -2266,16 +2273,17 @@ function renderPayrollChangeRegisterRow(report, index) {
             level: report.currentGradeLevel || report.currentStepOrSalaryLevel,
             positionSalary: positionSalary?.afterAmount,
             gradeSalary: gradeSalary?.afterAmount,
-            teachingRaise: teachingRaise?.afterAmount,
+            technicalSalary: technicalSalary?.afterAmount,
             bonus: bonus?.afterAmount,
             retained: retained?.afterAmount,
-            ruralTeacher: ruralTeacher?.afterAmount,
-            teachingAllowance: teachingAllowance?.afterAmount,
-            performance: performance?.afterAmount,
+            rankAllowance: rankAllowance?.afterAmount,
+            retainedReformAllowance: retainedReformAllowance?.afterAmount,
             workAllowance: workAllowance?.afterAmount,
-            specialAllowance: specialAllowance?.afterAmount,
-            specialRetained: specialRetained?.afterAmount,
+            performance: performance?.afterAmount,
+            positionAllowance: positionAllowance?.afterAmount,
+            retainedReformSalary: retainedReformSalary?.afterAmount,
             otherAllowance: otherAllowance?.afterAmount,
+            ruralTeacher: ruralTeacher?.afterAmount,
             difference: total.difference,
             executePeriod,
         })}
@@ -2293,17 +2301,17 @@ function registerBeforeAfterRow(report, index, marker, values) {
             <td>${escapeHtml(values.level || "")}</td>
             <td>${moneyOrDash(values.positionSalary)}</td>
             <td>${moneyOrDash(values.gradeSalary)}</td>
-            <td>${moneyOrDash(values.teachingRaise)}</td>
+            <td>${moneyOrDash(values.technicalSalary)}</td>
             <td>${moneyOrDash(values.bonus)}</td>
             <td>${moneyOrDash(values.retained)}</td>
-            <td>${moneyOrDash(values.ruralTeacher)}</td>
-            <td>${moneyOrDash(values.teachingAllowance)}</td>
-            <td>${moneyOrDash(values.performance)}</td>
+            <td>${moneyOrDash(values.rankAllowance)}</td>
+            <td>${moneyOrDash(values.retainedReformAllowance)}</td>
             <td>${moneyOrDash(values.workAllowance)}</td>
-            <td>${moneyOrDash(values.specialAllowance)}</td>
-            <td>${moneyOrDash(values.specialRetained)}</td>
-            <td>${moneyOrDash(values.ruralTeacher)}</td>
+            <td>${moneyOrDash(values.performance)}</td>
+            <td>${moneyOrDash(values.positionAllowance)}</td>
+            <td>${moneyOrDash(values.retainedReformSalary)}</td>
             <td>${moneyOrDash(values.otherAllowance)}</td>
+            <td>${moneyOrDash(values.ruralTeacher)}</td>
             <td>${values.difference === "" ? "" : money(values.difference)}</td>
             <td>${escapeHtml(values.executePeriod || "")}</td>
         </tr>
@@ -2318,6 +2326,10 @@ function renderPayrollChangeRegisterTotals(reports) {
         const gradeSalary = componentByField(components, "JBGZSE2");
         const performance = componentByField(components, "DFBT2");
         const retained = componentByField(components, "BLFB2");
+        const rankAllowance = componentByField(components, "JXJT");
+        const workAllowance = componentByField(components, "SDBT");
+        const retainedReformSalary = componentByField(components, "PGBC");
+        const ruralTeacher = componentByField(components, "NJBT");
         return {
             beforeTotal: sum.beforeTotal + Number(total.beforeAmount || 0),
             afterTotal: sum.afterTotal + Number(total.afterAmount || 0),
@@ -2330,6 +2342,14 @@ function renderPayrollChangeRegisterTotals(reports) {
             afterPerformance: sum.afterPerformance + Number(performance?.afterAmount || 0),
             beforeRetained: sum.beforeRetained + Number(retained?.beforeAmount || 0),
             afterRetained: sum.afterRetained + Number(retained?.afterAmount || 0),
+            beforeRankAllowance: sum.beforeRankAllowance + Number(rankAllowance?.beforeAmount || 0),
+            afterRankAllowance: sum.afterRankAllowance + Number(rankAllowance?.afterAmount || 0),
+            beforeWorkAllowance: sum.beforeWorkAllowance + Number(workAllowance?.beforeAmount || 0),
+            afterWorkAllowance: sum.afterWorkAllowance + Number(workAllowance?.afterAmount || 0),
+            beforeRetainedReformSalary: sum.beforeRetainedReformSalary + Number(retainedReformSalary?.beforeAmount || 0),
+            afterRetainedReformSalary: sum.afterRetainedReformSalary + Number(retainedReformSalary?.afterAmount || 0),
+            beforeRuralTeacher: sum.beforeRuralTeacher + Number(ruralTeacher?.beforeAmount || 0),
+            afterRuralTeacher: sum.afterRuralTeacher + Number(ruralTeacher?.afterAmount || 0),
         };
     }, {
         beforeTotal: 0, afterTotal: 0, difference: 0,
@@ -2337,6 +2357,10 @@ function renderPayrollChangeRegisterTotals(reports) {
         beforeGradeSalary: 0, afterGradeSalary: 0,
         beforePerformance: 0, afterPerformance: 0,
         beforeRetained: 0, afterRetained: 0,
+        beforeRankAllowance: 0, afterRankAllowance: 0,
+        beforeWorkAllowance: 0, afterWorkAllowance: 0,
+        beforeRetainedReformSalary: 0, afterRetainedReformSalary: 0,
+        beforeRuralTeacher: 0, afterRuralTeacher: 0,
     });
     return `
         <tr class="register-total-row">
@@ -2347,9 +2371,8 @@ function renderPayrollChangeRegisterTotals(reports) {
             <td colspan="2"></td>
             <td>${money(totals.beforePositionSalary)}</td>
             <td>${money(totals.beforeGradeSalary)}</td>
-            <td></td><td></td><td>${money(totals.beforeRetained)}</td><td></td><td></td>
-            <td>${money(totals.beforePerformance)}</td>
-            <td colspan="5"></td>
+            <td></td><td></td><td>${money(totals.beforeRetained)}</td><td>${money(totals.beforeRankAllowance)}</td><td></td>
+            <td>${money(totals.beforeWorkAllowance)}</td><td>${money(totals.beforePerformance)}</td><td></td><td>${money(totals.beforeRetainedReformSalary)}</td><td></td><td>${money(totals.beforeRuralTeacher)}</td>
             <td rowspan="2">${money(totals.difference)}</td>
             <td></td>
         </tr>
@@ -2359,12 +2382,27 @@ function renderPayrollChangeRegisterTotals(reports) {
             <td colspan="2"></td>
             <td>${money(totals.afterPositionSalary)}</td>
             <td>${money(totals.afterGradeSalary)}</td>
-            <td></td><td></td><td>${money(totals.afterRetained)}</td><td></td><td></td>
-            <td>${money(totals.afterPerformance)}</td>
-            <td colspan="5"></td>
+            <td></td><td></td><td>${money(totals.afterRetained)}</td><td>${money(totals.afterRankAllowance)}</td><td></td>
+            <td>${money(totals.afterWorkAllowance)}</td><td>${money(totals.afterPerformance)}</td><td></td><td>${money(totals.afterRetainedReformSalary)}</td><td></td><td>${money(totals.afterRuralTeacher)}</td>
             <td></td>
         </tr>
     `;
+}
+
+function registerColumnLabels(institution) {
+    return institution
+        ? {
+            position: "聘任岗位",
+            level: "薪级",
+            positionSalary: "岗位工资",
+            gradeSalary: "薪级工资",
+        }
+        : {
+            position: "职务岗位<br>(或技术等级)",
+            level: "级别",
+            positionSalary: "职务工资",
+            gradeSalary: "级别工资",
+        };
 }
 
 async function onPayrollChangeApprovalReportSearch(event) {
