@@ -2179,37 +2179,43 @@ async function generateSelectedPayrollChangeRegister() {
 function renderPayrollChangeRegister(reports) {
     const preview = document.getElementById("report-payroll-change-preview");
     const selectedTitle = selectedReportTitle("report-payroll-change-type-select") || "工资变动花名册";
+    const organization = reports[0]?.organizationName || reports[0]?.organizationCode || "";
     preview.innerHTML = `
         <div class="register-sheet">
             <div class="approval-sheet-header"><h3>${escapeHtml(selectedTitle)}</h3></div>
+            <div class="register-topline">
+                <span>单位名称：${escapeHtml(organization)}[单位编码：${escapeHtml(reports[0]?.organizationCode || "")}]</span>
+                <span>第 1 页&nbsp;&nbsp;共 1 页</span>
+            </div>
             <table class="register-table">
                 <thead>
                 <tr>
-                    <th>序号</th>
-                    <th>单位</th>
-                    <th>个人编码</th>
                     <th>姓名</th>
-                    <th>变动年月</th>
-                    <th>变动类别</th>
-                    <th>岗位/职务(前)</th>
-                    <th>岗位/职务(后)</th>
-                    <th>级别/薪级(前)</th>
-                    <th>级别/薪级(后)</th>
-                    <th>岗位/职务工资前</th>
-                    <th>岗位/职务工资后</th>
-                    <th>级别/薪级工资前</th>
-                    <th>级别/薪级工资后</th>
-                    <th>绩效/生活前</th>
-                    <th>绩效/生活后</th>
-                    <th>保留副补前</th>
-                    <th>保留副补后</th>
-                    <th>月工资合计前</th>
-                    <th>月工资合计后</th>
+                    <th>身份证号</th>
+                    <th>变动前后</th>
+                    <th>月工资合计</th>
+                    <th>聘任岗位</th>
+                    <th>薪级</th>
+                    <th>岗位工资</th>
+                    <th>薪级工资</th>
+                    <th>教护提高<br>部分及工资提高</th>
+                    <th>保留奖金</th>
+                    <th>保留福补</th>
+                    <th>农村学校<br>教师补贴</th>
+                    <th>教护龄<br>津贴</th>
+                    <th>生活性补贴/<br>基础性绩效</th>
+                    <th>工作性津贴</th>
+                    <th>特岗津贴</th>
+                    <th>特岗保留<br>部分</th>
+                    <th>农村学校<br>教师补贴</th>
+                    <th>其它补贴</th>
                     <th>增资额</th>
+                    <th>执行时间</th>
                 </tr>
                 </thead>
                 <tbody>
                 ${reports.map((report, index) => renderPayrollChangeRegisterRow(report, index)).join("")}
+                ${renderPayrollChangeRegisterTotals(reports)}
                 </tbody>
             </table>
         </div>
@@ -2224,30 +2230,139 @@ function renderPayrollChangeRegisterRow(report, index) {
     const gradeSalary = componentByField(components, "JBGZSE2");
     const performance = componentByField(components, "DFBT2");
     const retained = componentByField(components, "BLFB2");
+    const bonus = componentByField(components, "JJJY2");
+    const teachingRaise = componentByField(components, "JSFSZWTG2");
+    const teachingAllowance = componentByField(components, "JHLJT");
+    const ruralTeacher = componentByField(components, "NJBT");
+    const workAllowance = componentByField(components, "SDBT");
+    const specialAllowance = componentByField(components, "SIDBT");
+    const specialRetained = componentByField(components, "TGBLBF");
+    const otherAllowance = componentByField(components, "QTBT");
     const total = approvalTotalsFromHj(components);
+    const executePeriod = formatCompactPeriod(report.calculationPeriod || "");
+    return `
+        ${registerBeforeAfterRow(report, index, "前", {
+            total: total.beforeAmount,
+            position: report.previousPositionName,
+            level: report.previousGradeLevel || report.previousStepOrSalaryLevel,
+            positionSalary: positionSalary?.beforeAmount,
+            gradeSalary: gradeSalary?.beforeAmount,
+            teachingRaise: teachingRaise?.beforeAmount,
+            bonus: bonus?.beforeAmount,
+            retained: retained?.beforeAmount,
+            ruralTeacher: ruralTeacher?.beforeAmount,
+            teachingAllowance: teachingAllowance?.beforeAmount,
+            performance: performance?.beforeAmount,
+            workAllowance: workAllowance?.beforeAmount,
+            specialAllowance: specialAllowance?.beforeAmount,
+            specialRetained: specialRetained?.beforeAmount,
+            otherAllowance: otherAllowance?.beforeAmount,
+            difference: "",
+            executePeriod: "",
+        })}
+        ${registerBeforeAfterRow(report, index, "后", {
+            total: total.afterAmount,
+            position: report.currentPositionName,
+            level: report.currentGradeLevel || report.currentStepOrSalaryLevel,
+            positionSalary: positionSalary?.afterAmount,
+            gradeSalary: gradeSalary?.afterAmount,
+            teachingRaise: teachingRaise?.afterAmount,
+            bonus: bonus?.afterAmount,
+            retained: retained?.afterAmount,
+            ruralTeacher: ruralTeacher?.afterAmount,
+            teachingAllowance: teachingAllowance?.afterAmount,
+            performance: performance?.afterAmount,
+            workAllowance: workAllowance?.afterAmount,
+            specialAllowance: specialAllowance?.afterAmount,
+            specialRetained: specialRetained?.afterAmount,
+            otherAllowance: otherAllowance?.afterAmount,
+            difference: total.difference,
+            executePeriod,
+        })}
+    `;
+}
+
+function registerBeforeAfterRow(report, index, marker, values) {
+    const firstRow = marker === "前";
     return `
         <tr>
-            <td>${index + 1}</td>
-            <td>${escapeHtml(report.organizationName || report.organizationCode || "")}</td>
-            <td>${escapeHtml(report.personCode || "")}</td>
-            <td>${escapeHtml(report.name || "")}</td>
-            <td>${escapeHtml(formatApprovalPeriod(report.calculationPeriod || ""))}</td>
-            <td>${escapeHtml(report.changeType || "")}</td>
-            <td>${escapeHtml(report.previousPositionName || "")}</td>
-            <td>${escapeHtml(report.currentPositionName || "")}</td>
-            <td>${escapeHtml(joinNonEmpty(report.previousGradeLevel, report.previousStepOrSalaryLevel))}</td>
-            <td>${escapeHtml(joinNonEmpty(report.currentGradeLevel, report.currentStepOrSalaryLevel))}</td>
-            <td>${moneyOrDash(positionSalary?.beforeAmount)}</td>
-            <td>${moneyOrDash(positionSalary?.afterAmount)}</td>
-            <td>${moneyOrDash(gradeSalary?.beforeAmount)}</td>
-            <td>${moneyOrDash(gradeSalary?.afterAmount)}</td>
-            <td>${moneyOrDash(performance?.beforeAmount)}</td>
-            <td>${moneyOrDash(performance?.afterAmount)}</td>
-            <td>${moneyOrDash(retained?.beforeAmount)}</td>
-            <td>${moneyOrDash(retained?.afterAmount)}</td>
-            <td>${money(total.beforeAmount)}</td>
-            <td>${money(total.afterAmount)}</td>
-            <td>${money(total.difference)}</td>
+            ${firstRow ? `<td rowspan="2">${escapeHtml(report.name || "")}<br>${escapeHtml(report.personCode || "")}</td><td rowspan="2"></td>` : ""}
+            <td>${marker}</td>
+            <td>${moneyOrDash(values.total)}</td>
+            <td>${escapeHtml(values.position || "")}</td>
+            <td>${escapeHtml(values.level || "")}</td>
+            <td>${moneyOrDash(values.positionSalary)}</td>
+            <td>${moneyOrDash(values.gradeSalary)}</td>
+            <td>${moneyOrDash(values.teachingRaise)}</td>
+            <td>${moneyOrDash(values.bonus)}</td>
+            <td>${moneyOrDash(values.retained)}</td>
+            <td>${moneyOrDash(values.ruralTeacher)}</td>
+            <td>${moneyOrDash(values.teachingAllowance)}</td>
+            <td>${moneyOrDash(values.performance)}</td>
+            <td>${moneyOrDash(values.workAllowance)}</td>
+            <td>${moneyOrDash(values.specialAllowance)}</td>
+            <td>${moneyOrDash(values.specialRetained)}</td>
+            <td>${moneyOrDash(values.ruralTeacher)}</td>
+            <td>${moneyOrDash(values.otherAllowance)}</td>
+            <td>${values.difference === "" ? "" : money(values.difference)}</td>
+            <td>${escapeHtml(values.executePeriod || "")}</td>
+        </tr>
+    `;
+}
+
+function renderPayrollChangeRegisterTotals(reports) {
+    const totals = reports.reduce((sum, report) => {
+        const components = report.components || [];
+        const total = approvalTotalsFromHj(components);
+        const positionSalary = componentByField(components, "ZWGZSE2");
+        const gradeSalary = componentByField(components, "JBGZSE2");
+        const performance = componentByField(components, "DFBT2");
+        const retained = componentByField(components, "BLFB2");
+        return {
+            beforeTotal: sum.beforeTotal + Number(total.beforeAmount || 0),
+            afterTotal: sum.afterTotal + Number(total.afterAmount || 0),
+            difference: sum.difference + Number(total.difference || 0),
+            beforePositionSalary: sum.beforePositionSalary + Number(positionSalary?.beforeAmount || 0),
+            afterPositionSalary: sum.afterPositionSalary + Number(positionSalary?.afterAmount || 0),
+            beforeGradeSalary: sum.beforeGradeSalary + Number(gradeSalary?.beforeAmount || 0),
+            afterGradeSalary: sum.afterGradeSalary + Number(gradeSalary?.afterAmount || 0),
+            beforePerformance: sum.beforePerformance + Number(performance?.beforeAmount || 0),
+            afterPerformance: sum.afterPerformance + Number(performance?.afterAmount || 0),
+            beforeRetained: sum.beforeRetained + Number(retained?.beforeAmount || 0),
+            afterRetained: sum.afterRetained + Number(retained?.afterAmount || 0),
+        };
+    }, {
+        beforeTotal: 0, afterTotal: 0, difference: 0,
+        beforePositionSalary: 0, afterPositionSalary: 0,
+        beforeGradeSalary: 0, afterGradeSalary: 0,
+        beforePerformance: 0, afterPerformance: 0,
+        beforeRetained: 0, afterRetained: 0,
+    });
+    return `
+        <tr class="register-total-row">
+            <td rowspan="2">合计</td>
+            <td>人数<br>${reports.length}</td>
+            <td>前</td>
+            <td>${money(totals.beforeTotal)}</td>
+            <td colspan="2"></td>
+            <td>${money(totals.beforePositionSalary)}</td>
+            <td>${money(totals.beforeGradeSalary)}</td>
+            <td></td><td></td><td>${money(totals.beforeRetained)}</td><td></td><td></td>
+            <td>${money(totals.beforePerformance)}</td>
+            <td colspan="5"></td>
+            <td rowspan="2">${money(totals.difference)}</td>
+            <td></td>
+        </tr>
+        <tr class="register-total-row">
+            <td></td><td>后</td>
+            <td>${money(totals.afterTotal)}</td>
+            <td colspan="2"></td>
+            <td>${money(totals.afterPositionSalary)}</td>
+            <td>${money(totals.afterGradeSalary)}</td>
+            <td></td><td></td><td>${money(totals.afterRetained)}</td><td></td><td></td>
+            <td>${money(totals.afterPerformance)}</td>
+            <td colspan="5"></td>
+            <td></td>
         </tr>
     `;
 }
@@ -2588,6 +2703,13 @@ function formatApprovalPeriod(period) {
         return "-";
     }
     return `${period.slice(0, 4)}年${period.slice(4, 6)}月`;
+}
+
+function formatCompactPeriod(period) {
+    if (!period || period.length < 6) {
+        return "";
+    }
+    return `${period.slice(0, 4)}.${period.slice(4, 6)}`;
 }
 
 function joinNonEmpty(...values) {

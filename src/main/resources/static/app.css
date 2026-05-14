@@ -544,11 +544,20 @@ tr:last-child td {
     box-shadow: 0 18px 45px rgba(23, 32, 51, 0.08);
 }
 
+.register-topline {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 6px 0 4px;
+    font-family: "SimSun", "Songti SC", serif;
+    font-size: 13px;
+}
+
 .register-table {
-    min-width: 1500px;
+    min-width: 1780px;
     border: 1px solid #111827;
     font-family: "SimSun", "Songti SC", serif;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 .register-table th,
@@ -562,6 +571,10 @@ tr:last-child td {
 .register-table th {
     background: #fff;
     color: #111827;
+}
+
+.register-total-row td {
+    font-weight: 700;
 }
 
 .approval-topline {
