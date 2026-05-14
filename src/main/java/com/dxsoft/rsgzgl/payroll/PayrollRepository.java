@@ -1002,7 +1002,12 @@ class PayrollRepository {
                 SELECT h.*, dw.dwmc AS approval_dwmc, dw.dwsx AS approval_dwsx, dw.jxbl AS approval_jxbl,
                        p.sfzh AS approval_sfzh, p.xb AS approval_xb, p.csny AS approval_csny,
                        p.zgxl AS approval_zgxl, p.cjgzny AS approval_cjgzny, p.gznx AS approval_gznx,
-                       p.dah AS approval_dah, p.rzny AS approval_rzny
+                       p.dah AS approval_dah,
+                       (SELECT z.srny
+                        FROM dryzwbh z
+                        WHERE z.dwbm = h.dwbm AND z.grbm = h.grbm
+                        ORDER BY z.srny DESC, z.id DESC
+                        LIMIT 1) AS approval_rzny
                 FROM hisbase h
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
                 LEFT JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm

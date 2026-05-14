@@ -247,6 +247,7 @@ CREATE TABLE IF NOT EXISTS dryzwbh (
     gwbm VARCHAR(10),
     gwmc VARCHAR(30),
     gwlb VARCHAR(10),
+    srny VARCHAR(7),
     rzny VARCHAR(7),
     jgnx INTEGER DEFAULT 0,
     xrbz VARCHAR(2),
