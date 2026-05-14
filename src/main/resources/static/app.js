@@ -2209,15 +2209,27 @@ async function generateSelectedPayrollChangeRegister() {
 function renderPayrollChangeRegister(reports) {
     const preview = document.getElementById("report-payroll-change-preview");
     const selectedTitle = selectedReportTitle("report-payroll-change-type-select") || "工资变动花名册";
-    const organization = reports[0]?.organizationName || reports[0]?.organizationCode || "";
+    const pages = chunkArray(reports, 5);
     const institution = reports.some(report => isInstitutionApproval(report));
     const registerLabels = registerColumnLabels(institution);
-    preview.innerHTML = `
+    preview.innerHTML = pages.map((pageReports, pageIndex) => renderPayrollChangeRegisterPage(
+        pageReports,
+        selectedTitle,
+        registerLabels,
+        pageIndex + 1,
+        pages.length)).join("");
+    preview.classList.remove("hidden");
+    preview.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderPayrollChangeRegisterPage(reports, selectedTitle, registerLabels, pageNumber, pageCount) {
+    const organization = reports[0]?.organizationName || reports[0]?.organizationCode || "";
+    return `
         <div class="register-sheet">
             <div class="approval-sheet-header"><h3>${escapeHtml(selectedTitle)}</h3></div>
             <div class="register-topline">
                 <span>单位名称：${escapeHtml(organization)}[单位编码：${escapeHtml(reports[0]?.organizationCode || "")}]</span>
-                <span>第 1 页&nbsp;&nbsp;共 1 页</span>
+                <span>第 ${pageNumber} 页&nbsp;&nbsp;共 ${pageCount} 页</span>
             </div>
             <table class="register-table">
                 <thead>
@@ -2255,8 +2267,6 @@ function renderPayrollChangeRegister(reports) {
             </table>
         </div>
     `;
-    preview.classList.remove("hidden");
-    preview.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function renderPayrollChangeRegisterRow(report, index) {
@@ -2433,6 +2443,14 @@ function registerColumnLabels(institution) {
             positionSalary: "职务工资",
             gradeSalary: "级别工资",
         };
+}
+
+function chunkArray(items, size) {
+    const chunks = [];
+    for (let index = 0; index < items.length; index += size) {
+        chunks.push(items.slice(index, index + size));
+    }
+    return chunks.length ? chunks : [[]];
 }
 
 async function onPayrollChangeApprovalReportSearch(event) {

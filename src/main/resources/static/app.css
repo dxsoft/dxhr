@@ -553,6 +553,11 @@ tr:last-child td {
     padding: 18px;
     background: #fff;
     box-shadow: 0 18px 45px rgba(23, 32, 51, 0.08);
+    page-break-after: always;
+}
+
+.register-sheet:last-child {
+    page-break-after: auto;
 }
 
 .register-topline {
@@ -1080,6 +1085,22 @@ tr:last-child td {
         margin: 0;
         padding: 0;
         box-shadow: none;
+        page-break-after: always;
+    }
+
+    .register-sheet:last-child {
+        page-break-after: auto;
+    }
+
+    .register-table {
+        width: 100%;
+        min-width: 0;
+        font-size: 8px;
+    }
+
+    .register-table th,
+    .register-table td {
+        padding: 3px 2px;
     }
 
     .approval-sheet-header h3 {
