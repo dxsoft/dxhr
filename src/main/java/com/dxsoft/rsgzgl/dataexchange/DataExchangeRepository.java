@@ -85,9 +85,9 @@ class DataExchangeRepository {
         long total = jdbcTemplate.queryForObject(countSql, Long.class, params.toArray());
 
         String querySql = """
-                SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csn_yf,
-                       r.rylb, r.dwsx, r.gwfl, r.cjgz_yf, r.zz_yf, r.gznx,
-                       r.xl, r.zgxl, r.dqzwjb, r.zjbm, r.dqzw, r.rzny,
+                SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
+                       r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
+                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw, r.rzny,
                        r.mz, r.zzmm, r.dah,
                        h.gw, h.zw, h.jb, h.dc
                 FROM dryjbxx r
@@ -114,18 +114,18 @@ class DataExchangeRepository {
                 rs.getString("xm"),
                 rs.getString("sfzh"),
                 rs.getString("xb"),
-                rs.getString("csn_yf"),
-                rs.getString("rylb"),
+                rs.getString("csny"),
+                rs.getString("ryfl"),
                 rs.getString("dwsx"),
                 rs.getString("gwfl"),
-                rs.getString("cjgz_yf"),
-                rs.getString("zz_yf"),
+                rs.getString("cjgzny"),
+                rs.getString("zzny"),
                 rs.getObject("gznx", Integer.class),
-                rs.getString("xl"),
+                rs.getString("xlbm"),
                 rs.getString("zgxl"),
-                rs.getString("dqzwjb"),
+                rs.getString("zwjb"),
                 rs.getString("zjbm"),
-                rs.getString("dqzw"),
+                rs.getString("xrzw"),
                 rs.getString("rzny"),
                 rs.getString("mz"),
                 rs.getString("zzmm"),
@@ -184,7 +184,7 @@ class DataExchangeRepository {
         long total = jdbcTemplate.queryForObject(countSql, Long.class, params.toArray());
 
         String querySql = """
-                SELECT h.dwbm, d.dwmc, h.grbm, h.xm, r.sfzh, r.xb, r.csn_yf, r.rylb,
+                SELECT h.dwbm, d.dwmc, h.grbm, h.xm, r.sfzh, r.xb, r.csny, r.ryfl,
                        h.gw, h.zw, h.jb, h.dc, h.ny, h.bdlb,
                        h.zwgz, h.jbgz, h.jsdjgz, h.jxgz, h.blfb, h.jxjt, h.njbt,
                        h.jhljt, h.tggz, h.fdgz, h.jjjy, h.pgbc, h.hj
@@ -212,8 +212,8 @@ class DataExchangeRepository {
                 rs.getString("xm"),
                 rs.getString("sfzh"),
                 rs.getString("xb"),
-                rs.getString("csn_yf"),
-                rs.getString("rylb"),
+                rs.getString("csny"),
+                rs.getString("ryfl"),
                 rs.getString("gw"),
                 rs.getString("zw"),
                 rs.getString("jb"),
@@ -268,9 +268,9 @@ class DataExchangeRepository {
         String whereClause = conditions.isEmpty() ? "" : "WHERE " + String.join(" AND ", conditions);
 
         String querySql = """
-                SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csn_yf,
-                       r.rylb, r.dwsx, r.gwfl, r.cjgz_yf, r.zz_yf, r.gznx,
-                       r.xl, r.zgxl, r.dqzwjb, r.zjbm, r.dqzw, r.rzny,
+                SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
+                       r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
+                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw, r.rzny,
                        r.mz, r.zzmm, r.dah,
                        h.gw, h.zw, h.jb, h.dc
                 FROM dryjbxx r
@@ -290,9 +290,9 @@ class DataExchangeRepository {
         }
         String placeholders = resolvedCodes.stream().map(code -> "?").collect(Collectors.joining(", "));
         String querySql = """
-                SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csn_yf,
-                       r.rylb, r.dwsx, r.gwfl, r.cjgz_yf, r.zz_yf, r.gznx,
-                       r.xl, r.zgxl, r.dqzwjb, r.zjbm, r.dqzw, r.rzny,
+                SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
+                       r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
+                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw, r.rzny,
                        r.mz, r.zzmm, r.dah,
                        h.gw, h.zw, h.jb, h.dc
                 FROM dryjbxx r
@@ -311,9 +311,9 @@ class DataExchangeRepository {
         List<PersonnelExportRecord> rows = new ArrayList<>();
         for (DataExchangeController.PersonKey key : selectedPersonnel) {
             rows.addAll(jdbcTemplate.query("""
-                    SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csn_yf,
-                           r.rylb, r.dwsx, r.gwfl, r.cjgz_yf, r.zz_yf, r.gznx,
-                           r.xl, r.zgxl, r.dqzwjb, r.zjbm, r.dqzw, r.rzny,
+                    SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
+                           r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
+                           r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw, r.rzny,
                            r.mz, r.zzmm, r.dah,
                            h.gw, h.zw, h.jb, h.dc
                     FROM dryjbxx r
@@ -460,8 +460,8 @@ class DataExchangeRepository {
     private void insertPersonnel(PersonnelExportRecord row, String organizationCode, String personCode) {
         jdbcTemplate.update("""
                 INSERT INTO dryjbxx (
-                    dwbm, grbm, xm, sfzh, xb, csn_yf, rylb, dwsx, gwfl,
-                    cjgz_yf, zz_yf, gznx, xl, zgxl, dqzwjb, zjbm, dqzw,
+                    dwbm, grbm, xm, sfzh, xb, csny, ryfl, dwsx, gwfl,
+                    cjgzny, zzny, gznx, xlbm, zgxl, zwjb, zjbm, xrzw,
                     rzny, mz, zzmm, dah
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,

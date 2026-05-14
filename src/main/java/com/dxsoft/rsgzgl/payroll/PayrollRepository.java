@@ -1000,8 +1000,8 @@ class PayrollRepository {
     Map<String, Object> findHistoryValuesById(String id) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT h.*, dw.dwmc AS approval_dwmc, dw.dwsx AS approval_dwsx, dw.jxbl AS approval_jxbl,
-                       p.sfzh AS approval_sfzh, p.xb AS approval_xb, p.csn_yf AS approval_csn_yf,
-                       p.zgxl AS approval_zgxl, p.cjgz_yf AS approval_cjgz_yf, p.gznx AS approval_gznx,
+                       p.sfzh AS approval_sfzh, p.xb AS approval_xb, p.csny AS approval_csny,
+                       p.zgxl AS approval_zgxl, p.cjgzny AS approval_cjgzny, p.gznx AS approval_gznx,
                        p.dah AS approval_dah, p.rzny AS approval_rzny
                 FROM hisbase h
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
