@@ -97,11 +97,16 @@ class DataExchangeService {
     DataExchangeController.ReceivePreviewResponse previewReceive(DataExchangeController.ReceiveRequest request) {
         PersonnelExchangePackage payload = parsePackage(request.packageJson());
         List<PersonnelExportRecord> rows = filterReceiveRows(payload.personnel(), request.selectedPersonnel());
+        boolean append = "APPEND".equalsIgnoreCase(request.mode());
+        List<DataExchangeController.ReceivePreviewRow> previewRows = buildPreviewRows(rows, payload.relatedTables(), append, request.targetOrganizationCode());
+        DataExchangeController.ReceiveSummary summary = buildSummary(previewRows, payload.relatedTables());
         return new DataExchangeController.ReceivePreviewResponse(
                 rows.size(),
                 rows.stream().limit(50).toList(),
+                previewRows.stream().limit(100).toList(),
+                summary,
                 List.of(),
-                "预览成功，可选择整体接收或勾选人员追加接收");
+                append ? "预览成功：勾选人员将追加到目标单位并重新编码" : "预览成功：整体接收将替换同单位同个人编码数据");
     }
 
     DataExchangeController.ReceiveApplyResponse applyReceive(DataExchangeController.ReceiveRequest request) {
@@ -111,11 +116,24 @@ class DataExchangeService {
         if (append && (request.targetOrganizationCode() == null || request.targetOrganizationCode().isBlank())) {
             throw new IllegalArgumentException("追加接收需要选择接收单位");
         }
+        List<DataExchangeController.CodeMapping> mappings = append
+                ? dataExchangeRepository.plannedAppendMappings(rows, request.targetOrganizationCode())
+                : rows.stream()
+                        .map(row -> new DataExchangeController.CodeMapping(
+                                row.organizationCode(), row.personCode(), row.organizationCode(), row.personCode(), row.name()))
+                        .toList();
+        int existing = append ? 0 : (int) rows.stream().filter(row -> dataExchangeRepository.personExists(row.organizationCode(), row.personCode())).count();
         int count = append
                 ? dataExchangeRepository.appendReceivedPersonnel(rows, payload.relatedTables(), request.targetOrganizationCode())
                 : dataExchangeRepository.replaceReceivedPersonnel(rows, payload.relatedTables());
+        DataExchangeController.ReceiveSummary summary = buildSummary(buildPreviewRows(rows, payload.relatedTables(), append, request.targetOrganizationCode()), payload.relatedTables());
         return new DataExchangeController.ReceiveApplyResponse(
                 count,
+                append ? 0 : count - existing,
+                append ? 0 : existing,
+                append ? count : 0,
+                mappings,
+                summary,
                 append ? "已按追加方式接收并重新编码" : "已整体接收并替换相同单位编码和个人编码数据");
     }
 
@@ -192,6 +210,62 @@ class DataExchangeService {
 
     private boolean equalsText(String left, String right) {
         return String.valueOf(left == null ? "" : left).trim().equals(String.valueOf(right == null ? "" : right).trim());
+    }
+
+    private List<DataExchangeController.ReceivePreviewRow> buildPreviewRows(
+            List<PersonnelExportRecord> rows,
+            List<ExchangeTable> relatedTables,
+            boolean append,
+            String targetOrganizationCode) {
+        List<DataExchangeController.CodeMapping> appendMappings = append
+                ? dataExchangeRepository.plannedAppendMappings(rows, targetOrganizationCode)
+                : List.of();
+        return rows.stream().map(row -> {
+            boolean exists = dataExchangeRepository.personExists(row.organizationCode(), row.personCode());
+            boolean targetExists = !append || dataExchangeRepository.organizationExists(targetOrganizationCode);
+            String action = append ? "重新编码追加" : exists ? "替换" : "新增";
+            String targetCode = appendMappings.stream()
+                    .filter(mapping -> equalsText(mapping.sourceOrganizationCode(), row.organizationCode())
+                            && equalsText(mapping.sourcePersonCode(), row.personCode()))
+                    .map(DataExchangeController.CodeMapping::targetPersonCode)
+                    .findFirst()
+                    .orElse(row.personCode());
+            return new DataExchangeController.ReceivePreviewRow(
+                    row.organizationCode(),
+                    row.personCode(),
+                    row.name(),
+                    action,
+                    targetExists,
+                    append ? targetOrganizationCode : row.organizationCode(),
+                    targetCode,
+                    relatedCountsForPerson(relatedTables, row.organizationCode(), row.personCode()));
+        }).toList();
+    }
+
+    private DataExchangeController.ReceiveSummary buildSummary(
+            List<DataExchangeController.ReceivePreviewRow> rows,
+            List<ExchangeTable> relatedTables) {
+        int append = (int) rows.stream().filter(row -> "重新编码追加".equals(row.action())).count();
+        int replace = (int) rows.stream().filter(row -> "替换".equals(row.action())).count();
+        int created = (int) rows.stream().filter(row -> "新增".equals(row.action())).count();
+        List<DataExchangeController.TableCount> counts = relatedTables == null ? List.of() : relatedTables.stream()
+                .map(table -> new DataExchangeController.TableCount(table.tableName(), table.rows() == null ? 0 : table.rows().size()))
+                .toList();
+        return new DataExchangeController.ReceiveSummary(rows.size(), created, replace, append, counts);
+    }
+
+    private List<DataExchangeController.TableCount> relatedCountsForPerson(List<ExchangeTable> relatedTables, String orgCode, String personCode) {
+        if (relatedTables == null) {
+            return List.of();
+        }
+        return relatedTables.stream()
+                .map(table -> new DataExchangeController.TableCount(
+                        table.tableName(),
+                        table.rows() == null ? 0 : (int) table.rows().stream()
+                                .filter(row -> equalsText(String.valueOf(row.getOrDefault("dwbm", row.get("DWBM"))), orgCode)
+                                        && equalsText(String.valueOf(row.getOrDefault("grbm", row.get("GRBM"))), personCode))
+                                .count()))
+                .toList();
     }
 
     record PersonnelExchangePackage(

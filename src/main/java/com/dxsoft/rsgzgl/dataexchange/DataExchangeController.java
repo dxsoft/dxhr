@@ -86,9 +86,47 @@ class DataExchangeController {
             List<PersonKey> selectedPersonnel) {
     }
 
-    record ReceivePreviewResponse(int totalRecords, List<PersonnelExportRecord> rows, List<String> sampleErrors, String message) {
+    record ReceivePreviewResponse(
+            int totalRecords,
+            List<PersonnelExportRecord> rows,
+            List<ReceivePreviewRow> previewRows,
+            ReceiveSummary summary,
+            List<String> sampleErrors,
+            String message) {
     }
 
-    record ReceiveApplyResponse(int receivedRecords, String message) {
+    record ReceivePreviewRow(
+            String organizationCode,
+            String personCode,
+            String name,
+            String action,
+            boolean targetOrganizationExists,
+            String targetOrganizationCode,
+            String targetPersonCode,
+            List<TableCount> relatedCounts) {
+    }
+
+    record TableCount(String tableName, int count) {
+    }
+
+    record ReceiveSummary(
+            int totalRecords,
+            int newRecords,
+            int replaceRecords,
+            int appendRecords,
+            List<TableCount> relatedCounts) {
+    }
+
+    record CodeMapping(String sourceOrganizationCode, String sourcePersonCode, String targetOrganizationCode, String targetPersonCode, String name) {
+    }
+
+    record ReceiveApplyResponse(
+            int receivedRecords,
+            int newRecords,
+            int replacedRecords,
+            int appendedRecords,
+            List<CodeMapping> codeMappings,
+            ReceiveSummary relatedSummary,
+            String message) {
     }
 }

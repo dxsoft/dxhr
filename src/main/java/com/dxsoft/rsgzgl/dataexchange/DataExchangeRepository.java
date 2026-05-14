@@ -367,6 +367,47 @@ class DataExchangeRepository {
         return count;
     }
 
+    boolean personExists(String organizationCode, String personCode) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM dryjbxx WHERE dwbm = ? AND grbm = ?",
+                Integer.class,
+                organizationCode,
+                personCode);
+        return count != null && count > 0;
+    }
+
+    boolean organizationExists(String organizationCode) {
+        if (organizationCode == null || organizationCode.isBlank()) {
+            return false;
+        }
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM dwbm WHERE dwbm = ?",
+                Integer.class,
+                organizationCode);
+        return count != null && count > 0;
+    }
+
+    String previewNextPersonCode(String organizationCode) {
+        if (organizationCode == null || organizationCode.isBlank()) {
+            return "";
+        }
+        return "%05d".formatted(nextPersonCode(organizationCode));
+    }
+
+    List<DataExchangeController.CodeMapping> plannedAppendMappings(List<PersonnelExportRecord> rows, String targetOrganizationCode) {
+        List<DataExchangeController.CodeMapping> mappings = new ArrayList<>();
+        int nextCode = nextPersonCode(targetOrganizationCode);
+        for (PersonnelExportRecord row : rows) {
+            mappings.add(new DataExchangeController.CodeMapping(
+                    row.organizationCode(),
+                    row.personCode(),
+                    targetOrganizationCode,
+                    "%05d".formatted(nextCode++),
+                    row.name()));
+        }
+        return mappings;
+    }
+
     private List<String> resolveOrganizationCodes(List<String> organizationCodes, boolean includeDescendants) {
         List<String> selected = organizationCodes == null ? List.of() : organizationCodes.stream()
                 .filter(code -> code != null && !code.isBlank())

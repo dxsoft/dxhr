@@ -4128,17 +4128,24 @@ async function onDataExchangeReceivePreview(event) {
 async function previewDataExchangeReceive() {
     const status = document.getElementById("data-exchange-receive-status");
     const rows = document.getElementById("data-exchange-receive-rows");
+    const summary = document.getElementById("data-exchange-receive-summary");
     status.className = "status";
     status.textContent = "正在解析数据包...";
     rows.innerHTML = "";
+    summary.classList.add("hidden");
+    summary.innerHTML = "";
     try {
         const result = await postJson("/api/data-exchange/receive/preview", {
             packageJson: document.getElementById("data-exchange-receive-json").value,
-            mode: "PREVIEW",
+            mode: document.getElementById("data-exchange-receive-target-organization").value ? "APPEND" : "REPLACE",
+            targetOrganizationCode: document.getElementById("data-exchange-receive-target-organization").value,
             selectedPersonnel: [],
         });
         state.dataExchangeReceiveRows = result.rows || [];
-        rows.innerHTML = state.dataExchangeReceiveRows.map(row => `
+        const previewRows = result.previewRows || [];
+        rows.innerHTML = state.dataExchangeReceiveRows.map(row => {
+            const preview = previewRows.find(item => item.organizationCode === row.organizationCode && item.personCode === row.personCode) || {};
+            return `
             <tr>
                 <td><input type="checkbox" data-receive-select value="${escapeHtml(row.organizationCode)}|${escapeHtml(row.personCode)}"></td>
                 <td>${escapeHtml(row.organizationName || row.organizationCode)}</td>
@@ -4147,8 +4154,15 @@ async function previewDataExchangeReceive() {
                 <td>${escapeHtml(maskIdCardClient(row.idCard))}</td>
                 <td>${escapeHtml(row.currentJob || "")}</td>
                 <td>${escapeHtml(row.currentGrade || "")}</td>
+                <td>${escapeHtml(preview.action || "")}</td>
+                <td>${escapeHtml(preview.targetOrganizationCode || "")}</td>
+                <td>${escapeHtml(preview.targetPersonCode || "")}</td>
+                <td>${preview.targetOrganizationExists === false ? "否" : "是"}</td>
+                <td>${formatTableCounts(preview.relatedCounts || [])}</td>
             </tr>
-        `).join("");
+        `}).join("");
+        summary.innerHTML = renderReceiveSummary(result.summary);
+        summary.classList.remove("hidden");
         status.textContent = result.message || `预览 ${result.totalRecords} 人`;
     } catch (error) {
         showError(status, error);
@@ -4158,18 +4172,46 @@ async function previewDataExchangeReceive() {
 async function applyDataExchangeReceive(mode) {
     const status = document.getElementById("data-exchange-receive-status");
     status.className = "status";
+    const selected = mode === "APPEND" ? selectedExchangeKeys("[data-receive-select]:checked") : [];
+    const confirmMessage = mode === "APPEND"
+        ? `将追加 ${selected.length} 人到单位 ${document.getElementById("data-exchange-receive-target-organization").value}，并重新生成个人编码，是否继续？`
+        : "将整体接收数据包并替换本地相同单位编码和个人编码数据，是否继续？";
+    if (!window.confirm(confirmMessage)) {
+        return;
+    }
     status.textContent = mode === "APPEND" ? "正在追加接收勾选人员..." : "正在整体接收并替换数据...";
     try {
         const result = await postJson("/api/data-exchange/receive/apply", {
             packageJson: document.getElementById("data-exchange-receive-json").value,
             mode,
             targetOrganizationCode: document.getElementById("data-exchange-receive-target-organization").value,
-            selectedPersonnel: mode === "APPEND" ? selectedExchangeKeys("[data-receive-select]:checked") : [],
+            selectedPersonnel: selected,
         });
-        status.textContent = result.message || `已接收 ${result.receivedRecords} 人`;
+        const mappingText = (result.codeMappings || []).map(item =>
+            `${escapeHtml(item.name)}：${escapeHtml(item.sourceOrganizationCode)}-${escapeHtml(item.sourcePersonCode)} -> ${escapeHtml(item.targetOrganizationCode)}-${escapeHtml(item.targetPersonCode)}`
+        ).join("；");
+        status.textContent = `${result.message || `已接收 ${result.receivedRecords} 人`}。新增 ${result.newRecords || 0}，替换 ${result.replacedRecords || 0}，追加 ${result.appendedRecords || 0}${mappingText ? "。编码映射：" + mappingText : ""}`;
     } catch (error) {
         showError(status, error);
     }
+}
+
+function renderReceiveSummary(summary) {
+    if (!summary) {
+        return "";
+    }
+    return `
+        <strong>接收预览</strong>
+        <p>总人数：${summary.totalRecords || 0}；新增：${summary.newRecords || 0}；替换：${summary.replaceRecords || 0}；重新编码追加：${summary.appendRecords || 0}</p>
+        <p>子表记录：${formatTableCounts(summary.relatedCounts || [])}</p>
+    `;
+}
+
+function formatTableCounts(counts) {
+    return (counts || [])
+        .filter(item => Number(item.count || 0) > 0)
+        .map(item => `${escapeHtml(item.tableName)}:${Number(item.count || 0)}`)
+        .join("，") || "无";
 }
 
 function selectedExchangeKeys(selector) {
