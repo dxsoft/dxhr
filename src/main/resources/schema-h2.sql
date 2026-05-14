@@ -276,6 +276,62 @@ CREATE TABLE IF NOT EXISTS dndkh (
     khjg VARCHAR(10)
 );
 
+CREATE TABLE IF NOT EXISTS jx (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    dwbm VARCHAR(9) NOT NULL,
+    grbm VARCHAR(5) NOT NULL,
+    jx VARCHAR(20),
+    sysj VARCHAR(7),
+    syyy VARCHAR(20),
+    rmwh VARCHAR(40),
+    xrjxbz TINYINT DEFAULT 0,
+    lb VARCHAR(2)
+);
+
+CREATE TABLE IF NOT EXISTS dtgxx (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    dwbm VARCHAR(9) NOT NULL,
+    grbm VARCHAR(5) NOT NULL,
+    cjgzny VARCHAR(7),
+    xlnx INTEGER DEFAULT 0,
+    zdgznx INTEGER DEFAULT 0,
+    kjnx INTEGER DEFAULT 0,
+    tgnx INTEGER DEFAULT 0,
+    zwbm VARCHAR(10),
+    zwmc VARCHAR(30),
+    rzsj VARCHAR(7),
+    rznx INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS tgqgz2006 (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    dwbm VARCHAR(9) NOT NULL,
+    grbm VARCHAR(5) NOT NULL,
+    xm VARCHAR(20),
+    sfzh VARCHAR(18),
+    xb VARCHAR(2),
+    csny VARCHAR(7),
+    ryfl VARCHAR(20),
+    dwsx VARCHAR(10),
+    gwfl VARCHAR(20),
+    cjgzny VARCHAR(7),
+    zzny VARCHAR(7)
+);
+
+CREATE TABLE IF NOT EXISTS hjxx (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    dwbm VARCHAR(9) NOT NULL,
+    grbm VARCHAR(5) NOT NULL,
+    hjmc VARCHAR(40),
+    sjdw VARCHAR(40),
+    jllx VARCHAR(20),
+    hjsj VARCHAR(7),
+    tqyjjssj VARCHAR(10),
+    qtqk VARCHAR(200),
+    jldc INTEGER DEFAULT 0,
+    jljb INTEGER DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS dmb (
     bm VARCHAR(20) PRIMARY KEY,
     mc VARCHAR(40),
@@ -417,6 +473,18 @@ INSERT INTO cyxx (dwbm, dwmc, ds, sprq, gzbt, jxmc, shbtmc) VALUES
 
 INSERT INTO xtcs (qydrdk, tgdcglbxl, xsws, jwbz, tgjjjy, fdgz) VALUES
 (1, 1, 2, 1, 1, 1);
+
+INSERT INTO jx (dwbm, grbm, jx, sysj, syyy, rmwh, xrjxbz, lb) VALUES
+('001', '00001', '三级警督', '2020.01', '授予', '示例文号', 1, 'jx');
+
+INSERT INTO dtgxx (dwbm, grbm, cjgzny, xlnx, zdgznx, kjnx, tgnx, zwbm, zwmc, rzsj, rznx) VALUES
+('001', '00001', '2010.01', 0, 14, 14, 14, '0701', '科员', '2020.01', 4);
+
+INSERT INTO tgqgz2006 (dwbm, grbm, xm, sfzh, xb, csny, ryfl, dwsx, gwfl, cjgzny, zzny) VALUES
+('001', '00001', '张三', '110101199001011234', '男', '1990.01', '公务员', '机关', '综合管理', '2010.01', '2011.01');
+
+INSERT INTO hjxx (dwbm, grbm, hjmc, sjdw, jllx, hjsj, tqyjjssj, qtqk, jldc, jljb) VALUES
+('001', '00001', '嘉奖', '市委组织部', '奖励', '2022.01', '', '', 0, 0);
 
 INSERT INTO rptinfo (lbbm, cname, ctitle, cfilename, rpttype, bblb, dyclb, dycfw, mrhs, copies, cdefault, lbmc) VALUES
 ('001', '机关正常档次晋升工资变动审批表', '河南省机关工作人员正常档次晋升工资变动审批表', 'jgjdspb', '工资', '审批表', '工资变动', '逐人', 1, 1, '国发2006-22号', '审批表'),

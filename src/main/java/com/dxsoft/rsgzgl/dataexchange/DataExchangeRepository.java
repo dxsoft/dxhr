@@ -24,7 +24,15 @@ import org.springframework.stereotype.Repository;
 @Repository
 class DataExchangeRepository {
 
-    private static final List<String> RELATED_TABLES = List.of("hisbase", "dryzwbh", "dxl", "dndkh");
+    private static final List<String> RELATED_TABLES = List.of(
+            "hisbase",
+            "dryzwbh",
+            "dxl",
+            "dndkh",
+            "jx",
+            "dtgxx",
+            "tgqgz2006",
+            "hjxx");
 
     private final JdbcTemplate jdbcTemplate;
     private final AccessControlService accessControlService;
