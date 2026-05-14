@@ -1384,22 +1384,31 @@
         <div class="panel-title">
             <div>
                 <h2>工资变动花名册</h2>
-                <p>按单位、变动年月和关键词预览 `hisbase` 工资变动花名册，可使用浏览器打印。</p>
+                <p>选择单位、花名册类别和变动年度，筛选符合条件人员，勾选后生成一张花名册打印。</p>
             </div>
-            <button id="payroll-change-register-print" type="button">打印预览</button>
+            <button id="payroll-change-register-print" type="button">打印花名册</button>
         </div>
         <form id="payroll-change-register-report-form" class="toolbar">
-            <label>单位名称<input id="report-payroll-change-organization-code" placeholder="输入单位名称或编码"></label>
-            <label>变动年月<input id="report-payroll-change-period" placeholder="例如 202407"></label>
+            <label>单位名称
+                <div class="dict-input-combo">
+                    <input id="report-payroll-change-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="report-payroll-change-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择花名册单位">⌄</button>
+                </div>
+            </label>
+            <label>花名册类别<select id="report-payroll-change-type-select"></select></label>
+            <label>变动年度<input id="report-payroll-change-year" type="number" min="1900" max="2100" value="2024"></label>
             <label>关键词<input id="report-payroll-change-keyword" placeholder="人员编码 / 姓名 / 变动类别 / 岗位"></label>
             <label>每页数量<input id="report-payroll-change-size" type="number" min="1" max="500" value="50"></label>
-            <button type="submit">查询报表</button>
+            <button type="submit">查询人员</button>
+            <button id="report-payroll-change-generate-selected" type="button">生成选中花名册</button>
         </form>
+        <div class="report-count-pill">总人数 <strong id="report-payroll-change-total-count">0</strong></div>
         <div id="report-payroll-change-status" class="status"></div>
-        <div class="table-wrap report-print-area">
+        <div class="table-wrap">
             <table>
                 <thead>
                 <tr>
+                    <th><input id="report-payroll-change-select-all" type="checkbox" aria-label="全选花名册人员"></th>
                     <th>单位</th>
                     <th>人员编码</th>
                     <th>姓名</th>
@@ -1422,6 +1431,7 @@
                 <tbody id="report-payroll-change-rows"></tbody>
             </table>
         </div>
+        <div id="report-payroll-change-preview" class="report-print-area hidden"></div>
     </section>
 
     <section id="payroll-change-approval-report" class="panel hidden" data-menu-code="PAYROLL_CHANGE_APPROVAL_REPORT">

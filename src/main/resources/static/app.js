@@ -118,6 +118,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("payroll-change-register-report-form").addEventListener("submit", onPayrollChangeRegisterReportSearch);
     document.getElementById("payroll-change-register-print").addEventListener("click", () => window.print());
+    document.getElementById("report-payroll-change-generate-selected").addEventListener("click", generateSelectedPayrollChangeRegister);
+    document.getElementById("report-payroll-change-select-all").addEventListener("change", event => {
+        document.querySelectorAll("[data-register-select]").forEach(checkbox => checkbox.checked = event.target.checked);
+    });
     document.getElementById("payroll-change-approval-report-form").addEventListener("submit", onPayrollChangeApprovalReportSearch);
     document.getElementById("payroll-change-approval-print").addEventListener("click", () => window.print());
     document.getElementById("report-approval-generate-selected").addEventListener("click", generateSelectedPayrollChangeApprovals);
@@ -226,6 +230,7 @@ async function initializeAuth() {
             await loadPayrollHistory();
         }
         if (hasMenu("PAYROLL_CHANGE_REGISTER_REPORT")) {
+            await loadReportTypes();
             await loadPayrollChangeRegisterReport();
         }
         if (hasMenu("PAYROLL_CHANGE_APPROVAL_REPORT")) {
@@ -436,6 +441,7 @@ function initializeOrganizationPickerInput() {
     bindOrganizationPickerInput("maint-organization-name", "maint-organization-picker-button", "maintenance");
     bindOrganizationPickerInput("maint-search-organization-code", "maint-search-organization-picker-button", "maintenanceSearch");
     bindOrganizationPickerInput("report-approval-organization-code", "report-approval-organization-picker-button", "reportApproval");
+    bindOrganizationPickerInput("report-payroll-change-organization-code", "report-payroll-change-organization-picker-button", "reportRegister");
 }
 
 function bindOrganizationPickerInput(inputId, buttonId, target) {
@@ -560,6 +566,12 @@ function selectOrganizationNode(code, name) {
     }
     if (state.activeOrganizationTarget === "reportApproval") {
         const input = document.getElementById("report-approval-organization-code");
+        input.value = code;
+        input.title = name || code;
+        return;
+    }
+    if (state.activeOrganizationTarget === "reportRegister") {
+        const input = document.getElementById("report-payroll-change-organization-code");
         input.value = code;
         input.title = name || code;
         return;
@@ -2083,15 +2095,19 @@ async function onPayrollChangeRegisterReportSearch(event) {
 
 async function loadPayrollChangeRegisterReport() {
     const organizationCode = document.getElementById("report-payroll-change-organization-code").value.trim();
-    const period = document.getElementById("report-payroll-change-period").value.trim();
+    const reportTypeCode = document.getElementById("report-payroll-change-type-select").value.trim();
+    const year = document.getElementById("report-payroll-change-year").value.trim();
     const keyword = document.getElementById("report-payroll-change-keyword").value.trim();
     const size = document.getElementById("report-payroll-change-size").value || "50";
     const params = new URLSearchParams({ page: "0", size });
     if (organizationCode) {
         params.set("organizationCode", organizationCode);
     }
-    if (period) {
-        params.set("period", period);
+    if (reportTypeCode) {
+        params.set("reportTypeCode", reportTypeCode);
+    }
+    if (year) {
+        params.set("year", year);
     }
     if (keyword) {
         params.set("keyword", keyword);
@@ -2101,10 +2117,16 @@ async function loadPayrollChangeRegisterReport() {
     status.className = "status";
     status.textContent = "正在加载工资变动花名册...";
     rows.innerHTML = "";
+    document.getElementById("report-payroll-change-preview").classList.add("hidden");
+    document.getElementById("report-payroll-change-preview").innerHTML = "";
+    document.getElementById("report-payroll-change-select-all").checked = false;
     try {
-        const result = await getJson(`/api/reports/payroll-change-register?${params}`);
+        const result = await getJson(`/api/reports/payroll-change-candidates?${params}`);
+        state.payrollChangeRegisterCandidates = result.content || [];
+        document.getElementById("report-payroll-change-total-count").textContent = result.totalElements || 0;
         rows.innerHTML = (result.content || []).map(row => `
             <tr>
+                <td><input type="checkbox" data-register-select value="${escapeHtml(row.payrollHistoryId)}"></td>
                 <td>${escapeHtml(row.organizationCode)} ${escapeHtml(row.organizationName || "")}</td>
                 <td>${escapeHtml(row.personCode)}</td>
                 <td>${escapeHtml(row.name)}</td>
@@ -2130,28 +2152,148 @@ async function loadPayrollChangeRegisterReport() {
     }
 }
 
+async function generateSelectedPayrollChangeRegister() {
+    const selectedIds = Array.from(document.querySelectorAll("[data-register-select]:checked"))
+        .map(input => input.value)
+        .filter(Boolean);
+    const status = document.getElementById("report-payroll-change-status");
+    if (selectedIds.length === 0) {
+        status.className = "status error";
+        status.textContent = "请先勾选需要打印的人员。";
+        return;
+    }
+    status.className = "status";
+    status.textContent = `正在生成 ${selectedIds.length} 人花名册...`;
+    try {
+        const reports = [];
+        for (const id of selectedIds) {
+            reports.push(await getJson(`/api/reports/payroll-change-approval?payrollHistoryId=${encodeURIComponent(id)}`));
+        }
+        renderPayrollChangeRegister(reports);
+        status.textContent = `已生成 ${reports.length} 人花名册`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function renderPayrollChangeRegister(reports) {
+    const preview = document.getElementById("report-payroll-change-preview");
+    const selectedTitle = selectedReportTitle("report-payroll-change-type-select") || "工资变动花名册";
+    preview.innerHTML = `
+        <div class="register-sheet">
+            <div class="approval-sheet-header"><h3>${escapeHtml(selectedTitle)}</h3></div>
+            <table class="register-table">
+                <thead>
+                <tr>
+                    <th>序号</th>
+                    <th>单位</th>
+                    <th>个人编码</th>
+                    <th>姓名</th>
+                    <th>变动年月</th>
+                    <th>变动类别</th>
+                    <th>岗位/职务(前)</th>
+                    <th>岗位/职务(后)</th>
+                    <th>级别/薪级(前)</th>
+                    <th>级别/薪级(后)</th>
+                    <th>岗位/职务工资前</th>
+                    <th>岗位/职务工资后</th>
+                    <th>级别/薪级工资前</th>
+                    <th>级别/薪级工资后</th>
+                    <th>绩效/生活前</th>
+                    <th>绩效/生活后</th>
+                    <th>保留副补前</th>
+                    <th>保留副补后</th>
+                    <th>月工资合计前</th>
+                    <th>月工资合计后</th>
+                    <th>增资额</th>
+                </tr>
+                </thead>
+                <tbody>
+                ${reports.map((report, index) => renderPayrollChangeRegisterRow(report, index)).join("")}
+                </tbody>
+            </table>
+        </div>
+    `;
+    preview.classList.remove("hidden");
+    preview.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderPayrollChangeRegisterRow(report, index) {
+    const components = report.components || [];
+    const positionSalary = componentByField(components, "ZWGZSE2");
+    const gradeSalary = componentByField(components, "JBGZSE2");
+    const performance = componentByField(components, "DFBT2");
+    const retained = componentByField(components, "BLFB2");
+    const total = approvalTotalsFromHj(components);
+    return `
+        <tr>
+            <td>${index + 1}</td>
+            <td>${escapeHtml(report.organizationName || report.organizationCode || "")}</td>
+            <td>${escapeHtml(report.personCode || "")}</td>
+            <td>${escapeHtml(report.name || "")}</td>
+            <td>${escapeHtml(formatApprovalPeriod(report.calculationPeriod || ""))}</td>
+            <td>${escapeHtml(report.changeType || "")}</td>
+            <td>${escapeHtml(report.previousPositionName || "")}</td>
+            <td>${escapeHtml(report.currentPositionName || "")}</td>
+            <td>${escapeHtml(joinNonEmpty(report.previousGradeLevel, report.previousStepOrSalaryLevel))}</td>
+            <td>${escapeHtml(joinNonEmpty(report.currentGradeLevel, report.currentStepOrSalaryLevel))}</td>
+            <td>${moneyOrDash(positionSalary?.beforeAmount)}</td>
+            <td>${moneyOrDash(positionSalary?.afterAmount)}</td>
+            <td>${moneyOrDash(gradeSalary?.beforeAmount)}</td>
+            <td>${moneyOrDash(gradeSalary?.afterAmount)}</td>
+            <td>${moneyOrDash(performance?.beforeAmount)}</td>
+            <td>${moneyOrDash(performance?.afterAmount)}</td>
+            <td>${moneyOrDash(retained?.beforeAmount)}</td>
+            <td>${moneyOrDash(retained?.afterAmount)}</td>
+            <td>${money(total.beforeAmount)}</td>
+            <td>${money(total.afterAmount)}</td>
+            <td>${money(total.difference)}</td>
+        </tr>
+    `;
+}
+
 async function onPayrollChangeApprovalReportSearch(event) {
     event.preventDefault();
     await loadPayrollChangeApprovalReport();
 }
 
 async function loadReportTypes() {
-    const select = document.getElementById("report-approval-type-select");
-    if (!select || select.options.length > 0) {
+    const approvalSelect = document.getElementById("report-approval-type-select");
+    const registerSelect = document.getElementById("report-payroll-change-type-select");
+    if ((!approvalSelect || approvalSelect.options.length > 0) && (!registerSelect || registerSelect.options.length > 0)) {
         return;
     }
     try {
         const result = await getJson("/api/reports/types?size=100");
-        select.innerHTML = (result.content || []).map(type => `
+        const approvalTypes = (result.content || []).filter(type => String(type.category || "").includes("审批") || String(type.name || "").includes("审批"));
+        const registerTypes = (result.content || []).filter(type => String(type.category || "").includes("名册") || String(type.name || "").includes("名册"));
+        if (approvalSelect) {
+            approvalSelect.innerHTML = (approvalTypes.length ? approvalTypes : result.content || []).map(type => `
             <option value="${escapeHtml(type.code || "")}" data-title="${escapeHtml(type.title || "")}">
                 ${escapeHtml(type.name || type.title || type.code)}
             </option>
         `).join("");
-        if (!select.innerHTML) {
-            select.innerHTML = `<option value="">工资变动审批表</option>`;
+            if (!approvalSelect.innerHTML) {
+                approvalSelect.innerHTML = `<option value="">工资变动审批表</option>`;
+            }
+        }
+        if (registerSelect) {
+            registerSelect.innerHTML = (registerTypes.length ? registerTypes : result.content || []).map(type => `
+            <option value="${escapeHtml(type.code || "")}" data-title="${escapeHtml(type.title || "")}">
+                ${escapeHtml(type.name || type.title || type.code)}
+            </option>
+        `).join("");
+            if (!registerSelect.innerHTML) {
+                registerSelect.innerHTML = `<option value="">工资变动花名册</option>`;
+            }
         }
     } catch (error) {
-        select.innerHTML = `<option value="">工资变动审批表</option>`;
+        if (approvalSelect) {
+            approvalSelect.innerHTML = `<option value="">工资变动审批表</option>`;
+        }
+        if (registerSelect) {
+            registerSelect.innerHTML = `<option value="">工资变动花名册</option>`;
+        }
     }
 }
 
@@ -2256,7 +2398,7 @@ function renderPayrollChangeApprovalSheet(report) {
     const components = report.components || [];
     const totals = approvalTotalsFromHj(components);
     const institution = isInstitutionApproval(report);
-    const reportTitle = selectedApprovalReportTitle() || approvalTitle(report);
+    const reportTitle = selectedReportTitle("report-approval-type-select") || approvalTitle(report);
     const ratioRow = institution ? `<tr><th colspan="2">基础性绩效工资与奖励性绩效工资变化比例</th><th colspan="2">${escapeHtml(report.performanceRatio || "7:3")}</th></tr>` : "";
     return `
         <div class="approval-sheet">
@@ -2347,12 +2489,12 @@ function institutionApprovalRows(report, components) {
 
 function isInstitutionApproval(report) {
     const nature = String(report.organizationNature || "").trim();
-    const title = selectedApprovalReportTitle();
+    const title = selectedReportTitle("report-approval-type-select");
     return nature.includes("事") || String(title || "").includes("事业");
 }
 
-function selectedApprovalReportTitle() {
-    const select = document.getElementById("report-approval-type-select");
+function selectedReportTitle(selectId) {
+    const select = document.getElementById(selectId);
     const selected = select?.selectedOptions?.[0];
     return selected?.dataset?.title || selected?.textContent?.trim() || "";
 }
