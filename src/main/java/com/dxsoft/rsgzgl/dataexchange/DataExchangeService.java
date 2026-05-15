@@ -10,6 +10,16 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -182,6 +192,155 @@ class DataExchangeService {
         headers.setContentLength(bytes.length);
 
         return ResponseEntity.ok().headers(headers).body(bytes);
+    }
+
+    ResponseEntity<byte[]> downloadAnnualReportExcel(String organizationCode, String period, String keyword) {
+        PageResponse<AnnualReportRecord> page = dataExchangeRepository.exportAnnualReport(
+                organizationCode, period, keyword, PageRequest.of(0, 50000));
+        List<AnnualReportRecord> records = page.content();
+        try (Workbook workbook = new XSSFWorkbook(); java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+            var sheet = workbook.createSheet("工资年报数据");
+            String[] headers = {
+                    "序号", "单位编码", "单位名称", "人员编码", "姓名", "身份证号", "性别", "出生年月",
+                    "人员类别", "当前岗位", "当前职务", "当前级别", "当前档次", "年月", "变动类别",
+                    "职务/岗位工资", "级别/薪级工资", "技术等级工资", "绩效/生活补贴", "保留福补",
+                    "警衔津贴", "年补贴", "教护龄津贴", "提高工资", "浮动工资", "奖金结余", "PGBC", "合计"
+            };
+
+            CellStyle titleStyle = titleStyle(workbook);
+            CellStyle headerStyle = headerStyle(workbook);
+            CellStyle textStyle = textStyle(workbook);
+            CellStyle moneyStyle = moneyStyle(workbook);
+
+            Row title = sheet.createRow(0);
+            title.setHeightInPoints(28);
+            Cell titleCell = title.createCell(0);
+            titleCell.setCellValue("工资年报数据");
+            titleCell.setCellStyle(titleStyle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, headers.length - 1));
+
+            Row subtitle = sheet.createRow(1);
+            subtitle.createCell(0).setCellValue("单位：" + emptyText(organizationCode, "全部")
+                    + "    年月：" + emptyText(period, "全部")
+                    + "    关键词：" + emptyText(keyword, "无"));
+            subtitle.getCell(0).setCellStyle(textStyle);
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, headers.length - 1));
+
+            Row header = sheet.createRow(2);
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = header.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            sheet.createFreezePane(0, 3);
+
+            for (int i = 0; i < records.size(); i++) {
+                AnnualReportRecord record = records.get(i);
+                Row row = sheet.createRow(i + 3);
+                int c = 0;
+                writeText(row, c++, i + 1, textStyle);
+                writeText(row, c++, record.organizationCode(), textStyle);
+                writeText(row, c++, record.organizationName(), textStyle);
+                writeText(row, c++, record.personCode(), textStyle);
+                writeText(row, c++, record.name(), textStyle);
+                writeText(row, c++, maskIdCard(record.idCard()), textStyle);
+                writeText(row, c++, record.gender(), textStyle);
+                writeText(row, c++, record.birthYearMonth(), textStyle);
+                writeText(row, c++, record.personnelCategory(), textStyle);
+                writeText(row, c++, record.currentPosition(), textStyle);
+                writeText(row, c++, record.currentJob(), textStyle);
+                writeText(row, c++, record.currentGrade(), textStyle);
+                writeText(row, c++, record.currentLevel(), textStyle);
+                writeText(row, c++, record.period(), textStyle);
+                writeText(row, c++, record.changeType(), textStyle);
+                writeMoney(row, c++, record.positionSalary(), moneyStyle);
+                writeMoney(row, c++, record.gradeSalary(), moneyStyle);
+                writeMoney(row, c++, record.techGradeSalary(), moneyStyle);
+                writeMoney(row, c++, record.performanceAllowance(), moneyStyle);
+                writeMoney(row, c++, record.retainedAllowance(), moneyStyle);
+                writeMoney(row, c++, record.rankAllowance(), moneyStyle);
+                writeMoney(row, c++, record.yearAllowance(), moneyStyle);
+                writeMoney(row, c++, record.teachingAllowance(), moneyStyle);
+                writeMoney(row, c++, record.improvedSalary(), moneyStyle);
+                writeMoney(row, c++, record.floatingSalary(), moneyStyle);
+                writeMoney(row, c++, record.bonusBalance(), moneyStyle);
+                writeMoney(row, c++, record.pgbc(), moneyStyle);
+                writeMoney(row, c, record.total(), moneyStyle);
+            }
+            for (int i = 0; i < headers.length; i++) {
+                sheet.setColumnWidth(i, Math.min(20, Math.max(8, headers[i].length() + 4)) * 256);
+            }
+            workbook.write(output);
+            byte[] bytes = output.toByteArray();
+            HttpHeaders headersOut = new HttpHeaders();
+            headersOut.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headersOut.setContentDispositionFormData("attachment",
+                    "annual_report" + (period != null && !period.isBlank() ? "_" + period : "") + ".xlsx");
+            headersOut.setContentLength(bytes.length);
+            return ResponseEntity.ok().headers(headersOut).body(bytes);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to generate Excel", e);
+        }
+    }
+
+    private CellStyle titleStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        font.setFontHeightInPoints((short) 16);
+        style.setFont(font);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        return style;
+    }
+
+    private CellStyle headerStyle(Workbook workbook) {
+        CellStyle style = borderedStyle(workbook);
+        Font font = workbook.createFont();
+        font.setBold(true);
+        style.setFont(font);
+        style.setAlignment(HorizontalAlignment.CENTER);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        style.setWrapText(true);
+        return style;
+    }
+
+    private CellStyle textStyle(Workbook workbook) {
+        CellStyle style = borderedStyle(workbook);
+        style.setVerticalAlignment(VerticalAlignment.CENTER);
+        return style;
+    }
+
+    private CellStyle moneyStyle(Workbook workbook) {
+        CellStyle style = borderedStyle(workbook);
+        style.setAlignment(HorizontalAlignment.RIGHT);
+        style.setDataFormat(workbook.createDataFormat().getFormat("#,##0.00"));
+        return style;
+    }
+
+    private CellStyle borderedStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        style.setBorderTop(BorderStyle.THIN);
+        style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN);
+        style.setBorderRight(BorderStyle.THIN);
+        return style;
+    }
+
+    private void writeText(Row row, int column, Object value, CellStyle style) {
+        Cell cell = row.createCell(column);
+        cell.setCellValue(value == null ? "" : String.valueOf(value));
+        cell.setCellStyle(style);
+    }
+
+    private void writeMoney(Row row, int column, java.math.BigDecimal value, CellStyle style) {
+        Cell cell = row.createCell(column);
+        cell.setCellValue(value == null ? 0D : value.doubleValue());
+        cell.setCellStyle(style);
+    }
+
+    private String emptyText(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private String maskIdCard(String idCard) {

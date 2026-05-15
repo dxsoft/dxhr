@@ -70,6 +70,14 @@ class DataExchangeController {
         return dataExchangeService.downloadAnnualReportCsv(organizationCode, period, keyword);
     }
 
+    @GetMapping("/annual-report/excel")
+    ResponseEntity<byte[]> downloadAnnualReportExcel(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) String keyword) {
+        return dataExchangeService.downloadAnnualReportExcel(organizationCode, period, keyword);
+    }
+
     record PersonnelDispatchRequest(
             List<String> organizationCodes,
             boolean includeDescendants,

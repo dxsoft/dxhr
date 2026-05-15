@@ -135,6 +135,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("data-exchange-personnel-download").addEventListener("click", downloadPersonnelCsv);
     document.getElementById("data-exchange-annual-form").addEventListener("submit", onDataExchangeAnnualSearch);
     document.getElementById("data-exchange-annual-download").addEventListener("click", downloadAnnualCsv);
+    document.getElementById("data-exchange-annual-excel-download").addEventListener("click", downloadAnnualExcel);
     document.getElementById("data-exchange-dispatch-form").addEventListener("submit", onDataExchangeDispatchSearch);
     document.getElementById("data-exchange-dispatch-download").addEventListener("click", downloadDispatchPackage);
     document.getElementById("data-exchange-dispatch-select-all").addEventListener("change", event => {
@@ -4422,6 +4423,37 @@ async function downloadAnnualCsv() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         status.textContent = "下载完成";
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function downloadAnnualExcel() {
+    const organizationCode = document.getElementById("data-exchange-annual-organization").value;
+    const period = document.getElementById("data-exchange-annual-period").value;
+    const keyword = document.getElementById("data-exchange-annual-keyword").value;
+    const status = document.getElementById("data-exchange-annual-status");
+
+    status.className = "status";
+    status.textContent = "正在生成固定格式 Excel...";
+
+    try {
+        const response = await fetch(`/api/data-exchange/annual-report/excel?organizationCode=${encodeURIComponent(organizationCode)}&period=${encodeURIComponent(period)}&keyword=${encodeURIComponent(keyword)}`, {
+            headers: { Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+        });
+        if (!response.ok) {
+            throw new Error(await response.text() || `HTTP ${response.status}`);
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `annual_report_${period || new Date().toISOString().slice(0, 10)}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        status.textContent = "固定格式 Excel 已生成";
     } catch (error) {
         showError(status, error);
     }
