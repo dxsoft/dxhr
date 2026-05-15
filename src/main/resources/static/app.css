@@ -1048,6 +1048,11 @@ tr:last-child td {
 }
 
 @media print {
+    @page {
+        size: A4 landscape;
+        margin: 8mm;
+    }
+
     body {
         background: #fff;
     }
@@ -1089,25 +1094,35 @@ tr:last-child td {
         padding: 0;
         box-shadow: none;
         page-break-after: always;
+        break-after: page;
     }
 
     .register-sheet:last-child {
         page-break-after: auto;
+        break-after: auto;
     }
 
     .register-table {
         width: 100%;
         min-width: 0;
-        font-size: 8px;
+        font-size: 7px;
+        table-layout: fixed;
     }
 
     .register-table th,
     .register-table td {
-        padding: 3px 2px;
+        padding: 2px 1px;
+        line-height: 1.15;
+        word-break: break-all;
     }
 
     .approval-sheet-header h3 {
-        font-size: 24px;
+        font-size: 22px;
+    }
+
+    .register-topline {
+        font-size: 10px;
+        margin: 2px 0;
     }
 
     .table-wrap {
