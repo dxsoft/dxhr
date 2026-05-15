@@ -1617,8 +1617,8 @@ public class PayrollService {
                 appointed == null ? regularization : appointed.startYearMonth(),
                 institution
                         ? "2006.07 及以后转正，转正时间 " + formatYearMonth(regularization)
-                        + "，事业人员按学历标准确定薪级、岗位取转正当月聘任岗位："
-                        + positionDisplay(positionCode, positionName) + "，薪级 " + standard.gradeStep() + "。"
+                        + "，转正定级，" + positionDisplayWithoutCode(positionName, positionCode)
+                        + "，薪级" + standard.gradeStep() + "级。"
                         : "2006.07 及以后转正，转正时间 " + formatYearMonth(regularization)
                         + "，按学历转正定级标准确定起点：岗位 " + positionDisplay(positionCode, positionName)
                         + "，级别/档次 " + standard.gradeLevel() + "/" + standard.gradeStep() + "。");
@@ -2132,6 +2132,11 @@ public class PayrollService {
             return normalizedCode + " " + normalizedName;
         }
         return emptyToDash(normalizedCode.isBlank() ? normalizedName : normalizedCode);
+    }
+
+    private String positionDisplayWithoutCode(String name, String fallbackCode) {
+        String normalizedName = name == null ? "" : name.trim();
+        return normalizedName.isBlank() ? emptyToDash(fallbackCode) : normalizedName;
     }
 
     private boolean containsAny(String value, String... tokens) {
