@@ -242,15 +242,17 @@ public class PayrollService {
                     step = String.valueOf(payrollRepository.intValue(row.positionSalaryGrade()) + payrollRepository.intValue(row.gradeSalaryStep()));
                     stepStartYear = row.stepAssessmentStartYear();
                 }
-                lines.add(row.calculationYear() + row.calculationMonth() + " " + type + "：采用历史记录岗位 " + positionCode + " " + positionName
-                        + "，级别/薪级 " + emptyToDash(level) + "/" + emptyToDash(step) + "。");
+                lines.add(row.calculationYear() + row.calculationMonth() + " " + type + "：采用历史记录"
+                        + positionLabel(baseSalarySource) + " " + positionDisplay(positionCode, positionName)
+                        + "，" + levelStepLabel(baseSalarySource) + " " + emptyToDash(level) + "/" + emptyToDash(step) + "。");
             } else if (containsAny(type, "学历")) {
                 if ("GRADE".equals(baseSalarySource)) {
                     level = row.gradeSalaryLevel();
                 }
                 step = String.valueOf(payrollRepository.intValue(row.positionSalaryGrade()) + payrollRepository.intValue(row.gradeSalaryStep()));
                 stepStartYear = row.stepAssessmentStartYear();
-                lines.add(row.calculationYear() + row.calculationMonth() + " 学历变化：采用历史记录级别/薪级 " + emptyToDash(level) + "/" + step + "。");
+                lines.add(row.calculationYear() + row.calculationMonth() + " 学历变化：采用历史记录" + levelStepLabel(baseSalarySource) + " "
+                        + emptyToDash(level) + "/" + step + "。");
             }
         }
         payrollRepository.findPositionAtOrBefore(latest.organizationCode(), latest.personCode(), targetPeriod)
@@ -277,7 +279,7 @@ public class PayrollService {
                 } else if (qualifiedStep >= 2) {
                     step = String.valueOf(payrollRepository.intValue(step) + 1);
                     stepStartYear = String.valueOf(year);
-                    lines.add(year + " 年：累计 " + qualifiedStep + " 年考核合格，晋升档次/薪级到 " + step + "。");
+                    lines.add(year + " 年：累计 " + qualifiedStep + " 年考核合格，晋升档次到 " + step + "。");
                 }
             } else if ("SALARY_LEVEL".equals(baseSalarySource)) {
                 int stepStart = assessmentStartYear(stepStartYear, start.positionStartYearMonth(), positionCode);
@@ -1584,8 +1586,9 @@ public class PayrollService {
                     "2006",
                     "2006",
                     position.map(PositionChangeCandidate::startYearMonth).orElse("2006.07"),
-                    "2006.07 前已转正，按基本信息和 2006 套改标准确定起点：岗位 "
-                            + standard.get().positionCode() + "，级别/薪级 " + emptyToDash(standard.get().convertedLevel())
+                    "2006.07 前已转正，按基本信息和 2006 套改标准确定起点：职务 "
+                            + positionDisplay(standard.get().positionCode(), positionNameForProjectionStart(position, standard.get().positionCode()))
+                            + "，级别/档次 " + emptyToDash(standard.get().convertedLevel())
                             + "/" + standard.get().convertedStep() + "。");
         }
         if (regularization.isBlank()) {
@@ -2137,6 +2140,21 @@ public class PayrollService {
     private String positionDisplayWithoutCode(String name, String fallbackCode) {
         String normalizedName = name == null ? "" : name.trim();
         return normalizedName.isBlank() ? emptyToDash(fallbackCode) : normalizedName;
+    }
+
+    private String positionNameForProjectionStart(Optional<PositionChangeCandidate> position, String fallbackCode) {
+        return position
+                .filter(candidate -> fallbackCode != null && fallbackCode.equals(candidate.positionCode()))
+                .map(PositionChangeCandidate::positionName)
+                .orElse("");
+    }
+
+    private String positionLabel(String baseSalarySource) {
+        return "SALARY_LEVEL".equals(baseSalarySource) ? "岗位" : "职务";
+    }
+
+    private String levelStepLabel(String baseSalarySource) {
+        return "SALARY_LEVEL".equals(baseSalarySource) ? "薪级" : "级别/档次";
     }
 
     private boolean containsAny(String value, String... tokens) {
