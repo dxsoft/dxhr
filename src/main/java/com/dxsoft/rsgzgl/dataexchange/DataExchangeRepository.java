@@ -463,33 +463,62 @@ class DataExchangeRepository {
     }
 
     private void insertPersonnel(PersonnelExportRecord row, String organizationCode, String personCode) {
-        jdbcTemplate.update("""
-                INSERT INTO dryjbxx (
-                    dwbm, grbm, xm, sfzh, xb, csny, ryfl, dwsx, gwfl,
-                    cjgzny, zzny, gznx, xlbm, zgxl, zwjb, zjbm, xrzw,
-                    mz, zzmm, dah
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                organizationCode,
-                personCode,
-                row.name(),
-                row.idCard(),
-                row.gender(),
-                row.birthYearMonth(),
-                row.personnelCategory(),
-                row.organizationType(),
-                row.postCategory(),
-                row.workStart(),
-                row.regularization(),
-                row.salaryYears(),
-                row.educationCode(),
-                row.highestEducation(),
-                row.positionLevel(),
-                row.rankCode(),
-                row.currentPosition(),
-                row.ethnicity(),
-                row.politicalStatus(),
-                row.archiveNumber());
+        Map<String, String> columnTypes = tableColumnTypes("dryjbxx");
+        Map<String, Object> values = new LinkedHashMap<>();
+        for (Map.Entry<String, String> column : columnTypes.entrySet()) {
+            String name = column.getKey();
+            if ("uid".equalsIgnoreCase(name) || "id".equalsIgnoreCase(name)) {
+                continue;
+            }
+            values.put(name, personnelColumnValue(name, column.getValue(), row, organizationCode, personCode));
+        }
+        String columns = values.keySet().stream()
+                .map(this::quoteIdentifier)
+                .collect(Collectors.joining(", "));
+        String placeholders = values.keySet().stream().map(key -> "?").collect(Collectors.joining(", "));
+        jdbcTemplate.update("INSERT INTO dryjbxx (" + columns + ") VALUES (" + placeholders + ")", values.values().toArray());
+    }
+
+    private Object personnelColumnValue(String columnName, String typeName, PersonnelExportRecord row, String organizationCode, String personCode) {
+        return switch (columnName.toLowerCase(Locale.ROOT)) {
+            case "dwbm" -> organizationCode;
+            case "grbm" -> personCode;
+            case "xm" -> valueOrDefault(row.name());
+            case "sfzh" -> valueOrDefault(row.idCard());
+            case "xb" -> valueOrDefault(row.gender());
+            case "csny" -> valueOrDefault(row.birthYearMonth());
+            case "ryfl" -> valueOrDefault(row.personnelCategory());
+            case "dwsx" -> valueOrDefault(row.organizationType());
+            case "gwfl" -> valueOrDefault(row.postCategory());
+            case "cjgzny" -> valueOrDefault(row.workStart());
+            case "zzny" -> valueOrDefault(row.regularization());
+            case "gznx" -> row.salaryYears() == null ? 0 : row.salaryYears();
+            case "xlbm" -> valueOrDefault(row.educationCode());
+            case "zgxl" -> valueOrDefault(row.highestEducation());
+            case "zwjb" -> valueOrDefault(row.positionLevel());
+            case "zjbm" -> valueOrDefault(row.rankCode());
+            case "xrzw" -> valueOrDefault(row.currentPosition());
+            case "dah" -> valueOrDefault(row.archiveNumber());
+            case "mz" -> valueOrDefault(row.ethnicity());
+            case "zzmm" -> valueOrDefault(row.politicalStatus());
+            default -> defaultValueForType(typeName);
+        };
+    }
+
+    private String valueOrDefault(String value) {
+        return value == null ? "" : value;
+    }
+
+    private Object defaultValueForType(String typeName) {
+        String normalized = typeName == null ? "" : typeName.toUpperCase(Locale.ROOT);
+        if (normalized.contains("INT") || normalized.contains("DECIMAL") || normalized.contains("NUMERIC")
+                || normalized.contains("DOUBLE") || normalized.contains("FLOAT")) {
+            return 0;
+        }
+        if (normalized.contains("BIT") || normalized.contains("BOOL")) {
+            return false;
+        }
+        return "";
     }
 
     private void deletePersonRelatedRows(String organizationCode, String personCode) {
@@ -556,9 +585,15 @@ class DataExchangeRepository {
         if (row.isEmpty()) {
             return;
         }
-        String columns = String.join(", ", row.keySet());
+        String columns = row.keySet().stream()
+                .map(this::quoteIdentifier)
+                .collect(Collectors.joining(", "));
         String placeholders = row.keySet().stream().map(key -> "?").collect(Collectors.joining(", "));
         jdbcTemplate.update("INSERT INTO " + tableName + " (" + columns + ") VALUES (" + placeholders + ")", row.values().toArray());
+    }
+
+    private String quoteIdentifier(String identifier) {
+        return "`" + identifier.replace("`", "``") + "`";
     }
 
     private Map<String, String> tableColumnTypes(String tableName) {
