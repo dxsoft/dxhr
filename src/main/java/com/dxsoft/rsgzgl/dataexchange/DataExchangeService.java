@@ -272,7 +272,7 @@ class DataExchangeService {
             String packageType,
             String generatedAt,
             List<String> organizationCodes,
-            boolean includeDescendants,
+            Boolean includeDescendants,
             List<PersonnelExportRecord> personnel,
             List<ExchangeTable> relatedTables) {
     }
