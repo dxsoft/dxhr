@@ -599,13 +599,14 @@ class DataExchangeRepository {
     private Map<String, String> tableColumnTypes(String tableName) {
         return jdbcTemplate.execute((ConnectionCallback<Map<String, String>>) connection -> {
             Map<String, String> columns = new LinkedHashMap<>();
-            try (ResultSet rs = connection.getMetaData().getColumns(null, null, tableName, null)) {
+            String catalog = connection.getCatalog();
+            try (ResultSet rs = connection.getMetaData().getColumns(catalog, null, tableName, null)) {
                 while (rs.next()) {
                     columns.put(rs.getString("COLUMN_NAME"), rs.getString("TYPE_NAME"));
                 }
             }
             if (columns.isEmpty()) {
-                try (ResultSet rs = connection.getMetaData().getColumns(null, null, tableName.toUpperCase(Locale.ROOT), null)) {
+                try (ResultSet rs = connection.getMetaData().getColumns(catalog, null, tableName.toUpperCase(Locale.ROOT), null)) {
                     while (rs.next()) {
                         columns.put(rs.getString("COLUMN_NAME"), rs.getString("TYPE_NAME"));
                     }

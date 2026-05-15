@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -123,9 +124,14 @@ class DataExchangeService {
                                 row.organizationCode(), row.personCode(), row.organizationCode(), row.personCode(), row.name()))
                         .toList();
         int existing = append ? 0 : (int) rows.stream().filter(row -> dataExchangeRepository.personExists(row.organizationCode(), row.personCode())).count();
-        int count = append
-                ? dataExchangeRepository.appendReceivedPersonnel(rows, payload.relatedTables(), request.targetOrganizationCode())
-                : dataExchangeRepository.replaceReceivedPersonnel(rows, payload.relatedTables());
+        int count;
+        try {
+            count = append
+                    ? dataExchangeRepository.appendReceivedPersonnel(rows, payload.relatedTables(), request.targetOrganizationCode())
+                    : dataExchangeRepository.replaceReceivedPersonnel(rows, payload.relatedTables());
+        } catch (DataAccessException e) {
+            throw new IllegalStateException("数据接收写入失败：" + e.getMostSpecificCause().getMessage(), e);
+        }
         DataExchangeController.ReceiveSummary summary = buildSummary(buildPreviewRows(rows, payload.relatedTables(), append, request.targetOrganizationCode()), payload.relatedTables());
         return new DataExchangeController.ReceiveApplyResponse(
                 count,
