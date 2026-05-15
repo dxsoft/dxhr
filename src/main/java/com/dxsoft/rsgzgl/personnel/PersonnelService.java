@@ -5,6 +5,7 @@ import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
 import com.dxsoft.rsgzgl.security.AccessControlService;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -155,9 +156,39 @@ public class PersonnelService {
         return personnelRepository.findAssessments(personKey);
     }
 
+    public MissingAssessmentPreview missingAssessments(int uid, String targetPeriod) {
+        PersonKey personKey = getPersonKey(uid);
+        PersonnelMaintenanceRecord personnel = personnelRepository.findMaintenanceByUid(uid)
+                .orElseThrow(() -> new NotFoundException("Personnel not found: " + uid));
+        int targetYear = targetYear(targetPeriod);
+        int startYear = personnelRepository.currentAssessmentStartYear(personKey);
+        return new MissingAssessmentPreview(
+                personnelRepository.findMissingAssessmentYears(personKey, startYear, targetYear),
+                defaultAssessmentResult(personnel),
+                startYear > 0 ? String.valueOf(startYear) : "",
+                String.valueOf(targetYear));
+    }
+
     public Map<String, Object> relatedRecords(int uid) {
         PersonKey personKey = getPersonKey(uid);
         return personnelRepository.findPersonnelRelatedRecords(personKey);
+    }
+
+    private int targetYear(String targetPeriod) {
+        if (targetPeriod != null && targetPeriod.length() >= 4) {
+            try {
+                return Integer.parseInt(targetPeriod.substring(0, 4));
+            } catch (NumberFormatException ignored) {
+                // use current year below
+            }
+        }
+        return LocalDate.now().getYear();
+    }
+
+    private String defaultAssessmentResult(PersonnelMaintenanceRecord personnel) {
+        String text = (personnel.personnelCategory() == null ? "" : personnel.personnelCategory())
+                + " " + (personnel.organizationType() == null ? "" : personnel.organizationType());
+        return text.contains("事业") ? "合格" : "称职";
     }
 
     public List<PositionRecord> createPosition(int uid, PositionMaintenanceRequest request) {

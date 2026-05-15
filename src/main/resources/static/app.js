@@ -1516,12 +1516,13 @@ async function autoFillMissingAssessments() {
         alert("请先选择人员。");
         return;
     }
-    const years = missingAssessmentYearsFromProjection();
+    const preview = await loadMissingAssessmentPreview(person.uid);
+    const years = preview.years || [];
     if (!years.length) {
-        alert("当前工资推算未提示缺失年度考核。");
+        alert("未检测到缺失年度考核。");
         return;
     }
-    const defaultResult = defaultAssessmentResultForCurrentPerson();
+    const defaultResult = preview.defaultResult || defaultAssessmentResultForCurrentPerson();
     const result = prompt(`将补录 ${years.join("、")} 年度考核，默认结果：${defaultResult}。可在下方编辑。\\n如需改默认结果，请输入：`, defaultResult);
     if (result === null) {
         return;
@@ -1547,14 +1548,14 @@ function defaultAssessmentResultForCurrentPerson() {
     return text.includes("事业") ? "合格" : "称职";
 }
 
-function missingAssessmentYearsFromProjection() {
-    const text = document.getElementById("maint-wage-projection-result").innerText || "";
-    return Array.from(text.matchAll(/缺少\\s+([0-9、，,\\s]+)\\s+年度考核结果/g))
-        .flatMap(match => match[1].split(/[、，,\\s]+/))
-        .map(year => year.trim())
-        .filter(year => /^\\d{4}$/.test(year))
-        .filter((year, index, all) => all.indexOf(year) === index)
-        .sort();
+async function loadMissingAssessmentPreview(uid) {
+    const period = document.getElementById("maint-wage-projection-period").value.trim();
+    const params = new URLSearchParams();
+    if (period) {
+        params.set("targetPeriod", period.replace("-", ""));
+    }
+    const suffix = params.toString() ? `?${params}` : "";
+    return getJson(`/api/personnel/${uid}/assessments/missing${suffix}`);
 }
 
 function bindSubrecordActions(type, rows) {

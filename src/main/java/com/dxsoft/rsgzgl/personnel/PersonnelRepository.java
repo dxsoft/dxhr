@@ -582,6 +582,44 @@ class PersonnelRepository {
                 """, keyParameters(key), ASSESSMENT_MAPPER);
     }
 
+    int currentAssessmentStartYear(PersonKey key) {
+        Map<String, Object> row = firstTableRow(
+                "hisbase",
+                key,
+                "CASE WHEN sid IS NULL OR TRIM(sid) = '' THEN 0 ELSE 1 END, jsnf DESC, jsyf DESC");
+        int levelStart = intValue(row.get("xckhndjb"));
+        int stepStart = intValue(row.get("xckhndzw"));
+        if (levelStart > 0 && stepStart > 0) {
+            return Math.min(levelStart, stepStart);
+        }
+        return Math.max(levelStart, stepStart);
+    }
+
+    List<String> findMissingAssessmentYears(PersonKey key, int startYear, int targetYear) {
+        if (startYear <= 0 || targetYear <= startYear) {
+            return List.of();
+        }
+        List<String> existing = jdbcTemplate.queryForList("""
+                SELECT DISTINCT khnd
+                FROM dndkh
+                WHERE dwbm = :dwbm AND grbm = :grbm
+                  AND khnd BETWEEN :startYear AND :endYear
+                """, keyParameters(key)
+                .addValue("startYear", String.valueOf(startYear))
+                .addValue("endYear", String.valueOf(targetYear - 1)), String.class);
+        java.util.Set<String> existingYears = existing.stream()
+                .map(SqlText::trim)
+                .collect(java.util.stream.Collectors.toSet());
+        List<String> missing = new java.util.ArrayList<>();
+        for (int year = startYear; year < targetYear; year++) {
+            String text = String.valueOf(year);
+            if (!existingYears.contains(text)) {
+                missing.add(text);
+            }
+        }
+        return missing;
+    }
+
     Map<String, Object> findPersonnelRelatedRecords(PersonKey key) {
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("currentPayroll", firstTableRow("hisbase", key, "CASE WHEN sid IS NULL OR TRIM(sid) = '' THEN 0 ELSE 1 END, jsnf DESC, jsyf DESC"));
@@ -841,6 +879,20 @@ class PersonnelRepository {
     private int lastInsertId() {
         Integer id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", new MapSqlParameterSource(), Integer.class);
         return id == null ? 0 : id;
+    }
+
+    private int intValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value != null) {
+            try {
+                return Integer.parseInt(value.toString().trim());
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     private void markAppCreated(String tableName, Object recordId) {

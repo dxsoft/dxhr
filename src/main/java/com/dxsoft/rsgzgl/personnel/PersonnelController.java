@@ -132,6 +132,13 @@ class PersonnelController {
         return personnelService.assessments(uid);
     }
 
+    @GetMapping("/{uid}/assessments/missing")
+    MissingAssessmentPreview missingAssessments(
+            @PathVariable int uid,
+            @RequestParam(required = false) String targetPeriod) {
+        return personnelService.missingAssessments(uid, targetPeriod);
+    }
+
     @GetMapping("/{uid}/related-records")
     Map<String, Object> relatedRecords(@PathVariable int uid) {
         return personnelService.relatedRecords(uid);
