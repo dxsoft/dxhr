@@ -91,7 +91,8 @@ class DataExchangeController {
             String packageJson,
             String mode,
             String targetOrganizationCode,
-            List<PersonKey> selectedPersonnel) {
+            List<PersonKey> selectedPersonnel,
+            Boolean dryRun) {
     }
 
     record ReceivePreviewResponse(

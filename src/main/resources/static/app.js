@@ -143,6 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     document.getElementById("data-exchange-receive-file").addEventListener("change", onDataExchangeReceiveFileSelected);
     document.getElementById("data-exchange-receive-form").addEventListener("submit", onDataExchangeReceivePreview);
+    document.getElementById("data-exchange-receive-dry-run").addEventListener("click", applyDataExchangeReceiveDryRun);
     document.getElementById("data-exchange-receive-all").addEventListener("click", () => applyDataExchangeReceive("REPLACE"));
     document.getElementById("data-exchange-receive-selected").addEventListener("click", () => applyDataExchangeReceive("APPEND"));
     document.getElementById("data-exchange-receive-select-all").addEventListener("change", event => {
@@ -4235,18 +4236,25 @@ async function previewDataExchangeReceive() {
     }
 }
 
-async function applyDataExchangeReceive(mode) {
+async function applyDataExchangeReceiveDryRun() {
+    const appendMode = Boolean(selectedOrganizationCode("data-exchange-receive-target-organization"));
+    await applyDataExchangeReceive(appendMode ? "APPEND" : "REPLACE", true);
+}
+
+async function applyDataExchangeReceive(mode, dryRun = false) {
     const status = document.getElementById("data-exchange-receive-status");
     status.className = "status";
     const selected = mode === "APPEND" ? selectedExchangeKeys("[data-receive-select]:checked") : [];
     const targetOrganizationCode = selectedOrganizationCode("data-exchange-receive-target-organization");
-    const confirmMessage = mode === "APPEND"
+    const confirmMessage = dryRun
+        ? null
+        : mode === "APPEND"
         ? `将追加 ${selected.length} 人到单位 ${document.getElementById("data-exchange-receive-target-organization").value}，并重新生成个人编码，是否继续？`
         : "将整体接收数据包并替换本地相同单位编码和个人编码数据，是否继续？";
-    if (!window.confirm(confirmMessage)) {
+    if (confirmMessage && !window.confirm(confirmMessage)) {
         return;
     }
-    status.textContent = mode === "APPEND" ? "正在追加接收勾选人员..." : "正在整体接收并替换数据...";
+    status.textContent = dryRun ? "正在试运行接收校验..." : mode === "APPEND" ? "正在追加接收勾选人员..." : "正在整体接收并替换数据...";
     try {
         const packageJson = document.getElementById("data-exchange-receive-json").value;
         if (!packageJson) {
@@ -4257,6 +4265,7 @@ async function applyDataExchangeReceive(mode) {
             mode,
             targetOrganizationCode,
             selectedPersonnel: selected,
+            dryRun,
         });
         const mappingText = (result.codeMappings || []).map(item =>
             `${escapeHtml(item.name)}：${escapeHtml(item.sourceOrganizationCode)}-${escapeHtml(item.sourcePersonCode)} -> ${escapeHtml(item.targetOrganizationCode)}-${escapeHtml(item.targetPersonCode)}`

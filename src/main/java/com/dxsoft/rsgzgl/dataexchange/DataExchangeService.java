@@ -25,6 +25,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 @Service
@@ -120,10 +121,12 @@ class DataExchangeService {
                 append ? "预览成功：勾选人员将追加到目标单位并重新编码" : "预览成功：整体接收将替换同单位同个人编码数据");
     }
 
-    DataExchangeController.ReceiveApplyResponse applyReceive(DataExchangeController.ReceiveRequest request) {
+    @Transactional
+    public DataExchangeController.ReceiveApplyResponse applyReceive(DataExchangeController.ReceiveRequest request) {
         PersonnelExchangePackage payload = parsePackage(request.packageJson());
         List<PersonnelExportRecord> rows = filterReceiveRows(payload.personnel(), request.selectedPersonnel());
         boolean append = "APPEND".equalsIgnoreCase(request.mode());
+        boolean dryRun = Boolean.TRUE.equals(request.dryRun());
         if (append && (request.targetOrganizationCode() == null || request.targetOrganizationCode().isBlank())) {
             throw new IllegalArgumentException("追加接收需要选择接收单位");
         }
@@ -134,6 +137,17 @@ class DataExchangeService {
                                 row.organizationCode(), row.personCode(), row.organizationCode(), row.personCode(), row.name()))
                         .toList();
         int existing = append ? 0 : (int) rows.stream().filter(row -> dataExchangeRepository.personExists(row.organizationCode(), row.personCode())).count();
+        DataExchangeController.ReceiveSummary summary = buildSummary(buildPreviewRows(rows, payload.relatedTables(), append, request.targetOrganizationCode()), payload.relatedTables());
+        if (dryRun) {
+            return new DataExchangeController.ReceiveApplyResponse(
+                    0,
+                    append ? 0 : rows.size() - existing,
+                    append ? 0 : existing,
+                    append ? rows.size() : 0,
+                    mappings,
+                    summary,
+                    append ? "试运行通过：勾选人员可追加接收并重新编码，未写入数据库" : "试运行通过：整体接收可替换/新增，未写入数据库");
+        }
         int count;
         try {
             count = append
@@ -142,7 +156,6 @@ class DataExchangeService {
         } catch (DataAccessException e) {
             throw new IllegalStateException("数据接收写入失败：" + e.getMostSpecificCause().getMessage(), e);
         }
-        DataExchangeController.ReceiveSummary summary = buildSummary(buildPreviewRows(rows, payload.relatedTables(), append, request.targetOrganizationCode()), payload.relatedTables());
         return new DataExchangeController.ReceiveApplyResponse(
                 count,
                 append ? 0 : count - existing,
