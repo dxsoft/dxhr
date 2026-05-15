@@ -189,6 +189,7 @@ public class PayrollService {
         PayrollHistorySnapshot latest = payrollRepository.findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
         accessControlService.requireOrganization(latest.organizationCode());
+        String regularizationYearMonth = payrollRepository.findRegularizationYearMonth(latest.organizationCode(), latest.personCode());
         List<PayrollHistorySnapshot> chain = payrollRepository.findHistoryChain(latest.organizationCode(), latest.personCode());
         List<String> lines = new ArrayList<>();
         lines.add("目标年月：" + targetPeriod + "。");
@@ -202,6 +203,7 @@ public class PayrollService {
                     latest.name(),
                     targetPeriod,
                     "",
+                    regularizationYearMonth,
                     "",
                     "",
                     "",
@@ -294,6 +296,7 @@ public class PayrollService {
                 latest.name(),
                 targetPeriod,
                 start.period(),
+                regularizationYearMonth,
                 positionCode,
                 positionName,
                 level,

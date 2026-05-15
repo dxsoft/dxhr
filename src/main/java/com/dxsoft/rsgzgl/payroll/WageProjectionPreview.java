@@ -9,6 +9,7 @@ public record WageProjectionPreview(
         String name,
         String targetPeriod,
         String basePeriod,
+        String regularizationYearMonth,
         String positionCode,
         String positionName,
         String level,

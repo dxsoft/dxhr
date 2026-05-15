@@ -1571,13 +1571,31 @@ function renderWageProjection(projection) {
     document.getElementById("maint-wage-projection-result").innerHTML = `
         <strong>目标年月：</strong>${escapeHtml(projection.targetPeriod || "-")}
         <strong>起点年月：</strong>${escapeHtml(projection.basePeriod || "-")}<br>
-        <strong>岗位：</strong>${escapeHtml(projection.positionCode || "")} ${escapeHtml(projection.positionName || "")}<br>
+        ${regularizationProjectionLine(projection)}
+        <strong>岗位：</strong>${escapeHtml(positionDisplay(projection.positionCode, projection.positionName))}<br>
         <strong>级别/档次薪级：</strong>${escapeHtml(projection.level || "-")} / ${escapeHtml(projection.stepOrSalaryLevel || "-")}
         <strong>工资类型：</strong>${escapeHtml(baseSalarySourceName(projection.baseSalarySource))}<br>
         <strong>xckhndjb：</strong>${escapeHtml(projection.levelAssessmentStartYear || "-")}
         <strong>xckhndzw：</strong>${escapeHtml(projection.stepAssessmentStartYear || "-")}
         <ol>${(projection.explanationLines || []).map(line => `<li>${escapeHtml(line)}</li>`).join("")}</ol>
     `;
+}
+
+function positionDisplay(code, name) {
+    const normalizedCode = String(code || "").trim();
+    const normalizedName = String(name || "").trim();
+    if (normalizedCode && normalizedName) {
+        return `${normalizedCode} ${normalizedName}`;
+    }
+    return normalizedName || normalizedCode || "-";
+}
+
+function regularizationProjectionLine(projection) {
+    const regularization = String(projection.regularizationYearMonth || "").replace(".", "");
+    if (regularization && regularization >= "200607") {
+        return `<strong>转正时间：</strong>${escapeHtml(projection.regularizationYearMonth)}<br>`;
+    }
+    return "";
 }
 
 function renderPersonnelRelatedRecords(records) {
