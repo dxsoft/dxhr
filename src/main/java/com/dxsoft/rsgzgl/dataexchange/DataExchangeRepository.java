@@ -87,12 +87,13 @@ class DataExchangeRepository {
         String querySql = """
                 SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
                        r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
-                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw, r.rzny,
+                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw,
+                       (SELECT z.srny FROM dryzwbh z WHERE z.dwbm = r.dwbm AND z.grbm = r.grbm ORDER BY z.srny DESC, z.id DESC LIMIT 1) AS rzny,
                        r.mz, r.zzmm, r.dah,
-                       h.gw, h.zw, h.jb, h.dc
+                       h.zwbm2 AS gw, h.zwgw2 AS zw, h.jbgzjb2 AS jb, h.zwgzdc2 AS dc
                 FROM dryjbxx r
                 LEFT JOIN dwbm d ON r.dwbm = d.dwbm
-                LEFT JOIN hisbase h ON r.uid = h.uid AND h.dq = '是'
+                LEFT JOIN hisbase h ON h.dwbm = r.dwbm AND h.grbm = r.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 %s
                 ORDER BY r.dwbm, r.grbm
                 LIMIT ? OFFSET ?
@@ -162,7 +163,7 @@ class DataExchangeRepository {
         }
 
         if (period != null && !period.isBlank()) {
-            conditions.add("h.ny = ?");
+            conditions.add("CONCAT(h.jsnf, h.jsyf) = ?");
             params.add(period);
         }
 
@@ -176,7 +177,7 @@ class DataExchangeRepository {
 
         String countSql = """
                 SELECT COUNT(*) FROM hisbase h
-                LEFT JOIN dryjbxx r ON h.uid = r.uid
+                LEFT JOIN dryjbxx r ON h.dwbm = r.dwbm AND h.grbm = r.grbm
                 LEFT JOIN dwbm d ON h.dwbm = d.dwbm
                 %s
                 """.formatted(whereClause);
@@ -185,14 +186,15 @@ class DataExchangeRepository {
 
         String querySql = """
                 SELECT h.dwbm, d.dwmc, h.grbm, h.xm, r.sfzh, r.xb, r.csny, r.ryfl,
-                       h.gw, h.zw, h.jb, h.dc, h.ny, h.bdlb,
-                       h.zwgz, h.jbgz, h.jsdjgz, h.jxgz, h.blfb, h.jxjt, h.njbt,
-                       h.jhljt, h.tggz, h.fdgz, h.jjjy, h.pgbc, h.hj
+                       h.zwbm2 AS gw, h.zwgw2 AS zw, h.jbgzjb2 AS jb, h.zwgzdc2 AS dc, CONCAT(h.jsnf, h.jsyf) AS ny, h.jslb AS bdlb,
+                       h.zwgzse2 AS zwgz, h.jbgzse2 AS jbgz, h.jsdjgz2 AS jsdjgz, h.dfbt2 AS jxgz,
+                       h.blfb2 AS blfb, h.jxjt, h.njbt,
+                       h.jhljt, h.jsfszwtg2 AS tggz, h.fdgz2 AS fdgz, h.jjjy2 AS jjjy, h.pgbc, h.hj2 AS hj
                 FROM hisbase h
-                LEFT JOIN dryjbxx r ON h.uid = r.uid
+                LEFT JOIN dryjbxx r ON h.dwbm = r.dwbm AND h.grbm = r.grbm
                 LEFT JOIN dwbm d ON h.dwbm = d.dwbm
                 %s
-                ORDER BY h.dwbm, h.grbm, h.ny
+                ORDER BY h.dwbm, h.grbm, h.jsnf, h.jsyf
                 LIMIT ? OFFSET ?
                 """.formatted(whereClause);
 
@@ -270,12 +272,13 @@ class DataExchangeRepository {
         String querySql = """
                 SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
                        r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
-                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw, r.rzny,
+                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw,
+                       (SELECT z.srny FROM dryzwbh z WHERE z.dwbm = r.dwbm AND z.grbm = r.grbm ORDER BY z.srny DESC, z.id DESC LIMIT 1) AS rzny,
                        r.mz, r.zzmm, r.dah,
-                       h.gw, h.zw, h.jb, h.dc
+                       h.zwbm2 AS gw, h.zwgw2 AS zw, h.jbgzjb2 AS jb, h.zwgzdc2 AS dc
                 FROM dryjbxx r
                 LEFT JOIN dwbm d ON r.dwbm = d.dwbm
-                LEFT JOIN hisbase h ON r.uid = h.uid AND h.dq = '是'
+                LEFT JOIN hisbase h ON h.dwbm = r.dwbm AND h.grbm = r.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 %s
                 ORDER BY r.dwbm, r.grbm
                 """.formatted(whereClause);
@@ -292,12 +295,13 @@ class DataExchangeRepository {
         String querySql = """
                 SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
                        r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
-                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw, r.rzny,
+                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw,
+                       (SELECT z.srny FROM dryzwbh z WHERE z.dwbm = r.dwbm AND z.grbm = r.grbm ORDER BY z.srny DESC, z.id DESC LIMIT 1) AS rzny,
                        r.mz, r.zzmm, r.dah,
-                       h.gw, h.zw, h.jb, h.dc
+                       h.zwbm2 AS gw, h.zwgw2 AS zw, h.jbgzjb2 AS jb, h.zwgzdc2 AS dc
                 FROM dryjbxx r
                 LEFT JOIN dwbm d ON r.dwbm = d.dwbm
-                LEFT JOIN hisbase h ON r.uid = h.uid AND h.dq = '是'
+                LEFT JOIN hisbase h ON h.dwbm = r.dwbm AND h.grbm = r.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 WHERE r.dwbm IN (%s)
                 ORDER BY r.dwbm, r.grbm
                 """.formatted(placeholders);
@@ -313,12 +317,13 @@ class DataExchangeRepository {
             rows.addAll(jdbcTemplate.query("""
                     SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
                            r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
-                           r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw, r.rzny,
+                           r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw,
+                           (SELECT z.srny FROM dryzwbh z WHERE z.dwbm = r.dwbm AND z.grbm = r.grbm ORDER BY z.srny DESC, z.id DESC LIMIT 1) AS rzny,
                            r.mz, r.zzmm, r.dah,
-                           h.gw, h.zw, h.jb, h.dc
+                           h.zwbm2 AS gw, h.zwgw2 AS zw, h.jbgzjb2 AS jb, h.zwgzdc2 AS dc
                     FROM dryjbxx r
                     LEFT JOIN dwbm d ON r.dwbm = d.dwbm
-                    LEFT JOIN hisbase h ON r.uid = h.uid AND h.dq = '是'
+                    LEFT JOIN hisbase h ON h.dwbm = r.dwbm AND h.grbm = r.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                     WHERE r.dwbm = ? AND r.grbm = ?
                     """, this::mapPersonnelExport, key.organizationCode(), key.personCode()));
         }
@@ -462,8 +467,8 @@ class DataExchangeRepository {
                 INSERT INTO dryjbxx (
                     dwbm, grbm, xm, sfzh, xb, csny, ryfl, dwsx, gwfl,
                     cjgzny, zzny, gznx, xlbm, zgxl, zwjb, zjbm, xrzw,
-                    rzny, mz, zzmm, dah
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    mz, zzmm, dah
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 organizationCode,
                 personCode,
@@ -482,7 +487,6 @@ class DataExchangeRepository {
                 row.positionLevel(),
                 row.rankCode(),
                 row.currentPosition(),
-                row.positionStart(),
                 row.ethnicity(),
                 row.politicalStatus(),
                 row.archiveNumber());
