@@ -775,12 +775,13 @@ tr:last-child td {
 .modal-overlay {
     position: fixed;
     inset: 0;
-    z-index: 20;
+    z-index: 10000;
     display: grid;
     place-items: center;
     padding: 28px;
     background: rgba(15, 23, 42, 0.46);
     backdrop-filter: blur(8px);
+    isolation: isolate;
 }
 
 #subrecord-editor-modal {
@@ -789,10 +790,12 @@ tr:last-child td {
 
 #dictionary-picker-modal,
 #organization-picker-modal {
-    z-index: 40;
+    z-index: 10010;
 }
 
 .modal-card {
+    position: relative;
+    z-index: 10011;
     width: min(960px, 100%);
     max-height: calc(100vh - 56px);
     overflow: auto;
