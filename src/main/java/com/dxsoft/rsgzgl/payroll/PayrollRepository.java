@@ -962,6 +962,21 @@ class PayrollRepository {
         return count == null ? 0 : count.intValue();
     }
 
+    int latestAssessmentYear(String organizationCode, String personCode) {
+        if (emptyToNull(organizationCode) == null || emptyToNull(personCode) == null) {
+            return 0;
+        }
+        String year = jdbcTemplate.queryForList("""
+                SELECT MAX(khnd)
+                FROM dndkh
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode), String.class).stream().findFirst().orElse(null);
+        return intValue(year);
+    }
+
     long countPersonnelWithPayrollHistory(OrganizationScope organizationScope) {
         if (organizationScope.noneScope()) {
             return 0;

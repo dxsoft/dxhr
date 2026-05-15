@@ -262,12 +262,13 @@ public class PayrollService {
                 });
         int baseYear = yearOf(startPeriod);
         int targetYear = yearOf(targetPeriod);
+        int latestAssessmentYear = payrollRepository.latestAssessmentYear(latest.organizationCode(), latest.personCode());
         for (int year = Math.max(2007, baseYear + 1); year <= targetYear; year++) {
             if ("GRADE".equals(baseSalarySource) && payrollRepository.intValue(level) > 1) {
                 int levelStart = assessmentStartYear(levelStartYear, start.positionStartYearMonth(), positionCode);
                 int stepStart = assessmentStartYear(stepStartYear, start.positionStartYearMonth(), positionCode);
-                int qualifiedLevel = payrollRepository.countQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), levelStart, year - 1);
-                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1);
+                int qualifiedLevel = projectedQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), levelStart, year - 1, latestAssessmentYear);
+                int qualifiedStep = projectedQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1, latestAssessmentYear);
                 if (qualifiedLevel >= 5) {
                     int currentSalary = payrollRepository.gradeSalary(level, step, latest.salaryStandardYearMonth());
                     String nextLevel = String.valueOf(Math.max(1, payrollRepository.intValue(level) - 1));
@@ -286,7 +287,7 @@ public class PayrollService {
                 }
             } else if ("SALARY_LEVEL".equals(baseSalarySource)) {
                 int stepStart = assessmentStartYear(stepStartYear, start.positionStartYearMonth(), positionCode);
-                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1);
+                int qualifiedStep = projectedQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1, latestAssessmentYear);
                 if (qualifiedStep >= 1) {
                     step = String.valueOf(payrollRepository.intValue(step) + 1);
                     stepStartYear = String.valueOf(year);
@@ -2589,6 +2590,24 @@ public class PayrollService {
             return Math.max(stored, minimumStartYear);
         }
         return minimumStartYear;
+    }
+
+    private int projectedQualifiedAssessmentYears(
+            String organizationCode,
+            String personCode,
+            int startYear,
+            int endYear,
+            int latestAssessmentYear) {
+        if (startYear <= 0 || endYear < startYear) {
+            return 0;
+        }
+        int actualEndYear = latestAssessmentYear <= 0 ? endYear : Math.min(endYear, latestAssessmentYear);
+        int actual = payrollRepository.countQualifiedAssessmentYears(organizationCode, personCode, startYear, actualEndYear);
+        int projectedStartYear = Math.max(startYear, latestAssessmentYear + 1);
+        int projected = latestAssessmentYear > 0 && endYear >= projectedStartYear
+                ? endYear - projectedStartYear + 1
+                : 0;
+        return actual + projected;
     }
 
     private boolean isLevelPromotionPosition(String positionCode) {
