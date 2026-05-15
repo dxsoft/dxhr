@@ -586,13 +586,15 @@ function selectOrganizationNode(code, name) {
     }
     if (state.activeOrganizationTarget === "reportApproval") {
         const input = document.getElementById("report-approval-organization-code");
-        input.value = code;
+        input.value = name || code;
+        input.dataset.organizationCode = code;
         input.title = name || code;
         return;
     }
     if (state.activeOrganizationTarget === "reportRegister") {
         const input = document.getElementById("report-payroll-change-organization-code");
-        input.value = code;
+        input.value = name || code;
+        input.dataset.organizationCode = code;
         input.title = name || code;
         return;
     }
@@ -606,7 +608,8 @@ function selectOrganizationNode(code, name) {
     }
     if (state.activeOrganizationTarget === "dataExchangeReceiveTarget") {
         const input = document.getElementById("data-exchange-receive-target-organization");
-        input.value = code;
+        input.value = name || code;
+        input.dataset.organizationCode = code;
         input.title = name || code;
         return;
     }
@@ -2128,7 +2131,7 @@ async function onPayrollChangeRegisterReportSearch(event) {
 }
 
 async function loadPayrollChangeRegisterReport() {
-    const organizationCode = document.getElementById("report-payroll-change-organization-code").value.trim();
+    const organizationCode = selectedOrganizationCode("report-payroll-change-organization-code");
     const reportTypeCode = document.getElementById("report-payroll-change-type-select").value.trim();
     const year = document.getElementById("report-payroll-change-year").value.trim();
     const keyword = document.getElementById("report-payroll-change-keyword").value.trim();
@@ -2503,7 +2506,7 @@ async function loadReportTypes() {
 }
 
 async function loadPayrollChangeApprovalReport() {
-    const organizationCode = document.getElementById("report-approval-organization-code").value.trim();
+    const organizationCode = selectedOrganizationCode("report-approval-organization-code");
     const reportTypeCode = document.getElementById("report-approval-type-select").value.trim();
     const year = document.getElementById("report-approval-year").value.trim();
     const keyword = document.getElementById("report-approval-keyword").value.trim();
@@ -4159,8 +4162,8 @@ async function previewDataExchangeReceive() {
     try {
         const result = await postJson("/api/data-exchange/receive/preview", {
             packageJson: document.getElementById("data-exchange-receive-json").value,
-            mode: document.getElementById("data-exchange-receive-target-organization").value ? "APPEND" : "REPLACE",
-            targetOrganizationCode: document.getElementById("data-exchange-receive-target-organization").value,
+            mode: selectedOrganizationCode("data-exchange-receive-target-organization") ? "APPEND" : "REPLACE",
+            targetOrganizationCode: selectedOrganizationCode("data-exchange-receive-target-organization"),
             selectedPersonnel: [],
         });
         state.dataExchangeReceiveRows = result.rows || [];
@@ -4195,6 +4198,7 @@ async function applyDataExchangeReceive(mode) {
     const status = document.getElementById("data-exchange-receive-status");
     status.className = "status";
     const selected = mode === "APPEND" ? selectedExchangeKeys("[data-receive-select]:checked") : [];
+    const targetOrganizationCode = selectedOrganizationCode("data-exchange-receive-target-organization");
     const confirmMessage = mode === "APPEND"
         ? `将追加 ${selected.length} 人到单位 ${document.getElementById("data-exchange-receive-target-organization").value}，并重新生成个人编码，是否继续？`
         : "将整体接收数据包并替换本地相同单位编码和个人编码数据，是否继续？";
@@ -4206,7 +4210,7 @@ async function applyDataExchangeReceive(mode) {
         const result = await postJson("/api/data-exchange/receive/apply", {
             packageJson: document.getElementById("data-exchange-receive-json").value,
             mode,
-            targetOrganizationCode: document.getElementById("data-exchange-receive-target-organization").value,
+            targetOrganizationCode,
             selectedPersonnel: selected,
         });
         const mappingText = (result.codeMappings || []).map(item =>
@@ -4241,6 +4245,11 @@ function selectedExchangeKeys(selector) {
         const [organizationCode, personCode] = String(input.value || "").split("|");
         return { organizationCode, personCode };
     });
+}
+
+function selectedOrganizationCode(inputId) {
+    const input = document.getElementById(inputId);
+    return (input?.dataset?.organizationCode || input?.value || "").trim();
 }
 
 function maskIdCardClient(idCard) {
