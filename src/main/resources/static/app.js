@@ -2297,7 +2297,7 @@ function renderPayrollChangeRegisterRow(report, index) {
         ${registerBeforeAfterRow(report, index, "前", {
             total: total.beforeAmount,
             position: report.previousPositionName,
-            level: report.previousGradeLevel || report.previousStepOrSalaryLevel,
+            level: registerLevelText(report, "previous"),
             positionSalary: positionSalary?.beforeAmount,
             gradeSalary: gradeSalary?.beforeAmount,
             technicalSalary: technicalSalary?.beforeAmount,
@@ -2317,7 +2317,7 @@ function renderPayrollChangeRegisterRow(report, index) {
         ${registerBeforeAfterRow(report, index, "后", {
             total: total.afterAmount,
             position: report.currentPositionName,
-            level: report.currentGradeLevel || report.currentStepOrSalaryLevel,
+            level: registerLevelText(report, "current"),
             positionSalary: positionSalary?.afterAmount,
             gradeSalary: gradeSalary?.afterAmount,
             technicalSalary: technicalSalary?.afterAmount,
@@ -2450,6 +2450,12 @@ function registerColumnLabels(institution) {
             positionSalary: "职务工资",
             gradeSalary: "级别工资",
         };
+}
+
+function registerLevelText(report, prefix) {
+    const grade = prefix === "previous" ? report.previousGradeLevel : report.currentGradeLevel;
+    const step = prefix === "previous" ? report.previousStepOrSalaryLevel : report.currentStepOrSalaryLevel;
+    return isInstitutionApproval(report) ? (step || grade || "") : gradeStepText(grade, step);
 }
 
 function chunkArray(items, size) {
@@ -2655,7 +2661,7 @@ function agencyApprovalRows(report, components) {
     const amount = field => componentByField(components, field);
     return [
         textApprovalRow("执行工资职务层次", report.previousPositionName, report.currentPositionName),
-        textApprovalRow("级别", joinNonEmpty(report.previousGradeLevel, report.previousStepOrSalaryLevel), joinNonEmpty(report.currentGradeLevel, report.currentStepOrSalaryLevel)),
+        textApprovalRow("级别", gradeStepText(report.previousGradeLevel, report.previousStepOrSalaryLevel), gradeStepText(report.currentGradeLevel, report.currentStepOrSalaryLevel)),
         amountApprovalRow("职务(岗位)工资", amount("ZWGZSE2")),
         amountApprovalRow("级别工资", amount("JBGZSE2")),
         amountApprovalRow("技术等级工资", amount("JSDJGZ2")),
@@ -2803,6 +2809,15 @@ function formatCompactPeriod(period) {
         return "";
     }
     return `${period.slice(0, 4)}.${period.slice(4, 6)}`;
+}
+
+function gradeStepText(grade, step) {
+    const normalizedGrade = String(grade ?? "").trim();
+    const normalizedStep = String(step ?? "").trim();
+    if (normalizedGrade && normalizedStep) {
+        return `${normalizedGrade}-${normalizedStep}`;
+    }
+    return normalizedGrade || normalizedStep || "";
 }
 
 function joinNonEmpty(...values) {
