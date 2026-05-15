@@ -1521,7 +1521,8 @@ async function autoFillMissingAssessments() {
         alert("当前工资推算未提示缺失年度考核。");
         return;
     }
-    const result = prompt(`将补录 ${years.join("、")} 年度考核，默认结果：称职。可在下方编辑。\\n如需改默认结果，请输入：`, "称职");
+    const defaultResult = defaultAssessmentResultForCurrentPerson();
+    const result = prompt(`将补录 ${years.join("、")} 年度考核，默认结果：${defaultResult}。可在下方编辑。\\n如需改默认结果，请输入：`, defaultResult);
     if (result === null) {
         return;
     }
@@ -1537,6 +1538,13 @@ async function autoFillMissingAssessments() {
     } catch (error) {
         showError(status, error);
     }
+}
+
+function defaultAssessmentResultForCurrentPerson() {
+    const category = document.getElementById("maint-personnel-category").value || "";
+    const organizationType = document.getElementById("maint-organization-type").value || "";
+    const text = `${category} ${organizationType}`;
+    return text.includes("事业") ? "合格" : "称职";
 }
 
 function missingAssessmentYearsFromProjection() {
