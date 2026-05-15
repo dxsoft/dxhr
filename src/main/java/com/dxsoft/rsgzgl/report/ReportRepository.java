@@ -96,10 +96,14 @@ class ReportRepository {
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR h.jsnf = :year)
-                  AND (:reportText IS NULL OR :isRegister = TRUE
+                  AND (:reportText IS NULL OR :isAllRegister = TRUE
                        OR (:isSalaryLevel = TRUE AND h.jslb LIKE '%薪级%')
-                       OR (:isStepPromotion = TRUE AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
-                       OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级%')
+                       OR (:isStepPromotion = TRUE AND h.jslb NOT LIKE '%薪级%' AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
+                       OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级别%')
+                       OR (:isPositionChange = TRUE AND (h.jslb LIKE '%职务%' OR h.jslb LIKE '%岗位%' OR h.jslb LIKE '%职级%'))
+                       OR (:isAllowanceChange = TRUE AND (h.jslb LIKE '%津贴%' OR h.jslb LIKE '%补贴%' OR h.jslb LIKE '%绩效%'))
+                       OR (:isRegularization = TRUE AND (h.jslb LIKE '%转正%' OR h.jslb LIKE '%见习%'))
+                       OR (:isTransfer = TRUE AND (h.jslb LIKE '%调入%' OR h.jslb LIKE '%新进%'))
                        OR h.jslb LIKE :reportTextLike)
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
                        OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
@@ -125,10 +129,14 @@ class ReportRepository {
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR h.jsnf = :year)
-                  AND (:reportText IS NULL OR :isRegister = TRUE
+                  AND (:reportText IS NULL OR :isAllRegister = TRUE
                        OR (:isSalaryLevel = TRUE AND h.jslb LIKE '%薪级%')
-                       OR (:isStepPromotion = TRUE AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
-                       OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级%')
+                       OR (:isStepPromotion = TRUE AND h.jslb NOT LIKE '%薪级%' AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
+                       OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级别%')
+                       OR (:isPositionChange = TRUE AND (h.jslb LIKE '%职务%' OR h.jslb LIKE '%岗位%' OR h.jslb LIKE '%职级%'))
+                       OR (:isAllowanceChange = TRUE AND (h.jslb LIKE '%津贴%' OR h.jslb LIKE '%补贴%' OR h.jslb LIKE '%绩效%'))
+                       OR (:isRegularization = TRUE AND (h.jslb LIKE '%转正%' OR h.jslb LIKE '%见习%'))
+                       OR (:isTransfer = TRUE AND (h.jslb LIKE '%调入%' OR h.jslb LIKE '%新进%'))
                        OR h.jslb LIKE :reportTextLike)
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
                        OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
@@ -148,10 +156,14 @@ class ReportRepository {
                 .addValue("year", emptyToNull(year))
                 .addValue("reportText", emptyToNull(reportText))
                 .addValue("reportTextLike", reportText == null ? null : "%" + reportText + "%")
-                .addValue("isRegister", normalized.contains("名册"))
+                .addValue("isAllRegister", normalized.contains("全体工作人员工资花名册") || normalized.contains("工作人员工资花名册"))
                 .addValue("isSalaryLevel", normalized.contains("薪级"))
                 .addValue("isStepPromotion", normalized.contains("档次") || normalized.contains("晋档"))
-                .addValue("isGradePromotion", normalized.contains("级别") || normalized.contains("晋级"));
+                .addValue("isGradePromotion", normalized.contains("级别滚动") || normalized.contains("正常级别") || normalized.contains("晋级"))
+                .addValue("isPositionChange", normalized.contains("职务") || normalized.contains("职级"))
+                .addValue("isAllowanceChange", normalized.contains("津贴") || normalized.contains("补贴") || normalized.contains("绩效"))
+                .addValue("isRegularization", normalized.contains("转正") || normalized.contains("见习"))
+                .addValue("isTransfer", normalized.contains("调入") || normalized.contains("新进"));
     }
 
     private String reportTypeText(String reportTypeCode) {
