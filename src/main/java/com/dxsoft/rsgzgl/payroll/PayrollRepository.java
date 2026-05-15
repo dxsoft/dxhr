@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -962,19 +963,27 @@ class PayrollRepository {
         return count == null ? 0 : count.intValue();
     }
 
-    int latestAssessmentYear(String organizationCode, String personCode) {
+    Set<Integer> assessmentYears(String organizationCode, String personCode, int startYear, int endYear) {
         if (emptyToNull(organizationCode) == null || emptyToNull(personCode) == null) {
-            return 0;
+            return Set.of();
         }
-        String year = jdbcTemplate.queryForList("""
-                SELECT MAX(khnd)
+        return jdbcTemplate.queryForList("""
+                SELECT DISTINCT khnd
                 FROM dndkh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
-                """, new MapSqlParameterSource()
+                  AND khnd BETWEEN :startYear AND :endYear
+                """,
+                new MapSqlParameterSource()
                 .addValue("organizationCode", organizationCode)
-                .addValue("personCode", personCode), String.class).stream().findFirst().orElse(null);
-        return intValue(year);
+                .addValue("personCode", personCode)
+                .addValue("startYear", String.valueOf(startYear))
+                .addValue("endYear", String.valueOf(endYear)),
+                String.class)
+                .stream()
+                .map(this::intValue)
+                .filter(year -> year > 0)
+                .collect(Collectors.toSet());
     }
 
     long countPersonnelWithPayrollHistory(OrganizationScope organizationScope) {

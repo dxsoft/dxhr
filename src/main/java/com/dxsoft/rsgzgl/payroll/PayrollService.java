@@ -262,13 +262,15 @@ public class PayrollService {
                 });
         int baseYear = yearOf(startPeriod);
         int targetYear = yearOf(targetPeriod);
-        int latestAssessmentYear = payrollRepository.latestAssessmentYear(latest.organizationCode(), latest.personCode());
+        Set<Integer> promptedMissingAssessmentYears = new java.util.TreeSet<>();
         for (int year = Math.max(2007, baseYear + 1); year <= targetYear; year++) {
             if ("GRADE".equals(baseSalarySource) && payrollRepository.intValue(level) > 1) {
                 int levelStart = assessmentStartYear(levelStartYear, start.positionStartYearMonth(), positionCode);
                 int stepStart = assessmentStartYear(stepStartYear, start.positionStartYearMonth(), positionCode);
-                int qualifiedLevel = projectedQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), levelStart, year - 1, latestAssessmentYear);
-                int qualifiedStep = projectedQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1, latestAssessmentYear);
+                appendMissingAssessmentPrompt(lines, latest.organizationCode(), latest.personCode(), levelStart, year - 1, promptedMissingAssessmentYears);
+                appendMissingAssessmentPrompt(lines, latest.organizationCode(), latest.personCode(), stepStart, year - 1, promptedMissingAssessmentYears);
+                int qualifiedLevel = payrollRepository.countQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), levelStart, year - 1);
+                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1);
                 if (qualifiedLevel >= 5) {
                     int currentSalary = payrollRepository.gradeSalary(level, step, latest.salaryStandardYearMonth());
                     String nextLevel = String.valueOf(Math.max(1, payrollRepository.intValue(level) - 1));
@@ -287,7 +289,8 @@ public class PayrollService {
                 }
             } else if ("SALARY_LEVEL".equals(baseSalarySource)) {
                 int stepStart = assessmentStartYear(stepStartYear, start.positionStartYearMonth(), positionCode);
-                int qualifiedStep = projectedQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1, latestAssessmentYear);
+                appendMissingAssessmentPrompt(lines, latest.organizationCode(), latest.personCode(), stepStart, year - 1, promptedMissingAssessmentYears);
+                int qualifiedStep = payrollRepository.countQualifiedAssessmentYears(latest.organizationCode(), latest.personCode(), stepStart, year - 1);
                 if (qualifiedStep >= 1) {
                     step = String.valueOf(payrollRepository.intValue(step) + 1);
                     stepStartYear = String.valueOf(year);
@@ -2592,22 +2595,39 @@ public class PayrollService {
         return minimumStartYear;
     }
 
-    private int projectedQualifiedAssessmentYears(
+    private void appendMissingAssessmentPrompt(
+            List<String> lines,
             String organizationCode,
             String personCode,
             int startYear,
             int endYear,
-            int latestAssessmentYear) {
-        if (startYear <= 0 || endYear < startYear) {
-            return 0;
+            Set<Integer> promptedYears) {
+        List<Integer> missingYears = missingAssessmentYears(organizationCode, personCode, startYear, endYear)
+                .stream()
+                .filter(promptedYears::add)
+                .toList();
+        if (!missingYears.isEmpty()) {
+            lines.add("缺少 " + missingYears.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining("、"))
+                    + " 年度考核结果，请先补录后再推算正常晋升。");
         }
-        int actualEndYear = latestAssessmentYear <= 0 ? endYear : Math.min(endYear, latestAssessmentYear);
-        int actual = payrollRepository.countQualifiedAssessmentYears(organizationCode, personCode, startYear, actualEndYear);
-        int projectedStartYear = Math.max(startYear, latestAssessmentYear + 1);
-        int projected = latestAssessmentYear > 0 && endYear >= projectedStartYear
-                ? endYear - projectedStartYear + 1
-                : 0;
-        return actual + projected;
+    }
+
+    private List<Integer> missingAssessmentYears(
+            String organizationCode,
+            String personCode,
+            int startYear,
+            int endYear) {
+        if (startYear <= 0 || endYear < startYear) {
+            return List.of();
+        }
+        Set<Integer> existingYears = payrollRepository.assessmentYears(organizationCode, personCode, startYear, endYear);
+        List<Integer> missing = new ArrayList<>();
+        for (int year = startYear; year <= endYear; year++) {
+            if (!existingYears.contains(year)) {
+                missing.add(year);
+            }
+        }
+        return missing;
     }
 
     private boolean isLevelPromotionPosition(String positionCode) {
