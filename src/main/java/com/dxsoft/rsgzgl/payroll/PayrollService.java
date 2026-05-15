@@ -211,6 +211,7 @@ public class PayrollService {
                     "",
                     "",
                     "",
+                    "",
                     lines);
         }
         String positionCode = start.positionCode();
@@ -244,7 +245,7 @@ public class PayrollService {
                 }
                 lines.add(row.calculationYear() + row.calculationMonth() + " " + type + "：采用历史记录"
                         + positionLabel(baseSalarySource) + " " + positionDisplay(positionCode, positionName)
-                        + "，" + levelStepLabel(baseSalarySource) + " " + emptyToDash(level) + "/" + emptyToDash(step) + "。");
+                        + "，" + levelStepLabel(baseSalarySource) + " " + levelStepDisplay(baseSalarySource, level, step) + "。");
             } else if (containsAny(type, "学历")) {
                 if ("GRADE".equals(baseSalarySource)) {
                     level = row.gradeSalaryLevel();
@@ -252,7 +253,7 @@ public class PayrollService {
                 step = String.valueOf(payrollRepository.intValue(row.positionSalaryGrade()) + payrollRepository.intValue(row.gradeSalaryStep()));
                 stepStartYear = row.stepAssessmentStartYear();
                 lines.add(row.calculationYear() + row.calculationMonth() + " 学历变化：采用历史记录" + levelStepLabel(baseSalarySource) + " "
-                        + emptyToDash(level) + "/" + step + "。");
+                        + levelStepDisplay(baseSalarySource, level, step) + "。");
             }
         }
         payrollRepository.findPositionAtOrBefore(latest.organizationCode(), latest.personCode(), targetPeriod)
@@ -271,7 +272,8 @@ public class PayrollService {
                     int currentSalary = payrollRepository.gradeSalary(level, step, latest.salaryStandardYearMonth());
                     String nextLevel = String.valueOf(Math.max(1, payrollRepository.intValue(level) - 1));
                     String nextStep = firstHigherGradeStep(nextLevel, currentSalary, latest.salaryStandardYearMonth());
-                    lines.add(year + " 年：累计 " + qualifiedLevel + " 年考核合格，晋升级别 " + level + " -> " + nextLevel + "，档次 " + step + " -> " + nextStep + "。");
+                    lines.add(year + " 年：累计 " + qualifiedLevel + " 年考核合格，晋升级别 "
+                            + levelStepDisplay(baseSalarySource, level, step) + " -> " + levelStepDisplay(baseSalarySource, nextLevel, nextStep) + "。");
                     level = nextLevel;
                     step = nextStep;
                     levelStartYear = String.valueOf(year);
@@ -279,7 +281,8 @@ public class PayrollService {
                 } else if (qualifiedStep >= 2) {
                     step = String.valueOf(payrollRepository.intValue(step) + 1);
                     stepStartYear = String.valueOf(year);
-                    lines.add(year + " 年：累计 " + qualifiedStep + " 年考核合格，晋升档次到 " + step + "。");
+                    lines.add(year + " 年：累计 " + qualifiedStep + " 年考核合格，晋升档次到 "
+                            + levelStepDisplay(baseSalarySource, level, step) + "。");
                 }
             } else if ("SALARY_LEVEL".equals(baseSalarySource)) {
                 int stepStart = assessmentStartYear(stepStartYear, start.positionStartYearMonth(), positionCode);
@@ -303,6 +306,7 @@ public class PayrollService {
                 positionName,
                 level,
                 step,
+                levelStepDisplay(baseSalarySource, level, step),
                 levelStartYear,
                 stepStartYear,
                 baseSalarySource,
@@ -1588,8 +1592,7 @@ public class PayrollService {
                     position.map(PositionChangeCandidate::startYearMonth).orElse("2006.07"),
                     "2006.07 前已转正，按基本信息和 2006 套改标准确定起点：职务 "
                             + positionDisplay(standard.get().positionCode(), positionNameForProjectionStart(position, standard.get().positionCode()))
-                            + "，级别/档次 " + emptyToDash(standard.get().convertedLevel())
-                            + "/" + standard.get().convertedStep() + "。");
+                            + "，级别/档次 " + levelStepDisplay("GRADE", standard.get().convertedLevel(), standard.get().convertedStep()) + "。");
         }
         if (regularization.isBlank()) {
             return WageProjectionStart.ineligible("未找到转正年月，无法从转正定级规则确定起点。");
@@ -2155,6 +2158,18 @@ public class PayrollService {
 
     private String levelStepLabel(String baseSalarySource) {
         return "SALARY_LEVEL".equals(baseSalarySource) ? "薪级" : "级别/档次";
+    }
+
+    private String levelStepDisplay(String baseSalarySource, String level, String step) {
+        if ("SALARY_LEVEL".equals(baseSalarySource)) {
+            return emptyToDash(step);
+        }
+        String normalizedLevel = level == null ? "" : level.trim();
+        String normalizedStep = step == null ? "" : step.trim();
+        if (!normalizedLevel.isBlank() && !normalizedStep.isBlank()) {
+            return normalizedLevel + "-" + normalizedStep;
+        }
+        return emptyToDash(normalizedLevel.isBlank() ? normalizedStep : normalizedLevel);
     }
 
     private boolean containsAny(String value, String... tokens) {

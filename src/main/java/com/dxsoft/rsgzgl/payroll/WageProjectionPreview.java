@@ -14,6 +14,7 @@ public record WageProjectionPreview(
         String positionName,
         String level,
         String stepOrSalaryLevel,
+        String levelStepDisplay,
         String levelAssessmentStartYear,
         String stepAssessmentStartYear,
         String baseSalarySource,

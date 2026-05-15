@@ -1573,7 +1573,7 @@ function renderWageProjection(projection) {
         <strong>起点年月：</strong>${escapeHtml(projection.basePeriod || "-")}<br>
         ${regularizationProjectionLine(projection)}
         <strong>岗位：</strong>${escapeHtml(positionDisplay(projection.positionCode, projection.positionName))}<br>
-        <strong>级别/档次薪级：</strong>${escapeHtml(projection.level || "-")} / ${escapeHtml(projection.stepOrSalaryLevel || "-")}
+        <strong>级别/档次薪级：</strong>${escapeHtml(projection.levelStepDisplay || gradeStepText(projection.level, projection.stepOrSalaryLevel) || "-")}
         <strong>工资类型：</strong>${escapeHtml(baseSalarySourceName(projection.baseSalarySource))}<br>
         <strong>xckhndjb：</strong>${escapeHtml(projection.levelAssessmentStartYear || "-")}
         <strong>xckhndzw：</strong>${escapeHtml(projection.stepAssessmentStartYear || "-")}
