@@ -499,15 +499,19 @@ function bindOrganizationPickerInput(inputId, buttonId, target) {
 
 async function openOrganizationPicker(target = "maintenance") {
     state.activeOrganizationTarget = target;
+    const modal = document.getElementById("organization-picker-modal");
+    if (modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
+    }
     document.getElementById("organization-picker-title").textContent = target === "personnelTransfer" ? "选择调往单位" : "选择单位";
     document.getElementById("organization-picker-subtitle").textContent = target === "personnelTransfer"
         ? "从单位树中选择调往本地其他单位，支持按单位名称或编码搜索。"
-        : target === "reportApproval"
+        : ["reportApproval", "reportRegister", "dataExchangeDispatch", "dataExchangeReceiveTarget"].includes(target)
             ? "从单位信息树中选择报表打印单位，支持按单位名称或编码搜索。"
             : "从单位树中选择人员所属单位，支持按单位名称或编码搜索。";
     document.getElementById("organization-picker-filter").value = "";
     document.getElementById("organization-picker-tree").innerHTML = "正在加载单位...";
-    document.getElementById("organization-picker-modal").classList.remove("hidden");
+    modal.classList.remove("hidden");
     try {
         state.organizationNodes = await getJson("/api/organizations/tree");
         state.organizationExpandedCodes = new Set(rootOrganizationNodes(state.organizationNodes).map(node => node.code));
