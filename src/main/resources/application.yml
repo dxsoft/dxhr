@@ -25,4 +25,5 @@ rsgzgl:
     admin:
       username: ${RSGZGL_ADMIN_USERNAME:admin}
       password: ${RSGZGL_ADMIN_PASSWORD:}
+      reset-password: ${RSGZGL_ADMIN_RESET_PASSWORD:${RSGZGL_SECURITY_ADMIN_RESET_PASSWORD:true}}
       display-name: ${RSGZGL_ADMIN_DISPLAY_NAME:系统管理员}
