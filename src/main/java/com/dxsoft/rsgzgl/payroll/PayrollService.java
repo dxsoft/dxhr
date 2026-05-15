@@ -1616,8 +1616,11 @@ public class PayrollService {
                 String.valueOf(yearOf(regularization)),
                 appointed == null ? regularization : appointed.startYearMonth(),
                 institution
-                        ? "2006.07 及以后转正，事业人员按学历标准确定薪级、岗位取转正当月聘任岗位：" + positionCode + "，薪级 " + standard.gradeStep() + "。"
-                        : "2006.07 及以后转正，按学历转正定级标准确定起点：岗位 " + positionCode
+                        ? "2006.07 及以后转正，转正时间 " + formatYearMonth(regularization)
+                        + "，事业人员按学历标准确定薪级、岗位取转正当月聘任岗位："
+                        + positionDisplay(positionCode, positionName) + "，薪级 " + standard.gradeStep() + "。"
+                        : "2006.07 及以后转正，转正时间 " + formatYearMonth(regularization)
+                        + "，按学历转正定级标准确定起点：岗位 " + positionDisplay(positionCode, positionName)
                         + "，级别/档次 " + standard.gradeLevel() + "/" + standard.gradeStep() + "。");
     }
 
@@ -2112,6 +2115,23 @@ public class PayrollService {
     private String normalizeYearMonth(String value) {
         String normalized = value == null ? "" : value.replace(".", "").trim();
         return normalized.length() >= 6 ? normalized.substring(0, 6) : "";
+    }
+
+    private String formatYearMonth(String value) {
+        String normalized = normalizeYearMonth(value);
+        if (normalized.isBlank()) {
+            return emptyToDash(value);
+        }
+        return normalized.substring(0, 4) + "." + normalized.substring(4, 6);
+    }
+
+    private String positionDisplay(String code, String name) {
+        String normalizedCode = code == null ? "" : code.trim();
+        String normalizedName = name == null ? "" : name.trim();
+        if (!normalizedCode.isBlank() && !normalizedName.isBlank()) {
+            return normalizedCode + " " + normalizedName;
+        }
+        return emptyToDash(normalizedCode.isBlank() ? normalizedName : normalizedCode);
     }
 
     private boolean containsAny(String value, String... tokens) {
