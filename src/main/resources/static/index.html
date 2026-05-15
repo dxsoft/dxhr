@@ -1508,7 +1508,10 @@
 
         <h3>数据接收</h3>
         <form id="data-exchange-receive-form" class="toolbar">
-            <label style="grid-column: span 2;">数据包 JSON<textarea id="data-exchange-receive-json" rows="4" placeholder="粘贴下发 JSON 数据包内容"></textarea></label>
+            <label style="grid-column: span 2;">数据包文件
+                <input id="data-exchange-receive-file" type="file" accept=".json,application/json">
+                <input id="data-exchange-receive-json" type="hidden">
+            </label>
             <label>追加接收到单位
                 <div class="dict-input-combo">
                     <input id="data-exchange-receive-target-organization" readonly placeholder="追加接收时选择">

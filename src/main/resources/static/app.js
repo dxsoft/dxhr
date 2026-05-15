@@ -140,6 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("data-exchange-dispatch-select-all").addEventListener("change", event => {
         document.querySelectorAll("[data-dispatch-select]").forEach(checkbox => checkbox.checked = event.target.checked);
     });
+    document.getElementById("data-exchange-receive-file").addEventListener("change", onDataExchangeReceiveFileSelected);
     document.getElementById("data-exchange-receive-form").addEventListener("submit", onDataExchangeReceivePreview);
     document.getElementById("data-exchange-receive-all").addEventListener("click", () => applyDataExchangeReceive("REPLACE"));
     document.getElementById("data-exchange-receive-selected").addEventListener("click", () => applyDataExchangeReceive("APPEND"));
@@ -4165,6 +4166,26 @@ async function onDataExchangeReceivePreview(event) {
     await previewDataExchangeReceive();
 }
 
+async function onDataExchangeReceiveFileSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    const status = document.getElementById("data-exchange-receive-status");
+    if (!file) {
+        document.getElementById("data-exchange-receive-json").value = "";
+        return;
+    }
+    try {
+        const text = await file.text();
+        JSON.parse(text);
+        document.getElementById("data-exchange-receive-json").value = text;
+        status.className = "status";
+        status.textContent = `已选择数据包：${file.name}，可点击“预览接收”。`;
+    } catch (error) {
+        document.getElementById("data-exchange-receive-json").value = "";
+        status.className = "status error";
+        status.textContent = `数据包文件格式错误：${error.message}`;
+    }
+}
+
 async function previewDataExchangeReceive() {
     const status = document.getElementById("data-exchange-receive-status");
     const rows = document.getElementById("data-exchange-receive-rows");
@@ -4175,8 +4196,12 @@ async function previewDataExchangeReceive() {
     summary.classList.add("hidden");
     summary.innerHTML = "";
     try {
+        const packageJson = document.getElementById("data-exchange-receive-json").value;
+        if (!packageJson) {
+            throw new Error("请先选择数据包文件。");
+        }
         const result = await postJson("/api/data-exchange/receive/preview", {
-            packageJson: document.getElementById("data-exchange-receive-json").value,
+            packageJson,
             mode: selectedOrganizationCode("data-exchange-receive-target-organization") ? "APPEND" : "REPLACE",
             targetOrganizationCode: selectedOrganizationCode("data-exchange-receive-target-organization"),
             selectedPersonnel: [],
@@ -4222,8 +4247,12 @@ async function applyDataExchangeReceive(mode) {
     }
     status.textContent = mode === "APPEND" ? "正在追加接收勾选人员..." : "正在整体接收并替换数据...";
     try {
+        const packageJson = document.getElementById("data-exchange-receive-json").value;
+        if (!packageJson) {
+            throw new Error("请先选择数据包文件。");
+        }
         const result = await postJson("/api/data-exchange/receive/apply", {
-            packageJson: document.getElementById("data-exchange-receive-json").value,
+            packageJson,
             mode,
             targetOrganizationCode,
             selectedPersonnel: selected,
