@@ -97,7 +97,7 @@ class ReportRepository {
                   AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR h.jsnf = :year)
                   AND (:reportText IS NULL OR :isAllRegister = TRUE
-                       OR (:isSalaryLevel = TRUE AND h.jslb LIKE '%薪级%')
+                       OR (:isSalaryLevel = TRUE AND (h.jslb LIKE '%薪级%' OR h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
                        OR (:isStepPromotion = TRUE AND h.jslb NOT LIKE '%薪级%' AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
                        OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级别%')
                        OR (:isPositionChange = TRUE AND (h.jslb LIKE '%职务%' OR h.jslb LIKE '%岗位%' OR h.jslb LIKE '%职级%'))
@@ -130,7 +130,7 @@ class ReportRepository {
                   AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR h.jsnf = :year)
                   AND (:reportText IS NULL OR :isAllRegister = TRUE
-                       OR (:isSalaryLevel = TRUE AND h.jslb LIKE '%薪级%')
+                       OR (:isSalaryLevel = TRUE AND (h.jslb LIKE '%薪级%' OR h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
                        OR (:isStepPromotion = TRUE AND h.jslb NOT LIKE '%薪级%' AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
                        OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级别%')
                        OR (:isPositionChange = TRUE AND (h.jslb LIKE '%职务%' OR h.jslb LIKE '%岗位%' OR h.jslb LIKE '%职级%'))
