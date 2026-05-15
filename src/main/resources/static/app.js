@@ -103,6 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("add-position-record").addEventListener("click", () => openSubrecordEditor("position"));
     document.getElementById("add-payroll-record").addEventListener("click", () => openSubrecordEditor("payroll"));
     document.getElementById("add-assessment-record").addEventListener("click", () => openSubrecordEditor("assessment"));
+    document.getElementById("auto-fill-missing-assessments").addEventListener("click", autoFillMissingAssessments);
     document.getElementById("dictionary-picker-close").addEventListener("click", closeDictionaryPicker);
     document.getElementById("organization-picker-close").addEventListener("click", closeOrganizationPicker);
     document.getElementById("organization-picker-filter").addEventListener("input", renderOrganizationPickerTree);
@@ -1482,7 +1483,7 @@ async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
         </tr>
     `).join("") : "<tr><td colspan='8'>暂无任职记录</td></tr>";
     document.getElementById("maint-assessment-rows").innerHTML = assessments.length ? assessments.map(row => `
-        <tr>
+        <tr class="${row.appCreated ? "highlight-row" : ""}">
             <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
             <td>${escapeHtml(row.year)}</td>
             <td>${escapeHtml(row.result)} <button class="row-action" type="button" data-edit-assessment="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-assessment="${row.id}">删除</button></td>
@@ -1507,6 +1508,45 @@ async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
     bindSubrecordActions("position", positions);
     bindSubrecordActions("assessment", assessments);
     bindSubrecordActions("payroll", histories);
+}
+
+async function autoFillMissingAssessments() {
+    const person = state.activePersonnelMaintenance;
+    if (!person || !person.uid) {
+        alert("请先选择人员。");
+        return;
+    }
+    const years = missingAssessmentYearsFromProjection();
+    if (!years.length) {
+        alert("当前工资推算未提示缺失年度考核。");
+        return;
+    }
+    const result = prompt(`将补录 ${years.join("、")} 年度考核，默认结果：称职。可在下方编辑。\\n如需改默认结果，请输入：`, "称职");
+    if (result === null) {
+        return;
+    }
+    const status = document.getElementById("personnel-maintenance-status");
+    status.className = "status";
+    status.textContent = `正在补录 ${years.length} 条年度考核...`;
+    try {
+        for (const year of years) {
+            await postJson(`/api/personnel/${person.uid}/assessments`, { year, result: result.trim() || "称职" });
+        }
+        await loadPersonnelSubrecords(person.uid, person.organizationCode, person.personCode);
+        status.textContent = `已补录 ${years.length} 条年度考核，补录记录已高亮显示。`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function missingAssessmentYearsFromProjection() {
+    const text = document.getElementById("maint-wage-projection-result").innerText || "";
+    return Array.from(text.matchAll(/缺少\\s+([0-9、，,\\s]+)\\s+年度考核结果/g))
+        .flatMap(match => match[1].split(/[、，,\\s]+/))
+        .map(year => year.trim())
+        .filter(year => /^\\d{4}$/.test(year))
+        .filter((year, index, all) => all.indexOf(year) === index)
+        .sort();
 }
 
 function bindSubrecordActions(type, rows) {
