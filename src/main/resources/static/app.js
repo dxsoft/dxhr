@@ -2216,7 +2216,7 @@ async function generateSelectedPayrollChangeRegister() {
 function renderPayrollChangeRegister(reports) {
     const preview = document.getElementById("report-payroll-change-preview");
     const selectedTitle = selectedReportTitle("report-payroll-change-type-select") || "工资变动花名册";
-    const pages = chunkArray(reports, 5);
+    const pages = chunkArray(reports, 10);
     const institution = reports.some(report => isInstitutionApproval(report));
     const registerLabels = registerColumnLabels(institution);
     preview.innerHTML = pages.map((pageReports, pageIndex) => renderPayrollChangeRegisterPage(
