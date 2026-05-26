@@ -2,6 +2,7 @@ package com.dxsoft.rsgzgl.payroll;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,9 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 class PayrollController {
 
     private final PayrollService payrollService;
+    private final PayrollProjectionAuditExportService projectionAuditExportService;
 
-    PayrollController(PayrollService payrollService) {
+    PayrollController(
+            PayrollService payrollService,
+            PayrollProjectionAuditExportService projectionAuditExportService) {
         this.payrollService = payrollService;
+        this.projectionAuditExportService = projectionAuditExportService;
     }
 
     @GetMapping("/fields")
@@ -241,8 +246,10 @@ class PayrollController {
     }
 
     @GetMapping("/personnel/{uid}/calculation-preview")
-    PayrollCalculationPreview calculationPreview(@PathVariable int uid) {
-        return payrollService.calculationPreview(uid);
+    PayrollCalculationPreview calculationPreview(
+            @PathVariable int uid,
+            @RequestParam(required = false) String period) {
+        return payrollService.calculationPreview(uid, period);
     }
 
     @GetMapping("/personnel/{uid}/wage-projection")
@@ -266,5 +273,32 @@ class PayrollController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return payrollService.auditSummary(organizationCode, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/projection-audit-summary")
+    PayrollProjectionAuditSummary projectionAuditSummary(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.projectionAuditSummary(organizationCode, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/personnel/{uid}/projection-history-audits")
+    List<PayrollHistoryProjectionAudit> projectionHistoryAudits(@PathVariable int uid) {
+        return payrollService.projectionHistoryAudits(uid);
+    }
+
+    @GetMapping("/projection-audit-export.csv")
+    org.springframework.http.ResponseEntity<byte[]> downloadProjectionAuditCsv(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false, defaultValue = "false") boolean mismatchesOnly) {
+        return projectionAuditExportService.downloadCsvZip(organizationCode, mismatchesOnly);
+    }
+
+    @GetMapping("/projection-audit-export.xlsx")
+    org.springframework.http.ResponseEntity<byte[]> downloadProjectionAuditExcel(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false, defaultValue = "false") boolean mismatchesOnly) {
+        return projectionAuditExportService.downloadExcel(organizationCode, mismatchesOnly);
     }
 }

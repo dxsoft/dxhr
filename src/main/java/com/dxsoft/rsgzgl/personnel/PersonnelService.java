@@ -185,7 +185,7 @@ public class PersonnelService {
         return LocalDate.now().getYear();
     }
 
-    private String defaultAssessmentResult(PersonnelMaintenanceRecord personnel) {
+    static String defaultAssessmentResult(PersonnelMaintenanceRecord personnel) {
         String text = (personnel.personnelCategory() == null ? "" : personnel.personnelCategory())
                 + " " + (personnel.organizationType() == null ? "" : personnel.organizationType());
         return text.contains("事业") ? "合格" : "称职";

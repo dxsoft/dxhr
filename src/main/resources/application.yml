@@ -12,6 +12,8 @@ spring:
 
 server:
   port: ${PORT:8080}
+  tomcat:
+    connection-timeout: ${RSGZGL_EXPORT_CONNECTION_TIMEOUT:3600000}
 
 management:
   endpoints:

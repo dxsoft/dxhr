@@ -40,7 +40,9 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/payroll/**").hasAuthority("PAYROLL_WRITE")
                         .requestMatchers(HttpMethod.DELETE, "/api/payroll/**").hasAuthority("PAYROLL_WRITE")
                         .requestMatchers("/api/reports/**").hasAuthority("REPORT_READ")
-                        .requestMatchers("/api/payroll/calculation-audits", "/api/payroll/calculation-audit-summary").hasAuthority("AUDIT_READ")
+                        .requestMatchers("/api/payroll/calculation-audits", "/api/payroll/calculation-audit-summary",
+                                "/api/payroll/projection-audit-summary", "/api/payroll/projection-audit-export.csv",
+                                "/api/payroll/projection-audit-export.xlsx").hasAuthority("AUDIT_READ")
                         .requestMatchers("/api/payroll/basic-standards", "/api/payroll/allowance-standards", "/api/payroll/rank-allowance-standards", "/api/payroll/retained-allowance-standards", "/api/payroll/year-allowance-standards", "/api/payroll/intern-salary-standards", "/api/payroll/wage-reform-standards", "/api/payroll/other-allowance-standards").hasAuthority("STANDARD_READ")
                         .requestMatchers("/api/payroll/**").hasAuthority("PAYROLL_READ")
                         .anyRequest().authenticated())

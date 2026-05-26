@@ -785,12 +785,12 @@ tr:last-child td {
 }
 
 #subrecord-editor-modal {
-    z-index: 30;
+    z-index: 10020;
 }
 
 #dictionary-picker-modal,
 #organization-picker-modal {
-    z-index: 10010;
+    z-index: 10030;
 }
 
 .modal-card {

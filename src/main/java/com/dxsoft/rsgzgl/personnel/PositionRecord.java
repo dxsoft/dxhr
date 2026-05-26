@@ -10,11 +10,10 @@ public record PositionRecord(
         String rankCode,
         String positionCode,
         String positionName,
-        String positionType,
         String startYearMonth,
         Integer intervalYears,
         String activeFlag,
-        String calculationStandard,
+        String promotionFlag,
         Boolean appCreated
 ) {
 }

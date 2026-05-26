@@ -18,6 +18,7 @@ public record EducationPromotionPreview(
         String promotedPositionCode,
         String promotedLevel,
         String promotedStep,
+        String promotedGradeStepDifference,
         Integer currentPositionSalary,
         Integer promotedPositionSalary,
         Integer currentGradeSalary,
@@ -25,6 +26,7 @@ public record EducationPromotionPreview(
         Integer positionSalaryIncrease,
         Integer gradeSalaryIncrease,
         Integer totalIncrease,
+        String nextLevelAssessmentStartYear,
         String nextStepAssessmentStartYear,
         Boolean eligible,
         String note

@@ -121,6 +121,9 @@ CREATE TABLE IF NOT EXISTS dryjbxx (
     dah VARCHAR(20),
     xckhndzw VARCHAR(4),
     xckhndjb VARCHAR(4),
+    jx VARCHAR(20),
+    jxjtbz VARCHAR(6),
+    jxjt INTEGER DEFAULT 0,
     UNIQUE KEY uk_dryjbxx_dwbm_grbm (dwbm, grbm)
 );
 
@@ -292,6 +295,15 @@ CREATE TABLE IF NOT EXISTS jx (
     lb VARCHAR(2)
 );
 
+CREATE TABLE IF NOT EXISTS jxjtbz (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    tbnd VARCHAR(6) NOT NULL,
+    jxbm VARCHAR(2),
+    jx VARCHAR(20),
+    jtbz INTEGER DEFAULT 0,
+    lb VARCHAR(2)
+);
+
 CREATE TABLE IF NOT EXISTS dtgxx (
     id INTEGER PRIMARY KEY AUTO_INCREMENT,
     dwbm VARCHAR(9) NOT NULL,
@@ -458,7 +470,7 @@ INSERT INTO fldgz (sequence, field_name, field_cap, field_caps, field_capj, cate
 (30, 'JSDJGZ2', '技术等级工资', '技术', '技术等级', '基本工资'),
 (40, 'DFBT2', '绩效/生活补贴', '绩效', '绩效/生活', '津贴补贴'),
 (50, 'BLFB2', '保留福补', '福补', '保留福补', '津贴补贴'),
-(60, 'JXJT', '警衔津贴', '警衔', '警衔津贴', '津贴补贴'),
+(60, 'JXJT', '警衔/检察/审判/监察津贴', '警衔', '警衔/检察/审判/监察津贴', '津贴补贴'),
 (70, 'NJBT', '农教补贴', '农教', '农教补贴', '津贴补贴'),
 (80, 'PGBC', '工改保留职务工资', '工改保留', '工改保留职务工资', '保留项'),
 (90, 'JJJY2', '保留奖金', '奖金', '保留奖金', '保留项'),

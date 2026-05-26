@@ -34,6 +34,42 @@ const personnelChangeTypes = [
     { type: "死亡", description: "死亡" },
 ];
 
+const assessmentResultOptions = {
+    administrative: [
+        "优秀",
+        "称职",
+        "基本称职",
+        "不称职",
+        "暂缓确定",
+        "未定等次(试用期)",
+        "未定等次(处分期)",
+        "未定等次(其它)",
+        "未参加考核",
+        "未考核(中断年限)",
+    ],
+    institution: [
+        "优秀",
+        "合格",
+        "基本合格",
+        "不合格",
+        "暂缓确定",
+        "未定等次(见习期)",
+        "未定等次(处分期)",
+        "未定等次(其它)",
+        "未参加考核",
+        "未考核(中断年限)",
+    ],
+};
+
+const positionDictionaryFallbacks = {
+    xrzw: "025",
+    xrzwbm: "025",
+    zwjb: "051",
+    zjbm: "025",
+    xzzw: "025",
+    zwbm: "025",
+};
+
 const subrecordEditors = {
     education: {
         title: "学历信息",
@@ -50,16 +86,45 @@ const subrecordEditors = {
         title: "职务变化信息",
         endpoint: uid => `/api/personnel/${uid}/positions`,
         fields: [
-            ["currentPositionCode", "任职编码"], ["currentPosition", "任职职务"], ["positionLevel", "职务级别"],
-            ["rankCode", "职级编码"], ["positionCode", "岗位编码"], ["positionName", "岗位名称"],
-            ["positionType", "岗位类型"], ["startYearMonth", "任职年月", "month"], ["intervalYears", "间隔年限", "number"],
-            ["activeFlag", "现任标志"], ["calculationStandard", "计算标准"],
+            ["currentPositionCode", "任职编码", "text", { readonly: true }],
+            ["currentPosition", "任职职务", "text", {
+                dictionaryPrefixField: "xrzw",
+                dictionaryPrefix: positionDictionaryFallbacks.xrzw,
+                linkedCodeField: "currentPositionCode",
+                useFullDictionaryCode: true,
+                codeMaxLength: 4,
+            }],
+            ["positionLevel", "职务级别", "text", {
+                dictionaryPrefixField: "zwjb",
+                dictionaryPrefix: positionDictionaryFallbacks.zwjb,
+            }],
+            ["rankCode", "职级编码", "text", {
+                dictionaryPrefixField: "zjbm",
+                dictionaryPrefix: positionDictionaryFallbacks.zjbm,
+                codeTarget: true,
+                useFullDictionaryCode: true,
+                codeMaxLength: 4,
+            }],
+            ["positionCode", "岗位编码", "text", { readonly: true }],
+            ["positionName", "岗位名称", "text", {
+                dictionaryPrefixField: "xzzw",
+                dictionaryPrefix: positionDictionaryFallbacks.xzzw,
+                linkedCodeField: "positionCode",
+                useFullDictionaryCode: true,
+                codeMaxLength: 4,
+            }],
+            ["startYearMonth", "任职年月", "month"], ["intervalYears", "间隔年限", "number"],
+            ["activeFlag", "现任标志"],
+            ["promotionFlag", "晋升标志", "select", { optionsProvider: "promotionFlags" }],
         ],
     },
     assessment: {
         title: "年度考核信息",
         endpoint: uid => `/api/personnel/${uid}/assessments`,
-        fields: [["year", "年度"], ["result", "考核结果"]],
+        fields: [
+            ["year", "年度"],
+            ["result", "考核结果", "select", { optionsProvider: "assessmentResults" }],
+        ],
     },
     payroll: {
         title: "历次调资信息",
@@ -120,6 +185,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("dictionary-maintenance-form").addEventListener("submit", onDictionarySearch);
     document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
     document.getElementById("audit-form").addEventListener("submit", onAudit);
+    document.getElementById("audit-detail-close").addEventListener("click", closeAuditDetail);
+    document.getElementById("audit-export-excel").addEventListener("click", () => downloadProjectionAuditExport("xlsx"));
+    document.getElementById("audit-export-csv").addEventListener("click", () => downloadProjectionAuditExport("csv"));
     document.getElementById("payroll-change-register-report-form").addEventListener("submit", onPayrollChangeRegisterReportSearch);
     document.getElementById("payroll-change-register-print").addEventListener("click", () => window.print());
     document.getElementById("report-payroll-change-generate-selected").addEventListener("click", generateSelectedPayrollChangeRegister);
@@ -386,8 +454,7 @@ async function initializeDictionaryPickers() {
     }
     initializeOrganizationPickerInput();
     try {
-        const configs = await getJson("/api/dictionaries/field-configs?tableName=dryjbxx");
-        state.dictionaryFieldConfigs = Object.fromEntries((configs || []).map(config => [String(config.fieldName || "").toLowerCase(), config]));
+        await loadDictionaryFieldConfigs();
         const fieldBindings = {
             csny: "maint-birth-year-month",
             xb: "maint-gender",
@@ -453,6 +520,17 @@ async function initializeDictionaryPickers() {
     } catch (error) {
         console.warn("字典字段配置加载失败", error);
     }
+}
+
+async function loadDictionaryFieldConfigs() {
+    const [basicConfigs, positionConfigs] = await Promise.all([
+        getJson("/api/dictionaries/field-configs?tableName=dryjbxx"),
+        getJson("/api/dictionaries/field-configs?tableName=dryzwbh"),
+    ]);
+    state.dictionaryFieldConfigs = Object.fromEntries(
+        [...(basicConfigs || []), ...(positionConfigs || [])]
+            .map(config => [String(config.fieldName || "").toLowerCase(), config]),
+    );
 }
 
 function initializeOrganizationPickerInput() {
@@ -721,9 +799,58 @@ function renderDictionaryPickerTree() {
                 toggleDictionaryNode(button.dataset.dictCode);
                 return;
             }
-            selectDictionaryNode(button.dataset.dictValue, button.dataset.dictName);
+            selectDictionaryNode({
+                code: button.dataset.dictCode,
+                value: button.dataset.dictValue,
+                name: button.dataset.dictName,
+            });
         });
     });
+}
+
+function resolveDictionaryCode(node, config) {
+    const fullCode = String(node.code || "").trim();
+    if (config?.useFullDictionaryCode) {
+        const maxLen = config.codeMaxLength;
+        if (maxLen && fullCode.length > maxLen) {
+            return fullCode.slice(-maxLen);
+        }
+        return fullCode;
+    }
+    return String(node.value || "").trim();
+}
+
+function selectDictionaryNode(node) {
+    const target = state.activeDictionaryTarget;
+    if (!target) {
+        return;
+    }
+    const config = target.config || {};
+    const code = resolveDictionaryCode(node, config);
+    const name = node.name || "";
+    const input = document.getElementById(target.inputId);
+    if (input) {
+        if (config.codeTarget) {
+            input.value = code;
+        } else if (target.inputId === "maint-education-code" || target.inputId === "maint-rank-code") {
+            input.value = node.value || code;
+        } else {
+            input.value = name;
+        }
+    }
+    if (config.linkedCodeField) {
+        const linkedInput = document.getElementById(`subrecord-field-${config.linkedCodeField}`)
+            || document.getElementById(config.linkedCodeInputId);
+        if (linkedInput) {
+            linkedInput.value = code;
+        }
+    } else if (config.linkedCodeInputId) {
+        const linkedInput = document.getElementById(config.linkedCodeInputId);
+        if (linkedInput) {
+            linkedInput.value = code || node.value || "";
+        }
+    }
+    closeDictionaryPicker();
 }
 
 function dictionaryChildrenByParent(nodes) {
@@ -766,26 +893,6 @@ function toggleDictionaryNode(code) {
         state.dictionaryExpandedCodes.add(code);
     }
     renderDictionaryPickerTree();
-}
-
-function selectDictionaryNode(value, name) {
-    const target = state.activeDictionaryTarget;
-    if (!target) {
-        return;
-    }
-    const input = document.getElementById(target.inputId);
-    if (input) {
-        input.value = target.inputId === "maint-education-code" || target.inputId === "maint-rank-code"
-            ? value
-            : name;
-    }
-    if (target.config?.linkedCodeInputId) {
-        const linkedInput = document.getElementById(target.config.linkedCodeInputId);
-        if (linkedInput) {
-            linkedInput.value = value || "";
-        }
-    }
-    closeDictionaryPicker();
 }
 
 async function onCreateUser(event) {
@@ -1332,15 +1439,63 @@ function openSubrecordEditor(type, record = null) {
     const config = subrecordEditors[type];
     state.activeSubrecordEditor = { type, record };
     document.getElementById("subrecord-editor-title").textContent = `${record ? "编辑" : "新增"}${config.title}`;
-    document.getElementById("subrecord-editor-form").innerHTML = config.fields.map(([name, label, inputType, options]) => `
-        <label>${escapeHtml(label)}
-            <input id="subrecord-field-${escapeHtml(name)}" data-subrecord-field="${escapeHtml(name)}" type="${inputType === "number" ? "number" : inputType === "month" ? "month" : "text"}" value="${escapeHtml(subrecordInputValue(record?.[name], inputType))}" ${options?.readonly ? "readonly" : ""}>
-        </label>
-    `).join("") + `<div class="form-actions"><button type="submit">保存记录</button></div>`;
-    enhanceSubrecordEditorInputs(config);
-    document.getElementById("subrecord-editor-status").textContent = "";
-    document.getElementById("subrecord-editor-status").className = "status";
     document.getElementById("subrecord-editor-modal").classList.remove("hidden");
+    document.getElementById("subrecord-editor-status").className = "status";
+    document.getElementById("subrecord-editor-status").textContent = "";
+    document.getElementById("subrecord-editor-form").innerHTML = config.fields.map(field => renderSubrecordEditorField(field, record)).join("")
+        + `<div class="form-actions"><button type="submit">保存记录</button></div>`;
+    loadDictionaryFieldConfigs()
+        .catch(error => console.warn("字典字段配置加载失败", error))
+        .finally(() => enhanceSubrecordEditorInputs(config));
+}
+
+function renderSubrecordEditorField([name, label, inputType, options], record) {
+    const value = subrecordInputValue(record?.[name], inputType);
+    if (inputType === "select") {
+        const choices = subrecordSelectChoices(options);
+        const allChoices = choices.some(choice => choice.value === value) || !value
+            ? choices
+            : [{ value, label: value, code: "" }, ...choices];
+        return `
+            <label>${escapeHtml(label)}
+                <select id="subrecord-field-${escapeHtml(name)}" data-subrecord-field="${escapeHtml(name)}">
+                    <option value="">请选择${escapeHtml(label)}</option>
+                    ${allChoices.map(choice => `<option value="${escapeHtml(choice.value)}" ${choice.value === value ? "selected" : ""}>${escapeHtml(choice.label)}</option>`).join("")}
+                </select>
+            </label>
+        `;
+    }
+    return `
+        <label>${escapeHtml(label)}
+            <input id="subrecord-field-${escapeHtml(name)}" data-subrecord-field="${escapeHtml(name)}" type="${inputType === "number" ? "number" : inputType === "month" ? "month" : "text"}" value="${escapeHtml(value)}" ${options?.readonly ? "readonly" : ""}>
+        </label>
+    `;
+}
+
+function formatPromotionFlag(value) {
+    const normalized = String(value ?? "").trim();
+    return normalized === "1" ? "已处理" : "未处理";
+}
+
+function subrecordSelectChoices(options) {
+    if (options?.optionsProvider === "assessmentResults") {
+        const results = isInstitutionPersonnel(state.activePersonnelMaintenance)
+            ? assessmentResultOptions.institution
+            : assessmentResultOptions.administrative;
+        return results.map(result => ({ value: result, label: result }));
+    }
+    if (options?.optionsProvider === "promotionFlags") {
+        return [
+            { value: "", label: "未处理" },
+            { value: "1", label: "已处理" },
+        ];
+    }
+    return [];
+}
+
+function isInstitutionPersonnel(person) {
+    const text = `${person?.personnelCategory || ""} ${person?.organizationType || ""}`;
+    return text.includes("事业");
 }
 
 function enhanceSubrecordEditorInputs(config) {
@@ -1367,7 +1522,11 @@ function enhanceSubrecordEditorInputs(config) {
             fieldName: name,
             caption: label,
             dictionaryPrefix,
-            linkedCodeInputId: options.linkedCodeField ? `subrecord-field-${options.linkedCodeField}` : null,
+            linkedCodeInputId: options?.linkedCodeField ? `subrecord-field-${options.linkedCodeField}` : null,
+            linkedCodeField: options?.linkedCodeField || null,
+            useFullDictionaryCode: options?.useFullDictionaryCode || false,
+            codeTarget: options?.codeTarget || false,
+            codeMaxLength: options?.codeMaxLength || null,
         }));
         combo.appendChild(button);
     });
@@ -1378,9 +1537,13 @@ function subrecordDictionaryPrefix(options) {
         return null;
     }
     if (options.dictionaryPrefixField) {
-        const configured = state.dictionaryFieldConfigs?.[String(options.dictionaryPrefixField).toLowerCase()];
+        const fieldKey = String(options.dictionaryPrefixField).toLowerCase();
+        const configured = state.dictionaryFieldConfigs?.[fieldKey];
         if (configured?.dictionaryPrefix) {
             return configured.dictionaryPrefix;
+        }
+        if (positionDictionaryFallbacks[fieldKey]) {
+            return positionDictionaryFallbacks[fieldKey];
         }
     }
     return options.dictionaryPrefix || null;
@@ -1479,9 +1642,10 @@ async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
             <td>${escapeHtml(row.positionCode)}</td>
             <td>${escapeHtml(row.positionName)}</td>
             <td>${escapeHtml(row.startYearMonth)}</td>
-            <td>${escapeHtml(row.activeFlag)} <button class="row-action" type="button" data-edit-position="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-position="${row.id}">删除</button></td>
+            <td>${escapeHtml(row.activeFlag)}</td>
+            <td>${formatPromotionFlag(row.promotionFlag)} <button class="row-action" type="button" data-edit-position="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-position="${row.id}">删除</button></td>
         </tr>
-    `).join("") : "<tr><td colspan='8'>暂无任职记录</td></tr>";
+    `).join("") : "<tr><td colspan='9'>暂无任职记录</td></tr>";
     document.getElementById("maint-assessment-rows").innerHTML = assessments.length ? assessments.map(row => `
         <tr class="${row.appCreated ? "highlight-row" : ""}">
             <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
@@ -1497,12 +1661,14 @@ async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
             <td>${escapeHtml(row.positionName)}</td>
             <td>${escapeHtml(row.gradeSalaryLevel || "")}</td>
             <td>${escapeHtml(row.positionSalaryGrade || "")}</td>
+            <td>${escapeHtml(row.levelAssessmentStartYear || "")}</td>
+            <td>${escapeHtml(row.stepAssessmentStartYear || "")}</td>
             <td>${money(row.positionSalary)}</td>
             <td>${money(row.gradeSalary)}</td>
             <td>${money(row.totalAmount)}</td>
             <td>${row.currentPayroll ? "是" : "否"} <button class="row-action" type="button" data-edit-payroll="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-payroll="${row.id}">删除</button></td>
         </tr>
-    `).join("") : "<tr><td colspan='9'>暂无调资记录</td></tr>";
+    `).join("") : "<tr><td colspan='11'>暂无调资记录</td></tr>";
     renderPersonnelRelatedRecords(relatedRecords || {});
     bindSubrecordActions("education", education);
     bindSubrecordActions("position", positions);
@@ -1531,8 +1697,9 @@ async function autoFillMissingAssessments() {
     status.className = "status";
     status.textContent = `正在补录 ${years.length} 条年度考核...`;
     try {
+        const normalizedResult = result.trim() || defaultResult;
         for (const year of years) {
-            await postJson(`/api/personnel/${person.uid}/assessments`, { year, result: result.trim() || "称职" });
+            await postJson(`/api/personnel/${person.uid}/assessments`, { year, result: normalizedResult });
         }
         await loadPersonnelSubrecords(person.uid, person.organizationCode, person.personCode);
         status.textContent = `已补录 ${years.length} 条年度考核，补录记录已高亮显示。`;
@@ -1610,7 +1777,12 @@ async function loadPersonnelWageProjection(uid) {
         params.set("period", period);
     }
     const suffix = params.toString() ? `?${params}` : "";
-    renderWageProjection(await getJson(`/api/payroll/personnel/${uid}/wage-projection${suffix}`));
+    const [wageProjection, calculationPreview] = await Promise.all([
+        getJson(`/api/payroll/personnel/${uid}/wage-projection${suffix}`),
+        getJson(`/api/payroll/personnel/${uid}/calculation-preview${suffix}`),
+    ]);
+    renderWageProjection(wageProjection);
+    renderPersonnelProjection(calculationPreview);
 }
 
 function renderWageProjection(projection) {
@@ -1704,13 +1876,13 @@ function truthyField(row, fieldName) {
 function rankRecordType(row) {
     const value = String(textField(row, "jx") || "");
     if (value.includes("检察")) {
-        return "检察官等级";
+        return "检察";
     }
     if (value.includes("法官")) {
-        return "法官等级";
+        return "审判";
     }
     if (value.includes("监察")) {
-        return "监察官等级";
+        return "监察";
     }
     return "警衔";
 }
@@ -1905,11 +2077,10 @@ async function loadPositionHistory() {
                 <td>${escapeHtml(row.rankCode)}</td>
                 <td>${escapeHtml(row.positionCode)}</td>
                 <td>${escapeHtml(row.positionName)}</td>
-                <td>${escapeHtml(row.positionType)}</td>
                 <td>${escapeHtml(row.startYearMonth)}</td>
                 <td>${escapeHtml(row.intervalYears)}</td>
                 <td>${escapeHtml(row.activeFlag)}</td>
-                <td>${escapeHtml(row.calculationStandard)}</td>
+                <td>${formatPromotionFlag(row.promotionFlag)}</td>
             </tr>
         `).join("");
         status.textContent = `第 ${result.page + 1} / ${Math.max(result.totalPages, 1)} 页，共 ${result.totalElements} 条任职记录`;
@@ -2169,27 +2340,116 @@ async function loadAudit() {
     const status = document.getElementById("audit-status");
     const rows = document.getElementById("audit-rows");
     status.className = "status";
-    status.textContent = "正在执行批量对账，远程数据库可能需要等待...";
+    status.textContent = "正在执行推算对账，需逐人重放工资推算，请耐心等待...";
     rows.innerHTML = "";
+    closeAuditDetail();
 
     try {
-        const summary = await getJson(`/api/payroll/calculation-audit-summary?${params}`);
+        const summary = await getJson(`/api/payroll/projection-audit-summary?${params}`);
         document.getElementById("audit-total").textContent = summary.totalPersonnelWithHistory;
         document.getElementById("audit-compared").textContent = summary.comparedPersonnel;
-        document.getElementById("audit-difference-count").textContent = summary.differenceCount;
+        document.getElementById("audit-difference-count").textContent = summary.latestDifferenceCount;
+        document.getElementById("audit-history-person-count").textContent = summary.historyMismatchPersonCount;
+        document.getElementById("audit-history-record-count").textContent = summary.totalHistoryRecordMismatches;
         document.getElementById("audit-max-difference").textContent = money(summary.maxAbsoluteDifference);
-        rows.innerHTML = summary.differences.map(item => `
+        rows.innerHTML = (summary.differences || []).map(item => `
             <tr>
                 <td>${escapeHtml(item.uid)}</td>
                 <td>${escapeHtml(item.name)}</td>
-                <td>${escapeHtml(item.calculationPeriod)}</td>
+                <td>${escapeHtml(item.latestPeriod)}</td>
                 <td>${money(item.storedTotal)}</td>
-                <td>${money(item.recalculatedKnownTotal)}</td>
-                <td class="${Number(item.totalDifference) === 0 ? "difference-ok" : "difference-bad"}">${money(item.totalDifference)}</td>
-                <td>${item.componentDifferences.map(diff => `${escapeHtml(diff.fieldName)}(${money(diff.difference)})`).join("，")}</td>
+                <td>${item.latestProjectionEligible ? money(item.projectedTotal) : "-"}</td>
+                <td class="${Number(item.latestTotalDifference || 0) === 0 && item.latestMatched ? "difference-ok" : "difference-bad"}">${item.latestProjectionEligible ? money(item.latestTotalDifference) : escapeHtml(item.latestNote || "不可推算")}</td>
+                <td>${escapeHtml(item.historyMismatchCount)} / ${escapeHtml(item.historyRecordCount)}</td>
+                <td>${formatProjectionAuditSummary(item)}</td>
+                <td><button class="row-action" type="button" data-audit-detail="${item.uid}" data-audit-name="${item.name || ""}">查看</button></td>
             </tr>
         `).join("");
-        status.textContent = `已比较 ${summary.comparedPersonnel} 人，差异 ${summary.differenceCount} 人`;
+        rows.querySelectorAll("[data-audit-detail]").forEach(button => {
+            button.addEventListener("click", () => openAuditDetail(button.dataset.auditDetail, button.dataset.auditName));
+        });
+        status.textContent = `已比较 ${summary.comparedPersonnel} 人，当前工资差异 ${summary.latestDifferenceCount} 人，历次调资差异 ${summary.totalHistoryRecordMismatches} 条`;
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function formatProjectionAuditSummary(item) {
+    const parts = [];
+    if (!item.latestMatched) {
+        parts.push("当前工资不一致");
+    }
+    if ((item.historyMismatchCount || 0) > 0) {
+        const first = (item.historyMismatches || [])[0];
+        if (first) {
+            parts.push(`${first.calculationPeriod}${first.changeType ? `(${first.changeType})` : ""}`);
+        }
+    }
+    return escapeHtml(parts.join("；") || "一致");
+}
+
+async function openAuditDetail(uid, name) {
+    const panel = document.getElementById("audit-detail-panel");
+    const rows = document.getElementById("audit-detail-rows");
+    document.getElementById("audit-detail-title").textContent = `${name || ""} 历次调资差异明细`;
+    panel.classList.remove("hidden");
+    rows.innerHTML = "<tr><td colspan='8'>正在加载...</td></tr>";
+    try {
+        const audits = await getJson(`/api/payroll/personnel/${uid}/projection-history-audits`);
+        const mismatches = (audits || []).filter(item => !item.matched);
+        rows.innerHTML = mismatches.length ? mismatches.map(item => `
+            <tr>
+                <td>${escapeHtml(item.calculationPeriod)}</td>
+                <td>${escapeHtml(item.changeType)}</td>
+                <td>${item.projectionEligible ? "是" : "否"}</td>
+                <td>${money(item.storedTotal)}</td>
+                <td>${item.projectionEligible ? money(item.projectedTotal) : "-"}</td>
+                <td class="${Number(item.totalDifference || 0) === 0 ? "difference-ok" : "difference-bad"}">${item.projectionEligible ? money(item.totalDifference) : escapeHtml(item.note || "-")}</td>
+                <td>${escapeHtml((item.structureMismatches || []).join("；"))}</td>
+                <td>${(item.componentDifferences || []).map(diff => `${escapeHtml(diff.caption)}(${money(diff.difference)})`).join("，")}</td>
+            </tr>
+        `).join("") : "<tr><td colspan='8'>该人员历次调资与推算结果一致</td></tr>";
+    } catch (error) {
+        rows.innerHTML = `<tr><td colspan='8'>${escapeHtml(error.message || "加载失败")}</td></tr>`;
+    }
+}
+
+function closeAuditDetail() {
+    document.getElementById("audit-detail-panel").classList.add("hidden");
+    document.getElementById("audit-detail-rows").innerHTML = "";
+}
+
+async function downloadProjectionAuditExport(format) {
+    const organizationCode = document.getElementById("audit-organization-code").value.trim();
+    const mismatchesOnly = document.getElementById("audit-export-mismatches-only")?.checked;
+    const params = new URLSearchParams();
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (mismatchesOnly) {
+        params.set("mismatchesOnly", "true");
+    }
+    const status = document.getElementById("audit-status");
+    status.className = "status";
+    status.textContent = "正在对全库人员执行工资推算对账并生成文件，人数较多时可能需要数十分钟，请勿关闭页面...";
+    const suffix = format === "csv" ? "csv" : "xlsx";
+    const url = `/api/payroll/projection-audit-export.${suffix}?${params}`;
+    try {
+        const response = await fetch(url, { credentials: "same-origin" });
+        if (!response.ok) {
+            const message = await response.text();
+            throw new Error(message || `导出失败（${response.status}）`);
+        }
+        const blob = await response.blob();
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        const filename = match ? match[1] : `projection_audit.${suffix === "csv" ? "zip" : "xlsx"}`;
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        status.textContent = `全库推算对账导出完成：${filename}`;
     } catch (error) {
         showError(status, error);
     }
@@ -2741,7 +3001,7 @@ function agencyApprovalRows(report, components) {
         amountApprovalRow("岗位津贴", amount("GWJT2")),
         amountApprovalRow("生活性补贴", amount("DFBT2")),
         amountApprovalRow("工作性津贴", amount("SDBT")),
-        amountApprovalRow("警衔/监察津贴", amount("JXJT")),
+        amountApprovalRow("警衔/检察/审判/监察津贴", amount("JXJT")),
         amountApprovalRow("特殊岗位津贴", amount("SIDBT")),
         amountApprovalRow("工改保留津贴", amount("TGBLBF")),
         amountApprovalRow("工改保留职务工资", amount("PGBC")),
@@ -3433,7 +3693,7 @@ async function loadEducationPromotions() {
                 <td>${escapeHtml(row.standardStep || "")}</td>
                 <td>${escapeHtml(row.promotedPositionCode || "")}</td>
                 <td>${escapeHtml(row.promotedLevel || "")}</td>
-                <td>${escapeHtml(row.promotedStep || "")}</td>
+                <td>${escapeHtml(formatEducationPromotionLevelStep(row))}</td>
                 <td>${money(row.currentPositionSalary)}</td>
                 <td>${money(row.promotedPositionSalary)}</td>
                 <td>${money(row.currentGradeSalary)}</td>
@@ -3441,6 +3701,7 @@ async function loadEducationPromotions() {
                 <td>${money(row.positionSalaryIncrease)}</td>
                 <td>${money(row.gradeSalaryIncrease)}</td>
                 <td>${money(row.totalIncrease)}</td>
+                <td>${escapeHtml(row.nextLevelAssessmentStartYear || "")}</td>
                 <td>${escapeHtml(row.nextStepAssessmentStartYear || "")}</td>
                 <td>${row.eligible ? "是" : "否"}</td>
                 <td>${escapeHtml(row.note || "")}</td>
@@ -3450,6 +3711,19 @@ async function loadEducationPromotions() {
     } catch (error) {
         showError(status, error);
     }
+}
+
+function formatEducationPromotionLevelStep(row) {
+    const level = row.promotedLevel || "";
+    const step = row.promotedStep || "";
+    const difference = row.promotedGradeStepDifference || "0";
+    if (!level && !step) {
+        return "";
+    }
+    if (Number(difference) > 0) {
+        return `${level}-${step}+${difference}`;
+    }
+    return level && step ? `${level}-${step}` : level || step;
 }
 
 async function loadRegularizations() {
@@ -3507,6 +3781,7 @@ function baseSalarySourceName(source) {
     return {
         GRADE: "级别工资",
         SALARY_LEVEL: "薪级工资",
+        POLICE_GRADE: "级别工资",
         TECHNICAL_GRADE: "技术等级工资",
     }[source] || source || "";
 }

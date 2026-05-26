@@ -106,7 +106,6 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("zjbm")),
             SqlText.trim(rs.getString("zwbm")),
             SqlText.trim(rs.getString("xzzw")),
-            SqlText.trim(rs.getString("zwlb")),
             SqlText.trim(rs.getString("srny")),
             rs.getInt("kjnx"),
             SqlText.trim(rs.getString("xrzwbz")),
@@ -126,7 +125,6 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("zjbm")),
             SqlText.trim(rs.getString("zwbm")),
             SqlText.trim(rs.getString("xzzw")),
-            SqlText.trim(rs.getString("zwlb")),
             SqlText.trim(rs.getString("srny")),
             rs.getInt("kjnx"),
             SqlText.trim(rs.getString("xrzwbz")),
@@ -420,7 +418,7 @@ class PersonnelRepository {
 
     List<PositionRecord> findPositions(PersonKey key) {
         return jdbcTemplate.query("""
-                SELECT z.id, z.dwbm, z.grbm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm, z.zwbm, z.xzzw, z.zwlb,
+                SELECT z.id, z.dwbm, z.grbm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm, z.zwbm, z.xzzw,
                        z.srny, z.kjnx, z.xrzwbz, z.jsbz, marker.record_id IS NOT NULL AS app_created
                 FROM dryzwbh z
                 LEFT JOIN app_record_marker marker ON marker.table_name = 'dryzwbh' AND marker.record_id = CAST(z.id AS CHAR) AND marker.marker = 'APP_CREATED'
@@ -442,7 +440,7 @@ class PersonnelRepository {
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
                 SELECT z.id, z.dwbm, dw.dwmc, z.grbm, p.xm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm,
-                       z.zwbm, z.xzzw, z.zwlb, z.srny, z.kjnx, z.xrzwbz, z.jsbz
+                       z.zwbm, z.xzzw, z.srny, z.kjnx, z.xrzwbz, z.jsbz
                 FROM dryzwbh z
                 LEFT JOIN dryjbxx p ON p.dwbm = z.dwbm AND p.grbm = z.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = z.dwbm
@@ -658,7 +656,7 @@ class PersonnelRepository {
     int createPosition(PersonKey key, PositionMaintenanceRequest request) {
         jdbcTemplate.update("""
                 INSERT INTO dryzwbh (dwbm, grbm, xrzwbm, xrzw, zwjb, zjbm, zwbm, xzzw, zwlb, srny, kjnx, xrzwbz, jsbz)
-                VALUES (:dwbm, :grbm, :currentPositionCode, :currentPosition, :positionLevel, :rankCode, :positionCode, :positionName, :positionType, :startYearMonth, :intervalYears, :activeFlag, :calculationStandard)
+                VALUES (:dwbm, :grbm, :currentPositionCode, :currentPosition, :positionLevel, :rankCode, :positionCode, :positionName, '', :startYearMonth, :intervalYears, :activeFlag, :promotionFlag)
                 """, positionParameters(key, request));
         int id = lastInsertId();
         markAppCreated("dryzwbh", id);
@@ -669,8 +667,8 @@ class PersonnelRepository {
         jdbcTemplate.update("""
                 UPDATE dryzwbh
                 SET xrzwbm = :currentPositionCode, xrzw = :currentPosition, zwjb = :positionLevel, zjbm = :rankCode,
-                    zwbm = :positionCode, xzzw = :positionName, zwlb = :positionType, srny = :startYearMonth,
-                    kjnx = :intervalYears, xrzwbz = :activeFlag, jsbz = :calculationStandard
+                    zwbm = :positionCode, xzzw = :positionName, srny = :startYearMonth,
+                    kjnx = :intervalYears, xrzwbz = :activeFlag, jsbz = :promotionFlag
                 WHERE id = :id
                 """, positionParameters(new PersonKey("", ""), request).addValue("id", id));
     }
@@ -861,11 +859,10 @@ class PersonnelRepository {
                 .addValue("rankCode", valueOrBlank(request.rankCode()))
                 .addValue("positionCode", valueOrBlank(request.positionCode()))
                 .addValue("positionName", valueOrBlank(request.positionName()))
-                .addValue("positionType", valueOrBlank(request.positionType()))
                 .addValue("startYearMonth", valueOrBlank(request.startYearMonth()))
                 .addValue("intervalYears", request.intervalYears() == null ? 0 : request.intervalYears())
                 .addValue("activeFlag", valueOrBlank(request.activeFlag()))
-                .addValue("calculationStandard", valueOrBlank(request.calculationStandard()));
+                .addValue("promotionFlag", valueOrBlank(request.promotionFlag()));
     }
 
     private MapSqlParameterSource assessmentParameters(PersonKey key, AssessmentMaintenanceRequest request) {

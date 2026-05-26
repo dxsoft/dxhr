@@ -20,6 +20,8 @@ public record PayrollHistoryRecord(
         String positionName,
         String positionSalaryGrade,
         String gradeSalaryLevel,
+        String levelAssessmentStartYear,
+        String stepAssessmentStartYear,
         String salaryStandardYearMonth,
         String allowanceStandardYearMonth,
         Integer positionSalary,

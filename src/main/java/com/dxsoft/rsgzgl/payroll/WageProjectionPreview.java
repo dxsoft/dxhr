@@ -18,6 +18,12 @@ public record WageProjectionPreview(
         String levelAssessmentStartYear,
         String stepAssessmentStartYear,
         String baseSalarySource,
+        String salaryStandardYearMonth,
+        Integer positionSalary,
+        Integer gradeSalary,
+        String rankName,
+        String rankAllowanceStandardYearMonth,
+        Integer rankAllowance,
         List<String> explanationLines
 ) {
 }
