@@ -13,6 +13,11 @@ record PositionChangeHistoryMutation(
         String gradeSalaryLevel,
         String gradeSalaryStep,
         Integer gradeSalary,
+        Integer technicalGradeSalary,
+        Integer performanceAllowance,
+        Integer subsidyAllowance,
+        Integer retainedAllowance,
+        Integer salaryIncrease,
         Integer pgbc,
         Integer totalAmount
 ) {

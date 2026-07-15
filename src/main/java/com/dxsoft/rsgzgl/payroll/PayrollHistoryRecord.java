@@ -7,6 +7,7 @@ public record PayrollHistoryRecord(
         String successorId,
         boolean currentPayroll,
         Boolean appCreated,
+        Integer personnelUid,
         String organizationCode,
         String organizationName,
         String personCode,

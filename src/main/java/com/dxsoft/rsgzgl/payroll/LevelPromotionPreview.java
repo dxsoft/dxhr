@@ -23,11 +23,16 @@ public record LevelPromotionPreview(
         Integer qualifiedYearsForStep,
         Boolean levelPromotionDue,
         Boolean stepPromotionDue,
+        Boolean reformLevelRollingDue,
         Boolean gradeIncreaseExceedsStepDifference,
         Integer currentGradeSalary,
         Integer promotedGradeSalary,
         Integer increaseAmount,
         Boolean eligible,
+        Boolean rollbackEligible,
+        Boolean applyEligible,
+        Boolean overdueFromLastYear,
+        Boolean levelPromotionHintOnly,
         String note
 ) {
 }

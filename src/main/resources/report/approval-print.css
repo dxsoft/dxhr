@@ -1,0 +1,241 @@
+@page {
+    size: A4 portrait;
+    margin: 0;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #111827;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+}
+
+body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.approval-sheet {
+    width: 210mm;
+    height: 297mm;
+    min-height: 297mm;
+    margin: 0;
+    padding: 15mm 12mm 12mm;
+    box-sizing: border-box;
+    page-break-after: always;
+    break-after: page;
+    display: flex;
+    flex-direction: column;
+}
+
+.approval-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+}
+
+.approval-topline {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 4px;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+    font-size: 13px;
+}
+
+.approval-topline span:nth-child(2) { text-align: center; }
+.approval-topline span:nth-child(3) { text-align: right; }
+
+.approval-sheet-header {
+    margin-bottom: 10px;
+    text-align: center;
+    flex: 0 0 auto;
+}
+
+.approval-sheet-header h3 {
+    margin: 0;
+    font-family: "SimHei", "Microsoft YaHei", sans-serif;
+    font-size: 22px;
+    line-height: 1.25;
+    letter-spacing: 0.04em;
+}
+
+.approval-frame-table {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 230mm;
+    table-layout: fixed;
+    border-collapse: collapse;
+    border: 1px solid #111827;
+}
+
+.approval-col-label { width: 9%; }
+.approval-col-value { width: 18%; }
+.approval-col-edu-label { width: 9%; }
+.approval-col-edu-value { width: 10%; }
+
+.approval-frame-table > tbody > tr > td.approval-frame-cell {
+    padding: 0;
+    border: 0;
+    vertical-align: top;
+}
+
+.approval-meta-row th,
+.approval-meta-row td,
+.approval-component-table th,
+.approval-component-table td,
+.approval-basis-panel th,
+.approval-basis-panel td {
+    padding: 7px 5px;
+    border: 1px solid #111827;
+    white-space: normal;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+    text-align: center;
+    line-height: 1.4;
+    font-size: 12px;
+}
+
+.approval-meta-row th { font-weight: 400; background: #fff; }
+.approval-meta-row td { font-weight: 700; word-break: break-all; }
+.approval-edu-value { font-size: 12px; }
+
+.approval-body-row > td { height: 168mm; vertical-align: top; }
+.approval-body-main { border-top: 1px solid #111827; border-right: 1px solid #111827; }
+.approval-body-side { overflow: hidden; border-top: 1px solid #111827; }
+
+.approval-component-table {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-collapse: collapse;
+}
+
+.approval-col-item { width: 34%; }
+.approval-col-amount { width: 22%; }
+.approval-col-diff { width: 22%; }
+
+.approval-component-table th:first-child,
+.approval-component-table td:first-child {
+    text-align: left;
+    font-weight: 400;
+    border-left: 0;
+}
+
+.approval-component-table th:not(:first-child),
+.approval-component-table td:not(:first-child) {
+    text-align: center;
+    font-weight: 700;
+}
+
+.approval-component-table th:last-child,
+.approval-component-table td:last-child { border-right: 0; }
+.approval-component-table thead th { border-top: 0; }
+.approval-component-table .approval-item-header { text-align: center; }
+
+.approval-basis-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.approval-basis-panel table {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #111827;
+    border-collapse: collapse;
+}
+
+.approval-basis-panel th,
+.approval-basis-panel td {
+    border-left: 0;
+    border-right: 0;
+    padding: 4px 3px;
+    font-size: 11px;
+}
+
+.approval-basis-panel th { width: 68%; font-weight: 400; line-height: 1.2; }
+.approval-basis-panel td { width: 32%; font-weight: 700; }
+
+.approval-basis-text {
+    flex: 1 1 auto;
+    padding: 6px 5px;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+    font-size: 11px;
+    line-height: 1.35;
+    word-break: break-all;
+    overflow-wrap: anywhere;
+}
+
+.approval-basis-text p { margin: 0 0 5px; }
+.approval-basis-text strong {
+    display: block;
+    margin: 2px 0 6px;
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.approval-signature-cell { border-top: 1px solid #111827; height: 48mm; }
+
+.approval-signature-table {
+    width: 100%;
+    height: 48mm;
+    table-layout: fixed;
+    border-collapse: collapse;
+    border: 0;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+}
+
+.approval-sig-label-col { width: 26px; }
+.approval-sig-box-col { width: 30%; }
+.approval-sig-box-col-wide { width: 34%; }
+
+.approval-signature-table th,
+.approval-signature-table td {
+    border: 0;
+    border-right: 1px solid #111827;
+    vertical-align: middle;
+    padding: 0;
+}
+
+.approval-signature-table th:last-child,
+.approval-signature-table td:last-child { border-right: 0; }
+
+.approval-signature-label {
+    height: 48mm;
+    padding: 6px 2px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    letter-spacing: 0.16em;
+    font-size: 13px;
+    font-weight: 400;
+    text-align: center;
+}
+
+.approval-signature-box {
+    height: 48mm;
+    padding: 12px 8px 10px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.approval-signature-box strong {
+    display: block;
+    margin: 10mm 0 4mm;
+    font-size: 16px;
+    line-height: 1.25;
+}
+
+.approval-signature-box p {
+    margin: 0 0 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.approval-signature-box span {
+    display: block;
+    margin-top: 6mm;
+    text-align: right;
+    font-size: 12px;
+}
+
+.highlight-row td { background: #fff; }

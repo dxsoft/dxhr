@@ -1,0 +1,31 @@
+package com.dxsoft.rsgzgl.payroll;
+
+public record SalaryStandardAdjustmentPreview(
+        String payrollHistoryId,
+        String organizationCode,
+        String organizationName,
+        String personCode,
+        String name,
+        String calculationPeriod,
+        String currentChangeType,
+        String targetStandardYearMonth,
+        String currentSalaryStandardYearMonth,
+        String currentAllowanceStandardYearMonth,
+        String targetAllowanceStandardYearMonth,
+        String positionCode,
+        String positionName,
+        Integer currentPositionSalary,
+        Integer currentGradeSalary,
+        Integer currentTotal,
+        Integer calculatedPositionSalary,
+        Integer calculatedGradeSalary,
+        Integer calculatedTechnicalGradeSalary,
+        Integer calculatedPerformanceAllowance,
+        Integer calculatedSubsidyAllowance,
+        Integer calculatedFloatingSalary,
+        Integer calculatedTotal,
+        Integer differenceAmount,
+        String standardNote,
+        Boolean applyEligible,
+        Boolean rollbackEligible) {
+}

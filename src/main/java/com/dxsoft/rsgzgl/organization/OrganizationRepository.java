@@ -179,4 +179,105 @@ class OrganizationRepository {
         }
         return null;
     }
+
+    OrganizationMaintenanceRecord findMaintenanceRecordById(int id) {
+        List<OrganizationMaintenanceRecord> rows = jdbc.query("""
+                select o.id, o.dwbm, o.dwmc, o.dwmc1, o.dwbz, o.dwsx, o.gzczbz, o.jtbz,
+                       o.bzrs, o.zbrs, o.slrs, o.dwjc, o.dfbt, o.jxlb, o.njbt,
+                       o.jfly, o.kzfgjj, o.kylbxf,
+                       (select count(*) from dryjbxx p where p.dwbm = o.dwbm) as active_personnel_count
+                from dwbm o
+                where o.id = :id
+                limit 1
+                """, new MapSqlParameterSource("id", id), (rs, rowNum) -> new OrganizationMaintenanceRecord(
+                rs.getInt("id"),
+                SqlText.trim(rs.getString("dwbm")),
+                SqlText.trim(rs.getString("dwmc")),
+                SqlText.trim(rs.getString("dwmc1")),
+                SqlText.trim(rs.getString("dwbz")),
+                SqlText.trim(rs.getString("dwsx")),
+                SqlText.trim(rs.getString("gzczbz")),
+                SqlText.trim(rs.getString("jtbz")),
+                rs.getInt("bzrs"),
+                rs.getInt("zbrs"),
+                rs.getInt("slrs"),
+                rs.getInt("active_personnel_count"),
+                SqlText.trim(rs.getString("dwjc")),
+                rs.getInt("dfbt"),
+                rs.getInt("jxlb"),
+                rs.getInt("njbt"),
+                SqlText.trim(rs.getString("jfly")),
+                SqlText.trim(rs.getString("kzfgjj")),
+                SqlText.trim(rs.getString("kylbxf"))));
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    void updateMaintenanceRecord(int id, OrganizationMaintenanceRequest request) {
+        jdbc.update("""
+                update dwbm
+                set dwmc = :name,
+                    dwmc1 = :shortName,
+                    dwsx = :property,
+                    dwbz = :category,
+                    gzczbz = :payrollCategory,
+                    jtbz = :allowanceStandard,
+                    bzrs = :personnelQuota,
+                    zbrs = :establishmentCount,
+                    slrs = :actualCount,
+                    dwjc = :organizationLevel,
+                    dfbt = :performanceAllowanceEnabled,
+                    jxlb = :performanceCategory,
+                    njbt = :yearAllowanceCategory,
+                    jfly = :financeSource,
+                    kzfgjj = :housingFundWithheld,
+                    kylbxf = :pensionWithheld
+                where id = :id
+                """, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("name", request.name())
+                .addValue("shortName", request.shortName())
+                .addValue("property", request.property())
+                .addValue("category", request.category())
+                .addValue("payrollCategory", request.payrollCategory())
+                .addValue("allowanceStandard", request.allowanceStandard())
+                .addValue("personnelQuota", request.personnelQuota() == null ? 0 : request.personnelQuota())
+                .addValue("establishmentCount", request.establishmentCount() == null ? 0 : request.establishmentCount())
+                .addValue("actualCount", request.actualCount() == null ? 0 : request.actualCount())
+                .addValue("organizationLevel", request.organizationLevel())
+                .addValue("performanceAllowanceEnabled", request.performanceAllowanceEnabled() == null ? 0 : request.performanceAllowanceEnabled())
+                .addValue("performanceCategory", request.performanceCategory() == null ? 0 : request.performanceCategory())
+                .addValue("yearAllowanceCategory", request.yearAllowanceCategory() == null ? 0 : request.yearAllowanceCategory())
+                .addValue("financeSource", request.financeSource())
+                .addValue("housingFundWithheld", request.housingFundWithheld())
+                .addValue("pensionWithheld", request.pensionWithheld()));
+    }
+
+    int insertOrganization(OrganizationCreateRequest request) {
+        jdbc.update("""
+                INSERT INTO dwbm (
+                    dwbm, dwmc, dwmc1, dwbz, dwsx, gzczbz, jtbz,
+                    bzrs, zbrs, slrs, dwjc, dfbt, jxlb, njbt, jfly, kzfgjj, kylbxf
+                ) VALUES (
+                    :organizationCode, :name, :shortName, :category, :property, :payrollCategory, :allowanceStandard,
+                    0, 0, 0, '', 0, 0, 0, '', '', ''
+                )
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", request.organizationCode())
+                .addValue("name", request.name())
+                .addValue("shortName", request.shortName() == null ? "" : request.shortName())
+                .addValue("category", request.category() == null ? "" : request.category())
+                .addValue("property", request.property() == null ? "" : request.property())
+                .addValue("payrollCategory", request.payrollCategory() == null ? "" : request.payrollCategory())
+                .addValue("allowanceStandard", request.allowanceStandard() == null ? "" : request.allowanceStandard()));
+        Integer id = jdbc.queryForObject("SELECT LAST_INSERT_ID()", new MapSqlParameterSource(), Integer.class);
+        return id == null ? 0 : id;
+    }
+
+    boolean existsByOrganizationCode(String organizationCode) {
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM dwbm WHERE dwbm = :organizationCode",
+                new MapSqlParameterSource("organizationCode", organizationCode),
+                Integer.class);
+        return count != null && count > 0;
+    }
 }

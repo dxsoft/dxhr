@@ -37,9 +37,54 @@ class DataExchangeController {
         return dataExchangeService.downloadPersonnelCsv(organizationCode, keyword);
     }
 
+    @PostMapping("/dispatch/preview")
+    DataExchangeService.PersonnelExchangePackage previewDispatchPackage(@RequestBody PersonnelDispatchRequest request) {
+        return dataExchangeService.buildPersonnelPackage(request);
+    }
+
     @PostMapping("/dispatch/personnel")
     ResponseEntity<byte[]> dispatchPersonnelPackage(@RequestBody PersonnelDispatchRequest request) {
         return dataExchangeService.dispatchPersonnelPackage(request);
+    }
+
+    @PostMapping("/submission/preview")
+    PayrollSubmissionPackage previewSubmissionPackage(@RequestBody PersonnelDispatchRequest request) {
+        return dataExchangeService.buildSubmissionPackage(request);
+    }
+
+    @PostMapping("/submission/export")
+    ResponseEntity<byte[]> exportSubmissionPackage(@RequestBody PersonnelDispatchRequest request) {
+        return dataExchangeService.dispatchSubmissionPackage(request);
+    }
+
+    @PostMapping("/submission/review/preview")
+    SubmissionReviewPreviewResponse previewSubmissionReview(@RequestBody SubmissionReviewRequest request) {
+        return dataExchangeService.previewSubmissionReview(request);
+    }
+
+    @PostMapping("/submission/review/apply")
+    SubmissionReviewApplyResponse applySubmissionReview(@RequestBody SubmissionReviewRequest request) {
+        return dataExchangeService.applySubmissionReview(request);
+    }
+
+    @PostMapping("/approval/preview")
+    PayrollSubmissionPackage previewApprovalPackage(@RequestBody PersonnelDispatchRequest request) {
+        return dataExchangeService.buildApprovalPackage(request);
+    }
+
+    @PostMapping("/approval/export")
+    ResponseEntity<byte[]> exportApprovalPackage(@RequestBody PersonnelDispatchRequest request) {
+        return dataExchangeService.dispatchApprovalPackage(request);
+    }
+
+    @PostMapping("/approval/receive/preview")
+    SubmissionReviewPreviewResponse previewApprovalReceive(@RequestBody ApprovalReceiveRequest request) {
+        return dataExchangeService.previewApprovalReceive(request);
+    }
+
+    @PostMapping("/approval/receive/apply")
+    SubmissionReviewApplyResponse applyApprovalReceive(@RequestBody ApprovalReceiveRequest request) {
+        return dataExchangeService.applyApprovalReceive(request);
     }
 
     @PostMapping("/receive/preview")
@@ -81,6 +126,7 @@ class DataExchangeController {
     record PersonnelDispatchRequest(
             List<String> organizationCodes,
             boolean includeDescendants,
+            String keyword,
             List<PersonKey> selectedPersonnel) {
     }
 
@@ -137,5 +183,54 @@ class DataExchangeController {
             List<CodeMapping> codeMappings,
             ReceiveSummary relatedSummary,
             String message) {
+    }
+
+    record SubmissionReviewRequest(
+            String packageJson,
+            String decision,
+            List<PersonKey> selectedPersonnel,
+            Boolean dryRun) {
+    }
+
+    record SubmissionReviewPreviewRow(
+            String organizationCode,
+            String organizationName,
+            String personCode,
+            String name,
+            String changeType,
+            String calculationPeriod,
+            Integer totalAmount,
+            String approvalStatus,
+            String submissionStatus,
+            int payrollRecordCount,
+            boolean organizationExists,
+            boolean personExists,
+            String action) {
+    }
+
+    record SubmissionReviewSummary(
+            int totalRecords,
+            int newRecords,
+            int replaceRecords,
+            int payrollRecords) {
+    }
+
+    record SubmissionReviewPreviewResponse(
+            int totalRecords,
+            List<SubmissionReviewPreviewRow> previewRows,
+            SubmissionReviewSummary summary,
+            String message) {
+    }
+
+    record SubmissionReviewApplyResponse(
+            int processedRecords,
+            SubmissionReviewSummary summary,
+            String message) {
+    }
+
+    record ApprovalReceiveRequest(
+            String packageJson,
+            List<PersonKey> selectedPersonnel,
+            Boolean dryRun) {
     }
 }

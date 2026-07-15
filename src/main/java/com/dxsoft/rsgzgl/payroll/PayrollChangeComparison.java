@@ -29,6 +29,8 @@ public record PayrollChangeComparison(
         String currentStepOrSalaryLevel,
         String previousCalculationPeriod,
         String previousChangeType,
+        String nextStepAssessmentYear,
+        String nextLevelAssessmentYear,
         List<PayrollChangeComponentComparison> components
 ) {
 }

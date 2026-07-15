@@ -9,7 +9,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
-class SecurityAuditService {
+public class SecurityAuditService {
 
     private final JdbcTemplate jdbcTemplate;
     private final NamedParameterJdbcTemplate namedJdbcTemplate;
@@ -24,7 +24,7 @@ class SecurityAuditService {
         this.accessControlService = accessControlService;
     }
 
-    void record(String action, String targetType, Object targetId, String summary) {
+    public void record(String action, String targetType, Object targetId, String summary) {
         recordAs(accessControlService.currentUser().getUsername(), action, targetType, targetId, summary);
     }
 
@@ -40,7 +40,7 @@ class SecurityAuditService {
                 summary);
     }
 
-    List<SecurityAuditLog> recent(int limit) {
+    public List<SecurityAuditLog> recent(int limit) {
         return jdbcTemplate.query("""
                 SELECT id, actor_username, action, target_type, target_id, summary, created_at
                 FROM app_security_audit_log
@@ -56,7 +56,7 @@ class SecurityAuditService {
                 rs.getTimestamp("created_at").toLocalDateTime()), Math.max(1, Math.min(limit, 200)));
     }
 
-    PageResponse<SecurityAuditLog> search(String keyword, PageRequest pageRequest) {
+    public PageResponse<SecurityAuditLog> search(String keyword, PageRequest pageRequest) {
         MapSqlParameterSource parameters = keywordParameters(keyword)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());

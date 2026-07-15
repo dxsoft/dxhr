@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8"/>
+    <title>工资变动审批表</title>
+    <style th:utext="${stylesheet}"></style>
+</head>
+<body>
+<th:block th:each="sheet : ${sheets}">
+    <th:block th:replace="~{payroll-change-approval-sheet :: sheet(${sheet})}"></th:block>
+</th:block>
+</body>
+</html>

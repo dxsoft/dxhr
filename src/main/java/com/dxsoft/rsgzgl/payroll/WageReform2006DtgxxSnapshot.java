@@ -1,0 +1,32 @@
+package com.dxsoft.rsgzgl.payroll;
+
+public record WageReform2006DtgxxSnapshot(
+        String organizationCode,
+        String personCode,
+        String workStartYearMonth,
+        int schoolingYears,
+        int minimumWorkYears,
+        int deductionYears,
+        int wageReformYears,
+        String currentPositionCode,
+        String currentPositionName,
+        String currentAppointmentPeriod,
+        int currentAppointmentYears,
+        int currentPositionDeductionYears,
+        String lowerPositionCode,
+        String lowerPositionName,
+        String lowerAppointmentPeriod,
+        int lowerAppointmentYears,
+        int lowerPositionDeductionYears,
+        String educationCode,
+        String educationName,
+        String reformPositionCode,
+        String reformPositionName,
+        String reformLevel,
+        String reformStep,
+        int fixedStep,
+        int pendingStep,
+        int fixedLevel,
+        int pendingLevel,
+        String remark) {
+}

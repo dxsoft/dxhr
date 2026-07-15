@@ -29,6 +29,8 @@ public record EducationPromotionPreview(
         String nextLevelAssessmentStartYear,
         String nextStepAssessmentStartYear,
         Boolean eligible,
-        String note
+        String note,
+        Boolean applyEligible,
+        Boolean rollbackEligible
 ) {
 }

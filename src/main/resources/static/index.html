@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>人事工资管理系统</title>
-    <link rel="stylesheet" href="/app.css?v=20260515-org-picker">
+    <link rel="stylesheet" href="/app.css?v=20260715-inst-title">
 </head>
 <body>
 <div class="app-shell">
@@ -21,48 +21,111 @@
 
     <div class="app-workspace">
         <header class="app-header">
-            <div>
-                <div id="breadcrumb" class="breadcrumb">首页</div>
-                <h2 id="workspace-title">工作台</h2>
+            <div class="header-leading">
+                <button id="sidebar-toggle" type="button" class="btn-secondary sidebar-toggle" aria-label="切换导航菜单">☰</button>
+                <div>
+                    <div id="breadcrumb" class="breadcrumb">首页</div>
+                    <h2 id="workspace-title">工作台</h2>
+                </div>
             </div>
             <div class="user-bar">
                 <span id="current-user">正在验证登录...</span>
-                <button id="change-password-button" type="button">修改密码</button>
-                <button id="logout-button" type="button">退出</button>
+                <button id="change-password-button" type="button" class="btn-secondary">修改密码</button>
+                <button id="logout-button" type="button" class="btn-secondary">退出</button>
             </div>
         </header>
 
 <main>
-    <section id="dashboard" class="panel" data-menu-code="DASHBOARD">
-        <div class="panel-title">
-            <div>
-                <h2>工作台</h2>
-                <p>按业务分组进入各模块，查看当前迁移范围和常用功能。</p>
+    <section id="dashboard" class="panel dashboard-panel" data-menu-code="DASHBOARD">
+        <div class="dashboard-hero">
+            <div class="dashboard-hero-text">
+                <p class="dashboard-greeting" id="dashboard-greeting">欢迎回来</p>
+                <h2 id="dashboard-user-name">工作台</h2>
+                <p class="dashboard-subtitle">按业务分组进入各模块，下方提供常用快捷入口。</p>
+                <p class="dashboard-scope" id="dashboard-scope"></p>
             </div>
+            <div class="dashboard-hero-meta">
+                <time id="dashboard-date" class="dashboard-date">-</time>
+                <span class="dashboard-badge">VFP 迁移版</span>
+                <span class="dashboard-total-pill" id="dashboard-total-functions">-</span>
+            </div>
+        </div>
+
+        <section class="dashboard-quick-section">
+            <div class="dashboard-section-heading">
+                <h3>常用入口</h3>
+                <span>根据当前账号权限显示</span>
+            </div>
+            <div id="dashboard-quick-links" class="quick-link-grid"></div>
+        </section>
+
+        <div class="dashboard-section-heading">
+            <h3>业务分组</h3>
+            <span>点击卡片进入该分组首个功能</span>
         </div>
         <div class="dashboard-grid">
-            <div class="dashboard-card">
-                <span>人员与单位</span>
-                <strong id="dashboard-personnel-count">-</strong>
-                <p>人员查询、单位维护、任职/学历/考核明细。</p>
-            </div>
-            <div class="dashboard-card">
-                <span>工资变动</span>
-                <strong id="dashboard-payroll-count">-</strong>
-                <p>工资试算、正常晋升、级别晋升、职务变化、转正定级。</p>
-            </div>
-            <div class="dashboard-card">
-                <span>标准维护</span>
-                <strong id="dashboard-standard-count">-</strong>
-                <p>工资、津补贴、警衔、年补贴和其他补贴标准。</p>
-            </div>
-            <div class="dashboard-card">
-                <span>系统管理</span>
-                <strong id="dashboard-system-count">-</strong>
-                <p>权限、菜单、审计、字典和本地工资政策。</p>
-            </div>
+            <a class="dashboard-card dashboard-card-personnel" id="dashboard-card-personnel" href="#personnel">
+                <div class="dashboard-card-icon">人</div>
+                <div class="dashboard-card-body">
+                    <span>信息维护</span>
+                    <div class="dashboard-card-metric">
+                        <strong id="dashboard-personnel-count">-</strong>
+                        <em>项功能</em>
+                    </div>
+                    <p>人员查询、维护、任职、学历与考核。</p>
+                </div>
+            </a>
+            <a class="dashboard-card dashboard-card-payroll" id="dashboard-card-payroll" href="#payroll">
+                <div class="dashboard-card-icon">薪</div>
+                <div class="dashboard-card-body">
+                    <span>工资变动</span>
+                    <div class="dashboard-card-metric">
+                        <strong id="dashboard-payroll-count">-</strong>
+                        <em>项功能</em>
+                    </div>
+                    <p>试算、晋升、职务变化、转正与对账。</p>
+                </div>
+            </a>
+            <a class="dashboard-card dashboard-card-standard" id="dashboard-card-standard" href="#basic-standards">
+                <div class="dashboard-card-icon">标</div>
+                <div class="dashboard-card-body">
+                    <span>标准维护</span>
+                    <div class="dashboard-card-metric">
+                        <strong id="dashboard-standard-count">-</strong>
+                        <em>项功能</em>
+                    </div>
+                    <p>基本工资、津补贴、警衔与套改标准。</p>
+                </div>
+            </a>
+            <a class="dashboard-card dashboard-card-report" id="dashboard-card-report" href="#payroll-change-register-report">
+                <div class="dashboard-card-icon">表</div>
+                <div class="dashboard-card-body">
+                    <span>报表查询</span>
+                    <div class="dashboard-card-metric">
+                        <strong id="dashboard-report-count">-</strong>
+                        <em>项功能</em>
+                    </div>
+                    <p>花名册、审批表与数据交换。</p>
+                </div>
+            </a>
+            <a class="dashboard-card dashboard-card-system" id="dashboard-card-system" href="#security">
+                <div class="dashboard-card-icon">管</div>
+                <div class="dashboard-card-body">
+                    <span>系统管理</span>
+                    <div class="dashboard-card-metric">
+                        <strong id="dashboard-system-count">-</strong>
+                        <em>项功能</em>
+                    </div>
+                    <p>权限、字典、本地政策与审计。</p>
+                </div>
+            </a>
         </div>
-        <div id="dashboard-quick-links" class="quick-link-grid"></div>
+
+        <div class="dashboard-section-heading dashboard-section-heading-spaced">
+            <h3>全部功能</h3>
+            <span>按菜单分组浏览</span>
+        </div>
+        <div id="dashboard-group-links" class="dashboard-groups"></div>
     </section>
     <section id="password-panel" class="panel hidden">
         <div class="panel-title">
@@ -92,14 +155,18 @@
     <section id="personnel" class="panel hidden" data-menu-code="PERSONNEL">
         <div class="panel-title">
             <div>
-                <h2>人员查询</h2>
-                <p>按单位名称、姓名、人员编码或身份证号搜索。</p>
+                <h2>人员管理</h2>
+                <p>查询在册人员；有维护权限时可新增、编辑及维护学历、任职、调资和考核等信息。</p>
             </div>
+            <button id="personnel-maintenance-new" class="hidden" type="button">新增人员</button>
         </div>
         <form id="personnel-search" class="toolbar">
             <label>
-                单位名称
-                <input id="organization-code" name="organizationCode" placeholder="输入单位名称或编码">
+                单位
+                <div class="dict-input-combo">
+                    <input id="organization-code" name="organizationCode" readonly placeholder="请选择单位或留空">
+                    <button id="organization-code-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 关键词
@@ -107,7 +174,7 @@
             </label>
             <label>
                 每页数量
-                <input id="page-size" name="size" type="number" min="1" max="50" value="10">
+                <input id="page-size" name="size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询</button>
         </form>
@@ -126,44 +193,6 @@
                 </tr>
                 </thead>
                 <tbody id="personnel-rows"></tbody>
-            </table>
-        </div>
-    </section>
-
-    <section id="personnel-maintenance" class="panel hidden" data-menu-code="PERSONNEL_MAINTENANCE">
-        <div class="panel-title">
-            <div>
-                <h2>人员信息维护</h2>
-                <p>列表负责查询与定位人员；新增、编辑和多记录维护在弹窗中完成。</p>
-            </div>
-            <button id="personnel-maintenance-new" type="button">新增人员</button>
-        </div>
-        <div id="personnel-maintenance-status" class="status"></div>
-        <form id="personnel-maintenance-search" class="toolbar">
-            <label>单位名称
-                <div class="dict-input-combo">
-                    <input id="maint-search-organization-code" readonly placeholder="请选择单位或留空">
-                    <button id="maint-search-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择查询单位">⌄</button>
-                </div>
-            </label>
-            <label>关键词<input id="maint-search-keyword" placeholder="姓名 / 编码 / 身份证"></label>
-            <label>每页数量<input id="maint-search-size" type="number" min="1" max="100" value="20"></label>
-            <button type="submit">查询</button>
-        </form>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                <tr>
-                    <th>UID</th>
-                    <th>单位</th>
-                    <th>人员编码</th>
-                    <th>姓名</th>
-                    <th>身份证</th>
-                    <th>岗位</th>
-                    <th>操作</th>
-                </tr>
-                </thead>
-                <tbody id="personnel-maintenance-rows"></tbody>
             </table>
         </div>
         <div id="personnel-maintenance-modal" class="modal-overlay hidden">
@@ -225,23 +254,39 @@
                     </form>
                 </div>
                 <div id="personnel-tab-projection" class="tab-panel hidden">
-                    <div class="subrecord-toolbar"><strong>工资推算</strong></div>
-                    <form id="maint-wage-projection-form" class="toolbar compact-toolbar">
-                        <label>推算年月<input id="maint-wage-projection-period" type="month"></label>
-                        <button type="submit">重新推算</button>
+                    <form id="maint-wage-projection-form" class="toolbar compact-toolbar projection-search-toolbar">
+                        <label>推算目标年月<input id="maint-wage-projection-period" type="month"></label>
+                        <button type="submit" id="maint-wage-projection-submit">执行工资推算</button>
                     </form>
-                    <div id="maint-wage-projection-result" class="note-card">暂无岗位级别推算结果</div>
-                    <div class="summary-grid">
-                        <div><span>试算年月</span><strong id="maint-projection-period">-</strong></div>
-                        <div><span>试算合计</span><strong id="maint-projection-total">-</strong></div>
-                        <div><span>旧系统合计</span><strong id="maint-projection-stored-total">-</strong></div>
-                        <div><span>差额</span><strong id="maint-projection-difference">-</strong></div>
+                    <div id="maint-wage-projection-overview" class="projection-overview">
+                        <div class="projection-stat"><span>目标年月</span><strong>-</strong></div>
+                        <div class="projection-stat"><span>推算起点</span><strong>-</strong></div>
+                        <div class="projection-stat accent"><span>岗位 / 级别</span><strong>-</strong></div>
+                        <div class="projection-stat"><span>分步合计</span><strong>-</strong></div>
                     </div>
-                    <div class="table-wrap"><table><thead><tr><th>字段</th><th>项目</th><th>推算金额</th><th>来源</th></tr></thead><tbody id="maint-projection-rows"></tbody></table></div>
-                    <h3>暂不参与自动推算字段</h3>
-                    <div class="table-wrap"><table><thead><tr><th>字段</th><th>项目</th><th>旧值</th><th>原因</th></tr></thead><tbody id="maint-projection-excluded-rows"></tbody></table></div>
-                    <h3>PGBC 特殊保留</h3>
-                    <div id="maint-projection-pgbc" class="note-card">暂无推算结果</div>
+                    <div id="maint-wage-projection-result" class="projection-result-card">暂无推算说明，请选择人员后执行工资推算。</div>
+                    <div class="section-block">
+                        <h3 class="section-heading">分步工资明细</h3>
+                        <div id="maint-wage-projection-steps" class="projection-steps">暂无分步明细，请先执行工资推算。</div>
+                    </div>
+                    <div class="section-block">
+                        <h3 class="section-heading">当前执行工资对账</h3>
+                        <div class="summary-grid summary-grid-diff">
+                            <div><span>试算年月</span><strong id="maint-projection-period">-</strong></div>
+                            <div><span>已迁移项合计</span><strong id="maint-projection-total">-</strong></div>
+                            <div><span>旧系统合计</span><strong id="maint-projection-stored-total">-</strong></div>
+                            <div class="summary-diff-cell"><span>差额</span><strong id="maint-projection-difference">-</strong></div>
+                        </div>
+                        <div class="table-wrap"><table><thead><tr><th>字段</th><th>项目</th><th>推算金额</th><th>来源</th></tr></thead><tbody id="maint-projection-rows"></tbody></table></div>
+                    </div>
+                    <div class="section-block">
+                        <h3 class="section-heading">暂不参与自动推算</h3>
+                        <div class="table-wrap"><table><thead><tr><th>字段</th><th>项目</th><th>旧值</th><th>原因</th></tr></thead><tbody id="maint-projection-excluded-rows"></tbody></table></div>
+                    </div>
+                    <div class="section-block">
+                        <h3 class="section-heading">PGBC 特殊保留</h3>
+                        <div id="maint-projection-pgbc" class="note-card note-card-muted">暂无推算结果</div>
+                    </div>
                 </div>
                 <div id="personnel-tab-education" class="tab-panel hidden">
                     <div class="subrecord-toolbar">
@@ -251,11 +296,30 @@
                     <div class="table-wrap"><table><thead><tr><th>ID</th><th>学历编码</th><th>学历</th><th>学校</th><th>入学</th><th>毕业</th><th>类别</th><th>备注</th></tr></thead><tbody id="maint-education-rows"></tbody></table></div>
                 </div>
                 <div id="personnel-tab-position" class="tab-panel hidden">
-                    <div class="subrecord-toolbar">
-                        <strong>职务变化信息</strong>
+                    <div class="subrecord-toolbar position-subrecord-toolbar">
+                        <div>
+                            <strong>职务变化信息</strong>
+                            <p class="subrecord-hint">录入现任职务、职务层次、执行工资职务层次、任职时间、扣减年限与现任职；职务编码（xrzwbm / zwbm）由字典选择自动带出。</p>
+                        </div>
                         <button id="add-position-record" type="button">新增任职</button>
                     </div>
-                    <div class="table-wrap"><table><thead><tr><th>ID</th><th>任职编码</th><th>任职职务</th><th>职级编码</th><th>岗位编码</th><th>岗位名称</th><th>任职年月</th><th>现任</th><th>晋升标志</th></tr></thead><tbody id="maint-position-rows"></tbody></table></div>
+                    <div class="table-wrap position-subrecord-table-wrap">
+                        <table class="promotion-table position-subrecord-table">
+                            <thead>
+                            <tr>
+                                <th class="col-period">任职时间</th>
+                                <th class="col-position">现任职务</th>
+                                <th class="col-level">职务层次</th>
+                                <th class="col-position">执行工资职务层次</th>
+                                <th class="col-years">扣减年限</th>
+                                <th class="col-flag">现任职</th>
+                                <th class="col-code">编码</th>
+                                <th class="col-action">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody id="maint-position-rows"></tbody>
+                        </table>
+                    </div>
                 </div>
                 <div id="personnel-tab-payroll" class="tab-panel hidden">
                     <div class="subrecord-toolbar">
@@ -310,7 +374,7 @@
             </div>
         </div>
         <div id="subrecord-editor-modal" class="modal-overlay hidden">
-            <div class="modal-card">
+            <div id="subrecord-editor-card" class="modal-card">
                 <div class="modal-header">
                     <div>
                         <h3 id="subrecord-editor-title">编辑记录</h3>
@@ -322,90 +386,317 @@
                 <div id="subrecord-editor-status" class="status"></div>
             </div>
         </div>
-    </section>
-
-    <section id="annual-assessments" class="panel hidden" data-menu-code="ANNUAL_ASSESSMENTS">
-        <div class="panel-title">
-            <div>
-                <h2>年度考核结果</h2>
-                <p>只读查询 `dndkh` 年度考核结果，按当前用户单位数据范围限制可见人员。</p>
+        <div id="personnel-change-remark-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="personnel-change-remark-modal-title">办理人员变动</h3>
+                        <p id="personnel-change-remark-modal-subtitle"></p>
+                    </div>
+                    <button id="personnel-change-remark-modal-close" type="button">关闭</button>
+                </div>
+                <form id="personnel-change-remark-form" class="toolbar modal-form-grid">
+                    <input type="hidden" id="personnel-change-remark-uid">
+                    <input type="hidden" id="personnel-change-remark-name">
+                    <input type="hidden" id="personnel-change-remark-change-type">
+                    <input type="hidden" id="personnel-change-remark-change-description">
+                    <input type="hidden" id="personnel-change-remark-target-org">
+                    <label class="full-width">备注<textarea id="personnel-change-remark-text" rows="3" placeholder="可留空"></textarea></label>
+                    <button type="submit">确认办理</button>
+                </form>
+                <div id="personnel-change-remark-modal-status" class="status"></div>
             </div>
         </div>
-        <form id="annual-assessments-form" class="toolbar">
-            <label>
-                单位名称
-                <input id="assessment-organization-code" placeholder="输入单位名称或编码">
+        <div id="missing-assessment-fill-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div>
+                        <h3>补录缺失年度考核</h3>
+                        <p id="missing-assessment-fill-years"></p>
+                    </div>
+                    <button id="missing-assessment-fill-modal-close" type="button">关闭</button>
+                </div>
+                <form id="missing-assessment-fill-form" class="toolbar modal-form-grid">
+                    <input type="hidden" id="missing-assessment-fill-uid">
+                    <input type="hidden" id="missing-assessment-fill-years-json">
+                    <label>考核结果
+                        <select id="missing-assessment-fill-result"></select>
+                    </label>
+                    <button type="submit">确认补录</button>
+                </form>
+                <div id="missing-assessment-fill-modal-status" class="status"></div>
+            </div>
+        </div>
+    </section>
+
+    <section id="personnel-statistics" class="panel hidden" data-menu-code="PERSONNEL_STATISTICS">
+        <div class="panel-title">
+            <div>
+                <h2>人员与工资统计</h2>
+                <p>汇总在册、变动、见习人员数量，并按年月统计工资变动情况。</p>
+            </div>
+        </div>
+        <form id="personnel-statistics-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="personnel-statistics-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="personnel-statistics-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
-            <label>
-                考核年度
-                <input id="assessment-year" placeholder="例如 2024">
-            </label>
-            <label>
-                关键词
-                <input id="assessment-keyword" placeholder="人员编码 / 姓名 / 结果">
-            </label>
-            <label>
-                页码
-                <input id="assessment-page" type="number" min="0" value="0">
-            </label>
-            <label>
-                每页数量
-                <input id="assessment-size" type="number" min="1" max="100" value="20">
-            </label>
-            <button type="submit">查询考核</button>
+            <label>工资变动年度<input id="personnel-statistics-year" type="number" min="2000" max="2100" placeholder="留空查全部"></label>
+            <button type="submit">刷新统计</button>
         </form>
-        <div id="assessment-status" class="status"></div>
+        <div id="personnel-statistics-status" class="status"></div>
+        <div class="summary-grid">
+            <div><span>单位数</span><strong id="stat-org-count">-</strong></div>
+            <div><span>在册人员</span><strong id="stat-active-count">-</strong></div>
+            <div><span>变动人员</span><strong id="stat-changed-count">-</strong></div>
+            <div><span>见习人员</span><strong id="stat-probation-count">-</strong></div>
+        </div>
+        <h3 class="section-heading">工资变动情况（按年月）</h3>
         <div class="table-wrap">
             <table>
                 <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>当前</th>
-                    <th>后继ID</th>
-                    <th>单位</th>
-                    <th>人员编码</th>
-                    <th>姓名</th>
-                    <th>年度</th>
-                    <th>考核结果</th>
+                    <th>变动年月</th>
+                    <th>变动条数</th>
+                    <th>涉及人数</th>
                 </tr>
                 </thead>
-                <tbody id="assessment-rows"></tbody>
+                <tbody id="personnel-statistics-rows"></tbody>
             </table>
         </div>
     </section>
 
-    <section id="assessment-summary" class="panel hidden" data-menu-code="ASSESSMENT_SUMMARY">
+    <section id="retirement-due-query" class="panel hidden" data-menu-code="RETIREMENT_DUE_QUERY">
         <div class="panel-title">
             <div>
-                <h2>年度考核统计</h2>
-                <p>按年度、单位和考核结果汇总 `dndkh` 考核人数，按当前用户单位数据范围限制可见单位。</p>
+                <h2>已达退休年龄人员</h2>
+                <p>对应 VFP `ytxrytj`：按出生年月、性别和现任岗位，依据延迟退休规则试算应退休年月，列出截至参照年月已达退休年龄的在册人员。</p>
             </div>
         </div>
-        <form id="assessment-summary-form" class="toolbar">
-            <label>
-                单位名称
-                <input id="assessment-summary-organization-code" placeholder="输入单位名称或编码">
+        <form id="retirement-due-query-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="retirement-due-query-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="retirement-due-query-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
-            <label>
-                考核年度
-                <input id="assessment-summary-year" placeholder="例如 2024">
+            <label>参照年月
+                <input id="retirement-due-query-reference-period" placeholder="YYYY.MM，留空为当前月">
             </label>
-            <label>
-                考核结果
+            <label>关键词
+                <input id="retirement-due-query-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>页码
+                <input id="retirement-due-query-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="retirement-due-query-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询</button>
+        </form>
+        <div id="retirement-due-query-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>性别</th>
+                    <th>出生年月</th>
+                    <th>岗位</th>
+                    <th>退休类别</th>
+                    <th>延迟月数</th>
+                    <th>试算退休年月</th>
+                    <th>库内应退年月</th>
+                </tr>
+                </thead>
+                <tbody id="retirement-due-query-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="personnel-comprehensive-query" class="panel hidden" data-menu-code="PERSONNEL_COMPREHENSIVE_QUERY">
+        <div class="panel-title">
+            <div>
+                <h2>人员信息综合查询</h2>
+                <p>对应 VFP `xxcx`：按单位、基本信息、任职与当前工资等多条件组合查询在册人员。</p>
+            </div>
+        </div>
+        <form id="personnel-comprehensive-query-form" class="toolbar promotion-search-toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="personnel-comprehensive-query-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="personnel-comprehensive-query-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词
+                <input id="personnel-comprehensive-query-keyword" placeholder="姓名 / 编码 / 证件 / 岗位">
+            </label>
+            <label>性别
+                <select id="personnel-comprehensive-query-gender">
+                    <option value="">全部</option>
+                    <option value="男">男</option>
+                    <option value="女">女</option>
+                </select>
+            </label>
+            <label>人员类别
+                <input id="personnel-comprehensive-query-personnel-category" placeholder="模糊匹配">
+            </label>
+            <label>单位属性
+                <input id="personnel-comprehensive-query-organization-type" placeholder="精确匹配">
+            </label>
+            <label>岗位分类
+                <input id="personnel-comprehensive-query-post-category" placeholder="模糊匹配">
+            </label>
+            <label>学历编码
+                <input id="personnel-comprehensive-query-education-code" placeholder="例如 21">
+            </label>
+            <label>出生起<input id="personnel-comprehensive-query-birth-from" placeholder="YYYY.MM"></label>
+            <label>出生止<input id="personnel-comprehensive-query-birth-to" placeholder="YYYY.MM"></label>
+            <label>工作起<input id="personnel-comprehensive-query-work-from" placeholder="YYYY.MM"></label>
+            <label>工作止<input id="personnel-comprehensive-query-work-to" placeholder="YYYY.MM"></label>
+            <label>转正起<input id="personnel-comprehensive-query-regularization-from" placeholder="YYYY.MM"></label>
+            <label>转正止<input id="personnel-comprehensive-query-regularization-to" placeholder="YYYY.MM"></label>
+            <label>任职编码<input id="personnel-comprehensive-query-position-code" placeholder="现任岗位编码"></label>
+            <label>序列前缀<input id="personnel-comprehensive-query-position-prefix" placeholder="如 01"></label>
+            <label>级别起<input id="personnel-comprehensive-query-grade-from" type="number" min="0"></label>
+            <label>级别止<input id="personnel-comprehensive-query-grade-to" type="number" min="0"></label>
+            <label>页码<input id="personnel-comprehensive-query-page" type="number" min="0" value="0"></label>
+            <label>每页<input id="personnel-comprehensive-query-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询</button>
+        </form>
+        <div id="personnel-comprehensive-query-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>性别</th>
+                    <th>出生年月</th>
+                    <th>人员类别</th>
+                    <th>参加工作</th>
+                    <th>转正年月</th>
+                    <th>现任岗位</th>
+                    <th>工资年月</th>
+                    <th>工资岗位</th>
+                    <th>级别/档次</th>
+                    <th>合计</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="personnel-comprehensive-query-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="annual-assessment-management" class="panel hidden" data-menu-code="ANNUAL_ASSESSMENT_MANAGEMENT">
+        <div class="panel-title">
+            <div>
+                <h2>年度考核管理</h2>
+                <p>选择单位和考核年度，查询在册人员考核结果；有维护权限的用户可直接在表格中录入或修改，并可切换到汇总统计查看各单位考核人数。</p>
+            </div>
+        </div>
+        <div class="tab-bar" role="tablist">
+            <button id="assessment-tab-entry" class="tab-button active" type="button">考核录入</button>
+            <button id="assessment-tab-summary" class="tab-button" type="button">汇总统计</button>
+        </div>
+        <div id="assessment-entry-view">
+        <form id="annual-assessment-batch-form" class="toolbar assessment-batch-search">
+            <label class="assessment-batch-field-org">单位
+                <div class="dict-input-combo">
+                    <input id="assessment-batch-organization-code" readonly placeholder="请选择单位" required>
+                    <button id="assessment-batch-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>考核年度
+                <input id="assessment-batch-year" type="number" min="1990" max="2100" required>
+            </label>
+            <label>关键词
+                <input id="assessment-batch-keyword" placeholder="人员编码 / 姓名">
+            </label>
+            <label class="assessment-batch-checkbox-field">
+                <span>范围</span>
+                <span class="checkbox-inline"><input id="assessment-batch-include-descendants" type="checkbox"> 含下属单位</span>
+            </label>
+            <button type="submit" class="assessment-batch-load-btn">查询</button>
+        </form>
+        <div class="assessment-batch-action-bar">
+            <div class="assessment-batch-stats">
+                <div class="report-count-pill">
+                    共 <strong id="assessment-batch-total-count">0</strong> 人 ·
+                    已录入 <strong id="assessment-batch-entered-count">0</strong> ·
+                    未录入 <strong id="assessment-batch-missing-count">0</strong><span id="assessment-batch-visible-hint" class="assessment-batch-visible-hint"></span>
+                </div>
+                <label class="assessment-batch-filter-inline">
+                    <span>考核结果</span>
+                    <select id="assessment-batch-result-filter">
+                        <option value="">全部</option>
+                    </select>
+                </label>
+            </div>
+            <div class="assessment-batch-bulk-actions assessment-batch-write-only">
+                <label class="assessment-batch-bulk-label">批量设结果
+                    <select id="assessment-batch-bulk-result"></select>
+                </label>
+                <div class="assessment-batch-action-buttons">
+                    <button id="assessment-batch-apply-selected" type="button" class="btn-secondary">应用到勾选</button>
+                    <button id="assessment-batch-fill-defaults" type="button" class="btn-secondary">未录入填默认</button>
+                    <button id="assessment-batch-save" type="button">保存考核</button>
+                </div>
+            </div>
+        </div>
+        <div id="assessment-batch-status" class="status"></div>
+        <div class="table-wrap assessment-batch-table-wrap">
+            <table id="assessment-batch-table" class="assessment-batch-table hide-year-column">
+                <thead>
+                <tr>
+                    <th class="col-select assessment-batch-write-only"><input id="assessment-batch-select-all" type="checkbox" aria-label="全选"></th>
+                    <th class="col-org">单位</th>
+                    <th class="col-code">人员编码</th>
+                    <th class="col-name">姓名</th>
+                    <th class="col-position">岗位</th>
+                    <th class="col-year">年度</th>
+                    <th class="col-result">考核结果</th>
+                    <th class="col-status">状态</th>
+                </tr>
+                </thead>
+                <tbody id="assessment-batch-rows"></tbody>
+            </table>
+        </div>
+        </div>
+        <div id="assessment-summary-view" class="hidden">
+        <form id="assessment-summary-form" class="toolbar assessment-batch-search assessment-summary-search">
+            <label class="assessment-batch-field-org">单位
+                <div class="dict-input-combo">
+                    <input id="assessment-summary-organization-code" readonly placeholder="请选择单位或留空">
+                    <button
+                        id="assessment-summary-organization-picker-button"
+                        class="dict-picker-button organization-picker-button"
+                        type="button"
+                        aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>考核年度
+                <input id="assessment-summary-year" type="number" min="1990" max="2100" placeholder="例如 2024">
+            </label>
+            <label>考核结果
                 <input id="assessment-summary-result" placeholder="例如 合格">
             </label>
-            <label>
-                页码
-                <input id="assessment-summary-page" type="number" min="0" value="0">
+            <label class="assessment-batch-checkbox-field">
+                <span>范围</span>
+                <span class="checkbox-inline"><input id="assessment-summary-include-descendants" type="checkbox"> 含下属单位</span>
             </label>
-            <label>
-                每页数量
-                <input id="assessment-summary-size" type="number" min="1" max="100" value="20">
-            </label>
-            <button type="submit">查询统计</button>
+            <button type="submit" class="assessment-batch-load-btn">查询统计</button>
+            <input id="assessment-summary-page" type="hidden" value="0">
+            <input id="assessment-summary-size" type="hidden" value="50">
         </form>
         <div id="assessment-summary-status" class="status"></div>
-        <div class="table-wrap">
+        <div class="table-wrap assessment-summary-table-wrap">
             <table>
                 <thead>
                 <tr>
@@ -418,6 +709,7 @@
                 <tbody id="assessment-summary-rows"></tbody>
             </table>
         </div>
+        </div>
     </section>
 
     <section id="changed-personnel" class="panel hidden" data-menu-code="CHANGED_PERSONNEL">
@@ -429,8 +721,11 @@
         </div>
         <form id="changed-personnel-form" class="toolbar">
             <label>
-                单位名称
-                <input id="changed-personnel-organization-code" placeholder="输入单位名称或编码">
+                单位
+                <div class="dict-input-combo">
+                    <input id="changed-personnel-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="changed-personnel-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 变动年月
@@ -488,8 +783,11 @@
         </div>
         <form id="position-history-form" class="toolbar">
             <label>
-                单位名称
-                <input id="position-history-organization-code" placeholder="输入单位名称或编码">
+                单位
+                <div class="dict-input-combo">
+                    <input id="position-history-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="position-history-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 关键词
@@ -540,8 +838,11 @@
         </div>
         <form id="education-history-form" class="toolbar">
             <label>
-                单位名称
-                <input id="education-history-organization-code" placeholder="输入单位名称或编码">
+                单位
+                <div class="dict-input-combo">
+                    <input id="education-history-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="education-history-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 关键词
@@ -585,7 +886,7 @@
         <div class="panel-title">
             <div>
                 <h2>单位信息维护</h2>
-                <p>只读查询 `dwbm` 单位编码、工资类别、津补贴类别和编制人数等关键信息。</p>
+                <p>查询与维护 `dwbm` 单位编码、工资类别、津补贴类别和编制人数等关键信息。</p>
             </div>
         </div>
         <form id="organization-maintenance-form" class="toolbar">
@@ -602,6 +903,7 @@
                 <input id="organization-maintenance-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询单位</button>
+            <button id="organization-create-button" type="button" class="org-write-col hidden">新增单位</button>
         </form>
         <div id="organization-maintenance-status" class="status"></div>
         <div class="table-wrap">
@@ -625,6 +927,7 @@
                     <th>经费来源</th>
                     <th>扣公积金</th>
                     <th>扣养老保险</th>
+                    <th>操作</th>
                 </tr>
                 </thead>
                 <tbody id="organization-maintenance-rows"></tbody>
@@ -636,7 +939,7 @@
         <div class="panel-title">
             <div>
                 <h2>设置常用值</h2>
-                <p>只读查询 `dmb` 字典表，支持按编码前缀和关键词筛选。</p>
+                <p>查询与维护 `dmb` 字典表，支持按编码前缀和关键词筛选。</p>
             </div>
         </div>
         <form id="dictionary-maintenance-form" class="toolbar">
@@ -657,6 +960,7 @@
                 <input id="dictionary-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询字典</button>
+            <button id="dictionary-create-button" type="button" class="system-config-write-col hidden">新增字典</button>
         </form>
         <div id="dictionary-status" class="status"></div>
         <div class="table-wrap">
@@ -668,6 +972,7 @@
                     <th>操作编码</th>
                     <th>系统项</th>
                     <th>使用中</th>
+                    <th>操作</th>
                 </tr>
                 </thead>
                 <tbody id="dictionary-rows"></tbody>
@@ -679,7 +984,7 @@
         <div class="panel-title">
             <div>
                 <h2>本地工资政策</h2>
-                <p>只读查询 `cyxx` 本地工资政策参数和 `xtcs` 系统选项。</p>
+                <p>查询与维护 `cyxx` 本地工资政策参数和 `xtcs` 系统选项。</p>
             </div>
         </div>
         <form id="local-policy-form" class="toolbar">
@@ -744,6 +1049,28 @@
         </div>
     </section>
 
+    <div id="system-options-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>系统选项维护</h3>
+                <button id="system-options-modal-close" type="button" class="modal-close">×</button>
+            </div>
+            <form id="system-options-modal-form" class="form-grid">
+                <label>企业调入提高<input id="system-options-enterprise-transfer-raise"></label>
+                <label>套改档次学历关联<input id="system-options-grade-step-education-link"></label>
+                <label>小数位数<input id="system-options-decimal-places" required></label>
+                <label>警务补助<input id="system-options-police-rank-allowance"></label>
+                <label>套改奖金结余<input id="system-options-reform-bonus-balance"></label>
+                <label>浮动工资<input id="system-options-floating-salary"></label>
+                <div class="form-actions">
+                    <button type="submit">保存</button>
+                    <button id="system-options-modal-cancel" type="button">取消</button>
+                </div>
+            </form>
+            <div id="system-options-modal-status" class="status"></div>
+        </div>
+    </div>
+
     <section id="payroll" class="panel hidden" data-menu-code="PAYROLL">
         <div class="panel-title">
             <div>
@@ -753,28 +1080,19 @@
             <div class="selected-person" id="selected-person">未选择人员</div>
         </div>
         <div id="preview-status" class="status"></div>
-        <div id="preview-empty" class="empty-state">请先在“人员查询”中选择一名人员。</div>
+        <div id="preview-empty" class="empty-state">
+            <p>工资试算需在「人员管理」中针对具体人员打开，结果在弹窗中展示，无需离开查询列表。</p>
+            <a class="inline-link" href="#personnel">前往人员管理</a>
+        </div>
         <div id="preview-content" class="hidden">
-            <div class="summary-grid">
-                <div>
-                    <span>试算年月</span>
-                    <strong id="preview-period">-</strong>
-                </div>
-                <div>
-                    <span>试算合计</span>
-                    <strong id="preview-total">-</strong>
-                </div>
-                <div>
-                    <span>旧系统合计</span>
-                    <strong id="stored-total">-</strong>
-                </div>
-                <div>
-                    <span>差额</span>
-                    <strong id="total-difference">-</strong>
-                </div>
+            <div class="summary-grid summary-grid-diff">
+                <div><span>试算年月</span><strong id="preview-period">-</strong></div>
+                <div><span>试算合计</span><strong id="preview-total">-</strong></div>
+                <div><span>旧系统合计</span><strong id="stored-total">-</strong></div>
+                <div class="summary-diff-cell"><span>差额</span><strong id="total-difference">-</strong></div>
             </div>
 
-            <h3>已迁移工资项</h3>
+            <h3 class="section-heading">已迁移工资项</h3>
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -812,14 +1130,17 @@
     <section id="payroll-history" class="panel hidden" data-menu-code="PAYROLL_HISTORY">
         <div class="panel-title">
             <div>
-                <h2>工资变动历史</h2>
-                <p>只读查询 `hisbase` 工资历史和变动记录，按当前用户单位数据范围限制可见人员。</p>
+                <h2>工资变动情况</h2>
+                <p>对标 VFP `gzjshmc`：查询 `hisbase` 工资变动记录，支持查看变动前后对比；拥有工资变动维护权限时可手工新增、编辑、删除调资记录。</p>
             </div>
         </div>
         <form id="payroll-history-form" class="toolbar">
             <label>
-                单位编码
-                <input id="payroll-history-organization-code" placeholder="例如 001">
+                单位
+                <div class="dict-input-combo">
+                    <input id="payroll-history-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="payroll-history-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 变动年月
@@ -838,6 +1159,7 @@
                 <input id="payroll-history-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询历史</button>
+            <button type="button" id="payroll-history-create" class="hidden">手工新增调资</button>
         </form>
         <div id="payroll-history-status" class="status"></div>
         <div class="table-wrap">
@@ -845,6 +1167,7 @@
                 <thead>
                 <tr>
                     <th>ID</th>
+                    <th>当前</th>
                     <th>单位</th>
                     <th>人员编码</th>
                     <th>姓名</th>
@@ -903,13 +1226,16 @@
         <div class="panel-title">
             <div>
                 <h2>调整教护龄津贴</h2>
-                <p>按当前执行工资记录试算教护龄津贴，展示旧值、应发值和差额，暂不写入数据库。</p>
+                <p>按当前执行工资记录试算教护龄津贴，展示旧值、应发值和差额；符合条件时可办理或还原。</p>
             </div>
         </div>
         <form id="teaching-allowance-form" class="toolbar">
             <label>
-                单位编码
-                <input id="teaching-allowance-organization-code" placeholder="例如 001">
+                单位
+                <div class="dict-input-combo">
+                    <input id="teaching-allowance-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="teaching-allowance-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 关键词
@@ -943,6 +1269,7 @@
                     <th>应发值</th>
                     <th>差额</th>
                     <th>适用岗位</th>
+                    <th>操作</th>
                 </tr>
                 </thead>
                 <tbody id="teaching-allowance-rows"></tbody>
@@ -950,64 +1277,332 @@
         </div>
     </section>
 
-    <section id="normal-promotion" class="panel hidden" data-menu-code="NORMAL_PROMOTION">
+    <section id="prosecution-allowance-adjustment" class="panel hidden" data-menu-code="PROSECUTION_ALLOWANCE_ADJUSTMENT">
         <div class="panel-title">
             <div>
-                <h2>正常档次/薪级晋升</h2>
-                <p>基于当前执行工资记录，将当前档次/薪级加 1 后重算基础工资，展示只读试算差额。</p>
+                <h2>调整检察津贴</h2>
+                <p>按当前执行工资记录试算检察津贴（jxjt 三部分合成），展示旧标准、目标标准、旧值、应发值和差额；符合条件时可办理或还原。</p>
             </div>
         </div>
-        <form id="normal-promotion-form" class="toolbar">
+        <form id="prosecution-allowance-form" class="toolbar">
             <label>
-                单位编码
-                <input id="normal-promotion-organization-code" placeholder="例如 001">
+                单位
+                <div class="dict-input-combo">
+                    <input id="prosecution-allowance-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="prosecution-allowance-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 关键词
-                <input id="normal-promotion-keyword" placeholder="人员编码 / 姓名 / 岗位">
-            </label>
-            <label>
-                <input id="normal-promotion-due-only" type="checkbox" checked>
-                只显示符合晋升条件人员
+                <input id="prosecution-allowance-keyword" placeholder="人员编码 / 姓名 / 岗位">
             </label>
             <label>
                 页码
-                <input id="normal-promotion-page" type="number" min="0" value="0">
+                <input id="prosecution-allowance-page" type="number" min="0" value="0">
             </label>
             <label>
                 每页数量
-                <input id="normal-promotion-size" type="number" min="1" max="100" value="20">
+                <input id="prosecution-allowance-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询试算</button>
-            <button id="normal-promotion-batch-apply" type="button">批量处理</button>
         </form>
-        <div id="normal-promotion-status" class="status"></div>
+        <div id="prosecution-allowance-status" class="status"></div>
         <div class="table-wrap">
             <table>
                 <thead>
                 <tr>
-                    <th><input id="normal-promotion-select-all" type="checkbox" aria-label="全选正常晋升"></th>
-                    <th>单位编码</th>
+                    <th>单位</th>
                     <th>人员编码</th>
                     <th>姓名</th>
                     <th>试算年月</th>
-                    <th>变动类别</th>
-                    <th>岗位编码</th>
-                    <th>岗位名称</th>
-                    <th>工资标准</th>
-                    <th>当前档次/薪级</th>
-                    <th>晋升后档次/薪级</th>
-                    <th>级别</th>
-                    <th>xckhndjb</th>
-                    <th>xckhndzw</th>
-                    <th>合格年数</th>
-                    <th>要求年数</th>
-                    <th>满足条件</th>
-                    <th>旧基础工资</th>
-                    <th>晋升后基础工资</th>
-                    <th>增资额</th>
-                    <th>基础工资类型</th>
+                    <th>岗位</th>
+                    <th>等级</th>
+                    <th>旧标准</th>
+                    <th>目标标准</th>
+                    <th>旧 jxjt</th>
+                    <th>应发 jxjt</th>
+                    <th>差额</th>
                     <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="prosecution-allowance-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="judicial-allowance-adjustment" class="panel hidden" data-menu-code="JUDICIAL_ALLOWANCE_ADJUSTMENT">
+        <div class="panel-title">
+            <div>
+                <h2>调整审判津贴</h2>
+                <p>按当前执行工资记录试算审判津贴（jxjt 三部分合成），展示旧标准、目标标准、旧值、应发值和差额；符合条件时可办理或还原。</p>
+            </div>
+        </div>
+        <form id="judicial-allowance-form" class="toolbar">
+            <label>
+                单位
+                <div class="dict-input-combo">
+                    <input id="judicial-allowance-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="judicial-allowance-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>
+                关键词
+                <input id="judicial-allowance-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>
+                页码
+                <input id="judicial-allowance-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="judicial-allowance-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="judicial-allowance-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>试算年月</th>
+                    <th>岗位</th>
+                    <th>等级</th>
+                    <th>旧标准</th>
+                    <th>目标标准</th>
+                    <th>旧 jxjt</th>
+                    <th>应发 jxjt</th>
+                    <th>差额</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="judicial-allowance-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="police-allowance-adjustment" class="panel hidden" data-menu-code="POLICE_ALLOWANCE_ADJUSTMENT">
+        <div class="panel-title">
+            <div>
+                <h2>调整警衔津贴</h2>
+                <p>对标 VFP `tzjxjtbz`：按当前执行工资记录试算警衔津贴（jxjt 四部分合成），展示旧标准、目标标准、旧值、应发值和差额；符合条件时可办理或还原。</p>
+            </div>
+        </div>
+        <form id="police-allowance-form" class="toolbar">
+            <label>
+                单位
+                <div class="dict-input-combo">
+                    <input id="police-allowance-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="police-allowance-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>
+                关键词
+                <input id="police-allowance-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>
+                页码
+                <input id="police-allowance-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="police-allowance-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="police-allowance-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>试算年月</th>
+                    <th>岗位</th>
+                    <th>等级</th>
+                    <th>旧标准</th>
+                    <th>目标标准</th>
+                    <th>旧 jxjt</th>
+                    <th>应发 jxjt</th>
+                    <th>差额</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="police-allowance-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="supervision-allowance-adjustment" class="panel hidden" data-menu-code="SUPERVISION_ALLOWANCE_ADJUSTMENT">
+        <div class="panel-title">
+            <div>
+                <h2>调整监察津贴</h2>
+                <p>对标 VFP `tzmtjtbz`：按当前执行工资记录试算监察津贴（标准存于 `jxjtbz` 字段，查 `lb=mt`），展示旧标准、目标标准、旧值、应发值和差额；符合条件时可办理或还原。</p>
+            </div>
+        </div>
+        <form id="supervision-allowance-form" class="toolbar">
+            <label>
+                单位
+                <div class="dict-input-combo">
+                    <input id="supervision-allowance-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="supervision-allowance-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>
+                关键词
+                <input id="supervision-allowance-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>
+                页码
+                <input id="supervision-allowance-page" type="number" min="0" value="0">
+            </label>
+            <label>
+                每页数量
+                <input id="supervision-allowance-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="supervision-allowance-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>试算年月</th>
+                    <th>岗位</th>
+                    <th>等级</th>
+                    <th>旧标准</th>
+                    <th>目标标准</th>
+                    <th>旧 jxjt</th>
+                    <th>应发 jxjt</th>
+                    <th>差额</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="supervision-allowance-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="police-rank-change-promotion" class="panel hidden" data-menu-code="POLICE_RANK_CHANGE_PROMOTION">
+        <div class="panel-title"><div><h2>警衔工资晋升</h2><p>对标 VFP `jxbhgzjs`：读取 `jx` 表最新警衔等级，与当前工资 `jx`/`jxjt` 对比，次月生效；可办理或还原。</p></div></div>
+        <form id="police-rank-change-form" class="toolbar">
+            <label>单位<div class="dict-input-combo"><input id="police-rank-change-organization-code" readonly placeholder="请选择单位或留空"><button id="police-rank-change-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button></div></label>
+            <label>关键词<input id="police-rank-change-keyword" placeholder="人员编码 / 姓名 / 岗位"></label>
+            <label>页码<input id="police-rank-change-page" type="number" min="0" value="0"></label>
+            <label>每页数量<input id="police-rank-change-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="police-rank-change-status" class="status"></div>
+        <div class="table-wrap"><table><thead><tr><th>单位</th><th>人员编码</th><th>姓名</th><th>执行年月</th><th>岗位</th><th>授衔年月</th><th>旧等级</th><th>新等级</th><th>旧 jxjt</th><th>应发 jxjt</th><th>差额</th><th>操作</th></tr></thead><tbody id="police-rank-change-rows"></tbody></table></div>
+    </section>
+
+    <section id="prosecution-rank-change-promotion" class="panel hidden" data-menu-code="PROSECUTION_RANK_CHANGE_PROMOTION">
+        <div class="panel-title"><div><h2>检察官等级变化晋升</h2><p>对标 VFP `jcbhgzjs`：读取 `jx` 表最新检察等级，重算 jxjt；次月生效。</p></div></div>
+        <form id="prosecution-rank-change-form" class="toolbar">
+            <label>单位<div class="dict-input-combo"><input id="prosecution-rank-change-organization-code" readonly placeholder="请选择单位或留空"><button id="prosecution-rank-change-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button></div></label>
+            <label>关键词<input id="prosecution-rank-change-keyword" placeholder="人员编码 / 姓名 / 岗位"></label>
+            <label>页码<input id="prosecution-rank-change-page" type="number" min="0" value="0"></label>
+            <label>每页数量<input id="prosecution-rank-change-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="prosecution-rank-change-status" class="status"></div>
+        <div class="table-wrap"><table><thead><tr><th>单位</th><th>人员编码</th><th>姓名</th><th>执行年月</th><th>岗位</th><th>授衔年月</th><th>旧等级</th><th>新等级</th><th>旧 jxjt</th><th>应发 jxjt</th><th>差额</th><th>操作</th></tr></thead><tbody id="prosecution-rank-change-rows"></tbody></table></div>
+    </section>
+
+    <section id="judicial-rank-change-promotion" class="panel hidden" data-menu-code="JUDICIAL_RANK_CHANGE_PROMOTION">
+        <div class="panel-title"><div><h2>法官等级变化晋升</h2><p>对标 VFP `spbhgzjs`：读取 `jx` 表最新审判等级，重算 jxjt；次月生效。</p></div></div>
+        <form id="judicial-rank-change-form" class="toolbar">
+            <label>单位<div class="dict-input-combo"><input id="judicial-rank-change-organization-code" readonly placeholder="请选择单位或留空"><button id="judicial-rank-change-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button></div></label>
+            <label>关键词<input id="judicial-rank-change-keyword" placeholder="人员编码 / 姓名 / 岗位"></label>
+            <label>页码<input id="judicial-rank-change-page" type="number" min="0" value="0"></label>
+            <label>每页数量<input id="judicial-rank-change-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="judicial-rank-change-status" class="status"></div>
+        <div class="table-wrap"><table><thead><tr><th>单位</th><th>人员编码</th><th>姓名</th><th>执行年月</th><th>岗位</th><th>授衔年月</th><th>旧等级</th><th>新等级</th><th>旧 jxjt</th><th>应发 jxjt</th><th>差额</th><th>操作</th></tr></thead><tbody id="judicial-rank-change-rows"></tbody></table></div>
+    </section>
+
+    <section id="supervision-rank-change-promotion" class="panel hidden" data-menu-code="SUPERVISION_RANK_CHANGE_PROMOTION">
+        <div class="panel-title"><div><h2>监察等级变化晋升</h2><p>对标 VFP `mtbhgzjs`：读取 `jx` 表最新监察等级，重算 jxjt；次月生效。</p></div></div>
+        <form id="supervision-rank-change-form" class="toolbar">
+            <label>单位<div class="dict-input-combo"><input id="supervision-rank-change-organization-code" readonly placeholder="请选择单位或留空"><button id="supervision-rank-change-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button></div></label>
+            <label>关键词<input id="supervision-rank-change-keyword" placeholder="人员编码 / 姓名 / 岗位"></label>
+            <label>页码<input id="supervision-rank-change-page" type="number" min="0" value="0"></label>
+            <label>每页数量<input id="supervision-rank-change-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="supervision-rank-change-status" class="status"></div>
+        <div class="table-wrap"><table><thead><tr><th>单位</th><th>人员编码</th><th>姓名</th><th>执行年月</th><th>岗位</th><th>授衔年月</th><th>旧等级</th><th>新等级</th><th>旧 jxjt</th><th>应发 jxjt</th><th>差额</th><th>操作</th></tr></thead><tbody id="supervision-rank-change-rows"></tbody></table></div>
+    </section>
+
+    <section id="normal-promotion" class="panel hidden" data-menu-code="NORMAL_PROMOTION">
+        <div class="panel-title">
+            <div>
+                <h2>正常档次/薪级晋升</h2>
+                <p>选择晋升年度，基于当前执行工资记录将档次/薪级加 1 后重算基础工资，并按该年度前考核结果判断是否符合晋升条件；须按时间线依次办理，上年已符合但未办理的，请先选择对应年度处理。</p>
+            </div>
+        </div>
+        <form id="normal-promotion-form" class="toolbar promotion-search-toolbar">
+            <label class="promotion-field-org">单位
+                <div class="dict-input-combo">
+                    <input id="normal-promotion-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="normal-promotion-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>晋升年度
+                <input id="normal-promotion-year" type="number" min="2007" max="2100" required>
+            </label>
+            <label>关键词
+                <input id="normal-promotion-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label class="promotion-checkbox-field">
+                <span>筛选</span>
+                <span class="checkbox-inline"><input id="normal-promotion-due-only" type="checkbox" checked> 仅符合条件</span>
+            </label>
+            <label>页码
+                <input id="normal-promotion-page" type="number" min="0" value="0">
+            </label>
+            <label>每页
+                <input id="normal-promotion-size" type="number" min="1" max="100" value="20">
+            </label>
+            <div class="promotion-search-actions">
+                <button type="submit">查询试算</button>
+                <button id="normal-promotion-batch-apply" type="button" class="btn-secondary">批量处理</button>
+            </div>
+        </form>
+        <div id="normal-promotion-status" class="status"></div>
+        <div class="table-wrap promotion-table-wrap">
+            <table class="promotion-table normal-promotion-table">
+                <thead>
+                <tr>
+                    <th class="col-select"><input id="normal-promotion-select-all" type="checkbox" aria-label="全选正常晋升"></th>
+                    <th class="col-org">单位</th>
+                    <th class="col-code">人员编码</th>
+                    <th class="col-name">姓名</th>
+                    <th class="col-period">试算年月</th>
+                    <th class="col-change">变动类别</th>
+                    <th class="col-position">岗位名称</th>
+                    <th class="col-grade">当前档次/薪级</th>
+                    <th class="col-grade">晋升后档次/薪级</th>
+                    <th class="col-level">级别</th>
+                    <th class="col-tech">级别起算</th>
+                    <th class="col-tech">档次起算</th>
+                    <th class="col-years">考核年度</th>
+                    <th class="col-years">合格年数</th>
+                    <th class="col-years">要求年数</th>
+                    <th class="col-flag">满足条件</th>
+                    <th class="col-note">说明</th>
+                    <th class="col-money">旧基础工资</th>
+                    <th class="col-money">晋升后基础工资</th>
+                    <th class="col-money">增资额</th>
+                    <th class="col-type">工资类型</th>
+                    <th class="col-action">操作</th>
                 </tr>
                 </thead>
                 <tbody id="normal-promotion-rows"></tbody>
@@ -1019,64 +1614,75 @@
         <div class="panel-title">
             <div>
                 <h2>级别晋升</h2>
-                <p>基于当前执行工资记录，按级别晋升一级并选择晋升级别中高于旧工资的最低档次，展示只读试算差额。</p>
+                <p>选择晋升年度，基于当前执行工资记录试算级别晋升及套改后级别滚动（2007-2010）；列出级别考核起算年与晋升年度差额超过5年、考核称职/合格及以上累计至少5年且考核完整无缺失的待处理人员（含上年已符合但未办理），以及所选年度已办理正常级别晋升、可还原的人员。</p>
             </div>
         </div>
-        <form id="level-promotion-form" class="toolbar">
-            <label>
-                单位编码
-                <input id="level-promotion-organization-code" placeholder="例如 001">
+        <form id="level-promotion-form" class="toolbar promotion-search-toolbar level-promotion-search-toolbar">
+            <label class="promotion-field-org">单位
+                <div class="dict-input-combo">
+                    <input id="level-promotion-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="level-promotion-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
-            <label>
-                关键词
+            <label>晋升年度
+                <input id="level-promotion-year" type="number" min="2007" max="2100" required>
+            </label>
+            <label>关键词
                 <input id="level-promotion-keyword" placeholder="人员编码 / 姓名 / 岗位">
             </label>
-            <label>
-                <input id="level-promotion-due-only" type="checkbox">
-                只显示符合晋升条件人员
+            <label class="promotion-checkbox-field level-promotion-status-filter-field">
+                <span>状态</span>
+                <span class="level-promotion-status-options">
+                    <span class="checkbox-inline"><input id="level-promotion-include-apply" type="checkbox" checked> 待处理</span>
+                    <span class="checkbox-inline"><input id="level-promotion-include-processed" type="checkbox" checked> 已处理</span>
+                </span>
             </label>
-            <label>
-                页码
+            <label>页码
                 <input id="level-promotion-page" type="number" min="0" value="0">
             </label>
-            <label>
-                每页数量
+            <label>每页
                 <input id="level-promotion-size" type="number" min="1" max="100" value="20">
             </label>
-            <button type="submit">查询试算</button>
+            <div class="promotion-search-actions">
+                <button type="submit">查询试算</button>
+            </div>
         </form>
-        <div id="level-promotion-status" class="status"></div>
-        <div class="table-wrap">
-            <table>
+        <div class="level-promotion-results-header">
+            <div id="level-promotion-status" class="status"></div>
+            <button id="level-promotion-batch-apply" type="button" class="btn-secondary">批量处理</button>
+        </div>
+        <div class="table-wrap promotion-table-wrap">
+            <table class="promotion-table level-promotion-table">
                 <thead>
                 <tr>
-                    <th>单位编码</th>
-                    <th>人员编码</th>
-                    <th>姓名</th>
-                    <th>试算年月</th>
-                    <th>变动类别</th>
-                    <th>岗位编码</th>
-                    <th>岗位名称</th>
-                    <th>工资标准</th>
-                    <th>当前级别</th>
-                    <th>当前档次</th>
-                    <th>试算后级别</th>
-                    <th>试算后档次</th>
-                    <th>级别考核起算</th>
-                    <th>档次考核起算</th>
-                    <th>更新后xckhndjb</th>
-                    <th>更新后xckhndzw</th>
-                    <th>级别合格年数</th>
-                    <th>档次合格年数</th>
-                    <th>满足晋升级别</th>
-                    <th>满足晋升档次</th>
-                    <th>级别增资超过档差</th>
-                    <th>旧级别工资</th>
-                    <th>试算后级别工资</th>
-                    <th>增资额</th>
-                    <th>是否适用</th>
-                    <th>说明</th>
-                    <th>操作</th>
+                    <th class="col-select"><input id="level-promotion-select-all" type="checkbox" aria-label="全选级别晋升"></th>
+                    <th class="col-org">单位</th>
+                    <th class="col-code">人员编码</th>
+                    <th class="col-name">姓名</th>
+                    <th class="col-period">试算年月</th>
+                    <th class="col-change">变动类别</th>
+                    <th class="col-change">是否处理</th>
+                    <th class="col-position">岗位名称</th>
+                    <th class="col-level">当前级别</th>
+                    <th class="col-grade">当前档次</th>
+                    <th class="col-level">试算级别</th>
+                    <th class="col-grade">试算档次</th>
+                    <th class="col-tech">级别起算</th>
+                    <th class="col-tech">档次起算</th>
+                    <th class="col-tech">新级别起算</th>
+                    <th class="col-tech">新档次起算</th>
+                    <th class="col-years">级别合格</th>
+                    <th class="col-years">档次合格</th>
+                    <th class="col-flag">晋级别</th>
+                    <th class="col-flag">级滚动</th>
+                    <th class="col-flag">晋档次</th>
+                    <th class="col-flag">超档差</th>
+                    <th class="col-money">旧级别工资</th>
+                    <th class="col-money">试算级别工资</th>
+                    <th class="col-money">增资额</th>
+                    <th class="col-flag">适用</th>
+                    <th class="col-note">说明</th>
+                    <th class="col-action">操作</th>
                 </tr>
                 </thead>
                 <tbody id="level-promotion-rows"></tbody>
@@ -1088,85 +1694,54 @@
         <div class="panel-title">
             <div>
                 <h2>职务变化晋升</h2>
-                <p>基于当前执行工资和 `dryzwbh` 现任职务记录，识别同序列职务变化、不同序列转换和警员套改；警员套改高套职务时先平套、再按职务晋升政策晋升。</p>
+                <p>基于当前执行工资和 `dryzwbh` 现任职务记录试算职务变化；优先列出待处理人员，仅当不存在待处理时才列出最近变动为职务变化类、可还原的人员。</p>
             </div>
         </div>
-        <form id="position-change-promotion-form" class="toolbar">
-            <label>
-                单位编码
-                <input id="position-change-organization-code" placeholder="例如 001">
+        <form id="position-change-promotion-form" class="toolbar promotion-search-toolbar position-change-search-toolbar">
+            <label class="promotion-field-org">单位
+                <div class="dict-input-combo">
+                    <input id="position-change-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="position-change-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
-            <label>
-                关键词
+            <label>关键词
                 <input id="position-change-keyword" placeholder="人员编码 / 姓名 / 岗位">
             </label>
-            <label>
-                页码
+            <label>页码
                 <input id="position-change-page" type="number" min="0" value="0">
             </label>
-            <label>
-                每页数量
+            <label>每页
                 <input id="position-change-size" type="number" min="1" max="100" value="20">
             </label>
-            <button type="submit">查询试算</button>
+            <div class="promotion-search-actions">
+                <button type="submit">查询试算</button>
+                <button id="position-change-batch-apply" type="button" class="btn-secondary">批量处理</button>
+            </div>
         </form>
         <div id="position-change-status" class="status"></div>
-        <div class="table-wrap">
-            <table>
+        <div class="table-wrap promotion-table-wrap">
+            <table class="promotion-table position-change-table">
                 <thead>
                 <tr>
-                    <th>单位编码</th>
-                    <th>人员编码</th>
-                    <th>姓名</th>
-                    <th>原职务编码</th>
-                    <th>原职务</th>
-                    <th>新职务编码</th>
-                    <th>新职务</th>
-                    <th>原序列</th>
-                    <th>新序列</th>
-                    <th>变化类型</th>
-                    <th>转换序列</th>
-                    <th>警员套改</th>
-                    <th>法检套改</th>
-                    <th>职级套改</th>
-                    <th>事业岗位变动</th>
-                    <th>跨层晋升</th>
-                    <th>新任年月</th>
-                    <th>执行年月</th>
-                    <th>原级别</th>
-                    <th>原档次</th>
-                    <th>新职务最低级别</th>
-                    <th>新职务最高级别</th>
-                    <th>警员平套等级</th>
-                    <th>警员平套档次</th>
-                    <th>高套晋升</th>
-                    <th>法检套改档次</th>
-                    <th>回放级别</th>
-                    <th>回放档次</th>
-                    <th>回放xckhndjb</th>
-                    <th>回放xckhndzw</th>
-                    <th>事业起点薪级</th>
-                    <th>事业试算薪级</th>
-                    <th>事业xckhndzw</th>
-                    <th>试算级别</th>
-                    <th>试算档次</th>
-                    <th>原职务工资</th>
-                    <th>新职务工资</th>
-                    <th>原级别工资</th>
-                    <th>新级别工资</th>
-                    <th>职务增资</th>
-                    <th>PGBC保留</th>
-                    <th>PGBC冲销</th>
-                    <th>职务净增</th>
-                    <th>级别增资</th>
-                    <th>合计增资</th>
-                    <th>更新后xckhndjb</th>
-                    <th>更新后xckhndzw</th>
-                    <th>超过下一级别档差</th>
-                    <th>是否适用</th>
-                    <th>说明</th>
-                    <th>明细</th>
-                    <th>操作</th>
+                    <th class="col-select"><input id="position-change-select-all" type="checkbox" aria-label="全选职务变化"></th>
+                    <th class="col-org">单位</th>
+                    <th class="col-code">人员编码</th>
+                    <th class="col-name">姓名</th>
+                    <th class="col-position">原职务</th>
+                    <th class="col-position">新职务</th>
+                    <th class="col-change">变化类型</th>
+                    <th class="col-change">是否处理</th>
+                    <th class="col-period">新任年月</th>
+                    <th class="col-period">执行年月</th>
+                    <th class="col-level">原级别</th>
+                    <th class="col-grade">原档次</th>
+                    <th class="col-level">试算级别</th>
+                    <th class="col-grade">试算档次</th>
+                    <th class="col-money">职务增资</th>
+                    <th class="col-money">级别增资</th>
+                    <th class="col-money">合计增资</th>
+                    <th class="col-note">说明</th>
+                    <th class="col-action">操作</th>
                 </tr>
                 </thead>
                 <tbody id="position-change-rows"></tbody>
@@ -1181,7 +1756,7 @@
                     </div>
                     <button id="position-change-detail-close" type="button">关闭</button>
                 </div>
-                <div id="position-change-detail-content" class="note-card"></div>
+                <div id="position-change-detail-content" class="detail-table-panel"></div>
             </div>
         </div>
     </section>
@@ -1195,8 +1770,11 @@
         </div>
         <form id="education-promotion-form" class="toolbar">
             <label>
-                单位编码
-                <input id="education-promotion-organization-code" placeholder="例如 001">
+                单位
+                <div class="dict-input-combo">
+                    <input id="education-promotion-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="education-promotion-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 关键词
@@ -1244,6 +1822,7 @@
                     <th>更新后xckhndzw</th>
                     <th>是否适用</th>
                     <th>说明</th>
+                    <th>操作</th>
                 </tr>
                 </thead>
                 <tbody id="education-promotion-rows"></tbody>
@@ -1255,13 +1834,16 @@
         <div class="panel-title">
             <div>
                 <h2>转正定级</h2>
-                <p>基于当前见习工资记录和学历，对照 `bz06_zzdz` 转正定级标准进行只读试算。</p>
+                <p>基于当前见习工资记录和学历，对照 `bz06_zzdz` 转正定级标准试算；符合条件时可办理或还原。</p>
             </div>
         </div>
         <form id="regularization-form" class="toolbar">
             <label>
-                单位编码
-                <input id="regularization-organization-code" placeholder="例如 001">
+                单位
+                <div class="dict-input-combo">
+                    <input id="regularization-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="regularization-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 关键词
@@ -1302,9 +1884,733 @@
                     <th>增资额</th>
                     <th>是否适用</th>
                     <th>说明</th>
+                    <th>操作</th>
                 </tr>
                 </thead>
                 <tbody id="regularization-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="new-personnel-salary" class="panel hidden" data-menu-code="NEW_PERSONNEL_SALARY">
+        <div class="panel-title">
+            <div>
+                <h2>新增人员确定工资</h2>
+                <p>对应 VFP `drdz`：为尚无工资记录的新进/调入人员，按现任职务与起薪年月试算并写入首条 `调入定资` 记录。</p>
+            </div>
+        </div>
+        <form id="new-personnel-salary-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="new-personnel-salary-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="new-personnel-salary-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词
+                <input id="new-personnel-salary-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>页码
+                <input id="new-personnel-salary-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="new-personnel-salary-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="new-personnel-salary-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>进入年月</th>
+                    <th>进入方式</th>
+                    <th>起薪年月</th>
+                    <th>岗位</th>
+                    <th>任职起始</th>
+                    <th>试算合计</th>
+                    <th>说明</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="new-personnel-salary-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="other-payroll-change" class="panel hidden" data-menu-code="OTHER_PAYROLL_CHANGE">
+        <div class="panel-title">
+            <div>
+                <h2>其它情况工资变动</h2>
+                <p>对应 VFP `fzcgzbdcl`：对已有当前工资记录的人员，手工录入未纳入专用模块的变动类别与工资项目并写入新记录。</p>
+            </div>
+        </div>
+        <form id="other-payroll-change-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="other-payroll-change-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="other-payroll-change-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词
+                <input id="other-payroll-change-keyword" placeholder="人员编码 / 姓名 / 岗位 / 变动类别">
+            </label>
+            <label>页码
+                <input id="other-payroll-change-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="other-payroll-change-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询</button>
+        </form>
+        <div id="other-payroll-change-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>当前年月</th>
+                    <th>当前类别</th>
+                    <th>岗位</th>
+                    <th>职务工资</th>
+                    <th>级别/薪级工资</th>
+                    <th>技术等级工资</th>
+                    <th>绩效/生活补贴</th>
+                    <th>保留福补</th>
+                    <th>合计</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="other-payroll-change-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <div id="other-payroll-change-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="other-payroll-change-modal-title">办理其它情况工资变动</h3>
+                <button id="other-payroll-change-modal-close" type="button" class="modal-close">×</button>
+            </div>
+            <form id="other-payroll-change-apply-form" class="form-grid">
+                <label>变动年度<input id="other-payroll-change-year" required></label>
+                <label>变动月份<input id="other-payroll-change-month" required placeholder="01"></label>
+                <label>变动类别<input id="other-payroll-change-type" required placeholder="如：奖惩、特殊调整"></label>
+                <label>岗位编码<input id="other-payroll-change-position-code" required></label>
+                <label>岗位名称<input id="other-payroll-change-position-name"></label>
+                <label>职务工资<input id="other-payroll-change-position-salary" type="number" min="0" step="1"></label>
+                <label>级别/薪级工资<input id="other-payroll-change-grade-salary" type="number" min="0" step="1"></label>
+                <label>技术等级工资<input id="other-payroll-change-technical-salary" type="number" min="0" step="1"></label>
+                <label>绩效/生活补贴<input id="other-payroll-change-performance-allowance" type="number" min="0" step="1"></label>
+                <label>保留福补<input id="other-payroll-change-retained-allowance" type="number" min="0" step="1"></label>
+                <label>合计<input id="other-payroll-change-total" type="number" min="0" step="1" required></label>
+                <div class="form-actions">
+                    <button type="submit">确认办理</button>
+                    <button id="other-payroll-change-cancel" type="button">取消</button>
+                </div>
+            </form>
+            <div id="other-payroll-change-modal-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="organization-maintenance-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="organization-maintenance-modal-title">单位维护</h3>
+                <button id="organization-maintenance-modal-close" type="button" class="modal-close">×</button>
+            </div>
+            <form id="organization-maintenance-modal-form" class="form-grid">
+                <label>单位编码<input id="organization-modal-code" required></label>
+                <label>单位名称<input id="organization-modal-name" required></label>
+                <label>单位简称<input id="organization-modal-short-name"></label>
+                <label>单位性质<input id="organization-modal-property"></label>
+                <label>工资类别<input id="organization-modal-category"></label>
+                <label>工资标准类别<input id="organization-modal-payroll-category"></label>
+                <label>津补贴标准<input id="organization-modal-allowance-standard"></label>
+                <label>编制人数<input id="organization-modal-personnel-quota" type="number" min="0"></label>
+                <label>在编人数<input id="organization-modal-establishment-count" type="number" min="0"></label>
+                <label>实领人数<input id="organization-modal-actual-count" type="number" min="0"></label>
+                <label>单位级别<input id="organization-modal-organization-level"></label>
+                <label>DFBT<input id="organization-modal-performance-enabled" type="number" min="0" max="1"></label>
+                <label>绩效类别<input id="organization-modal-performance-category" type="number" min="0"></label>
+                <label>年补贴类别<input id="organization-modal-year-allowance-category" type="number" min="0"></label>
+                <label>经费来源<input id="organization-modal-finance-source"></label>
+                <label>扣公积金<input id="organization-modal-housing-fund"></label>
+                <label>扣养老保险<input id="organization-modal-pension"></label>
+                <div class="form-actions">
+                    <button type="submit">保存</button>
+                    <button id="organization-maintenance-modal-cancel" type="button">取消</button>
+                </div>
+            </form>
+            <div id="organization-maintenance-modal-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="dictionary-maintenance-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="dictionary-maintenance-modal-title">字典维护</h3>
+                <button id="dictionary-maintenance-modal-close" type="button" class="modal-close">×</button>
+            </div>
+            <form id="dictionary-maintenance-modal-form" class="form-grid">
+                <label>编码<input id="dictionary-modal-code" required></label>
+                <label>名称<input id="dictionary-modal-name" required></label>
+                <label>上级编码<input id="dictionary-modal-parent-code"></label>
+                <label>系统标志<input id="dictionary-modal-system-flag" type="number" min="0" max="1" value="0"></label>
+                <label>启用标志<input id="dictionary-modal-enabled-flag" type="number" min="0" max="1" value="1"></label>
+                <div class="form-actions">
+                    <button type="submit">保存</button>
+                    <button id="dictionary-maintenance-modal-disable" type="button" class="danger-button hidden">停用</button>
+                    <button id="dictionary-maintenance-modal-cancel" type="button">取消</button>
+                </div>
+            </form>
+            <div id="dictionary-maintenance-modal-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="local-policy-modal" class="modal-overlay hidden">
+        <div class="modal-card wide-modal">
+            <div class="modal-header">
+                <h3 id="local-policy-modal-title">本地政策维护</h3>
+                <button id="local-policy-modal-close" type="button" class="modal-close">×</button>
+            </div>
+            <form id="local-policy-modal-form" class="form-grid">
+                <label>单位编码<input id="local-policy-modal-organization-code"></label>
+                <label>单位名称<input id="local-policy-modal-organization-name" required></label>
+                <label>城市<input id="local-policy-modal-city"></label>
+                <label>审批时间<input id="local-policy-modal-approved-at"></label>
+                <label>工资表标题<input id="local-policy-modal-payroll-title"></label>
+                <label>舍入方式<input id="local-policy-modal-rounding-mode"></label>
+                <label>取整<input id="local-policy-modal-round-to-integer"></label>
+                <label>警衔津贴标题<input id="local-policy-modal-police-caption"></label>
+                <label>补贴标题<input id="local-policy-modal-subsidy-caption"></label>
+                <label>审批模式<input id="local-policy-modal-approval-mode"></label>
+                <label>单位审批类别<input id="local-policy-modal-unit-approval-category"></label>
+                <label>见习工资模式<input id="local-policy-modal-intern-salary-mode" type="number" step="1"></label>
+                <label>套改保留模式<input id="local-policy-modal-bonus-balance-mode" type="number" step="1"></label>
+                <label>浮动工资模式<input id="local-policy-modal-floating-salary-mode" type="number" step="1"></label>
+                <label>保留档次模式<input id="local-policy-modal-pay-grade-retention-mode" type="number" step="1"></label>
+                <label>自动备份<input id="local-policy-modal-auto-backup" type="number" step="1"></label>
+                <label>检查更新<input id="local-policy-modal-check-update" type="number" step="1"></label>
+                <div class="form-actions">
+                    <button type="submit">保存</button>
+                    <button id="local-policy-modal-cancel" type="button">取消</button>
+                </div>
+            </form>
+            <div id="local-policy-modal-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="position-change-apply-modal" class="modal-overlay hidden">
+        <div class="modal-card wide-modal">
+            <div class="modal-header">
+                <h3 id="position-change-apply-modal-title">办理职务变化</h3>
+                <button id="position-change-apply-modal-close" type="button" class="modal-close">×</button>
+            </div>
+            <form id="position-change-apply-form" class="form-grid">
+                <label>执行年度<input id="position-change-apply-year" required></label>
+                <label>执行月份<input id="position-change-apply-month" required placeholder="01"></label>
+                <label>变动类别<input id="position-change-apply-type" required></label>
+                <label>新任职务编码<input id="position-change-apply-position-code" required></label>
+                <label>新任职务名称<input id="position-change-apply-position-name"></label>
+                <label>级别<input id="position-change-apply-grade-level"></label>
+                <label>档次/薪级<input id="position-change-apply-grade-step"></label>
+                <label>职务工资<input id="position-change-apply-position-salary" type="number" min="0" step="1"></label>
+                <label>级别/薪级工资<input id="position-change-apply-grade-salary" type="number" min="0" step="1"></label>
+                <label>合计<input id="position-change-apply-total" type="number" min="0" step="1"></label>
+                <div class="form-actions">
+                    <button type="submit">确认办理</button>
+                    <button id="position-change-apply-cancel" type="button">取消</button>
+                </div>
+            </form>
+            <div id="position-change-apply-modal-status" class="status"></div>
+        </div>
+    </div>
+
+    <section id="salary-standard-adjustment" class="panel hidden" data-menu-code="SALARY_STANDARD_ADJUSTMENT">
+        <div class="panel-title">
+            <div>
+                <h2>2024.07调标</h2>
+                <p>对应 VFP `tbjs2021`：对工资标准年月（tbnd）或津补贴标准年月（jbtbz）低于目标标准的人员，按新标准重算工资并写入 `调标晋升` 记录。</p>
+            </div>
+        </div>
+        <form id="salary-standard-adjustment-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="salary-standard-adjustment-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="salary-standard-adjustment-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>调标标准年月
+                <input id="salary-standard-adjustment-target" value="202407" placeholder="例如 202407">
+            </label>
+            <label>关键词
+                <input id="salary-standard-adjustment-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>页码
+                <input id="salary-standard-adjustment-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="salary-standard-adjustment-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="salary-standard-adjustment-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>当前年月</th>
+                    <th>当前类别</th>
+                    <th>当前 tbnd</th>
+                    <th>当前 jbtbz</th>
+                    <th>岗位</th>
+                    <th>当前合计</th>
+                    <th>试算合计</th>
+                    <th>差额</th>
+                    <th>说明</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="salary-standard-adjustment-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="basic-salary-standard-adjustment" class="panel hidden" data-menu-code="BASIC_SALARY_STANDARD_ADJUSTMENT">
+        <div class="panel-title"><div><h2>调整基本工资标准</h2><p>对应 VFP `tbjs`：仅对 tbnd 低于目标标准的人员重算职务/级别/薪级工资，变动类别为「工资调标」。</p></div></div>
+        <form id="basic-salary-standard-adjustment-form" class="toolbar">
+            <label>单位<div class="dict-input-combo"><input id="basic-salary-standard-adjustment-organization-code" readonly placeholder="请选择单位或留空"><button id="basic-salary-standard-adjustment-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button></div></label>
+            <label>调标标准年月<input id="basic-salary-standard-adjustment-target" value="202407" placeholder="例如 202407"></label>
+            <label>关键词<input id="basic-salary-standard-adjustment-keyword" placeholder="人员编码 / 姓名 / 岗位"></label>
+            <label>页码<input id="basic-salary-standard-adjustment-page" type="number" min="0" value="0"></label>
+            <label>每页数量<input id="basic-salary-standard-adjustment-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="basic-salary-standard-adjustment-status" class="status"></div>
+        <div class="table-wrap"><table><thead><tr><th>单位</th><th>人员编码</th><th>姓名</th><th>当前年月</th><th>当前 tbnd</th><th>岗位</th><th>当前合计</th><th>试算合计</th><th>差额</th><th>说明</th><th>操作</th></tr></thead><tbody id="basic-salary-standard-adjustment-rows"></tbody></table></div>
+    </section>
+
+    <section id="civil-allowance-standard-adjustment" class="panel hidden" data-menu-code="CIVIL_ALLOWANCE_STANDARD_ADJUSTMENT">
+        <div class="panel-title"><div><h2>调整公务员津贴补贴</h2><p>对应 VFP `tzjbtbz`（公务员）：对 jbtbz 低于目标标准的公务员岗位人员重算 DFBT2/SDBT，变动类别为「津补贴调标」。</p></div></div>
+        <form id="civil-allowance-standard-adjustment-form" class="toolbar">
+            <label>单位<div class="dict-input-combo"><input id="civil-allowance-standard-adjustment-organization-code" readonly placeholder="请选择单位或留空"><button id="civil-allowance-standard-adjustment-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button></div></label>
+            <label>调标标准年月<input id="civil-allowance-standard-adjustment-target" value="202407" placeholder="例如 202407"></label>
+            <label>关键词<input id="civil-allowance-standard-adjustment-keyword" placeholder="人员编码 / 姓名 / 岗位"></label>
+            <label>页码<input id="civil-allowance-standard-adjustment-page" type="number" min="0" value="0"></label>
+            <label>每页数量<input id="civil-allowance-standard-adjustment-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="civil-allowance-standard-adjustment-status" class="status"></div>
+        <div class="table-wrap"><table><thead><tr><th>单位</th><th>人员编码</th><th>姓名</th><th>当前 jbtbz</th><th>岗位</th><th>当前合计</th><th>试算合计</th><th>差额</th><th>说明</th><th>操作</th></tr></thead><tbody id="civil-allowance-standard-adjustment-rows"></tbody></table></div>
+    </section>
+
+    <section id="performance-standard-adjustment" class="panel hidden" data-menu-code="PERFORMANCE_STANDARD_ADJUSTMENT">
+        <div class="panel-title"><div><h2>调整绩效工资标准</h2><p>对应 VFP `tzjbtbz`（事业）：对 jbtbz 低于目标标准的事业单位岗位人员重算基础性绩效，变动类别为「绩效标准调标」。</p></div></div>
+        <form id="performance-standard-adjustment-form" class="toolbar">
+            <label>单位<div class="dict-input-combo"><input id="performance-standard-adjustment-organization-code" readonly placeholder="请选择单位或留空"><button id="performance-standard-adjustment-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button></div></label>
+            <label>调标标准年月<input id="performance-standard-adjustment-target" value="202407" placeholder="例如 202407"></label>
+            <label>关键词<input id="performance-standard-adjustment-keyword" placeholder="人员编码 / 姓名 / 岗位"></label>
+            <label>页码<input id="performance-standard-adjustment-page" type="number" min="0" value="0"></label>
+            <label>每页数量<input id="performance-standard-adjustment-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="performance-standard-adjustment-status" class="status"></div>
+        <div class="table-wrap"><table><thead><tr><th>单位</th><th>人员编码</th><th>姓名</th><th>当前 jbtbz</th><th>岗位</th><th>当前合计</th><th>试算合计</th><th>差额</th><th>说明</th><th>操作</th></tr></thead><tbody id="performance-standard-adjustment-rows"></tbody></table></div>
+    </section>
+
+    <section id="performance-ratio-adjustment" class="panel hidden" data-menu-code="PERFORMANCE_RATIO_ADJUSTMENT">
+        <div class="panel-title"><div><h2>调整绩效比例</h2><p>对应 VFP `tzjtbl`：读取人员基本信息 jtbl，同步至当前工资并按个人绩效比例重算 DFBT2。</p></div></div>
+        <form id="performance-ratio-adjustment-form" class="toolbar">
+            <label>单位<div class="dict-input-combo"><input id="performance-ratio-adjustment-organization-code" readonly placeholder="请选择单位或留空"><button id="performance-ratio-adjustment-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button></div></label>
+            <label>关键词<input id="performance-ratio-adjustment-keyword" placeholder="人员编码 / 姓名 / 岗位"></label>
+            <label>页码<input id="performance-ratio-adjustment-page" type="number" min="0" value="0"></label>
+            <label>每页数量<input id="performance-ratio-adjustment-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="performance-ratio-adjustment-status" class="status"></div>
+        <div class="table-wrap"><table><thead><tr><th>单位</th><th>人员编码</th><th>姓名</th><th>岗位</th><th>当前 jtbl</th><th>目标 jtbl</th><th>当前 DFBT2</th><th>试算 DFBT2</th><th>当前合计</th><th>试算合计</th><th>差额</th><th>说明</th><th>操作</th></tr></thead><tbody id="performance-ratio-adjustment-rows"></tbody></table></div>
+    </section>
+
+    <section id="allowance-recalculation" class="panel hidden" data-menu-code="ALLOWANCE_RECALCULATION">
+        <div class="panel-title">
+            <div>
+                <h2>重算津补贴</h2>
+                <p>对应 VFP `jbtjs`：按当前变动年月与职务，对照 `bz06_jbt` 重算生活性/基础性绩效与工作性津补贴，不改变基本工资与 tbnd。</p>
+            </div>
+        </div>
+        <form id="allowance-recalculation-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="allowance-recalculation-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="allowance-recalculation-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词
+                <input id="allowance-recalculation-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>页码
+                <input id="allowance-recalculation-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="allowance-recalculation-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="allowance-recalculation-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>当前年月</th>
+                    <th>岗位</th>
+                    <th>当前 jbtbz</th>
+                    <th>试算 jbtbz</th>
+                    <th>当前生活/绩效</th>
+                    <th>试算生活/绩效</th>
+                    <th>当前工作性</th>
+                    <th>试算工作性</th>
+                    <th>当前合计</th>
+                    <th>试算合计</th>
+                    <th>差额</th>
+                    <th>说明</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="allowance-recalculation-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="reform-level-rolling" class="panel hidden" data-menu-code="REFORM_LEVEL_ROLLING">
+        <div class="panel-title">
+            <div>
+                <h2>级别滚动晋升</h2>
+                <p>对应 VFP `jbgdgzjs`：2007–2010 套改后级别滚动试算与办理，仅处理「级别滚动」变动，不含正常级别晋升。</p>
+            </div>
+        </div>
+        <form id="reform-level-rolling-form" class="toolbar promotion-search-toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="reform-level-rolling-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="reform-level-rolling-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>推算年度
+                <input id="reform-level-rolling-year" type="number" min="2007" max="2010" required>
+            </label>
+            <label>关键词
+                <input id="reform-level-rolling-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label class="promotion-checkbox-field">
+                状态
+                <span class="level-promotion-status-options">
+                    <span class="checkbox-inline"><input id="reform-level-rolling-include-apply" type="checkbox" checked> 待处理</span>
+                    <span class="checkbox-inline"><input id="reform-level-rolling-include-processed" type="checkbox" checked> 已处理</span>
+                </span>
+            </label>
+            <label>页码
+                <input id="reform-level-rolling-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="reform-level-rolling-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="reform-level-rolling-status" class="status"></div>
+        <div class="table-wrap">
+            <table class="promotion-table">
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>推算年度</th>
+                    <th>岗位</th>
+                    <th>当前级别</th>
+                    <th>当前档次</th>
+                    <th>滚动后级别</th>
+                    <th>滚动后档次</th>
+                    <th>滚动年度</th>
+                    <th>当前级别工资</th>
+                    <th>滚动后级别工资</th>
+                    <th>增资额</th>
+                    <th>说明</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="reform-level-rolling-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="regularization-high-grade" class="panel hidden" data-menu-code="REGULARIZATION_HIGH_GRADE">
+        <div class="panel-title">
+            <div>
+                <h2>转正高定档次薪级</h2>
+                <p>对应 VFP `zzgd`：对已转正人员，按转正时学历对照 `bz06_zzdz` 标准档次/薪级，叠加本地政策高定档数（`cyxx.jqdm - 1`）试算并办理。</p>
+            </div>
+        </div>
+        <form id="regularization-high-grade-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="regularization-high-grade-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="regularization-high-grade-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词
+                <input id="regularization-high-grade-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>页码
+                <input id="regularization-high-grade-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="regularization-high-grade-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="regularization-high-grade-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>转正年月</th>
+                    <th>岗位</th>
+                    <th>学历</th>
+                    <th>标准档次/薪级</th>
+                    <th>高定档数</th>
+                    <th>当前档次/薪级</th>
+                    <th>目标档次/薪级</th>
+                    <th>当前级别/薪级工资</th>
+                    <th>目标级别/薪级工资</th>
+                    <th>增资额</th>
+                    <th>说明</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="regularization-high-grade-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="monthly-average-salary" class="panel hidden" data-menu-code="MONTHLY_AVERAGE_SALARY">
+        <div class="panel-title">
+            <div>
+                <h2>月平均工资计算</h2>
+                <p>对应 VFP `dybdmx`：按指定年度 1–12 月工资变动分段加权平均，试算月平均工资并写入 `jfjs` 养老缴费基数。</p>
+            </div>
+        </div>
+        <form id="monthly-average-salary-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="monthly-average-salary-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="monthly-average-salary-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>计算年度
+                <input id="monthly-average-salary-year" type="number" min="2006" max="2100" required>
+            </label>
+            <label>关键词
+                <input id="monthly-average-salary-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>页码
+                <input id="monthly-average-salary-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="monthly-average-salary-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="monthly-average-salary-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>年度</th>
+                    <th>加权合计</th>
+                    <th>计月数</th>
+                    <th>试算月平均</th>
+                    <th>已存 jfjs</th>
+                    <th>年末岗位</th>
+                    <th>年末级别/档次</th>
+                    <th>说明</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="monthly-average-salary-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="wage-reform-2006" class="panel hidden" data-menu-code="WAGE_REFORM_2006">
+        <div class="panel-title">
+            <div>
+                <h2>2006年工资套改</h2>
+                <p>对应 VFP `tg2006`：对 2006.07 前参加工作人员试算 2006 套改，写入首条工资记录（hisbase）及套改明细（dtgxx）；已有 VFP 套改工资者可补录 dtgxx。</p>
+            </div>
+        </div>
+        <form id="wage-reform-2006-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="wage-reform-2006-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="wage-reform-2006-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词
+                <input id="wage-reform-2006-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>页码
+                <input id="wage-reform-2006-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="wage-reform-2006-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="wage-reform-2006-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>参加工作时间</th>
+                    <th>转正年月</th>
+                    <th>套改年月</th>
+                    <th>套改年限</th>
+                    <th>岗位</th>
+                    <th>级别/档次</th>
+                    <th>职务工资</th>
+                    <th>级别工资</th>
+                    <th>合计</th>
+                    <th>高定档</th>
+                    <th>低定档</th>
+                    <th>高定级</th>
+                    <th>低定级</th>
+                    <th>套改明细</th>
+                    <th>说明</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="wage-reform-2006-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="intern-salary-change" class="panel hidden" data-menu-code="INTERN_SALARY_CHANGE">
+        <div class="panel-title">
+            <div>
+                <h2>见习工资变动</h2>
+                <p>对应 VFP `jxgz2`：对见习/试用岗位人员，按变动年月学历对照 `bz06_zzdz` 重算见习工资并写入工资变动记录。</p>
+            </div>
+        </div>
+        <form id="intern-salary-change-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="intern-salary-change-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="intern-salary-change-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词
+                <input id="intern-salary-change-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>页码
+                <input id="intern-salary-change-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="intern-salary-change-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="intern-salary-change-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>当前年月</th>
+                    <th>参加工作时间</th>
+                    <th>岗位</th>
+                    <th>标准年月</th>
+                    <th>当前见习工资</th>
+                    <th>试算见习工资</th>
+                    <th>变动后合计</th>
+                    <th>差额</th>
+                    <th>说明</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="intern-salary-change-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="floating-to-fixed" class="panel hidden" data-menu-code="FLOATING_TO_FIXED">
+        <div class="panel-title">
+            <div>
+                <h2>浮动转固定</h2>
+                <p>对应 VFP `fdgd`：按浮动起始年月每满 8 年（`fdsj + 800`）将浮动档次并入固定档次，取消浮动工资。</p>
+            </div>
+        </div>
+        <form id="floating-to-fixed-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="floating-to-fixed-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="floating-to-fixed-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词
+                <input id="floating-to-fixed-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <label>页码
+                <input id="floating-to-fixed-page" type="number" min="0" value="0">
+            </label>
+            <label>每页数量
+                <input id="floating-to-fixed-size" type="number" min="1" max="100" value="20">
+            </label>
+            <button type="submit">查询试算</button>
+        </form>
+        <div id="floating-to-fixed-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>当前年月</th>
+                    <th>到期年月</th>
+                    <th>浮动起始</th>
+                    <th>岗位</th>
+                    <th>浮动档次</th>
+                    <th>当前档次</th>
+                    <th>转固定后档次</th>
+                    <th>浮动工资</th>
+                    <th>变动后合计</th>
+                    <th>差额</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="floating-to-fixed-rows"></tbody>
             </table>
         </div>
     </section>
@@ -1318,8 +2624,11 @@
         </div>
         <form id="audit-form" class="toolbar">
             <label>
-                单位编码
-                <input id="audit-organization-code" name="organizationCode" placeholder="可选">
+                单位
+                <div class="dict-input-combo">
+                    <input id="audit-organization-code" name="organizationCode" readonly placeholder="请选择单位或留空">
+                    <button id="audit-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
             </label>
             <label>
                 页码
@@ -1338,7 +2647,7 @@
             </label>
         </form>
         <div id="audit-status" class="status"></div>
-        <div class="summary-grid">
+        <div class="summary-grid summary-grid-diff">
             <div>
                 <span>有历史人员</span>
                 <strong id="audit-total">-</strong>
@@ -1387,23 +2696,8 @@
                 <strong id="audit-detail-title">历次调资差异明细</strong>
                 <button id="audit-detail-close" type="button">关闭</button>
             </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>年月</th>
-                        <th>变动类别</th>
-                        <th>可推算</th>
-                        <th>旧合计</th>
-                        <th>推算合计</th>
-                        <th>差额</th>
-                        <th>结构差异</th>
-                        <th>金额差异</th>
-                    </tr>
-                    </thead>
-                    <tbody id="audit-detail-rows"></tbody>
-                </table>
-            </div>
+            <p id="audit-detail-status" class="status"></p>
+            <div id="audit-detail-items" class="audit-detail-items"></div>
         </div>
     </section>
 
@@ -1414,9 +2708,10 @@
                 <p>选择单位、花名册类别和变动年度，筛选符合条件人员，勾选后生成一张花名册打印。</p>
             </div>
             <button id="payroll-change-register-print" type="button">打印花名册</button>
+            <button id="payroll-change-register-export-excel" type="button">导出 Excel 备份</button>
         </div>
         <form id="payroll-change-register-report-form" class="toolbar">
-            <label>单位名称
+            <label>单位
                 <div class="dict-input-combo">
                     <input id="report-payroll-change-organization-code" readonly placeholder="请选择单位或留空">
                     <button id="report-payroll-change-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择花名册单位">⌄</button>
@@ -1464,13 +2759,14 @@
     <section id="payroll-change-approval-report" class="panel hidden" data-menu-code="PAYROLL_CHANGE_APPROVAL_REPORT">
         <div class="panel-title">
             <div>
-                <h2>报表打印</h2>
-                <p>选择单位、审批表类别和变动年度，筛选符合条件人员，勾选后生成审批表并打印。</p>
+                <h2>工资变动审批表</h2>
+                <p>选择单位、审批表类别和变动年度，筛选符合条件人员，勾选后一键生成并打印审批表。</p>
             </div>
-            <button id="payroll-change-approval-print" type="button">打印审批表</button>
+            <button id="payroll-change-approval-print" type="button">生成并打印审批表</button>
+            <button id="payroll-change-approval-export-excel" type="button">导出 Excel 备份</button>
         </div>
-        <form id="payroll-change-approval-report-form" class="toolbar">
-            <label>单位名称
+        <form id="payroll-change-approval-report-form" class="toolbar report-search-toolbar">
+            <label class="report-field-org">单位
                 <div class="dict-input-combo">
                     <input id="report-approval-organization-code" readonly placeholder="请选择单位或留空">
                     <button id="report-approval-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择报表单位">⌄</button>
@@ -1479,12 +2775,15 @@
             <label>审批表类别<select id="report-approval-type-select"></select></label>
             <label>变动年度<input id="report-approval-year" type="number" min="1900" max="2100" value="2024"></label>
             <label>关键词<input id="report-approval-keyword" placeholder="人员编码 / 姓名 / 变动类别 / 岗位"></label>
-            <label>每页数量<input id="report-approval-size" type="number" min="1" max="100" value="20"></label>
-            <button type="submit">查询记录</button>
-            <button id="report-approval-generate-selected" type="button">生成选中审批表</button>
+            <div class="report-search-actions">
+                <button type="submit">查询记录</button>
+            </div>
+            <input id="report-approval-size" type="hidden" value="50">
         </form>
-        <div class="report-count-pill">总人数 <strong id="report-approval-total-count">0</strong></div>
-        <div id="report-approval-status" class="status"></div>
+        <div class="report-result-bar">
+            <div class="report-count-pill">总人数 <strong id="report-approval-total-count">0</strong></div>
+            <div id="report-approval-status" class="status"></div>
+        </div>
         <div class="table-wrap">
             <table>
                 <thead>
@@ -1506,14 +2805,169 @@
         <div id="report-approval-preview" class="report-print-area hidden"></div>
     </section>
 
+    <section id="wage-reform-2006-public-notice-report" class="panel hidden" data-menu-code="WAGE_REFORM_2006_PUBLIC_NOTICE_REPORT">
+        <div class="panel-title">
+            <div>
+                <h2>2006套改公示表</h2>
+                <p>对应 VFP `dygsb`：查询 `dtgxx` 套改明细，勾选人员后生成公示表并打印。</p>
+            </div>
+            <button id="wage-reform-2006-public-notice-print" type="button">打印公示表</button>
+        </div>
+        <form id="wage-reform-2006-public-notice-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="wage-reform-2006-public-notice-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="wage-reform-2006-public-notice-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择公示表单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词<input id="wage-reform-2006-public-notice-keyword" placeholder="人员编码 / 姓名 / 职务 / 套改职务"></label>
+            <label>每页数量<input id="wage-reform-2006-public-notice-size" type="number" min="1" max="500" value="50"></label>
+            <button type="submit">查询人员</button>
+            <button id="wage-reform-2006-public-notice-generate-selected" type="button">生成选中公示表</button>
+        </form>
+        <div class="report-count-pill">总人数 <strong id="wage-reform-2006-public-notice-total-count">0</strong></div>
+        <div id="wage-reform-2006-public-notice-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th><input id="wage-reform-2006-public-notice-select-all" type="checkbox" aria-label="全选公示表人员"></th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>参加工作</th>
+                    <th>套改年限</th>
+                    <th>现任职务</th>
+                    <th>低一职务</th>
+                    <th>学历</th>
+                    <th>套改职务</th>
+                    <th>级别</th>
+                    <th>档次</th>
+                    <th>高定/低定</th>
+                    <th>备注</th>
+                </tr>
+                </thead>
+                <tbody id="wage-reform-2006-public-notice-rows"></tbody>
+            </table>
+        </div>
+        <div id="wage-reform-2006-public-notice-preview" class="report-print-area hidden"></div>
+    </section>
+
+    <section id="personnel-information-collection-report" class="panel hidden" data-menu-code="PERSONNEL_INFORMATION_COLLECTION_REPORT">
+        <div class="panel-title">
+            <div>
+                <h2>人员信息采集表</h2>
+                <p>对应 VFP `dycjb`：查询在册人员，勾选后生成含基本信息、学历、任职、考核与当前工资的采集表并打印。</p>
+            </div>
+            <button id="personnel-information-collection-print" type="button">打印采集表</button>
+        </div>
+        <form id="personnel-information-collection-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="personnel-information-collection-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="personnel-information-collection-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择采集表单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词<input id="personnel-information-collection-keyword" placeholder="人员编码 / 姓名 / 身份证 / 职务"></label>
+            <label>每页数量<input id="personnel-information-collection-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询人员</button>
+            <button id="personnel-information-collection-generate-selected" type="button">生成选中采集表</button>
+        </form>
+        <div class="report-count-pill">总人数 <strong id="personnel-information-collection-total-count">0</strong></div>
+        <div id="personnel-information-collection-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th><input id="personnel-information-collection-select-all" type="checkbox" aria-label="全选采集表人员"></th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>性别</th>
+                    <th>出生年月</th>
+                    <th>人员类别</th>
+                    <th>现任职务</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="personnel-information-collection-rows"></tbody>
+            </table>
+        </div>
+        <div id="personnel-information-collection-preview" class="report-print-area hidden"></div>
+    </section>
+
+    <section id="personnel-information-registration-report" class="panel hidden" data-menu-code="PERSONNEL_INFORMATION_REGISTRATION_REPORT">
+        <div class="panel-title">
+            <div>
+                <h2>人员信息登记表</h2>
+                <p>对应 VFP `dyjdb`：查询在册人员，勾选后生成基本信息登记表并打印。</p>
+            </div>
+            <button id="personnel-information-registration-print" type="button">打印登记表</button>
+        </div>
+        <form id="personnel-information-registration-form" class="toolbar">
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="personnel-information-registration-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="personnel-information-registration-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择登记表单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词<input id="personnel-information-registration-keyword" placeholder="人员编码 / 姓名 / 身份证 / 职务"></label>
+            <label>每页数量<input id="personnel-information-registration-size" type="number" min="1" max="100" value="20"></label>
+            <button type="submit">查询人员</button>
+            <button id="personnel-information-registration-generate-selected" type="button">生成选中登记表</button>
+        </form>
+        <div class="report-count-pill">总人数 <strong id="personnel-information-registration-total-count">0</strong></div>
+        <div id="personnel-information-registration-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th><input id="personnel-information-registration-select-all" type="checkbox" aria-label="全选登记表人员"></th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>性别</th>
+                    <th>出生年月</th>
+                    <th>人员类别</th>
+                    <th>现任职务</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="personnel-information-registration-rows"></tbody>
+            </table>
+        </div>
+        <div id="personnel-information-registration-preview" class="report-print-area hidden"></div>
+    </section>
+
     <section id="data-exchange" class="panel hidden" data-menu-code="DATA_EXCHANGE">
         <div class="panel-title">
             <div>
                 <h2>数据交换</h2>
-                <p>人员信息和工资数据导出为 CSV 格式，支持批量下载。导入功能开发中。</p>
+                <p>对应 VFP「数据交换」菜单：人员建库包下发/接收、按人员导出、工资年报导出。JSON 数据包含 dryjbxx 及 hisbase、任职、学历、考核等关联表。</p>
             </div>
         </div>
 
+        <div class="data-exchange-map note-card">
+            <strong>VFP 对照：</strong>
+            建库下发/接收 → 单位人员下发 + 数据接收；
+            申报导出/审核 → 下属单位工资申报包；
+            审批下发/接收 → 上级已审工资审批包；
+            按人员导出 → 人员信息 CSV；
+            工资年报 → 年报 CSV/Excel。
+        </div>
+
+        <div class="tab-bar" id="data-exchange-tabs">
+            <button type="button" class="tab-button active" data-exchange-tab="dispatch">单位下发</button>
+            <button type="button" class="tab-button" data-exchange-tab="receive">数据接收</button>
+            <button type="button" class="tab-button" data-exchange-tab="submission-export">申报导出</button>
+            <button type="button" class="tab-button" data-exchange-tab="submission-review">申报审核</button>
+            <button type="button" class="tab-button" data-exchange-tab="approval-dispatch">审批下发</button>
+            <button type="button" class="tab-button" data-exchange-tab="approval-receive">审批接收</button>
+            <button type="button" class="tab-button" data-exchange-tab="personnel">人员导出</button>
+            <button type="button" class="tab-button" data-exchange-tab="annual">年报导出</button>
+        </div>
+
+        <div id="data-exchange-dispatch-panel" class="data-exchange-tab-panel">
         <h3>单位/人员下发</h3>
         <form id="data-exchange-dispatch-form" class="toolbar">
             <label>选择单位
@@ -1545,7 +2999,9 @@
                 <tbody id="data-exchange-dispatch-rows"></tbody>
             </table>
         </div>
+        </div>
 
+        <div id="data-exchange-receive-panel" class="data-exchange-tab-panel hidden">
         <h3>数据接收</h3>
         <form id="data-exchange-receive-form" class="toolbar">
             <label style="grid-column: span 2;">数据包文件
@@ -1586,10 +3042,161 @@
                 <tbody id="data-exchange-receive-rows"></tbody>
             </table>
         </div>
+        </div>
 
+        <div id="data-exchange-submission-export-panel" class="data-exchange-tab-panel hidden">
+        <h3>申报导出</h3>
+        <p class="note-card">对应 VFP `sjsb`：导出下属单位人员当前工资变动及任职、学历、考核关联数据，生成申报 JSON 包。</p>
+        <form id="data-exchange-submission-export-form" class="toolbar">
+            <label>选择单位
+                <div class="dict-input-combo">
+                    <input id="data-exchange-submission-organization" readonly placeholder="点击选择申报单位">
+                    <button id="data-exchange-submission-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择申报单位">⌄</button>
+                </div>
+            </label>
+            <label><input id="data-exchange-submission-include-descendants" type="checkbox" checked> 包含下属单位</label>
+            <label>关键词<input id="data-exchange-submission-keyword" placeholder="人员编码 / 姓名 / 身份证"></label>
+            <button type="submit">筛选人员</button>
+            <button id="data-exchange-submission-download" type="button">生成申报包</button>
+        </form>
+        <div id="data-exchange-submission-organizations" class="permission-list"></div>
+        <div id="data-exchange-submission-export-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th><input id="data-exchange-submission-select-all" type="checkbox" aria-label="全选申报人员"></th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>变动类别</th>
+                    <th>年月</th>
+                    <th>合计</th>
+                    <th>备注</th>
+                </tr>
+                </thead>
+                <tbody id="data-exchange-submission-rows"></tbody>
+            </table>
+        </div>
+        </div>
+
+        <div id="data-exchange-submission-review-panel" class="data-exchange-tab-panel hidden">
+        <h3>申报审核</h3>
+        <p class="note-card">对应 VFP `sjsh`：读入下属单位申报包，预览后审核通过或退回。</p>
+        <form id="data-exchange-submission-review-form" class="toolbar">
+            <label style="grid-column: span 2;">申报包文件
+                <input id="data-exchange-submission-review-file" type="file" accept=".json,application/json">
+                <input id="data-exchange-submission-review-json" type="hidden">
+            </label>
+            <button type="submit">预览审核</button>
+            <button id="data-exchange-submission-review-dry-run" type="button">试运行通过</button>
+            <button id="data-exchange-submission-review-approve" type="button">审核通过</button>
+            <button id="data-exchange-submission-review-reject" type="button">退回申报</button>
+        </form>
+        <div id="data-exchange-submission-review-summary" class="note-card hidden"></div>
+        <div id="data-exchange-submission-review-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th><input id="data-exchange-submission-review-select-all" type="checkbox" aria-label="全选审核人员"></th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>变动类别</th>
+                    <th>年月</th>
+                    <th>合计</th>
+                    <th>审批状态</th>
+                    <th>申报状态</th>
+                    <th>处理方式</th>
+                </tr>
+                </thead>
+                <tbody id="data-exchange-submission-review-rows"></tbody>
+            </table>
+        </div>
+        </div>
+
+        <div id="data-exchange-approval-dispatch-panel" class="data-exchange-tab-panel hidden">
+        <h3>审批数据下发</h3>
+        <p class="note-card">对应 VFP `sjdc`：筛选下属单位中当前工资记录已审（`jzgb=是` 且 `bbz=已审`）的人员，生成审批 JSON 包下发，并将本地备注更新为「已下发」。</p>
+        <form id="data-exchange-approval-dispatch-form" class="toolbar">
+            <label>选择单位
+                <div class="dict-input-combo">
+                    <input id="data-exchange-approval-organization" readonly placeholder="点击选择下发单位">
+                    <button id="data-exchange-approval-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择下发单位">⌄</button>
+                </div>
+            </label>
+            <label><input id="data-exchange-approval-include-descendants" type="checkbox" checked> 包含下属单位</label>
+            <label>关键词<input id="data-exchange-approval-keyword" placeholder="人员编码 / 姓名 / 身份证"></label>
+            <button type="submit">筛选人员</button>
+            <button id="data-exchange-approval-download" type="button">生成审批包</button>
+        </form>
+        <div id="data-exchange-approval-organizations" class="permission-list"></div>
+        <div id="data-exchange-approval-dispatch-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th><input id="data-exchange-approval-select-all" type="checkbox" aria-label="全选审批人员"></th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>变动类别</th>
+                    <th>年月</th>
+                    <th>合计</th>
+                    <th>审批状态</th>
+                    <th>备注</th>
+                </tr>
+                </thead>
+                <tbody id="data-exchange-approval-rows"></tbody>
+            </table>
+        </div>
+        </div>
+
+        <div id="data-exchange-approval-receive-panel" class="data-exchange-tab-panel hidden">
+        <h3>审批数据接收</h3>
+        <p class="note-card">对应 VFP `sjdr`：读入上级单位下发的审批 JSON 包，预览后接收并写入本地工资变动及关联数据。</p>
+        <form id="data-exchange-approval-receive-form" class="toolbar">
+            <label style="grid-column: span 2;">审批包文件
+                <input id="data-exchange-approval-receive-file" type="file" accept=".json,application/json">
+                <input id="data-exchange-approval-receive-json" type="hidden">
+            </label>
+            <button type="submit">预览接收</button>
+            <button id="data-exchange-approval-receive-dry-run" type="button">试运行接收</button>
+            <button id="data-exchange-approval-receive-apply" type="button">接收审批数据</button>
+        </form>
+        <div id="data-exchange-approval-receive-summary" class="note-card hidden"></div>
+        <div id="data-exchange-approval-receive-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th><input id="data-exchange-approval-receive-select-all" type="checkbox" aria-label="全选接收人员"></th>
+                    <th>单位</th>
+                    <th>人员编码</th>
+                    <th>姓名</th>
+                    <th>变动类别</th>
+                    <th>年月</th>
+                    <th>合计</th>
+                    <th>审批状态</th>
+                    <th>备注</th>
+                    <th>处理方式</th>
+                </tr>
+                </thead>
+                <tbody id="data-exchange-approval-receive-rows"></tbody>
+            </table>
+        </div>
+        </div>
+
+        <div id="data-exchange-personnel-panel" class="data-exchange-tab-panel hidden">
         <h3>人员信息导出</h3>
         <form id="data-exchange-personnel-form" class="toolbar">
-            <label>单位名称<input id="data-exchange-personnel-organization" placeholder="输入单位名称或编码"></label>
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="data-exchange-personnel-organization" readonly placeholder="请选择单位或留空">
+                    <button id="data-exchange-personnel-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
             <label>关键词<input id="data-exchange-personnel-keyword" placeholder="人员编码 / 姓名 / 身份证"></label>
             <button type="submit">查询预览</button>
             <button id="data-exchange-personnel-download" type="button">下载 CSV</button>
@@ -1613,10 +3220,17 @@
                 <tbody id="data-exchange-personnel-rows"></tbody>
             </table>
         </div>
+        </div>
 
+        <div id="data-exchange-annual-panel" class="data-exchange-tab-panel hidden">
         <h3>工资年报数据导出</h3>
         <form id="data-exchange-annual-form" class="toolbar">
-            <label>单位名称<input id="data-exchange-annual-organization" placeholder="输入单位名称或编码"></label>
+            <label>单位
+                <div class="dict-input-combo">
+                    <input id="data-exchange-annual-organization" readonly placeholder="请选择单位或留空">
+                    <button id="data-exchange-annual-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
             <label>年月<input id="data-exchange-annual-period" placeholder="例如 202407"></label>
             <label>关键词<input id="data-exchange-annual-keyword" placeholder="人员编码 / 姓名"></label>
             <button type="submit">查询预览</button>
@@ -1641,6 +3255,7 @@
                 </thead>
                 <tbody id="data-exchange-annual-rows"></tbody>
             </table>
+        </div>
         </div>
     </section>
 
@@ -1678,6 +3293,7 @@
                 <input id="basic-standard-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询标准</button>
+            <button type="button" id="basic-standard-create" class="hidden">新增职务工资</button>
         </form>
         <div id="basic-standards-status" class="status"></div>
         <div class="table-wrap">
@@ -1687,6 +3303,77 @@
             </table>
         </div>
     </section>
+
+    <div id="grade-standard-modal" class="modal-overlay hidden">
+        <div class="modal-card wide-modal">
+            <div class="modal-header">
+                <div>
+                    <h3 id="grade-standard-modal-title">级别工资标准</h3>
+                    <p id="grade-standard-modal-subtitle">维护 1-20 档级别/岗位档次工资金额。</p>
+                </div>
+                <button type="button" id="grade-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="grade-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="grade-standard-mode">
+                <input type="hidden" id="grade-standard-kind">
+                <label>
+                    标准年月
+                    <input id="grade-standard-year-month" required placeholder="例如 202407">
+                </label>
+                <label id="grade-standard-code-wrap">
+                    <span id="grade-standard-code-label">编码</span>
+                    <input id="grade-standard-code" required placeholder="级别或职务编码">
+                </label>
+                <label id="grade-standard-jsdjgz-wrap" class="hidden">
+                    技术等级工资
+                    <input id="grade-standard-jsdjgz" type="number" value="0">
+                </label>
+                <div id="grade-standard-steps-grid" class="grade-steps-grid"></div>
+                <button type="submit">保存</button>
+            </form>
+            <div id="grade-standard-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="salary-level-standard-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h3 id="salary-level-standard-modal-title">薪级工资标准</h3>
+                </div>
+                <button type="button" id="salary-level-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="salary-level-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="salary-level-standard-mode">
+                <label>
+                    标准年月
+                    <input id="salary-level-standard-year-month" required placeholder="例如 202407">
+                </label>
+                <label>
+                    岗位分类编码
+                    <input id="salary-level-standard-job-category" required placeholder="gwflbm">
+                </label>
+                <label>
+                    薪级
+                    <input id="salary-level-standard-level" required placeholder="xj">
+                </label>
+                <label>
+                    金额 bz
+                    <input id="salary-level-standard-amount" type="number" value="0">
+                </label>
+                <label>
+                    基础 jc
+                    <input id="salary-level-standard-base-amount" type="number" value="0">
+                </label>
+                <label>
+                    基础附加 jce
+                    <input id="salary-level-standard-base-extra" type="number" value="0">
+                </label>
+                <button type="submit">保存</button>
+            </form>
+            <div id="salary-level-standard-status" class="status"></div>
+        </div>
+    </div>
 
     <section id="allowance-standards" class="panel hidden" data-menu-code="ALLOWANCE_STANDARDS">
         <div class="panel-title">
@@ -1717,8 +3404,8 @@
                 <input id="allowance-standard-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询标准</button>
+            <button type="button" id="allowance-standard-create" class="hidden">新增</button>
         </form>
-        <div id="allowance-standards-status" class="status"></div>
         <div class="table-wrap">
             <table>
                 <thead>
@@ -1732,6 +3419,7 @@
                     <th>工龄上限</th>
                     <th>金额</th>
                     <th>绩效类别</th>
+                    <th class="standard-write-col">操作</th>
                 </tr>
                 </thead>
                 <tbody id="allowance-standards-rows"></tbody>
@@ -1768,6 +3456,7 @@
                 <input id="rank-standard-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询标准</button>
+            <button type="button" id="rank-standard-create" class="hidden">新增</button>
         </form>
         <div id="rank-standards-status" class="status"></div>
         <div class="table-wrap">
@@ -1780,6 +3469,7 @@
                     <th>名称</th>
                     <th>金额</th>
                     <th>类别</th>
+                    <th class="standard-write-col">操作</th>
                 </tr>
                 </thead>
                 <tbody id="rank-standards-rows"></tbody>
@@ -1808,6 +3498,7 @@
                 <input id="retained-standard-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询标准</button>
+            <button type="button" id="retained-standard-create" class="hidden">新增</button>
         </form>
         <div id="retained-standards-status" class="status"></div>
         <div class="table-wrap">
@@ -1817,6 +3508,7 @@
                     <th>职务编码</th>
                     <th>名称</th>
                     <th>金额</th>
+                    <th class="standard-write-col">操作</th>
                 </tr>
                 </thead>
                 <tbody id="retained-standards-rows"></tbody>
@@ -1845,6 +3537,7 @@
                 <input id="year-standard-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询标准</button>
+            <button type="button" id="year-standard-create" class="hidden">新增</button>
         </form>
         <div id="year-standards-status" class="status"></div>
         <div class="table-wrap">
@@ -1856,6 +3549,7 @@
                     <th>A2</th>
                     <th>A3</th>
                     <th>A4</th>
+                    <th class="standard-write-col">操作</th>
                 </tr>
                 </thead>
                 <tbody id="year-standards-rows"></tbody>
@@ -1888,6 +3582,7 @@
                 <input id="intern-standard-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询标准</button>
+            <button type="button" id="intern-standard-create" class="hidden">新增</button>
         </form>
         <div id="intern-standards-status" class="status"></div>
         <div class="table-wrap">
@@ -1903,6 +3598,7 @@
                     <th>级别</th>
                     <th>一年期标准</th>
                     <th>二年期标准</th>
+                    <th class="standard-write-col">操作</th>
                 </tr>
                 </thead>
                 <tbody id="intern-standards-rows"></tbody>
@@ -1931,6 +3627,7 @@
                 <input id="wage-reform-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询标准</button>
+            <button type="button" id="wage-reform-create" class="hidden">新增</button>
         </form>
         <div id="wage-reform-standards-status" class="status"></div>
         <div class="table-wrap">
@@ -1944,6 +3641,7 @@
                     <th>套改年限止</th>
                     <th>套改级别</th>
                     <th>套改档次</th>
+                    <th class="standard-write-col">操作</th>
                 </tr>
                 </thead>
                 <tbody id="wage-reform-standards-rows"></tbody>
@@ -1985,6 +3683,7 @@
                 <input id="other-allowance-size" type="number" min="1" max="100" value="20">
             </label>
             <button type="submit">查询标准</button>
+            <button type="button" id="other-allowance-create" class="hidden">新增</button>
         </form>
         <div id="other-allowance-status" class="status"></div>
         <div class="table-wrap">
@@ -1998,12 +3697,238 @@
                     <th>金额</th>
                     <th>平均水平</th>
                     <th>倍率</th>
+                    <th class="standard-write-col">操作</th>
                 </tr>
                 </thead>
                 <tbody id="other-allowance-rows"></tbody>
             </table>
         </div>
     </section>
+
+    <div id="intern-salary-standard-modal" class="modal-overlay hidden">
+        <div class="modal-card wide-modal">
+            <div class="modal-header">
+                <div>
+                    <h3 id="intern-salary-standard-modal-title">见习工资标准</h3>
+                </div>
+                <button type="button" id="intern-salary-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="intern-salary-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="intern-salary-standard-mode">
+                <label>标准年月<input id="intern-salary-standard-year-month" required placeholder="例如 201807"></label>
+                <label>学历编码<input id="intern-salary-standard-education-code" required></label>
+                <label>学历名称<input id="intern-salary-standard-education-name"></label>
+                <label>转正职务编码<input id="intern-salary-standard-position-code" required></label>
+                <label>转正职务名称<input id="intern-salary-standard-position-name"></label>
+                <label>转正档次<input id="intern-salary-standard-grade-step"></label>
+                <label>转正级别<input id="intern-salary-standard-level"></label>
+                <label>一年期标准<input id="intern-salary-standard-first-year" type="number" value="0"></label>
+                <label>二年期标准<input id="intern-salary-standard-second-year" type="number" value="0"></label>
+                <button type="submit">保存</button>
+            </form>
+            <div id="intern-salary-standard-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="wage-reform-standard-modal" class="modal-overlay hidden">
+        <div class="modal-card wide-modal">
+            <div class="modal-header">
+                <div>
+                    <h3 id="wage-reform-standard-modal-title">2006套改标准</h3>
+                </div>
+                <button type="button" id="wage-reform-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="wage-reform-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="wage-reform-standard-mode">
+                <label>职务编码<input id="wage-reform-standard-position-code" required></label>
+                <label>任职年限起<input id="wage-reform-standard-appointment-lower" type="number" value="0"></label>
+                <label>任职年限止<input id="wage-reform-standard-appointment-upper" type="number" value="0"></label>
+                <label>套改年限起<input id="wage-reform-standard-reform-lower" type="number" value="0"></label>
+                <label>套改年限止<input id="wage-reform-standard-reform-upper" type="number" value="0"></label>
+                <label>套改级别<input id="wage-reform-standard-level"></label>
+                <label>套改档次<input id="wage-reform-standard-step"></label>
+                <button type="submit">保存</button>
+            </form>
+            <div id="wage-reform-standard-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="other-allowance-standard-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div>
+                    <h3 id="other-allowance-standard-modal-title">其他补贴标准</h3>
+                </div>
+                <button type="button" id="other-allowance-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="other-allowance-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="other-allowance-standard-mode">
+                <label>
+                    标准类型
+                    <select id="other-allowance-standard-modal-type">
+                        <option value="property">物业补贴</option>
+                        <option value="communication">通信补贴</option>
+                        <option value="civilized">文明奖</option>
+                        <option value="assessment">平时考核奖</option>
+                    </select>
+                </label>
+                <label id="other-allowance-standard-year-wrap">
+                    标准年月
+                    <input id="other-allowance-standard-year-month" placeholder="例如 201707">
+                </label>
+                <label>编码<input id="other-allowance-standard-code" required></label>
+                <label id="other-allowance-standard-name-wrap" class="hidden">
+                    名称<input id="other-allowance-standard-name">
+                </label>
+                <label>金额<input id="other-allowance-standard-amount" type="number" step="0.01" value="0"></label>
+                <label id="other-allowance-standard-average-wrap" class="hidden">
+                    平均水平<input id="other-allowance-standard-average" type="number" step="0.01" value="0">
+                </label>
+                <label id="other-allowance-standard-multiplier-wrap" class="hidden">
+                    倍率<input id="other-allowance-standard-multiplier" type="number" step="0.01" value="0">
+                </label>
+                <button type="submit">保存</button>
+            </form>
+            <div id="other-allowance-standard-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="allowance-standard-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h3 id="allowance-standard-modal-title">津贴补贴标准</h3>
+                </div>
+                <button type="button" id="allowance-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="allowance-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="allowance-standard-mode">
+                <input type="hidden" id="allowance-standard-id">
+                <label>
+                    标准年月
+                    <input id="allowance-standard-modal-year-month" placeholder="例如 201807" required>
+                </label>
+                <label>
+                    项目编码
+                    <input id="allowance-standard-modal-item" placeholder="例如 DFBT2" required>
+                </label>
+                <label>
+                    职务编码
+                    <input id="allowance-standard-modal-position-code" placeholder="例如 0709">
+                </label>
+                <label>
+                    名称
+                    <input id="allowance-standard-modal-name">
+                </label>
+                <label>
+                    工龄下限
+                    <input id="allowance-standard-modal-work-years-lower" type="number" min="0" value="0">
+                </label>
+                <label>
+                    工龄上限
+                    <input id="allowance-standard-modal-work-years-upper" type="number" min="0" value="0">
+                </label>
+                <label>
+                    金额
+                    <input id="allowance-standard-modal-amount" type="number" step="0.01" value="0" required>
+                </label>
+                <label>
+                    绩效类别
+                    <input id="allowance-standard-modal-performance-category" type="number" min="0" value="0">
+                </label>
+                <button type="submit">保存</button>
+            </form>
+            <div id="allowance-standard-modal-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="rank-allowance-standard-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h3 id="rank-allowance-standard-modal-title">警衔津贴标准</h3>
+                </div>
+                <button type="button" id="rank-allowance-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="rank-allowance-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="rank-allowance-standard-mode">
+                <input type="hidden" id="rank-allowance-standard-id">
+                <label>标准年月<input id="rank-allowance-standard-year-month" placeholder="例如 202407" required></label>
+                <label>警衔编码<input id="rank-allowance-standard-code" required></label>
+                <label>警衔名称<input id="rank-allowance-standard-name" required></label>
+                <label>金额<input id="rank-allowance-standard-amount" type="number" step="0.01" value="0" required></label>
+                <label>类别
+                    <select id="rank-allowance-standard-category">
+                        <option value="jx">jx 警衔</option>
+                        <option value="jc">jc 检察</option>
+                        <option value="sp">sp 审判</option>
+                        <option value="mt">mt 监察</option>
+                    </select>
+                </label>
+                <button type="submit">保存</button>
+            </form>
+            <div id="rank-allowance-standard-modal-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="retained-allowance-standard-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h3 id="retained-allowance-standard-modal-title">保留福补标准</h3>
+                </div>
+                <button type="button" id="retained-allowance-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="retained-allowance-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="retained-allowance-standard-mode">
+                <label>职务编码<input id="retained-allowance-standard-position-code" required></label>
+                <label>名称<input id="retained-allowance-standard-name"></label>
+                <label>金额<input id="retained-allowance-standard-amount" type="number" step="0.01" value="0" required></label>
+                <button type="submit">保存</button>
+            </form>
+            <div id="retained-allowance-standard-modal-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="year-allowance-standard-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h3 id="year-allowance-standard-modal-title">年补贴标准</h3>
+                </div>
+                <button type="button" id="year-allowance-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="year-allowance-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="year-allowance-standard-mode">
+                <label>标准年月<input id="year-allowance-standard-modal-year-month" placeholder="例如 202407" required></label>
+                <label>A1 金额<input id="year-allowance-standard-a1" type="number" step="0.01" value="0"></label>
+                <label>A2 金额<input id="year-allowance-standard-a2" type="number" step="0.01" value="0"></label>
+                <label>A3 金额<input id="year-allowance-standard-a3" type="number" step="0.01" value="0"></label>
+                <label>A4 金额<input id="year-allowance-standard-a4" type="number" step="0.01" value="0"></label>
+                <button type="submit">保存</button>
+            </form>
+            <div id="year-allowance-standard-modal-status" class="status"></div>
+        </div>
+    </div>
+
+    <div id="position-salary-standard-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h3 id="position-salary-standard-modal-title">职务工资标准</h3>
+                </div>
+                <button type="button" id="position-salary-standard-modal-close" class="secondary">关闭</button>
+            </div>
+            <form id="position-salary-standard-form" class="toolbar modal-form-grid">
+                <input type="hidden" id="position-salary-standard-mode">
+                <label>标准年月<input id="position-salary-standard-year-month" placeholder="例如 202407" required></label>
+                <label>职务编码<input id="position-salary-standard-code" required></label>
+                <label>金额<input id="position-salary-standard-amount" type="number" step="0.01" value="0" required></label>
+                <button type="submit">保存</button>
+            </form>
+            <div id="position-salary-standard-modal-status" class="status"></div>
+        </div>
+    </div>
 
     <section id="security" class="panel hidden" data-menu-code="SECURITY">
         <div class="panel-title">
@@ -2191,7 +4116,227 @@
         </div>
         <div id="security-audit-page-info" class="status"></div>
     </section>
+
+    <section id="operation-log" class="panel hidden" data-menu-code="OPERATION_LOG">
+        <div class="panel-title">
+            <div>
+                <h2>上机日志</h2>
+                <p>对应 VFP 上机日志：查询系统登录、权限变更及业务办理操作记录。</p>
+            </div>
+        </div>
+        <form id="operation-log-form" class="toolbar">
+            <label>关键词<input id="operation-log-keyword" placeholder="操作者 / 动作 / 对象 / 摘要"></label>
+            <label>页码<input id="operation-log-page" type="number" min="0" value="0"></label>
+            <label>每页数量<input id="operation-log-size" type="number" min="1" max="200" value="50"></label>
+            <button type="submit">查询日志</button>
+        </form>
+        <div id="operation-log-status" class="status"></div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>操作者</th>
+                    <th>动作</th>
+                    <th>对象类型</th>
+                    <th>对象ID</th>
+                    <th>摘要</th>
+                    <th>时间</th>
+                </tr>
+                </thead>
+                <tbody id="operation-log-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="data-maintenance" class="panel hidden" data-menu-code="DATA_MAINTENANCE">
+        <div class="panel-title">
+            <div>
+                <h2>数据维护</h2>
+                <p>对应 VFP `czsjgl`：查看库表概况，清理过期操作日志与孤立标记记录（需管理员权限）。</p>
+            </div>
+        </div>
+        <div class="toolbar">
+            <button id="data-maintenance-refresh" type="button">刷新概况</button>
+            <button id="data-maintenance-purge-logs" type="button">清理90天前日志</button>
+            <button id="data-maintenance-purge-markers" type="button">清理孤立标记</button>
+        </div>
+        <div id="data-maintenance-status" class="status"></div>
+        <div id="data-maintenance-summary" class="summary-grid"></div>
+    </section>
+
+    <section id="system-setup" class="panel hidden" data-menu-code="SYSTEM_SETUP">
+        <div class="panel-title">
+            <div>
+                <h2>系统初始化与 Excel 导入</h2>
+                <p>对标 VFP `initi` 与 `infromtemp`：清空全部人员业务数据，或从 Excel 模板批量导入人员档案（需 `SYSTEM_CONFIG` 权限）。</p>
+            </div>
+        </div>
+
+        <div class="note-card">
+            <h3>Excel 人员导入</h3>
+            <p>选择目标单位并上传 Excel（.xlsx）。第 1 列为人员编码，第 2 列为姓名；从第 2 行起读入，姓名为空时停止。导入后会自动创建学历与任职记录，并执行与 VFP 一致的后处理。</p>
+            <form id="system-setup-import-form" class="toolbar">
+                <label>
+                    目标单位
+                    <div class="dict-input-combo">
+                        <input id="system-setup-import-organization" readonly placeholder="请选择导入单位">
+                        <button id="system-setup-import-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                    </div>
+                </label>
+                <label>
+                    Excel 文件
+                    <input id="system-setup-import-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+                </label>
+                <button id="system-setup-import-template" type="button">下载模板</button>
+                <button id="system-setup-import-preview" type="button">试运行</button>
+                <button id="system-setup-import-execute" type="button">正式导入</button>
+            </form>
+            <div id="system-setup-import-status" class="status"></div>
+            <div id="system-setup-import-summary" class="note-card hidden"></div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>行号</th>
+                        <th>人员编码</th>
+                        <th>姓名</th>
+                        <th>学历</th>
+                        <th>职务级别</th>
+                        <th>动作</th>
+                        <th>说明</th>
+                    </tr>
+                    </thead>
+                    <tbody id="system-setup-import-rows"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="note-card danger-card">
+            <h3>系统初始化</h3>
+            <p>将删除所有人员及相关业务数据（单位、字典、工资标准表保留）。操作不可撤销，请先备份数据库。</p>
+            <div class="toolbar">
+                <button id="system-setup-init-preview" type="button">查看清理范围</button>
+            </div>
+            <div id="system-setup-init-preview-summary" class="summary-grid hidden"></div>
+            <form id="system-setup-init-form" class="toolbar">
+                <label>
+                    确认短语
+                    <input id="system-setup-init-confirm" placeholder="请输入：系统初始化">
+                </label>
+                <button id="system-setup-init-execute" type="button" class="danger-button">执行系统初始化</button>
+            </form>
+            <div id="system-setup-init-status" class="status"></div>
+        </div>
+    </section>
+
+    <section id="system-help" class="panel hidden" data-menu-code="SYSTEM_HELP">
+        <div class="panel-title">
+            <div>
+                <h2>系统帮助</h2>
+                <p>人事工资管理系统 Web 版使用说明与 VFP 迁移对照。</p>
+            </div>
+        </div>
+        <div class="note-card">
+            <h3>功能导航</h3>
+            <ul>
+                <li><strong>信息维护</strong>：人员档案、年度考核、单位与字典维护。</li>
+                <li><strong>工资变动</strong>：各类晋升/定级/套改试算与办理；「工资变动情况」可查询并维护 hisbase 调资记录。</li>
+                <li><strong>标准维护</strong>：职务/级别/津补贴/警衔（含检察 jc、审判 sp）/年补贴（含农村教师 njbt）等标准表。</li>
+                <li><strong>报表查询</strong>：花名册、审批表、公示表及人员信息采集/登记表。</li>
+                <li><strong>系统管理</strong>：本地政策与系统选项、上机日志、数据维护、权限管理。</li>
+            </ul>
+        </div>
+        <div class="note-card">
+            <h3>VFP 菜单对照（节选）</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr><th>VFP 入口</th><th>Web 菜单</th></tr>
+                    </thead>
+                    <tbody>
+                    <tr><td>gzjshmc 工资变动情况</td><td>工资变动情况</td></tr>
+                    <tr><td>zzryjkxx 人员信息维护</td><td>人员管理</td></tr>
+                    <tr><td>jcjtbzsz / spjtbzsz</td><td>检察/审判津贴标准（jxjtbz）</td></tr>
+                    <tr><td>tzjcjtbz / tzspjtbz</td><td>调整检察/审判津贴</td></tr>
+                    <tr><td>tzjxjtbz / tzmtjtbz</td><td>调整警衔/监察津贴</td></tr>
+                    <tr><td>njbtsz 农村教师补贴</td><td>农村学校教师补贴（njbt）</td></tr>
+                    <tr><td>options 系统选项</td><td>本地工资政策 → 系统选项</td></tr>
+                    <tr><td>czsjgl 数据维护</td><td>数据维护</td></tr>
+                    <tr><td>上机日志</td><td>上机日志</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="note-card">
+            <h3>权限说明</h3>
+            <ul>
+                <li><code>PERSONNEL_WRITE</code>：人员档案及附属信息增删改。</li>
+                <li><code>PAYROLL_WRITE</code>：工资变动办理/还原及调资记录手工维护。</li>
+                <li><code>STANDARD_WRITE</code>：工资标准表维护。</li>
+                <li><code>SYSTEM_CONFIG</code>：本地政策、字典、系统选项。</li>
+            </ul>
+        </div>
+        <div class="note-card">
+            <h3>尚未迁移</h3>
+            <p>软件注册/升级（zhuce）暂未提供 Web 入口。警衔法检监<strong>津贴标准调标</strong>与<strong>等级变化晋升</strong>均已迁移。对账步骤见 <code>docs/hisbase-reconciliation-checklist.md</code>。</p>
+        </div>
+    </section>
 </main>
+    </div>
+</div>
+
+<div id="payroll-preview-modal" class="modal-overlay hidden">
+    <div class="modal-card wide-modal payroll-preview-modal-card">
+        <div class="modal-header">
+            <div>
+                <h3>工资试算</h3>
+                <p id="payroll-preview-modal-person" class="selected-person">未选择人员</p>
+            </div>
+            <button id="payroll-preview-modal-close" type="button">关闭</button>
+        </div>
+        <div id="payroll-preview-modal-status" class="status"></div>
+        <div id="payroll-preview-modal-content" class="hidden">
+            <div class="summary-grid summary-grid-diff">
+                <div><span>试算年月</span><strong id="payroll-preview-modal-period">-</strong></div>
+                <div><span>试算合计</span><strong id="payroll-preview-modal-total">-</strong></div>
+                <div><span>旧系统合计</span><strong id="payroll-preview-modal-stored-total">-</strong></div>
+                <div class="summary-diff-cell"><span>差额</span><strong id="payroll-preview-modal-total-difference">-</strong></div>
+            </div>
+
+            <h3 class="section-heading">已迁移工资项</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>字段</th>
+                        <th>名称</th>
+                        <th>金额</th>
+                        <th>来源</th>
+                    </tr>
+                    </thead>
+                    <tbody id="payroll-preview-modal-component-rows"></tbody>
+                </table>
+            </div>
+
+            <h3>手工/暂不迁移字段</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>字段</th>
+                        <th>名称</th>
+                        <th>旧值</th>
+                        <th>说明</th>
+                    </tr>
+                    </thead>
+                    <tbody id="payroll-preview-modal-excluded-rows"></tbody>
+                </table>
+            </div>
+
+            <h3>PGBC 特殊保留项</h3>
+            <div id="payroll-preview-modal-pgbc-card" class="note-card"></div>
+        </div>
     </div>
 </div>
 
@@ -2209,6 +4354,6 @@
     </div>
 </div>
 
-<script src="/app.js?v=20260515-org-picker"></script>
+<script src="/app.js?v=20260715-async-export"></script>
 </body>
 </html>

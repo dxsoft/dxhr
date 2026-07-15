@@ -32,6 +32,92 @@ class PersonnelRepository {
             new TablePair("djxgz", "djxgzb")
     );
 
+    private static final RowMapper<PersonnelComprehensiveQueryRecord> COMPREHENSIVE_QUERY_MAPPER = (rs, rowNum) -> new PersonnelComprehensiveQueryRecord(
+            rs.getInt("uid"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SensitiveData.maskIdCard(rs.getString("sfzh")),
+            SqlText.trim(rs.getString("xb")),
+            SqlText.trim(rs.getString("csny")),
+            SqlText.trim(rs.getString("ryfl")),
+            SqlText.trim(rs.getString("dwsx")),
+            SqlText.trim(rs.getString("gwfl")),
+            SqlText.trim(rs.getString("cjgzny")),
+            SqlText.trim(rs.getString("zzny")),
+            SqlText.trim(rs.getString("xlbm")),
+            SqlText.trim(rs.getString("zgxl")),
+            rs.getInt("gznx"),
+            SqlText.trim(rs.getString("appointment_position_code")),
+            SqlText.trim(rs.getString("appointment_position_name")),
+            SqlText.trim(rs.getString("appointment_start")),
+            payrollPeriod(rs.getString("jsnf"), rs.getString("jsyf")),
+            SqlText.trim(rs.getString("payroll_position_code")),
+            SqlText.trim(rs.getString("payroll_position_name")),
+            SqlText.trim(rs.getString("grade_level")),
+            SqlText.trim(rs.getString("grade_step")),
+            rs.getObject("total_salary") == null ? null : rs.getInt("total_salary"));
+
+    private static String payrollPeriod(String year, String month) {
+        String normalizedYear = SqlText.trim(year);
+        String normalizedMonth = SqlText.trim(month);
+        if (normalizedYear.isBlank()) {
+            return "";
+        }
+        if (normalizedMonth.isBlank()) {
+            return normalizedYear;
+        }
+        return normalizedYear + (normalizedMonth.length() == 1 ? "0" + normalizedMonth : normalizedMonth);
+    }
+
+    private static final RowMapper<PersonnelInformationCollectionShell> COLLECTION_SHELL_MAPPER = (rs, rowNum) -> new PersonnelInformationCollectionShell(
+            rs.getInt("uid"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("dwbz")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("sfzh")),
+            SqlText.trim(rs.getString("xb")),
+            SqlText.trim(rs.getString("csny")),
+            SqlText.trim(rs.getString("mz")),
+            SqlText.trim(rs.getString("zzmm")),
+            SqlText.trim(rs.getString("ryfl")),
+            SqlText.trim(rs.getString("dwsx")),
+            SqlText.trim(rs.getString("gwfl")),
+            SqlText.trim(rs.getString("cjgzny")),
+            SqlText.trim(rs.getString("zzny")),
+            SqlText.trim(rs.getString("jrny")),
+            SqlText.trim(rs.getString("jrfs")),
+            rs.getInt("gznx"),
+            SqlText.trim(rs.getString("xlbm")),
+            SqlText.trim(rs.getString("zgxl")),
+            SqlText.trim(rs.getString("zwjb")),
+            SqlText.trim(rs.getString("zjbm")),
+            SqlText.trim(rs.getString("xrzw")),
+            SqlText.trim(rs.getString("srny")),
+            SqlText.trim(rs.getString("dah")),
+            SqlText.trim(rs.getString("ydwzw")),
+            SqlText.trim(rs.getString("yzwrzsj")),
+            SqlText.trim(rs.getString("bgdwjc")),
+            SqlText.trim(rs.getString("txsj")),
+            SqlText.trim(rs.getString("jhlqsny")),
+            rs.getInt("zdjhlnx"));
+
+    private static final RowMapper<PersonnelInformationCollectionPayrollSnapshot> COLLECTION_PAYROLL_MAPPER = (rs, rowNum) -> new PersonnelInformationCollectionPayrollSnapshot(
+            SqlText.trim(rs.getString("jsnf")),
+            SqlText.trim(rs.getString("jsyf")),
+            SqlText.trim(rs.getString("jslb")),
+            SqlText.trim(rs.getString("zwbm2")),
+            SqlText.trim(rs.getString("zwgw2")),
+            SqlText.trim(rs.getString("jbgzjb2")),
+            SqlText.trim(rs.getString("zwgzdc2")),
+            rs.getInt("zwgzse2"),
+            rs.getInt("jbgzse2"),
+            rs.getInt("jsdjgz2"),
+            rs.getInt("hj2"));
+
     private static final RowMapper<PersonnelSummary> SUMMARY_MAPPER = (rs, rowNum) -> new PersonnelSummary(
             rs.getInt("uid"),
             SqlText.trim(rs.getString("dwbm")),
@@ -75,6 +161,7 @@ class PersonnelRepository {
             rs.getInt("uid"),
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("dwbz")),
             SqlText.trim(rs.getString("grbm")),
             SqlText.trim(rs.getString("xm")),
             SqlText.trim(rs.getString("sfzh")),
@@ -189,6 +276,21 @@ class PersonnelRepository {
             rs.getLong("personnel_count")
     );
 
+    private static final RowMapper<BatchAssessmentEntryRow> BATCH_ASSESSMENT_ENTRY_MAPPER = (rs, rowNum) -> new BatchAssessmentEntryRow(
+            rs.getInt("uid"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("ryfl")),
+            SqlText.trim(rs.getString("dwsx")),
+            SqlText.trim(rs.getString("xrzw")),
+            SqlText.trim(rs.getString("khnd")),
+            rs.getObject("assessment_id") == null ? null : rs.getInt("assessment_id"),
+            SqlText.trim(rs.getString("assessment_result")),
+            null
+    );
+
     private static final RowMapper<ChangedPersonnelRecord> CHANGED_PERSONNEL_MAPPER = (rs, rowNum) -> new ChangedPersonnelRecord(
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("dwmc")),
@@ -255,6 +357,135 @@ class PersonnelRepository {
         return count == null ? 0 : count;
     }
 
+    List<PersonnelComprehensiveQueryRecord> findComprehensiveQueries(
+            OrganizationScope organizationScope,
+            PersonnelComprehensiveQueryCriteria criteria,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource params = comprehensiveQueryParameters(organizationScope, criteria)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query(comprehensiveQuerySql() + """
+                ORDER BY p.dwbm, p.grbm
+                LIMIT :limit OFFSET :offset
+                """, params, COMPREHENSIVE_QUERY_MAPPER);
+    }
+
+    long countComprehensiveQueries(OrganizationScope organizationScope, PersonnelComprehensiveQueryCriteria criteria) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                """ + comprehensiveQueryFromSql() + comprehensiveQueryWhereSql(),
+                comprehensiveQueryParameters(organizationScope, criteria),
+                Long.class);
+        return count == null ? 0 : count;
+    }
+
+    private String comprehensiveQuerySql() {
+        return """
+                SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.sfzh, p.xb, p.csny,
+                       p.ryfl, p.dwsx, p.gwfl, p.cjgzny, p.zzny, p.xlbm, p.zgxl, p.gznx,
+                       z.zwbm AS appointment_position_code, z.xzzw AS appointment_position_name, z.srny AS appointment_start,
+                       h.jsnf, h.jsyf, h.zwbm2 AS payroll_position_code, h.zwgw2 AS payroll_position_name,
+                       h.jbgzjb2 AS grade_level, h.zwgzdc2 AS grade_step, h.hj2 AS total_salary
+                """ + comprehensiveQueryFromSql() + comprehensiveQueryWhereSql();
+    }
+
+    private String comprehensiveQueryFromSql() {
+        return """
+                FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                LEFT JOIN dryzwbh z ON z.dwbm = p.dwbm AND z.grbm = p.grbm AND z.xrzwbz = '1'
+                LEFT JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                """;
+    }
+
+    private String comprehensiveQueryWhereSql() {
+        return """
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND (:keyword IS NULL
+                       OR p.grbm LIKE :keywordLike
+                       OR p.xm LIKE :keywordLike
+                       OR p.sfzh LIKE :keywordLike
+                       OR p.xrzw LIKE :keywordLike
+                       OR z.xzzw LIKE :keywordLike
+                       OR z.zwbm LIKE :keywordLike
+                       OR h.zwgw2 LIKE :keywordLike)
+                  AND (:gender IS NULL OR TRIM(p.xb) = :gender)
+                  AND (:personnelCategory IS NULL OR p.ryfl LIKE :personnelCategoryLike)
+                  AND (:organizationType IS NULL OR TRIM(p.dwsx) = :organizationType)
+                  AND (:postCategory IS NULL OR p.gwfl LIKE :postCategoryLike)
+                  AND (:educationCode IS NULL OR TRIM(p.xlbm) = :educationCode)
+                  AND (:birthYearMonthFrom IS NULL
+                       OR REPLACE(COALESCE(NULLIF(TRIM(p.csny), ''), '000000'), '.', '') >= :birthYearMonthFrom)
+                  AND (:birthYearMonthTo IS NULL
+                       OR REPLACE(COALESCE(NULLIF(TRIM(p.csny), ''), '999999'), '.', '') <= :birthYearMonthTo)
+                  AND (:workStartYearMonthFrom IS NULL
+                       OR REPLACE(COALESCE(NULLIF(TRIM(p.cjgzny), ''), '000000'), '.', '') >= :workStartYearMonthFrom)
+                  AND (:workStartYearMonthTo IS NULL
+                       OR REPLACE(COALESCE(NULLIF(TRIM(p.cjgzny), ''), '999999'), '.', '') <= :workStartYearMonthTo)
+                  AND (:regularizationYearMonthFrom IS NULL
+                       OR REPLACE(COALESCE(NULLIF(TRIM(p.zzny), ''), '000000'), '.', '') >= :regularizationYearMonthFrom)
+                  AND (:regularizationYearMonthTo IS NULL
+                       OR REPLACE(COALESCE(NULLIF(TRIM(p.zzny), ''), '999999'), '.', '') <= :regularizationYearMonthTo)
+                  AND (:positionCode IS NULL OR TRIM(z.zwbm) = :positionCode)
+                  AND (:positionCodePrefix IS NULL OR LEFT(TRIM(z.zwbm), 2) = :positionCodePrefix)
+                  AND (:gradeLevelFrom IS NULL OR CAST(NULLIF(TRIM(h.jbgzjb2), '') AS UNSIGNED) >= CAST(:gradeLevelFrom AS UNSIGNED))
+                  AND (:gradeLevelTo IS NULL OR CAST(NULLIF(TRIM(h.jbgzjb2), '') AS UNSIGNED) <= CAST(:gradeLevelTo AS UNSIGNED))
+                """;
+    }
+
+    private MapSqlParameterSource comprehensiveQueryParameters(
+            OrganizationScope organizationScope,
+            PersonnelComprehensiveQueryCriteria criteria) {
+        String keyword = SqlText.trim(criteria.keyword());
+        String personnelCategory = SqlText.trim(criteria.personnelCategory());
+        String postCategory = SqlText.trim(criteria.postCategory());
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationCode", emptyToNull(criteria.organizationCode()))
+                .addValue("keyword", keyword == null || keyword.isEmpty() ? null : keyword)
+                .addValue("keywordLike", keyword == null || keyword.isEmpty() ? null : "%" + keyword + "%")
+                .addValue("gender", emptyToNull(criteria.gender()))
+                .addValue("personnelCategory", personnelCategory == null || personnelCategory.isEmpty() ? null : personnelCategory)
+                .addValue("personnelCategoryLike", personnelCategory == null || personnelCategory.isEmpty() ? null : "%" + personnelCategory + "%")
+                .addValue("organizationType", emptyToNull(criteria.organizationType()))
+                .addValue("postCategory", postCategory == null || postCategory.isEmpty() ? null : postCategory)
+                .addValue("postCategoryLike", postCategory == null || postCategory.isEmpty() ? null : "%" + postCategory + "%")
+                .addValue("educationCode", emptyToNull(criteria.educationCode()))
+                .addValue("birthYearMonthFrom", normalizeYearMonthFilter(criteria.birthYearMonthFrom()))
+                .addValue("birthYearMonthTo", normalizeYearMonthFilter(criteria.birthYearMonthTo()))
+                .addValue("workStartYearMonthFrom", normalizeYearMonthFilter(criteria.workStartYearMonthFrom()))
+                .addValue("workStartYearMonthTo", normalizeYearMonthFilter(criteria.workStartYearMonthTo()))
+                .addValue("regularizationYearMonthFrom", normalizeYearMonthFilter(criteria.regularizationYearMonthFrom()))
+                .addValue("regularizationYearMonthTo", normalizeYearMonthFilter(criteria.regularizationYearMonthTo()))
+                .addValue("positionCode", emptyToNull(criteria.positionCode()))
+                .addValue("positionCodePrefix", emptyToNull(criteria.positionCodePrefix()))
+                .addValue("gradeLevelFrom", emptyToNull(criteria.gradeLevelFrom()))
+                .addValue("gradeLevelTo", emptyToNull(criteria.gradeLevelTo()));
+    }
+
+    private String normalizeYearMonthFilter(String value) {
+        String trimmed = SqlText.trim(value);
+        if (trimmed == null || trimmed.isEmpty()) {
+            return null;
+        }
+        String digits = trimmed.replace(".", "");
+        if (digits.length() >= 6) {
+            return digits.substring(0, 6);
+        }
+        if (digits.length() == 4) {
+            return digits + "01";
+        }
+        return digits;
+    }
+
     Optional<PersonnelDetail> findByUid(int uid) {
         return jdbcTemplate.query("""
                 SELECT p.*, dw.dwmc
@@ -264,9 +495,55 @@ class PersonnelRepository {
                 """, new MapSqlParameterSource("uid", uid), DETAIL_MAPPER).stream().findFirst();
     }
 
+    Optional<PersonnelInformationCollectionReport> findInformationCollectionReport(int uid) {
+        Optional<PersonnelInformationCollectionShell> shell = findInformationCollectionShell(uid);
+        if (shell.isEmpty()) {
+            return Optional.empty();
+        }
+        PersonKey key = findKeyByUid(uid).orElseThrow();
+        PersonnelInformationCollectionShell basic = shell.get();
+        return Optional.of(new PersonnelInformationCollectionReport(
+                basic.uid(),
+                basic.organizationCode(),
+                basic.organizationName(),
+                basic.organizationCategory(),
+                basic.personCode(),
+                basic.name(),
+                basic.idCard(),
+                basic.gender(),
+                basic.birthYearMonth(),
+                basic.ethnicity(),
+                basic.politicalStatus(),
+                basic.personnelCategory(),
+                basic.organizationType(),
+                basic.postCategory(),
+                basic.workStartYearMonth(),
+                basic.regularizationYearMonth(),
+                basic.entryYearMonth(),
+                basic.entryMethod(),
+                basic.salaryYears(),
+                basic.educationCode(),
+                basic.highestEducation(),
+                basic.currentPositionLevel(),
+                basic.currentRankCode(),
+                basic.currentPosition(),
+                basic.currentPositionStartYearMonth(),
+                basic.archiveNumber(),
+                basic.formerUnitPosition(),
+                basic.formerUnitAppointmentPeriod(),
+                basic.reportOrganizationAbbr(),
+                basic.retirementMonth(),
+                basic.teachingAllowanceStartMonth(),
+                basic.teachingAllowanceYears(),
+                findEducation(key),
+                findPositions(key),
+                findAssessments(key),
+                findCurrentPayrollSnapshot(key).orElse(null)));
+    }
+
     Optional<PersonnelMaintenanceRecord> findMaintenanceByUid(int uid) {
         return jdbcTemplate.query("""
-                SELECT p.*, dw.dwmc
+                SELECT p.*, dw.dwmc, dw.dwbz
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 WHERE p.uid = :uid
@@ -423,7 +700,7 @@ class PersonnelRepository {
                 FROM dryzwbh z
                 LEFT JOIN app_record_marker marker ON marker.table_name = 'dryzwbh' AND marker.record_id = CAST(z.id AS CHAR) AND marker.marker = 'APP_CREATED'
                 WHERE z.dwbm = :dwbm AND z.grbm = :grbm
-                ORDER BY srny DESC, id DESC
+                ORDER BY CASE WHEN z.xrzwbz = '1' THEN 0 ELSE 1 END, z.srny DESC, z.id DESC
                 """, keyParameters(key), POSITION_MAPPER);
     }
 
@@ -629,6 +906,30 @@ class PersonnelRepository {
         return result;
     }
 
+    private Optional<PersonnelInformationCollectionShell> findInformationCollectionShell(int uid) {
+        return jdbcTemplate.query("""
+                SELECT p.uid, p.dwbm, dw.dwmc, dw.dwbz, p.grbm, p.xm, p.sfzh, p.xb, p.csny,
+                       p.mz, p.zzmm, p.ryfl, p.dwsx, p.gwfl, p.cjgzny, p.zzny, p.jrny, p.jrfs,
+                       p.gznx, p.xlbm, p.zgxl, p.zwjb, p.zjbm, p.xrzw, p.srny, p.dah,
+                       p.ydwzw, p.yzwrzsj, p.bgdwjc, p.txsj, p.jhlqsny, p.zdjhlnx
+                FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE p.uid = :uid
+                """, new MapSqlParameterSource("uid", uid), COLLECTION_SHELL_MAPPER).stream().findFirst();
+    }
+
+    private Optional<PersonnelInformationCollectionPayrollSnapshot> findCurrentPayrollSnapshot(PersonKey key) {
+        return jdbcTemplate.query("""
+                SELECT h.jsnf, h.jsyf, h.jslb, h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.hj2
+                FROM hisbase h
+                WHERE h.dwbm = :dwbm AND h.grbm = :grbm
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                ORDER BY h.jsnf DESC, h.jsyf DESC
+                LIMIT 1
+                """, keyParameters(key), COLLECTION_PAYROLL_MAPPER).stream().findFirst();
+    }
+
     int createEducation(PersonKey key, EducationMaintenanceRequest request) {
         jdbcTemplate.update("""
                 INSERT INTO dxl (dwbm, grbm, xlbm, xl, byyx, rxsj, bysj, xz, xllb, bz)
@@ -673,6 +974,17 @@ class PersonnelRepository {
                 """, positionParameters(new PersonKey("", ""), request).addValue("id", id));
     }
 
+    void clearOtherActivePositions(PersonKey key, int exceptId) {
+        jdbcTemplate.update("""
+                UPDATE dryzwbh
+                SET xrzwbz = '0'
+                WHERE dwbm = :dwbm
+                  AND grbm = :grbm
+                  AND xrzwbz = '1'
+                  AND id <> :exceptId
+                """, keyParameters(key).addValue("exceptId", exceptId));
+    }
+
     void deletePosition(int id) {
         jdbcTemplate.update("DELETE FROM dryzwbh WHERE id = :id", new MapSqlParameterSource("id", id));
         unmarkAppCreated("dryzwbh", id);
@@ -699,6 +1011,73 @@ class PersonnelRepository {
     void deleteAssessment(int id) {
         jdbcTemplate.update("DELETE FROM dndkh WHERE id = :id", new MapSqlParameterSource("id", id));
         unmarkAppCreated("dndkh", id);
+    }
+
+    List<BatchAssessmentEntryRow> findBatchAssessmentEntries(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String year,
+            String keyword,
+            boolean includeDescendants) {
+        if (organizationScope.noneScope() || emptyToNull(organizationCode) == null || emptyToNull(year) == null) {
+            return List.of();
+        }
+        MapSqlParameterSource params = batchAssessmentParameters(organizationScope, organizationCode, year, keyword, includeDescendants);
+        List<BatchAssessmentEntryRow> rows = jdbcTemplate.query("""
+                SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.ryfl, p.dwsx, p.xrzw,
+                       :year AS khnd, a.id AS assessment_id, a.khjg AS assessment_result
+                FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                LEFT JOIN dndkh a ON a.dwbm = p.dwbm AND a.grbm = p.grbm AND a.khnd = :year
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (%s)
+                  AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
+                ORDER BY p.dwbm, p.grbm
+                """.formatted(batchOrganizationFilterSql(includeDescendants)), params, BATCH_ASSESSMENT_ENTRY_MAPPER);
+        return rows.stream()
+                .map(row -> new BatchAssessmentEntryRow(
+                        row.uid(),
+                        row.organizationCode(),
+                        row.organizationName(),
+                        row.personCode(),
+                        row.name(),
+                        row.personnelCategory(),
+                        row.organizationType(),
+                        row.currentPosition(),
+                        row.year(),
+                        row.assessmentId(),
+                        row.result(),
+                        defaultAssessmentResultText(row.personnelCategory(), row.organizationType())))
+                .toList();
+    }
+
+    Optional<PersonnelSummary> findPersonnelSummary(PersonKey key) {
+        return jdbcTemplate.query("""
+                SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.sfzh, p.xb, p.csny,
+                       p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm
+                FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE p.dwbm = :dwbm AND p.grbm = :grbm
+                """, keyParameters(key), SUMMARY_MAPPER).stream().findFirst();
+    }
+
+    Optional<Integer> findAssessmentId(PersonKey key, String year) {
+        List<Integer> ids = jdbcTemplate.query("""
+                SELECT id
+                FROM dndkh
+                WHERE dwbm = :dwbm AND grbm = :grbm AND khnd = :year
+                """, keyParameters(key).addValue("year", year), (rs, rowNum) -> rs.getInt("id"));
+        return ids.stream().findFirst();
+    }
+
+    boolean upsertAssessment(PersonKey key, AssessmentMaintenanceRequest request) {
+        Optional<Integer> existingId = findAssessmentId(key, request.year());
+        if (existingId.isPresent()) {
+            updateAssessment(existingId.get(), request);
+            return false;
+        }
+        createAssessment(key, request);
+        return true;
     }
 
     List<AnnualAssessmentRecord> findAnnualAssessments(
@@ -753,11 +1132,13 @@ class PersonnelRepository {
             String organizationCode,
             String year,
             String result,
+            boolean includeDescendants,
             PageRequest pageRequest) {
         if (organizationScope.noneScope()) {
             return List.of();
         }
-        MapSqlParameterSource params = assessmentSummaryParameters(organizationScope, organizationCode, year, result)
+        MapSqlParameterSource params = assessmentSummaryParameters(
+                        organizationScope, organizationCode, year, result, includeDescendants)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
@@ -765,20 +1146,21 @@ class PersonnelRepository {
                 FROM dndkh a
                 LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
                 WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR a.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (%s)
                   AND (:year IS NULL OR a.khnd = :year)
                   AND (:result IS NULL OR a.khjg = :result)
                 GROUP BY a.khnd, a.dwbm, dw.dwmc, a.khjg
                 ORDER BY a.khnd DESC, a.dwbm, a.khjg
                 LIMIT :limit OFFSET :offset
-                """, params, ANNUAL_ASSESSMENT_SUMMARY_MAPPER);
+                """.formatted(summaryOrganizationFilterSql(includeDescendants)), params, ANNUAL_ASSESSMENT_SUMMARY_MAPPER);
     }
 
     long countAnnualAssessmentSummary(
             OrganizationScope organizationScope,
             String organizationCode,
             String year,
-            String result) {
+            String result,
+            boolean includeDescendants) {
         if (organizationScope.noneScope()) {
             return 0;
         }
@@ -789,12 +1171,14 @@ class PersonnelRepository {
                     FROM dndkh a
                     LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
                     WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                      AND (:organizationFilter IS NULL OR a.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                      AND (%s)
                       AND (:year IS NULL OR a.khnd = :year)
                       AND (:result IS NULL OR a.khjg = :result)
                     GROUP BY a.khnd, a.dwbm, a.khjg
                 ) grouped_assessment
-                """, assessmentSummaryParameters(organizationScope, organizationCode, year, result), Long.class);
+                """.formatted(summaryOrganizationFilterSql(includeDescendants)),
+                assessmentSummaryParameters(organizationScope, organizationCode, year, result, includeDescendants),
+                Long.class);
         return count == null ? 0 : count;
     }
 
@@ -948,19 +1332,59 @@ class PersonnelRepository {
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
     }
 
+    private MapSqlParameterSource batchAssessmentParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String year,
+            String keyword,
+            boolean includeDescendants) {
+        String trimmedKeyword = SqlText.trim(keyword);
+        String trimmedOrganizationCode = SqlText.trim(organizationCode);
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("organizationCode", trimmedOrganizationCode)
+                .addValue("organizationCodeLike", trimmedOrganizationCode + "%")
+                .addValue("year", trimmedOrganizationCode == null || trimmedOrganizationCode.isEmpty() ? null : SqlText.trim(year))
+                .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%")
+                .addValue("includeDescendants", includeDescendants);
+    }
+
+    private String batchOrganizationFilterSql(boolean includeDescendants) {
+        return includeDescendants
+                ? "p.dwbm LIKE :organizationCodeLike"
+                : "p.dwbm = :organizationCode";
+    }
+
+    private String defaultAssessmentResultText(String personnelCategory, String organizationType) {
+        String text = (personnelCategory == null ? "" : personnelCategory)
+                + " " + (organizationType == null ? "" : organizationType);
+        return text.contains("事业") ? "合格" : "称职";
+    }
+
     private MapSqlParameterSource assessmentSummaryParameters(
             OrganizationScope organizationScope,
             String organizationCode,
             String year,
-            String result) {
-        String trimmedOrganizationFilter = SqlText.trim(organizationCode);
+            String result,
+            boolean includeDescendants) {
+        String trimmedOrganizationCode = SqlText.trim(organizationCode);
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
-                .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
-                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
+                .addValue("organizationCode", trimmedOrganizationCode)
+                .addValue("organizationCodeLike", trimmedOrganizationCode == null || trimmedOrganizationCode.isEmpty() ? null : trimmedOrganizationCode + "%")
+                .addValue("organizationFilter", trimmedOrganizationCode == null || trimmedOrganizationCode.isEmpty() ? null : trimmedOrganizationCode)
+                .addValue("includeDescendants", includeDescendants)
                 .addValue("year", emptyToNull(year))
                 .addValue("result", emptyToNull(result));
+    }
+
+    private String summaryOrganizationFilterSql(boolean includeDescendants) {
+        return includeDescendants
+                ? "(:organizationFilter IS NULL OR a.dwbm LIKE :organizationCodeLike)"
+                : "(:organizationFilter IS NULL OR a.dwbm = :organizationCode)";
     }
 
     private MapSqlParameterSource personnelHistoryParameters(

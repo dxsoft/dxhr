@@ -1,0 +1,72 @@
+@page {
+    size: A4 landscape;
+    margin: 8mm;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #111827;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+}
+
+.register-sheet {
+    margin: 0;
+    padding: 0;
+    page-break-after: always;
+    break-after: page;
+}
+
+.register-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+}
+
+.approval-sheet-header {
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.approval-sheet-header h3 {
+    margin: 0;
+    font-family: "SimHei", "Microsoft YaHei", sans-serif;
+    font-size: 20px;
+}
+
+.register-topline {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 4px 0;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+    font-size: 11px;
+}
+
+.register-table {
+    width: 100%;
+    border: 1px solid #111827;
+    border-collapse: collapse;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+    font-size: 9px;
+    table-layout: fixed;
+}
+
+.register-table th,
+.register-table td {
+    padding: 3px 2px;
+    border: 1px solid #111827;
+    text-align: center;
+    white-space: normal;
+    word-break: break-all;
+    line-height: 1.2;
+}
+
+.register-table th {
+    background: #fff;
+    font-weight: 400;
+}
+
+.register-total-row td {
+    font-weight: 700;
+}

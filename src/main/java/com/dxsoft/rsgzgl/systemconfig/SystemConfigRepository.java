@@ -89,6 +89,111 @@ class SystemConfigRepository {
                 """, SYSTEM_OPTION_MAPPER);
     }
 
+    void updateSystemOptions(SystemOptionUpdateRequest request) {
+        jdbcTemplate.update("""
+                UPDATE xtcs
+                SET qydrstg = :enterpriseTransferRaise,
+                    tgdcxlgl = :gradeStepEducationLink,
+                    xsws = :decimalPlaces,
+                    jwbz = :policeRankAllowance,
+                    tgjjjy = :reformBonusBalance,
+                    fdgz = :floatingSalary
+                """, new MapSqlParameterSource()
+                .addValue("enterpriseTransferRaise", request.enterpriseTransferRaise())
+                .addValue("gradeStepEducationLink", request.gradeStepEducationLink())
+                .addValue("decimalPlaces", request.decimalPlaces())
+                .addValue("policeRankAllowance", request.policeRankAllowance())
+                .addValue("reformBonusBalance", request.reformBonusBalance())
+                .addValue("floatingSalary", request.floatingSalary()));
+    }
+
+    boolean localPolicyExists(int id) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM cyxx WHERE ID = :id",
+                new MapSqlParameterSource("id", id),
+                Integer.class);
+        return count != null && count > 0;
+    }
+
+    void updateLocalPolicy(int id, LocalPolicyUpdateRequest request) {
+        jdbcTemplate.update("""
+                UPDATE cyxx
+                SET dwbm = :organizationCode,
+                    dwmc = :organizationName,
+                    dwjc = :organizationLevel,
+                    zgry = :supervisor,
+                    szds = :city,
+                    zzrs = :activeStaffFlag,
+                    skbz = :approvalFlag,
+                    shrq = :approvedAt,
+                    bz = :payrollTitle,
+                    blxs = :roundingMode,
+                    swyz = :roundToInteger,
+                    jzmcbtmc = :policeAllowanceCaption,
+                    sdbtmc = :subsidyCaption,
+                    spfs = :approvalMode,
+                    dwsplb = :unitApprovalCategory,
+                    jqdm = :policeRankStartLevel,
+                    ltjddc = :retiredGradeStep,
+                    jxgz = :internSalaryMode,
+                    jjjy = :bonusBalanceMode,
+                    fdgz = :floatingSalaryMode,
+                    pgbc = :payGradeRetentionMode,
+                    softsn = :softwareSerialNumber,
+                    sp = :approvalEnabled,
+                    path_bak = :backupPath,
+                    zwbhhjsdj = :positionChangeIncludeTechnicalGrade,
+                    cdchjsdj = :rankChangeIncludeTechnicalGrade,
+                    autobak = :autoBackup,
+                    ask = :confirmBeforeAction,
+                    chkupdate = :checkUpdate
+                WHERE ID = :id
+                """, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("organizationCode", request.organizationCode())
+                .addValue("organizationName", request.organizationName())
+                .addValue("organizationLevel", request.organizationLevel())
+                .addValue("supervisor", request.supervisor())
+                .addValue("city", request.city())
+                .addValue("activeStaffFlag", request.activeStaffFlag())
+                .addValue("approvalFlag", request.approvalFlag())
+                .addValue("approvedAt", request.approvedAt())
+                .addValue("payrollTitle", request.payrollTitle())
+                .addValue("roundingMode", request.roundingMode())
+                .addValue("roundToInteger", request.roundToInteger())
+                .addValue("policeAllowanceCaption", request.policeAllowanceCaption())
+                .addValue("subsidyCaption", request.subsidyCaption())
+                .addValue("approvalMode", request.approvalMode())
+                .addValue("unitApprovalCategory", request.unitApprovalCategory())
+                .addValue("policeRankStartLevel", request.policeRankStartLevel())
+                .addValue("retiredGradeStep", request.retiredGradeStep())
+                .addValue("internSalaryMode", request.internSalaryMode())
+                .addValue("bonusBalanceMode", request.bonusBalanceMode())
+                .addValue("floatingSalaryMode", request.floatingSalaryMode())
+                .addValue("payGradeRetentionMode", request.payGradeRetentionMode())
+                .addValue("softwareSerialNumber", request.softwareSerialNumber())
+                .addValue("approvalEnabled", request.approvalEnabled() != null && request.approvalEnabled())
+                .addValue("backupPath", request.backupPath())
+                .addValue("positionChangeIncludeTechnicalGrade", request.positionChangeIncludeTechnicalGrade())
+                .addValue("rankChangeIncludeTechnicalGrade", request.rankChangeIncludeTechnicalGrade())
+                .addValue("autoBackup", request.autoBackup())
+                .addValue("confirmBeforeAction", request.confirmBeforeAction())
+                .addValue("checkUpdate", request.checkUpdate()));
+    }
+
+    LocalPolicyConfig findLocalPolicyById(int id) {
+        List<LocalPolicyConfig> rows = jdbcTemplate.query("""
+                SELECT ID, dwbm, dwmc, dwjc, zgry, szds, zzrs, skbz, shrq, bz,
+                       blxs, swyz, jzmcbtmc, sdbtmc, spfs, dwsplb, jqdm, ltjddc,
+                       jxgz, jjjy, fdgz, pgbc, softsn, sp, path_bak,
+                       zwbhhjsdj, cdchjsdj, autobak, ask, chkupdate
+                FROM cyxx
+                WHERE ID = :id
+                LIMIT 1
+                """, new MapSqlParameterSource("id", id), LOCAL_POLICY_MAPPER);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
     private MapSqlParameterSource parameters(String keyword) {
         String trimmedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         return new MapSqlParameterSource()

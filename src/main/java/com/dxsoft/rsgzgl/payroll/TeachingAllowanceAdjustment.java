@@ -15,6 +15,8 @@ public record TeachingAllowanceAdjustment(
         Integer storedAmount,
         Integer calculatedAmount,
         Integer differenceAmount,
-        Boolean eligible
+        Boolean eligible,
+        Boolean applyEligible,
+        Boolean rollbackEligible
 ) {
 }

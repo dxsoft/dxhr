@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="page(page)" class="register-sheet">
+    <div class="approval-sheet-header"><h3 th:text="${page.reportTitle}">工资变动花名册</h3></div>
+    <div class="register-topline">
+        <span th:text="|单位名称：${page.organizationName}[单位编码：${page.organizationCode}]|">单位名称</span>
+        <span th:text="|第 ${page.pageNumber} 页&#160;&#160;共 ${page.pageCount} 页|">第 1 页</span>
+    </div>
+    <table class="register-table">
+        <thead>
+        <tr>
+            <th rowspan="2">姓名</th>
+            <th rowspan="2">身份证号</th>
+            <th rowspan="2">变动前后</th>
+            <th colspan="16">工资情况</th>
+            <th rowspan="2">月增(+)<br/>减(-)</th>
+            <th rowspan="2">执行时间</th>
+        </tr>
+        <tr>
+            <th>月工资<br/>合计</th>
+            <th th:utext="${T(com.dxsoft.rsgzgl.report.export.ReportHtmlSupport).escapedMultilineBr(page.labels.position)}">职务岗位</th>
+            <th th:text="${page.labels.level}">级别</th>
+            <th th:text="${page.labels.positionSalary}">职务工资</th>
+            <th th:text="${page.labels.gradeSalary}">级别工资</th>
+            <th>技术<br/>等级<br/>工资</th>
+            <th>保留<br/>奖金</th>
+            <th>保留<br/>福补</th>
+            <th>警衔<br/>津贴</th>
+            <th>工改<br/>保留<br/>津贴</th>
+            <th>工作性<br/>津贴</th>
+            <th>生活性<br/>补贴</th>
+            <th>岗位<br/>津贴</th>
+            <th>工改<br/>保留<br/>工资</th>
+            <th>其它<br/>补贴</th>
+            <th>农村<br/>学校<br/>教师<br/>补贴</th>
+        </tr>
+        </thead>
+        <tbody>
+        <th:block th:each="person : ${page.people}">
+            <th:block th:replace="~{:: personRows(${person})}"></th:block>
+        </th:block>
+        <th:block th:replace="~{:: totalsRows(${page.totals})}"></th:block>
+        </tbody>
+    </table>
+</div>
+
+<th:block th:fragment="personRows(person)">
+    <tr>
+        <td rowspan="2" th:utext="${T(com.dxsoft.rsgzgl.report.export.ReportHtmlSupport).escape(person.name) + '&lt;br/&gt;' + T(com.dxsoft.rsgzgl.report.export.ReportHtmlSupport).escape(person.personCode)}">姓名</td>
+        <td rowspan="2" th:text="${person.maskedIdCard}">身份证号</td>
+        <td>前</td>
+        <td th:text="${person.beforeTotal}">0</td>
+        <td th:text="${person.beforePosition}">-</td>
+        <td th:text="${person.beforeLevel}">-</td>
+        <td th:text="${person.beforePositionSalary}">0</td>
+        <td th:text="${person.beforeGradeSalary}">0</td>
+        <td th:text="${person.beforeTechnicalSalary}">0</td>
+        <td th:text="${person.beforeBonus}">0</td>
+        <td th:text="${person.beforeRetained}">0</td>
+        <td th:text="${person.beforeRankAllowance}">0</td>
+        <td th:text="${person.beforeRetainedReformAllowance}">0</td>
+        <td th:text="${person.beforeWorkAllowance}">0</td>
+        <td th:text="${person.beforePerformance}">0</td>
+        <td th:text="${person.beforePositionAllowance}">0</td>
+        <td th:text="${person.beforeRetainedReformSalary}">0</td>
+        <td th:text="${person.beforeOtherAllowance}">0</td>
+        <td th:text="${person.beforeRuralTeacher}">0</td>
+        <td></td>
+        <td></td>
+    </tr>
+    <tr>
+        <td>后</td>
+        <td th:text="${person.afterTotal}">0</td>
+        <td th:text="${person.afterPosition}">-</td>
+        <td th:text="${person.afterLevel}">-</td>
+        <td th:text="${person.afterPositionSalary}">0</td>
+        <td th:text="${person.afterGradeSalary}">0</td>
+        <td th:text="${person.afterTechnicalSalary}">0</td>
+        <td th:text="${person.afterBonus}">0</td>
+        <td th:text="${person.afterRetained}">0</td>
+        <td th:text="${person.afterRankAllowance}">0</td>
+        <td th:text="${person.afterRetainedReformAllowance}">0</td>
+        <td th:text="${person.afterWorkAllowance}">0</td>
+        <td th:text="${person.afterPerformance}">0</td>
+        <td th:text="${person.afterPositionAllowance}">0</td>
+        <td th:text="${person.afterRetainedReformSalary}">0</td>
+        <td th:text="${person.afterOtherAllowance}">0</td>
+        <td th:text="${person.afterRuralTeacher}">0</td>
+        <td th:text="${person.difference}">0</td>
+        <td th:text="${person.executePeriod}">执行时间</td>
+    </tr>
+</th:block>
+
+<th:block th:fragment="totalsRows(totals)">
+    <tr class="register-total-row">
+        <td rowspan="2">合计</td>
+        <td th:utext="|人数&lt;br/&gt;${totals.personCount}|">人数</td>
+        <td>前</td>
+        <td th:text="${totals.beforeTotal}">0</td>
+        <td colspan="2"></td>
+        <td th:text="${totals.beforePositionSalary}">0</td>
+        <td th:text="${totals.beforeGradeSalary}">0</td>
+        <td></td><td></td>
+        <td th:text="${totals.beforeRetained}">0</td>
+        <td th:text="${totals.beforeRankAllowance}">0</td>
+        <td></td>
+        <td th:text="${totals.beforeWorkAllowance}">0</td>
+        <td th:text="${totals.beforePerformance}">0</td>
+        <td></td>
+        <td th:text="${totals.beforeRetainedReformSalary}">0</td>
+        <td></td>
+        <td th:text="${totals.beforeRuralTeacher}">0</td>
+        <td rowspan="2" th:text="${totals.difference}">0</td>
+        <td></td>
+    </tr>
+    <tr class="register-total-row">
+        <td></td>
+        <td>后</td>
+        <td th:text="${totals.afterTotal}">0</td>
+        <td colspan="2"></td>
+        <td th:text="${totals.afterPositionSalary}">0</td>
+        <td th:text="${totals.afterGradeSalary}">0</td>
+        <td></td><td></td>
+        <td th:text="${totals.afterRetained}">0</td>
+        <td th:text="${totals.afterRankAllowance}">0</td>
+        <td></td>
+        <td th:text="${totals.afterWorkAllowance}">0</td>
+        <td th:text="${totals.afterPerformance}">0</td>
+        <td></td>
+        <td th:text="${totals.afterRetainedReformSalary}">0</td>
+        <td></td>
+        <td th:text="${totals.afterRuralTeacher}">0</td>
+        <td></td>
+    </tr>
+</th:block>
+</body>
+</html>

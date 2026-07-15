@@ -28,8 +28,16 @@ class AppMenuService {
                 rs.getString("path"),
                 rs.getString("permission_code")))
                 .stream()
-                .filter(menu -> user.permissions().contains(menu.permissionCode()))
+                .filter(menu -> menuVisible(user, menu))
                 .toList();
+    }
+
+    private boolean menuVisible(AppUserPrincipal user, MenuItem menu) {
+        if ("PERSONNEL".equals(menu.code()) || "ANNUAL_ASSESSMENT_MANAGEMENT".equals(menu.code())) {
+            return user.permissions().contains("PERSONNEL_READ")
+                    || user.permissions().contains("PERSONNEL_WRITE");
+        }
+        return user.permissions().contains(menu.permissionCode());
     }
 
     record MenuItem(String code, String title, String path, String permissionCode) {

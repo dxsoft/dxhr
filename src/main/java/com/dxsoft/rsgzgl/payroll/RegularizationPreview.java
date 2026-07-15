@@ -21,6 +21,8 @@ public record RegularizationPreview(
         Integer totalRegularSalary,
         Integer increaseAmount,
         Boolean eligible,
-        String note
+        String note,
+        Boolean applyEligible,
+        Boolean rollbackEligible
 ) {
 }

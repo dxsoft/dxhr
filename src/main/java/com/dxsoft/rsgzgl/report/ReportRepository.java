@@ -22,6 +22,39 @@ class ReportRepository {
             SqlText.trim(rs.getString("dyclb")),
             SqlText.trim(rs.getString("cdefault")));
 
+    private static final RowMapper<WageReform2006PublicNoticeRow> WAGE_REFORM_2006_PUBLIC_NOTICE_MAPPER = (rs, rowNum) -> new WageReform2006PublicNoticeRow(
+            SqlText.trim(rs.getString("id")),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("cjgzny")),
+            rs.getInt("xlnx"),
+            rs.getInt("zdgznx"),
+            rs.getInt("kjnx"),
+            rs.getInt("tgnx"),
+            SqlText.trim(rs.getString("zwbm")),
+            SqlText.trim(rs.getString("zwmc")),
+            SqlText.trim(rs.getString("rzsj")),
+            rs.getInt("rznx"),
+            rs.getInt("zwkjnx"),
+            SqlText.trim(rs.getString("zwbm1")),
+            SqlText.trim(rs.getString("zwmc1")),
+            SqlText.trim(rs.getString("rzsj1")),
+            rs.getInt("rznx1"),
+            rs.getInt("zwkjnx1"),
+            SqlText.trim(rs.getString("xlbm")),
+            SqlText.trim(rs.getString("xl")),
+            SqlText.trim(rs.getString("tgzwbm")),
+            SqlText.trim(rs.getString("tgzw")),
+            SqlText.trim(rs.getString("tgjb")),
+            SqlText.trim(rs.getString("tgdc")),
+            rs.getInt("gddc"),
+            rs.getInt("dddc"),
+            rs.getInt("gdjb"),
+            rs.getInt("ddjb"),
+            SqlText.trim(rs.getString("remark")));
+
     private static final RowMapper<PayrollChangeRegisterRow> PAYROLL_CHANGE_REGISTER_MAPPER = (rs, rowNum) -> new PayrollChangeRegisterRow(
             SqlText.trim(rs.getString("id")),
             SqlText.trim(rs.getString("dwbm")),
@@ -225,6 +258,107 @@ class ReportRepository {
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
                        OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
                 """, parameters(scope, organizationFilter, period, keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    List<WageReform2006PublicNoticeRow> findWageReform2006PublicNoticeRows(
+            OrganizationScope scope,
+            String organizationFilter,
+            String keyword,
+            PageRequest pageRequest) {
+        if (scope.noneScope()) {
+            return List.of();
+        }
+        return jdbc.query("""
+                SELECT t.id, t.dwbm, dw.dwmc, t.grbm,
+                       COALESCE(NULLIF(TRIM(p.xm), ''), NULLIF(TRIM(pb.xm), ''), '') AS xm,
+                       t.cjgzny, t.xlnx, t.zdgznx, t.kjnx, t.tgnx,
+                       t.zwbm, t.zwmc, t.rzsj, t.rznx, t.zwkjnx,
+                       t.zwbm1, t.zwmc1, t.rzsj1, t.rznx1, t.zwkjnx1,
+                       t.xlbm, t.xl, t.tgzwbm, t.tgzw, t.tgjb, t.tgdc,
+                       t.gddc, t.dddc, t.gdjb, t.ddjb, t.remark
+                FROM dtgxx t
+                LEFT JOIN dryjbxx p ON p.dwbm = t.dwbm AND p.grbm = t.grbm
+                LEFT JOIN dryjbxxb pb ON pb.dwbm = t.dwbm AND pb.grbm = t.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = t.dwbm
+                WHERE (:allOrganizations = TRUE OR t.dwbm IN (:organizationCodes))
+                  AND (:organizationFilter IS NULL OR t.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (:keyword IS NULL OR t.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR pb.xm LIKE :keywordLike
+                       OR t.zwmc LIKE :keywordLike OR t.zwmc1 LIKE :keywordLike
+                       OR t.tgzw LIKE :keywordLike OR t.remark LIKE :keywordLike)
+                ORDER BY t.dwbm, t.grbm, t.id DESC
+                LIMIT :limit OFFSET :offset
+                """, parameters(scope, organizationFilter, null, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset()), WAGE_REFORM_2006_PUBLIC_NOTICE_MAPPER);
+    }
+
+    long countWageReform2006PublicNoticeRows(OrganizationScope scope, String organizationFilter, String keyword) {
+        if (scope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM dtgxx t
+                LEFT JOIN dryjbxx p ON p.dwbm = t.dwbm AND p.grbm = t.grbm
+                LEFT JOIN dryjbxxb pb ON pb.dwbm = t.dwbm AND pb.grbm = t.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = t.dwbm
+                WHERE (:allOrganizations = TRUE OR t.dwbm IN (:organizationCodes))
+                  AND (:organizationFilter IS NULL OR t.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (:keyword IS NULL OR t.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR pb.xm LIKE :keywordLike
+                       OR t.zwmc LIKE :keywordLike OR t.zwmc1 LIKE :keywordLike
+                       OR t.tgzw LIKE :keywordLike OR t.remark LIKE :keywordLike)
+                """, parameters(scope, organizationFilter, null, keyword), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    private static final RowMapper<PersonnelReportCandidateRow> PERSONNEL_REPORT_CANDIDATE_MAPPER = (rs, rowNum) -> new PersonnelReportCandidateRow(
+            rs.getInt("uid"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("xb")),
+            SqlText.trim(rs.getString("csny")),
+            SqlText.trim(rs.getString("ryfl")),
+            SqlText.trim(rs.getString("xrzw")));
+
+    List<PersonnelReportCandidateRow> findPersonnelReportCandidates(
+            OrganizationScope scope,
+            String organizationFilter,
+            String keyword,
+            PageRequest pageRequest) {
+        if (scope.noneScope()) {
+            return List.of();
+        }
+        return jdbc.query("""
+                SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.xb, p.csny, p.ryfl, p.xrzw
+                FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationFilter IS NULL OR p.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike
+                       OR p.xrzw LIKE :keywordLike)
+                ORDER BY p.dwbm, p.grbm
+                LIMIT :limit OFFSET :offset
+                """, parameters(scope, organizationFilter, null, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset()), PERSONNEL_REPORT_CANDIDATE_MAPPER);
+    }
+
+    long countPersonnelReportCandidates(OrganizationScope scope, String organizationFilter, String keyword) {
+        if (scope.noneScope()) {
+            return 0;
+        }
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationFilter IS NULL OR p.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike
+                       OR p.xrzw LIKE :keywordLike)
+                """, parameters(scope, organizationFilter, null, keyword), Long.class);
         return count == null ? 0 : count;
     }
 

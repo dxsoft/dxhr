@@ -91,6 +91,79 @@ class DictionaryRepository {
                 .addValue("prefixLike", trimmedPrefix == null ? null : trimmedPrefix + "%"), TREE_NODE_MAPPER);
     }
 
+    List<DictionaryTreeNode> findTreeNodesFiltered(DictionaryFilterSpec filter) {
+        return jdbcTemplate.query("""
+                SELECT :prefix AS prefix, bm, mc, czbm, xt, sfsy
+                FROM dmb
+                WHERE sfsy = 1
+                  AND %s
+                ORDER BY bm
+                """.formatted(filter.whereClause()), new MapSqlParameterSource()
+                .addValue("prefix", filter.treePrefix()), TREE_NODE_MAPPER);
+    }
+
+    String findOrganizationCategory(String organizationCode) {
+        if (organizationCode == null || organizationCode.isBlank()) {
+            return "";
+        }
+        List<String> values = jdbcTemplate.query("""
+                SELECT dwbz
+                FROM dwbm
+                WHERE dwbm = :organizationCode
+                LIMIT 1
+                """, new MapSqlParameterSource("organizationCode", organizationCode.trim()),
+                (rs, rowNum) -> SqlText.trim(rs.getString("dwbz")));
+        return values.isEmpty() ? "" : values.getFirst();
+    }
+
+    boolean dictionaryExists(String code) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM dmb WHERE bm = :code",
+                new MapSqlParameterSource("code", code),
+                Integer.class);
+        return count != null && count > 0;
+    }
+
+    void insertDictionary(DictionaryMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                INSERT INTO dmb (bm, mc, czbm, xt, sfsy)
+                VALUES (:code, :name, :parentCode, :systemFlag, :enabledFlag)
+                """, dictionaryParameters(request));
+    }
+
+    void updateDictionary(String code, DictionaryMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                UPDATE dmb
+                SET mc = :name,
+                    czbm = :parentCode,
+                    xt = :systemFlag,
+                    sfsy = :enabledFlag
+                WHERE bm = :code
+                """, dictionaryParameters(request).addValue("code", code));
+    }
+
+    void disableDictionary(String code) {
+        jdbcTemplate.update("""
+                UPDATE dmb SET sfsy = 0 WHERE bm = :code
+                """, new MapSqlParameterSource("code", code));
+    }
+
+    DictionaryEntry findDictionaryByCode(String code) {
+        List<DictionaryEntry> rows = jdbcTemplate.query("""
+                SELECT bm, mc, czbm, xt, sfsy FROM dmb WHERE bm = :code LIMIT 1
+                """, new MapSqlParameterSource("code", code), DICTIONARY_ENTRY_MAPPER);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    private MapSqlParameterSource dictionaryParameters(DictionaryMaintenanceRequest request) {
+        return new MapSqlParameterSource()
+                .addValue("code", request.code())
+                .addValue("name", request.name())
+                .addValue("parentCode", request.parentCode() == null ? "" : request.parentCode())
+                .addValue("systemFlag", request.systemFlag() == null ? 0 : request.systemFlag())
+                .addValue("enabledFlag", request.enabledFlag() == null ? 1 : request.enabledFlag());
+    }
+
     private MapSqlParameterSource parameters(String prefix, String keyword) {
         String trimmedPrefix = emptyToNull(prefix);
         String trimmedKeyword = emptyToNull(keyword);

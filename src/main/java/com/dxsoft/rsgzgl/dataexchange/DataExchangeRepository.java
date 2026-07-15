@@ -34,6 +34,8 @@ class DataExchangeRepository {
             "tgqgz2006",
             "hjxx");
 
+    private static final List<String> SUBMISSION_RELATED_TABLES = List.of("dryzwbh", "dxl", "dndkh");
+
     private final JdbcTemplate jdbcTemplate;
     private final AccessControlService accessControlService;
 
@@ -286,12 +288,26 @@ class DataExchangeRepository {
         return jdbcTemplate.query(querySql, this::mapPersonnelExport, params.toArray());
     }
 
-    List<PersonnelExportRecord> exportPersonnelPackageByOrganizations(List<String> organizationCodes, boolean includeDescendants) {
+    List<PersonnelExportRecord> exportPersonnelPackageByOrganizations(
+            List<String> organizationCodes,
+            boolean includeDescendants,
+            String keyword) {
         List<String> resolvedCodes = resolveOrganizationCodes(organizationCodes, includeDescendants);
         if (resolvedCodes.isEmpty()) {
             return List.of();
         }
+        List<String> conditions = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
         String placeholders = resolvedCodes.stream().map(code -> "?").collect(Collectors.joining(", "));
+        conditions.add("r.dwbm IN (" + placeholders + ")");
+        params.addAll(resolvedCodes);
+        if (keyword != null && !keyword.isBlank()) {
+            conditions.add("(r.grbm LIKE ? OR r.xm LIKE ? OR r.sfzh LIKE ?)");
+            params.add("%" + keyword + "%");
+            params.add("%" + keyword + "%");
+            params.add("%" + keyword + "%");
+        }
+        String whereClause = "WHERE " + String.join(" AND ", conditions);
         String querySql = """
                 SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
                        r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
@@ -302,10 +318,61 @@ class DataExchangeRepository {
                 FROM dryjbxx r
                 LEFT JOIN dwbm d ON r.dwbm = d.dwbm
                 LEFT JOIN hisbase h ON h.dwbm = r.dwbm AND h.grbm = r.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                WHERE r.dwbm IN (%s)
+                %s
                 ORDER BY r.dwbm, r.grbm
-                """.formatted(placeholders);
-        return jdbcTemplate.query(querySql, this::mapPersonnelExport, resolvedCodes.toArray());
+                """.formatted(whereClause);
+        return jdbcTemplate.query(querySql, this::mapPersonnelExport, params.toArray());
+    }
+
+    List<PersonnelExportRecord> exportApprovedPersonnelPackageByOrganizations(
+            List<String> organizationCodes,
+            boolean includeDescendants,
+            String keyword) {
+        List<String> resolvedCodes = resolveOrganizationCodes(organizationCodes, includeDescendants);
+        if (resolvedCodes.isEmpty()) {
+            return List.of();
+        }
+        List<String> conditions = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
+        String placeholders = resolvedCodes.stream().map(code -> "?").collect(Collectors.joining(", "));
+        conditions.add("r.dwbm IN (" + placeholders + ")");
+        params.addAll(resolvedCodes);
+        conditions.add(approvedCurrentPayrollCondition("r.dwbm", "r.grbm"));
+        if (keyword != null && !keyword.isBlank()) {
+            conditions.add("(r.grbm LIKE ? OR r.xm LIKE ? OR r.sfzh LIKE ?)");
+            params.add("%" + keyword + "%");
+            params.add("%" + keyword + "%");
+            params.add("%" + keyword + "%");
+        }
+        return jdbcTemplate.query(buildPersonnelPackageQuery(conditions), this::mapPersonnelExport, params.toArray());
+    }
+
+    List<PersonnelExportRecord> exportSelectedApprovedPersonnel(List<DataExchangeController.PersonKey> selectedPersonnel) {
+        if (selectedPersonnel == null || selectedPersonnel.isEmpty()) {
+            return List.of();
+        }
+        List<PersonnelExportRecord> rows = new ArrayList<>();
+        for (DataExchangeController.PersonKey key : selectedPersonnel) {
+            rows.addAll(jdbcTemplate.query("""
+                    SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
+                           r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
+                           r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw,
+                           (SELECT z.srny FROM dryzwbh z WHERE z.dwbm = r.dwbm AND z.grbm = r.grbm ORDER BY z.srny DESC, z.id DESC LIMIT 1) AS rzny,
+                           r.mz, r.zzmm, r.dah,
+                           h.zwbm2 AS gw, h.zwgw2 AS zw, h.jbgzjb2 AS jb, h.zwgzdc2 AS dc
+                    FROM dryjbxx r
+                    LEFT JOIN dwbm d ON r.dwbm = d.dwbm
+                    LEFT JOIN hisbase h ON h.dwbm = r.dwbm AND h.grbm = r.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                    WHERE r.dwbm = ? AND r.grbm = ?
+                      AND EXISTS (
+                          SELECT 1 FROM hisbase ha
+                          WHERE ha.dwbm = r.dwbm AND ha.grbm = r.grbm
+                            AND (ha.sid IS NULL OR TRIM(ha.sid) = '')
+                            AND ha.jzgb = '是' AND ha.bbz = '已审'
+                      )
+                    """, this::mapPersonnelExport, key.organizationCode(), key.personCode()));
+        }
+        return rows;
     }
 
     List<PersonnelExportRecord> exportSelectedPersonnel(List<DataExchangeController.PersonKey> selectedPersonnel) {
@@ -636,5 +703,185 @@ class DataExchangeRepository {
     private String textValue(Map<String, Object> row, String key) {
         Object value = valueIgnoreCase(row, key);
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    List<DataExchangeService.ExchangeTable> exportPayrollTables(List<PersonnelExportRecord> personnelRows) {
+        if (personnelRows == null || personnelRows.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (PersonnelExportRecord person : personnelRows) {
+            rows.addAll(jdbcTemplate.queryForList(
+                    """
+                            SELECT *
+                            FROM hisbase
+                            WHERE dwbm = ? AND grbm = ?
+                            ORDER BY jsnf, jsyf, hj2, id
+                            """,
+                    person.organizationCode(),
+                    person.personCode()));
+        }
+        return List.of(new DataExchangeService.ExchangeTable("hisbase", rows));
+    }
+
+    List<DataExchangeService.ExchangeTable> exportSubmissionRelatedTables(List<PersonnelExportRecord> personnelRows) {
+        if (personnelRows == null || personnelRows.isEmpty()) {
+            return List.of();
+        }
+        List<DataExchangeService.ExchangeTable> tables = new ArrayList<>();
+        for (String table : SUBMISSION_RELATED_TABLES) {
+            List<Map<String, Object>> rows = new ArrayList<>();
+            for (PersonnelExportRecord person : personnelRows) {
+                rows.addAll(jdbcTemplate.queryForList(
+                        "SELECT * FROM " + table + " WHERE dwbm = ? AND grbm = ?",
+                        person.organizationCode(),
+                        person.personCode()));
+            }
+            tables.add(new DataExchangeService.ExchangeTable(table, rows));
+        }
+        return tables;
+    }
+
+    void markPayrollApprovalDispatched(List<PersonnelExportRecord> personnelRows) {
+        if (personnelRows == null || personnelRows.isEmpty()) {
+            return;
+        }
+        for (PersonnelExportRecord person : personnelRows) {
+            jdbcTemplate.update("""
+                    UPDATE hisbase
+                    SET bbz = '已下发'
+                    WHERE dwbm = ? AND grbm = ? AND (sid IS NULL OR TRIM(sid) = '')
+                      AND jzgb = '是' AND bbz = '已审'
+                    """, person.organizationCode(), person.personCode());
+        }
+    }
+
+    void markPayrollSubmitted(List<PersonnelExportRecord> personnelRows) {
+        if (personnelRows == null || personnelRows.isEmpty()) {
+            return;
+        }
+        for (PersonnelExportRecord person : personnelRows) {
+            jdbcTemplate.update("""
+                    UPDATE hisbase
+                    SET bbz = '申报'
+                    WHERE dwbm = ? AND grbm = ? AND (sid IS NULL OR TRIM(sid) = '')
+                    """, person.organizationCode(), person.personCode());
+        }
+    }
+
+    int applyApprovedSubmission(
+            List<PersonnelExportRecord> personnelRows,
+            List<DataExchangeService.ExchangeTable> payrollTables,
+            List<DataExchangeService.ExchangeTable> relatedTables) {
+        int count = 0;
+        for (PersonnelExportRecord row : personnelRows) {
+            if (!personExists(row.organizationCode(), row.personCode())) {
+                insertPersonnel(row, row.organizationCode(), row.personCode());
+            }
+            jdbcTemplate.update("DELETE FROM hisbase WHERE dwbm = ? AND grbm = ?", row.organizationCode(), row.personCode());
+            insertPayrollRowsForPerson(payrollTables, row.organizationCode(), row.personCode());
+            insertSubmissionRelatedRowsForPerson(relatedTables, row.organizationCode(), row.personCode());
+            jdbcTemplate.update("""
+                    UPDATE hisbase
+                    SET bbz = '已审',
+                        jzgb = '是'
+                    WHERE dwbm = ? AND grbm = ? AND (sid IS NULL OR TRIM(sid) = '')
+                    """, row.organizationCode(), row.personCode());
+            count++;
+        }
+        return count;
+    }
+
+    private void insertPayrollRowsForPerson(
+            List<DataExchangeService.ExchangeTable> payrollTables,
+            String organizationCode,
+            String personCode) {
+        if (payrollTables == null || payrollTables.isEmpty()) {
+            return;
+        }
+        for (DataExchangeService.ExchangeTable table : payrollTables) {
+            if (!"hisbase".equalsIgnoreCase(table.tableName()) || table.rows() == null) {
+                continue;
+            }
+            for (Map<String, Object> sourceRow : table.rows()) {
+                if (!matchesPerson(sourceRow, organizationCode, personCode)) {
+                    continue;
+                }
+                insertGenericRelatedRow("hisbase", sourceRow, organizationCode, personCode, false);
+            }
+        }
+    }
+
+    private void insertSubmissionRelatedRowsForPerson(
+            List<DataExchangeService.ExchangeTable> relatedTables,
+            String organizationCode,
+            String personCode) {
+        if (relatedTables == null || relatedTables.isEmpty()) {
+            return;
+        }
+        for (String tableName : SUBMISSION_RELATED_TABLES) {
+            jdbcTemplate.update("DELETE FROM " + tableName + " WHERE dwbm = ? AND grbm = ?", organizationCode, personCode);
+        }
+        insertRelatedRowsForSubmissionTables(relatedTables, organizationCode, personCode, organizationCode, personCode);
+    }
+
+    private void insertRelatedRowsForSubmissionTables(
+            List<DataExchangeService.ExchangeTable> relatedTables,
+            String sourceOrganizationCode,
+            String sourcePersonCode,
+            String targetOrganizationCode,
+            String targetPersonCode) {
+        if (relatedTables == null || relatedTables.isEmpty()) {
+            return;
+        }
+        for (DataExchangeService.ExchangeTable table : relatedTables) {
+            if (!SUBMISSION_RELATED_TABLES.contains(table.tableName()) || table.rows() == null) {
+                continue;
+            }
+            for (Map<String, Object> sourceRow : table.rows()) {
+                if (!matchesPerson(sourceRow, sourceOrganizationCode, sourcePersonCode)) {
+                    continue;
+                }
+                insertGenericRelatedRow(table.tableName(), sourceRow, targetOrganizationCode, targetPersonCode, false);
+            }
+        }
+    }
+
+    private String buildPersonnelPackageQuery(List<String> conditions) {
+        String whereClause = "WHERE " + String.join(" AND ", conditions);
+        return """
+                SELECT r.dwbm, d.dwmc, r.grbm, r.xm, r.sfzh, r.xb, r.csny,
+                       r.ryfl, r.dwsx, r.gwfl, r.cjgzny, r.zzny, r.gznx,
+                       r.xlbm, r.zgxl, r.zwjb, r.zjbm, r.xrzw,
+                       (SELECT z.srny FROM dryzwbh z WHERE z.dwbm = r.dwbm AND z.grbm = r.grbm ORDER BY z.srny DESC, z.id DESC LIMIT 1) AS rzny,
+                       r.mz, r.zzmm, r.dah,
+                       h.zwbm2 AS gw, h.zwgw2 AS zw, h.jbgzjb2 AS jb, h.zwgzdc2 AS dc
+                FROM dryjbxx r
+                LEFT JOIN dwbm d ON r.dwbm = d.dwbm
+                LEFT JOIN hisbase h ON h.dwbm = r.dwbm AND h.grbm = r.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                %s
+                ORDER BY r.dwbm, r.grbm
+                """.formatted(whereClause);
+    }
+
+    private String approvedCurrentPayrollCondition(String organizationColumn, String personColumn) {
+        return """
+                EXISTS (
+                    SELECT 1 FROM hisbase ha
+                    WHERE ha.dwbm = %s AND ha.grbm = %s
+                      AND (ha.sid IS NULL OR TRIM(ha.sid) = '')
+                      AND ha.jzgb = '是' AND ha.bbz = '已审'
+                )
+                """.formatted(organizationColumn, personColumn);
+    }
+
+    Map<String, Object> findCurrentPayrollSummary(String organizationCode, String personCode) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT jslb, CONCAT(jsnf, jsyf) AS period, hj2, jzgb, bbz
+                FROM hisbase
+                WHERE dwbm = ? AND grbm = ? AND (sid IS NULL OR TRIM(sid) = '')
+                LIMIT 1
+                """, organizationCode, personCode);
+        return rows.isEmpty() ? Map.of() : rows.getFirst();
     }
 }

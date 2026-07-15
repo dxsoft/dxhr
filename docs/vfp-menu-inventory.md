@@ -19,8 +19,9 @@
 | --- | --- | --- | --- | --- |
 | `PERSONNEL` | 人员查询 | `#personnel` | `PERSONNEL_READ` | 当前 Spring Boot 已实现 |
 | `PERSONNEL_MAINTENANCE` | 人员信息维护 | `#personnel-maintenance` | `PERSONNEL_WRITE` | 当前 Spring Boot 已实现，基础信息增删改 |
-| `ANNUAL_ASSESSMENTS` | 年度考核结果 | `#annual-assessments` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
-| `ASSESSMENT_SUMMARY` | 年度考核统计 | `#assessment-summary` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读统计 |
+| `ANNUAL_ASSESSMENTS` | 年度考核结果 | `#annual-assessments` | `PERSONNEL_READ` | 只读查询 |
+| `ANNUAL_ASSESSMENT_BATCH` | 年度考核批量录入 | `#annual-assessment-batch` | `PERSONNEL_WRITE` | 对标 VFP `ndkhlr1`，按单位+年度表格录入 |
+| `ASSESSMENT_SUMMARY` | 年度考核统计 | `#assessment-summary` | `PERSONNEL_READ` | 只读统计 |
 | `CHANGED_PERSONNEL` | 变动人员信息 | `#changed-personnel` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询，来源 `dryjbxxb` / `hisbaseb` |
 | `POSITION_HISTORY` | 任职岗位信息 | `#position-history` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `EDUCATION_HISTORY` | 学历信息 | `#education-history` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
@@ -32,6 +33,8 @@
 | `POSITION_CHANGE_PROMOTION` | 职务变化晋升 | `#position-change-promotion` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
 | `EDUCATION_PROMOTION` | 学历晋升 | `#education-promotion` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
 | `REGULARIZATION` | 转正定级 | `#regularization` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
+| `FLOATING_TO_FIXED` | 浮动转固定 | `#floating-to-fixed` | `PAYROLL_READ` | 当前 Spring Boot 已实现，试算 + 办理/还原 |
+| `INTERN_SALARY_CHANGE` | 见习工资变动 | `#intern-salary-change` | `PAYROLL_READ` | 当前 Spring Boot 已实现，试算 + 办理/还原 |
 | `AUDIT` | 批量对账 | `#audit` | `AUDIT_READ` | 当前 Spring Boot 已实现 |
 | `BASIC_STANDARDS` | 基本工资标准 | `#basic-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `INTERN_SALARY_STANDARDS` | 见习工资标准 | `#intern-salary-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
@@ -41,6 +44,7 @@
 | `YEAR_ALLOWANCE_STANDARDS` | 年补贴标准 | `#year-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `WAGE_REFORM_STANDARDS` | 2006套改标准 | `#wage-reform-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `OTHER_ALLOWANCE_STANDARDS` | 其他补贴标准 | `#other-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
+| `DATA_EXCHANGE` | 数据交换 | `#data-exchange` | `DATA_EXCHANGE_READ` | 建库包下发/接收、人员 CSV、年报 CSV/Excel |
 | `ORGANIZATION_MAINTENANCE` | 单位信息维护 | `#organization-maintenance` | `ORG_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `LOCAL_POLICY_CONFIG` | 本地工资政策 | `#local-policy-config` | `SYSTEM_CONFIG` | 当前 Spring Boot 已实现，只读查询 |
 | `DICTIONARY_MAINTENANCE` | 设置常用值 | `#dictionary-maintenance` | `SYSTEM_CONFIG` | 当前 Spring Boot 已实现，只读查询 |
@@ -83,7 +87,7 @@
 | 见习人员转正定级 | `DO FORM zzdj` | 转正定级 |
 | 新增人员确定工资 | `DO FORM drdz` | 新增人员工资确定 |
 | 其它情况工资变动 | `DO FORM fzcgzbdcl` | 其他工资变动 |
-| 浮动转固定工资变动 | `DO FORM fdgd` | 浮动工资转固定 |
+| 浮动转固定工资变动 | `DO FORM fdgd` | 已迁移 → 浮动转固定（试算 + 办理/还原） |
 | 级别滚动晋升 | `DO FORM jbgdgzjs` | 级别滚动晋升 |
 | 转正高定档次薪级 | `DO FORM zzgd` | 高定档次薪级 |
 | 月平均工资计算 | `DO FORM dybdmx` | 月平均工资 |
@@ -93,17 +97,16 @@
 
 ### 数据交换
 
-| 菜单项 | VFP 调用 | 迁移建议 |
+| 菜单项 | VFP 调用 | 迁移状态 |
 | --- | --- | --- |
-| 导出下属单位建库数据 | `DO FORM jksjdc` | 数据包导出 |
-| 导出下属单位申报数据 | `DO FORM sjsb` | 申报数据导出 |
-| 读取上级单位下发数据 | `DO FORM sjdr` | 数据包导入 |
-| 读入下属单位建库数据 | `DO FORM jksjdr` | 下属数据导入 |
-| 读入审核下属单位申报数据 | `DO FORM sjsh` | 申报审核 |
-| 下发工资审批数据 | `DO FORM sjdc` | 审批数据下发 |
-| 按人员导出 | `DO FORM dc` | 人员导出 |
-| 按人员导入 | `DO FORM dr` | 人员导入 |
-| 导出工资年报数据 | `DO FORM dcnbsj` | 年报导出 |
+| 导出下属单位建库数据 | `DO FORM jksjdc` | 已迁移 → 单位/人员下发 JSON 包 |
+| 读入下属单位建库数据 / 读取上级下发数据 | `DO FORM jksjdr` / `sjdr` | 建库 → 数据接收；审批 → 审批接收 |
+| 按人员导出 | `DO FORM dc` | 已迁移 → 人员信息 CSV |
+| 导出工资年报数据 | `DO FORM dcnbsj` | 已迁移 → 年报 CSV / Excel |
+| 导出下属单位申报数据 | `DO FORM sjsb` | 已迁移（数据交换 → 申报导出） |
+| 读入审核下属单位申报数据 | `DO FORM sjsh` | 已迁移（数据交换 → 申报审核） |
+| 下发工资审批数据 | `DO FORM sjdc` | 已迁移（数据交换 → 审批下发 + 审批接收） |
+| 按人员导入 | `DO FORM dr` | 部分覆盖 → 通过 JSON 接收包导入 |
 
 ### 报表打印
 

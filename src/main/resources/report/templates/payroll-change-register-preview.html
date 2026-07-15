@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:each="page : ${pages}">
+    <th:block th:replace="~{payroll-change-register-page :: page(${page})}"></th:block>
+</th:block>
+</body>
+</html>

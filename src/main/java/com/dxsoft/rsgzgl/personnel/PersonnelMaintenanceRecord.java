@@ -4,6 +4,7 @@ public record PersonnelMaintenanceRecord(
         Integer uid,
         String organizationCode,
         String organizationName,
+        String organizationCategory,
         String personCode,
         String name,
         String idCard,

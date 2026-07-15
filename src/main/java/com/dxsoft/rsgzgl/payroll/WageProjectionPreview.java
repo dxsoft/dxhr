@@ -24,6 +24,7 @@ public record WageProjectionPreview(
         String rankName,
         String rankAllowanceStandardYearMonth,
         Integer rankAllowance,
-        List<String> explanationLines
+        List<String> explanationLines,
+        List<WageProjectionStepDetail> stepDetails
 ) {
 }

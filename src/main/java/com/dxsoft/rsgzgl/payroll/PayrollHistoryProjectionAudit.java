@@ -14,6 +14,7 @@ public record PayrollHistoryProjectionAudit(
         BigDecimal projectedTotal,
         BigDecimal totalDifference,
         List<String> structureMismatches,
-        List<PayrollComponentDifference> componentDifferences
+        List<PayrollComponentDifference> componentDifferences,
+        List<WageProjectionStepDetail> stepDetails
 ) {
 }

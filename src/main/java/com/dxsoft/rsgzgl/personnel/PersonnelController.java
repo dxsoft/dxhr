@@ -35,6 +35,48 @@ class PersonnelController {
         return personnelService.list(organizationCode, keyword, PageRequest.of(page, size));
     }
 
+    @GetMapping("/comprehensive-queries")
+    PageResponse<PersonnelComprehensiveQueryRecord> comprehensiveQueries(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String gender,
+            @RequestParam(required = false) String personnelCategory,
+            @RequestParam(required = false) String organizationType,
+            @RequestParam(required = false) String postCategory,
+            @RequestParam(required = false) String educationCode,
+            @RequestParam(required = false) String birthYearMonthFrom,
+            @RequestParam(required = false) String birthYearMonthTo,
+            @RequestParam(required = false) String workStartYearMonthFrom,
+            @RequestParam(required = false) String workStartYearMonthTo,
+            @RequestParam(required = false) String regularizationYearMonthFrom,
+            @RequestParam(required = false) String regularizationYearMonthTo,
+            @RequestParam(required = false) String positionCode,
+            @RequestParam(required = false) String positionCodePrefix,
+            @RequestParam(required = false) String gradeLevelFrom,
+            @RequestParam(required = false) String gradeLevelTo,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return personnelService.comprehensiveQueries(
+                organizationCode,
+                keyword,
+                gender,
+                personnelCategory,
+                organizationType,
+                postCategory,
+                educationCode,
+                birthYearMonthFrom,
+                birthYearMonthTo,
+                workStartYearMonthFrom,
+                workStartYearMonthTo,
+                regularizationYearMonthFrom,
+                regularizationYearMonthTo,
+                positionCode,
+                positionCodePrefix,
+                gradeLevelFrom,
+                gradeLevelTo,
+                PageRequest.of(page, size));
+    }
+
     @GetMapping("/{uid}")
     PersonnelDetail get(@PathVariable int uid) {
         return personnelService.get(uid);
@@ -160,6 +202,20 @@ class PersonnelController {
         personnelService.deleteAssessment(uid, id);
     }
 
+    @GetMapping("/assessments/batch-entry")
+    BatchAssessmentPreview batchAssessmentPreview(
+            @RequestParam String organizationCode,
+            @RequestParam String year,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false, defaultValue = "false") boolean includeDescendants) {
+        return personnelService.batchAssessmentPreview(organizationCode, year, keyword, includeDescendants);
+    }
+
+    @PostMapping("/assessments/batch-entry")
+    BatchAssessmentSaveResult saveBatchAssessments(@RequestBody BatchAssessmentSaveRequest request) {
+        return personnelService.saveBatchAssessments(request);
+    }
+
     @GetMapping("/assessments")
     PageResponse<AnnualAssessmentRecord> annualAssessments(
             @RequestParam(required = false) String organizationCode,
@@ -175,9 +231,11 @@ class PersonnelController {
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String year,
             @RequestParam(required = false) String result,
+            @RequestParam(required = false, defaultValue = "false") boolean includeDescendants,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return personnelService.annualAssessmentSummary(organizationCode, year, result, PageRequest.of(page, size));
+        return personnelService.annualAssessmentSummary(
+                organizationCode, year, result, includeDescendants, PageRequest.of(page, size));
     }
 
     @GetMapping("/changed")
