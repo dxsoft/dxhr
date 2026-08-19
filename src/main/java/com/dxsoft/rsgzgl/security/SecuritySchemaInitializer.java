@@ -51,7 +51,33 @@ class SecuritySchemaInitializer {
         ensureRankAllowanceMenus();
         seedAdmin();
         seedUnitAdminRole();
-        migrateLevelPromotionPermissions();
+        migratePayrollFeaturePermissions();
+    }
+
+    private void seedPayrollFeaturePermissions() {
+        for (PayrollFeaturePermissions.Feature feature : PayrollFeaturePermissions.distinctPermissionFeatures()) {
+            upsertPermission(feature.readPermission(), feature.readLabel(), "PAYROLL");
+            upsertPermission(feature.writePermission(), feature.writeLabel(), "PAYROLL");
+        }
+    }
+
+    private void migratePayrollFeaturePermissions() {
+        for (PayrollFeaturePermissions.Feature feature : PayrollFeaturePermissions.distinctPermissionFeatures()) {
+            jdbcTemplate.update("""
+                    INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                    SELECT rp.role_id, p_new.id
+                    FROM app_role_permission rp
+                    JOIN app_permission p_old ON p_old.id = rp.permission_id AND p_old.code = 'PAYROLL_READ'
+                    JOIN app_permission p_new ON p_new.code = ?
+                    """, feature.readPermission());
+            jdbcTemplate.update("""
+                    INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                    SELECT rp.role_id, p_new.id
+                    FROM app_role_permission rp
+                    JOIN app_permission p_old ON p_old.id = rp.permission_id AND p_old.code = 'PAYROLL_WRITE'
+                    JOIN app_permission p_new ON p_new.code = ?
+                    """, feature.writePermission());
+        }
     }
 
     private void createTables() {
@@ -250,8 +276,7 @@ class SecuritySchemaInitializer {
         upsertPermission("PERSONNEL_WRITE", "人员信息维护", "PERSONNEL");
         upsertPermission("PAYROLL_READ", "工资试算查询", "PAYROLL");
         upsertPermission("PAYROLL_WRITE", "工资变动维护", "PAYROLL");
-        upsertPermission("LEVEL_PROMOTION_READ", "级别晋升查询", "PAYROLL");
-        upsertPermission("LEVEL_PROMOTION_WRITE", "级别晋升办理", "PAYROLL");
+        seedPayrollFeaturePermissions();
         upsertPermission("AUDIT_READ", "工资批量对账", "PAYROLL");
         upsertPermission("STANDARD_READ", "工资标准查询", "PAYROLL");
         upsertPermission("STANDARD_WRITE", "工资标准维护", "PAYROLL");
@@ -283,35 +308,35 @@ class SecuritySchemaInitializer {
         upsertMenu("PAYROLL", "工资试算", "#payroll", "PAYROLL_READ", 20, false);
         // 工资变动主菜单次序（侧栏组内亦按 sort_order 排列）
         upsertMenu("LEVEL_PROMOTION", "级别晋升", "#level-promotion", "LEVEL_PROMOTION_READ", 25);
-        upsertMenu("NORMAL_PROMOTION", "正常档次/薪级晋升", "#normal-promotion", "PAYROLL_READ", 26);
-        upsertMenu("POSITION_CHANGE_PROMOTION", "职务变化晋升", "#position-change-promotion", "PAYROLL_READ", 27);
-        upsertMenu("NEW_PERSONNEL_SALARY", "新进定资", "#new-personnel-salary", "PAYROLL_READ", 28);
-        upsertMenu("REGULARIZATION", "转正定级", "#regularization", "PAYROLL_READ", 29);
-        upsertMenu("EDUCATION_PROMOTION", "学历晋升", "#education-promotion", "PAYROLL_READ", 30);
-        upsertMenu("TEACHING_ALLOWANCE_ADJUSTMENT", "调整教护龄津贴", "#teaching-allowance-adjustment", "PAYROLL_READ", 31);
-        upsertMenu("FLOATING_TO_FIXED", "浮动固定", "#floating-to-fixed", "PAYROLL_READ", 32);
-        upsertMenu("OTHER_PAYROLL_CHANGE", "其它情况工资变动", "#other-payroll-change", "PAYROLL_READ", 33);
-        upsertMenu("REGULARIZATION_HIGH_GRADE", "转正高定档次薪级", "#regularization-high-grade", "PAYROLL_READ", 34);
-        upsertMenu("WAGE_REFORM_2006", "2006年工资套改", "#wage-reform-2006", "PAYROLL_READ", 35);
+        upsertMenu("NORMAL_PROMOTION", "正常档次/薪级晋升", "#normal-promotion", "NORMAL_PROMOTION_READ", 26);
+        upsertMenu("POSITION_CHANGE_PROMOTION", "职务变化晋升", "#position-change-promotion", "POSITION_CHANGE_PROMOTION_READ", 27);
+        upsertMenu("NEW_PERSONNEL_SALARY", "新进定资", "#new-personnel-salary", "NEW_PERSONNEL_SALARY_READ", 28);
+        upsertMenu("REGULARIZATION", "转正定级", "#regularization", "REGULARIZATION_READ", 29);
+        upsertMenu("EDUCATION_PROMOTION", "学历晋升", "#education-promotion", "EDUCATION_PROMOTION_READ", 30);
+        upsertMenu("TEACHING_ALLOWANCE_ADJUSTMENT", "调整教护龄津贴", "#teaching-allowance-adjustment", "TEACHING_ALLOWANCE_ADJUSTMENT_READ", 31);
+        upsertMenu("FLOATING_TO_FIXED", "浮动固定", "#floating-to-fixed", "FLOATING_TO_FIXED_READ", 32);
+        upsertMenu("OTHER_PAYROLL_CHANGE", "其它情况工资变动", "#other-payroll-change", "OTHER_PAYROLL_CHANGE_READ", 33);
+        upsertMenu("REGULARIZATION_HIGH_GRADE", "转正高定档次薪级", "#regularization-high-grade", "REGULARIZATION_HIGH_GRADE_READ", 34);
+        upsertMenu("WAGE_REFORM_2006", "2006年工资套改", "#wage-reform-2006", "WAGE_REFORM_2006_READ", 35);
         upsertMenu("PAYROLL_HISTORY", "工资变动历史", "#payroll-history", "PAYROLL_READ", 36);
         upsertMenu("AUDIT", "批量对账", "#audit", "AUDIT_READ", 37);
-        upsertMenu("PROSECUTION_ALLOWANCE_ADJUSTMENT", "调整检察津贴", "#prosecution-allowance-adjustment", "PAYROLL_READ", 281);
-        upsertMenu("JUDICIAL_ALLOWANCE_ADJUSTMENT", "调整审判津贴", "#judicial-allowance-adjustment", "PAYROLL_READ", 282);
-        upsertMenu("POLICE_ALLOWANCE_ADJUSTMENT", "调整警衔津贴", "#police-allowance-adjustment", "PAYROLL_READ", 283);
-        upsertMenu("SUPERVISION_ALLOWANCE_ADJUSTMENT", "调整监察津贴", "#supervision-allowance-adjustment", "PAYROLL_READ", 284);
-        upsertMenu("POLICE_RANK_CHANGE_PROMOTION", "警衔变化晋升", "#police-rank-change-promotion", "PAYROLL_READ", 285);
-        upsertMenu("PROSECUTION_RANK_CHANGE_PROMOTION", "检察官等级变化晋升", "#prosecution-rank-change-promotion", "PAYROLL_READ", 286);
-        upsertMenu("JUDICIAL_RANK_CHANGE_PROMOTION", "法官等级变化晋升", "#judicial-rank-change-promotion", "PAYROLL_READ", 287);
-        upsertMenu("SUPERVISION_RANK_CHANGE_PROMOTION", "监察等级变化晋升", "#supervision-rank-change-promotion", "PAYROLL_READ", 288);
-        upsertMenu("INTERN_SALARY_CHANGE", "见习工资变动", "#intern-salary-change", "PAYROLL_READ", 350, false);
-        upsertMenu("SALARY_STANDARD_ADJUSTMENT", "2024.07调标", "#salary-standard-adjustment", "PAYROLL_READ", 38, false);
-        upsertMenu("BASIC_SALARY_STANDARD_ADJUSTMENT", "调整基本工资标准", "#basic-salary-standard-adjustment", "PAYROLL_READ", 381);
-        upsertMenu("CIVIL_ALLOWANCE_STANDARD_ADJUSTMENT", "调整公务员津贴补贴", "#civil-allowance-standard-adjustment", "PAYROLL_READ", 382);
-        upsertMenu("PERFORMANCE_STANDARD_ADJUSTMENT", "调整绩效工资标准", "#performance-standard-adjustment", "PAYROLL_READ", 383);
-        upsertMenu("PERFORMANCE_RATIO_ADJUSTMENT", "调整绩效比例", "#performance-ratio-adjustment", "PAYROLL_READ", 384);
-        upsertMenu("ALLOWANCE_RECALCULATION", "重算津补贴", "#allowance-recalculation", "PAYROLL_READ", 39, false);
-        upsertMenu("REFORM_LEVEL_ROLLING", "级别滚动晋升（已并入级别晋升）", "#level-promotion", "PAYROLL_READ", 40, false);
-        upsertMenu("MONTHLY_AVERAGE_SALARY", "月平均工资计算", "#monthly-average-salary", "PAYROLL_READ", 42);
+        upsertMenu("PROSECUTION_ALLOWANCE_ADJUSTMENT", "调整检察津贴", "#prosecution-allowance-adjustment", "PROSECUTION_ALLOWANCE_ADJUSTMENT_READ", 281);
+        upsertMenu("JUDICIAL_ALLOWANCE_ADJUSTMENT", "调整审判津贴", "#judicial-allowance-adjustment", "JUDICIAL_ALLOWANCE_ADJUSTMENT_READ", 282);
+        upsertMenu("POLICE_ALLOWANCE_ADJUSTMENT", "调整警衔津贴", "#police-allowance-adjustment", "POLICE_ALLOWANCE_ADJUSTMENT_READ", 283);
+        upsertMenu("SUPERVISION_ALLOWANCE_ADJUSTMENT", "调整监察津贴", "#supervision-allowance-adjustment", "SUPERVISION_ALLOWANCE_ADJUSTMENT_READ", 284);
+        upsertMenu("POLICE_RANK_CHANGE_PROMOTION", "警衔变化晋升", "#police-rank-change-promotion", "POLICE_RANK_CHANGE_PROMOTION_READ", 285);
+        upsertMenu("PROSECUTION_RANK_CHANGE_PROMOTION", "检察官等级变化晋升", "#prosecution-rank-change-promotion", "PROSECUTION_RANK_CHANGE_PROMOTION_READ", 286);
+        upsertMenu("JUDICIAL_RANK_CHANGE_PROMOTION", "法官等级变化晋升", "#judicial-rank-change-promotion", "JUDICIAL_RANK_CHANGE_PROMOTION_READ", 287);
+        upsertMenu("SUPERVISION_RANK_CHANGE_PROMOTION", "监察等级变化晋升", "#supervision-rank-change-promotion", "SUPERVISION_RANK_CHANGE_PROMOTION_READ", 288);
+        upsertMenu("INTERN_SALARY_CHANGE", "见习工资变动", "#intern-salary-change", "INTERN_SALARY_CHANGE_READ", 350, false);
+        upsertMenu("SALARY_STANDARD_ADJUSTMENT", "2024.07调标", "#salary-standard-adjustment", "SALARY_STANDARD_ADJUSTMENT_READ", 38, false);
+        upsertMenu("BASIC_SALARY_STANDARD_ADJUSTMENT", "调整基本工资标准", "#basic-salary-standard-adjustment", "BASIC_SALARY_STANDARD_ADJUSTMENT_READ", 381);
+        upsertMenu("CIVIL_ALLOWANCE_STANDARD_ADJUSTMENT", "调整公务员津贴补贴", "#civil-allowance-standard-adjustment", "CIVIL_ALLOWANCE_STANDARD_ADJUSTMENT_READ", 382);
+        upsertMenu("PERFORMANCE_STANDARD_ADJUSTMENT", "调整绩效工资标准", "#performance-standard-adjustment", "PERFORMANCE_STANDARD_ADJUSTMENT_READ", 383);
+        upsertMenu("PERFORMANCE_RATIO_ADJUSTMENT", "调整绩效比例", "#performance-ratio-adjustment", "PERFORMANCE_RATIO_ADJUSTMENT_READ", 384);
+        upsertMenu("ALLOWANCE_RECALCULATION", "重算津补贴", "#allowance-recalculation", "ALLOWANCE_RECALCULATION_READ", 39, false);
+        upsertMenu("REFORM_LEVEL_ROLLING", "级别滚动晋升（已并入级别晋升）", "#level-promotion", "LEVEL_PROMOTION_READ", 40, false);
+        upsertMenu("MONTHLY_AVERAGE_SALARY", "月平均工资计算", "#monthly-average-salary", "MONTHLY_AVERAGE_SALARY_READ", 42);
         // 报表打印：紧接工资变动之后、标准维护之前
         upsertMenu("PAYROLL_CHANGE_REGISTER_REPORT", "工资变动花名册", "#payroll-change-register-report", "REPORT_READ", 44);
         upsertMenu("PAYROLL_CHANGE_APPROVAL_REPORT", "工资变动审批表", "#payroll-change-approval-report", "REPORT_READ", 45);
@@ -384,23 +409,6 @@ class SecuritySchemaInitializer {
                 "LEGACY_HELP",
                 "RETIREMENT_PROCESSING"
         ).forEach(this::disableMenu);
-    }
-
-    private void migrateLevelPromotionPermissions() {
-        jdbcTemplate.update("""
-                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
-                SELECT rp.role_id, p_new.id
-                FROM app_role_permission rp
-                JOIN app_permission p_old ON p_old.id = rp.permission_id AND p_old.code = 'PAYROLL_READ'
-                JOIN app_permission p_new ON p_new.code = 'LEVEL_PROMOTION_READ'
-                """);
-        jdbcTemplate.update("""
-                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
-                SELECT rp.role_id, p_new.id
-                FROM app_role_permission rp
-                JOIN app_permission p_old ON p_old.id = rp.permission_id AND p_old.code = 'PAYROLL_WRITE'
-                JOIN app_permission p_new ON p_new.code = 'LEVEL_PROMOTION_WRITE'
-                """);
     }
 
     private void seedUnitAdminRole() {
@@ -523,14 +531,14 @@ class SecuritySchemaInitializer {
     }
 
     private void ensureRankAllowanceMenus() {
-        upsertMenu("PROSECUTION_ALLOWANCE_ADJUSTMENT", "调整检察津贴", "#prosecution-allowance-adjustment", "PAYROLL_READ", 281);
-        upsertMenu("JUDICIAL_ALLOWANCE_ADJUSTMENT", "调整审判津贴", "#judicial-allowance-adjustment", "PAYROLL_READ", 282);
-        upsertMenu("POLICE_ALLOWANCE_ADJUSTMENT", "调整警衔津贴", "#police-allowance-adjustment", "PAYROLL_READ", 283);
-        upsertMenu("SUPERVISION_ALLOWANCE_ADJUSTMENT", "调整监察津贴", "#supervision-allowance-adjustment", "PAYROLL_READ", 284);
-        upsertMenu("POLICE_RANK_CHANGE_PROMOTION", "警衔变化晋升", "#police-rank-change-promotion", "PAYROLL_READ", 285);
-        upsertMenu("PROSECUTION_RANK_CHANGE_PROMOTION", "检察官等级变化晋升", "#prosecution-rank-change-promotion", "PAYROLL_READ", 286);
-        upsertMenu("JUDICIAL_RANK_CHANGE_PROMOTION", "法官等级变化晋升", "#judicial-rank-change-promotion", "PAYROLL_READ", 287);
-        upsertMenu("SUPERVISION_RANK_CHANGE_PROMOTION", "监察等级变化晋升", "#supervision-rank-change-promotion", "PAYROLL_READ", 288);
+        upsertMenu("PROSECUTION_ALLOWANCE_ADJUSTMENT", "调整检察津贴", "#prosecution-allowance-adjustment", "PROSECUTION_ALLOWANCE_ADJUSTMENT_READ", 281);
+        upsertMenu("JUDICIAL_ALLOWANCE_ADJUSTMENT", "调整审判津贴", "#judicial-allowance-adjustment", "JUDICIAL_ALLOWANCE_ADJUSTMENT_READ", 282);
+        upsertMenu("POLICE_ALLOWANCE_ADJUSTMENT", "调整警衔津贴", "#police-allowance-adjustment", "POLICE_ALLOWANCE_ADJUSTMENT_READ", 283);
+        upsertMenu("SUPERVISION_ALLOWANCE_ADJUSTMENT", "调整监察津贴", "#supervision-allowance-adjustment", "SUPERVISION_ALLOWANCE_ADJUSTMENT_READ", 284);
+        upsertMenu("POLICE_RANK_CHANGE_PROMOTION", "警衔变化晋升", "#police-rank-change-promotion", "POLICE_RANK_CHANGE_PROMOTION_READ", 285);
+        upsertMenu("PROSECUTION_RANK_CHANGE_PROMOTION", "检察官等级变化晋升", "#prosecution-rank-change-promotion", "PROSECUTION_RANK_CHANGE_PROMOTION_READ", 286);
+        upsertMenu("JUDICIAL_RANK_CHANGE_PROMOTION", "法官等级变化晋升", "#judicial-rank-change-promotion", "JUDICIAL_RANK_CHANGE_PROMOTION_READ", 287);
+        upsertMenu("SUPERVISION_RANK_CHANGE_PROMOTION", "监察等级变化晋升", "#supervision-rank-change-promotion", "SUPERVISION_RANK_CHANGE_PROMOTION_READ", 288);
         jdbcTemplate.update("""
                 UPDATE app_menu
                 SET enabled = 1

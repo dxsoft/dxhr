@@ -4175,7 +4175,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要办理的正常档次/薪级晋升记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requirePayrollFeatureWrite("NORMAL_PROMOTION_WRITE");
          int promotionYear = this.resolveNormalPromotionYear(year);
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
@@ -4301,7 +4301,7 @@ public class PayrollService {
          if (normalizedId == null) {
             throw new IllegalArgumentException("缺少工资记录标识。");
          } else {
-            this.requirePayrollWritePermission();
+            this.requirePayrollFeatureWrite("NORMAL_PROMOTION_WRITE");
             com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot latest = this.resolveCurrentHistoryForNormalSingleApply(normalizedId, request);
             this.accessControlService.requireOrganization(latest.organizationCode());
             return this.writeNormalPromotionFromTrial(latest, this.resolveNormalPromotionYear(year), request, laterPeriodMode);
@@ -4468,7 +4468,7 @@ public class PayrollService {
    public com.dxsoft.rsgzgl.payroll.PromotionActionResult rollbackNormalPromotion(
       String payrollHistoryId, com.dxsoft.rsgzgl.payroll.NormalPromotionRollbackRequest request
    ) {
-      this.requirePayrollWritePermission();
+      this.requirePayrollFeatureWrite("NORMAL_PROMOTION_WRITE");
       String normalizedId = this.emptyToNull(payrollHistoryId);
       if (normalizedId == null) {
          throw new IllegalArgumentException("缺少工资记录标识。");
@@ -4492,7 +4492,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要还原的正常档次/薪级晋升记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requirePayrollFeatureWrite("NORMAL_PROMOTION_WRITE");
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
             .map(item -> new com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey(item.organizationCode(), item.personCode()))
@@ -5481,7 +5481,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要办理的级别晋升记录。");
       } else {
-         this.requireLevelPromotionWritePermission();
+         this.requirePayrollFeatureWrite("LEVEL_PROMOTION_WRITE");
          int promotionYear = this.resolveNormalPromotionYear(year);
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
@@ -5592,7 +5592,7 @@ public class PayrollService {
          if (normalizedId == null) {
             throw new IllegalArgumentException("缺少工资记录标识。");
          } else {
-            this.requireLevelPromotionWritePermission();
+            this.requirePayrollFeatureWrite("LEVEL_PROMOTION_WRITE");
             com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot latest = this.resolveCurrentHistoryForSingleApply(normalizedId, request);
             this.accessControlService.requireOrganization(latest.organizationCode());
             return this.writeLevelPromotionFromTrial(latest, this.resolveNormalPromotionYear(year), request, false, true, laterPeriodMode);
@@ -5836,7 +5836,7 @@ public class PayrollService {
    public com.dxsoft.rsgzgl.payroll.PromotionActionResult rollbackLevelPromotion(
       String payrollHistoryId, com.dxsoft.rsgzgl.payroll.LevelPromotionRollbackRequest request
    ) {
-      this.requireLevelPromotionWritePermission();
+      this.requirePayrollFeatureWrite("LEVEL_PROMOTION_WRITE");
       String normalizedId = this.emptyToNull(payrollHistoryId);
       if (normalizedId == null) {
          throw new IllegalArgumentException("缺少工资记录标识。");
@@ -5861,7 +5861,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要还原的级别晋升记录。");
       } else {
-         this.requireLevelPromotionWritePermission();
+         this.requirePayrollFeatureWrite("LEVEL_PROMOTION_WRITE");
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
             .map(item -> new com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey(item.organizationCode(), item.personCode()))
@@ -6412,7 +6412,7 @@ public class PayrollService {
          .findCurrentHistoryById(payrollHistoryId)
          .orElseThrow(() -> new NotFoundException("Current payroll history not found: " + payrollHistoryId));
       this.accessControlService.requireOrganization(current.organizationCode());
-      this.requirePayrollWritePermission();
+      this.requirePayrollFeatureWrite("POSITION_CHANGE_PROMOTION_WRITE");
       if (!this.isPositionChangeAuditType(current.calculationType())) {
          throw new IllegalArgumentException("当前工资记录不满足职务变化还原条件。");
       } else {
@@ -6638,7 +6638,7 @@ public class PayrollService {
       com.dxsoft.rsgzgl.payroll.BasicSalaryStandardAdjustmentBatchApplyRequest.BasicSalaryStandardAdjustmentApplyItem trial,
       String laterPeriodMode
    ) {
-      this.requirePayrollWritePermission();
+      this.requirePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE");
       String target = this.normalizeBasicSalaryTarget(targetStandardYearMonth);
       String normalizedId = this.emptyToNull(payrollHistoryId);
       if (normalizedId == null) {
@@ -6666,7 +6666,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要办理的工资调标记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requirePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE");
          String target = this.normalizeBasicSalaryTarget(targetStandardYearMonth);
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
@@ -6733,7 +6733,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要还原的工资调标记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requirePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE");
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
             .map(item -> new com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey(item.organizationCode(), item.personCode()))
@@ -7363,7 +7363,7 @@ public class PayrollService {
          .findNewPersonnelSalaryCandidate(uid)
          .orElseThrow(() -> new NotFoundException("未找到可办理新增人员确定工资的人员：" + uid));
       this.accessControlService.requireOrganization(candidate.organizationCode());
-      this.requirePayrollWritePermission();
+      this.requirePayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE");
       return this.applyNewPersonnelSalaryDeterminationCore(candidate);
    }
 
@@ -7642,7 +7642,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要办理的新增人员确定工资记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requirePayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE");
          int successCount = 0;
          ArrayList<String> failures = new ArrayList<>();
          ArrayList<String> successIds = new ArrayList<>();
@@ -7781,7 +7781,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要办理的转正定级记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requirePayrollFeatureWrite("REGULARIZATION_WRITE");
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
             .map(item -> new com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey(item.organizationCode(), item.personCode()))
@@ -7871,7 +7871,7 @@ public class PayrollService {
          if (normalizedId == null) {
             throw new IllegalArgumentException("缺少工资记录标识。");
          } else {
-            this.requirePayrollWritePermission();
+            this.requirePayrollFeatureWrite("REGULARIZATION_WRITE");
             com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot latest = this.resolveCurrentHistoryForRegularizationSingleApply(normalizedId, request);
             this.accessControlService.requireOrganization(latest.organizationCode());
             return this.writeRegularizationFromTrial(latest, request);
@@ -10932,7 +10932,7 @@ public class PayrollService {
    public com.dxsoft.rsgzgl.payroll.PromotionActionResult rollbackBasicSalaryStandardAdjustment(
       String payrollHistoryId, com.dxsoft.rsgzgl.payroll.BasicSalaryStandardAdjustmentBatchRollbackRequest.BasicSalaryStandardAdjustmentRollbackItem request
    ) {
-      this.requirePayrollWritePermission();
+      this.requirePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE");
       String normalizedId = this.emptyToNull(payrollHistoryId);
       if (normalizedId == null) {
          throw new IllegalArgumentException("缺少工资记录标识。");
@@ -10987,7 +10987,7 @@ public class PayrollService {
    public com.dxsoft.rsgzgl.payroll.PromotionActionResult rollbackNewPersonnelSalaryDetermination(
       String payrollHistoryId, com.dxsoft.rsgzgl.payroll.NewPersonnelSalaryRollbackRequest request
    ) {
-      this.requirePayrollWritePermission();
+      this.requirePayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE");
       String normalizedId = this.emptyToNull(payrollHistoryId);
       if (normalizedId == null) {
          throw new IllegalArgumentException("缺少工资记录标识。");
@@ -11012,7 +11012,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要还原的新增人员确定工资记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requirePayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE");
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
             .map(item -> new com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey(item.organizationCode(), item.personCode()))
@@ -11126,7 +11126,7 @@ public class PayrollService {
          .findCurrentHistoryById(payrollHistoryId)
          .orElseThrow(() -> new NotFoundException("Current payroll history not found: " + payrollHistoryId));
       this.accessControlService.requireOrganization(current.organizationCode());
-      this.requirePayrollWritePermission();
+      this.requirePayrollFeatureWrite("OTHER_PAYROLL_CHANGE_WRITE");
       if (!this.payrollRepository.isAppCreatedPayrollHistory(payrollHistoryId)) {
          throw new IllegalArgumentException("当前工资记录不是本系统办理的记录，不能通过本模块还原。");
       } else if (this.isBlockedForOtherPayrollChange(current.calculationType())) {
@@ -11180,7 +11180,7 @@ public class PayrollService {
    public com.dxsoft.rsgzgl.payroll.PromotionActionResult rollbackRegularization(
       String payrollHistoryId, com.dxsoft.rsgzgl.payroll.RegularizationRollbackRequest request
    ) {
-      this.requirePayrollWritePermission();
+      this.requirePayrollFeatureWrite("REGULARIZATION_WRITE");
       String normalizedId = this.emptyToNull(payrollHistoryId);
       if (normalizedId == null) {
          throw new IllegalArgumentException("缺少工资记录标识。");
@@ -11204,7 +11204,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要还原的转正定级记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requirePayrollFeatureWrite("REGULARIZATION_WRITE");
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
             .map(item -> new com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey(item.organizationCode(), item.personCode()))
@@ -13080,7 +13080,7 @@ public class PayrollService {
    private com.dxsoft.rsgzgl.payroll.RankAllowanceChangeApplyResult applyRankAllowanceChangePromotion(
       String payrollHistoryId, String category, String changeTypePrefix, String successMessage, String laterPeriodMode
    ) {
-      this.requirePayrollWritePermission();
+      this.requireRankAllowanceChangeWrite(category);
       com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot current = this.payrollRepository
          .findCurrentHistoryById(payrollHistoryId)
          .orElseThrow(() -> new NotFoundException("Current payroll history not found: " + payrollHistoryId));
@@ -13380,7 +13380,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要办理的" + this.rankAllowanceChangeModuleLabel(category) + "记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requireRankAllowanceChangeWrite(category);
          int successCount = 0;
          ArrayList<String> failures = new ArrayList<>();
          ArrayList<String> successIds = new ArrayList<>();
@@ -13430,7 +13430,7 @@ public class PayrollService {
       if (items.isEmpty()) {
          throw new IllegalArgumentException("请选择需要还原的等级变化晋升记录。");
       } else {
-         this.requirePayrollWritePermission();
+         this.requireRankAllowanceChangeWriteByChangeType(changeTypePrefix);
          List<com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey> orgPersonKeys = items.stream()
             .filter(Objects::nonNull)
             .map(item -> new com.dxsoft.rsgzgl.payroll.PayrollRepository.OrgPersonKey(item.organizationCode(), item.personCode()))
@@ -21764,7 +21764,6 @@ public class PayrollService {
          .findLatestHistory(uid)
          .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
       this.accessControlService.requireOrganization(latest.organizationCode());
-      this.requirePayrollWritePermission();
       return uid;
    }
 
@@ -21784,7 +21783,6 @@ public class PayrollService {
    ) {
       if (current != null && this.emptyToNull(current.id()) != null) {
          this.accessControlService.requireOrganization(current.organizationCode());
-         this.requirePayrollWritePermission();
          if (!allowedChangeType.test(current.calculationType())) {
             throw new IllegalArgumentException("当前工资变动类别不能通过该模块还原：" + current.calculationType());
          } else {
@@ -22206,10 +22204,36 @@ public class PayrollService {
       }
    }
 
-   private void requireLevelPromotionWritePermission() {
-      if (!this.accessControlService.hasAnyPermission("LEVEL_PROMOTION_WRITE", "PAYROLL_WRITE")) {
-         throw new AccessDeniedException("LEVEL_PROMOTION_WRITE or PAYROLL_WRITE permission required");
+   private void requirePayrollFeatureWrite(String featureWritePermission) {
+      if (!this.accessControlService.hasPermission(featureWritePermission)) {
+         throw new AccessDeniedException(featureWritePermission + " permission required");
       }
+   }
+
+   private void requireRankAllowanceChangeWrite(String category) {
+      this.requirePayrollFeatureWrite(this.rankAllowanceChangeWritePermission(category));
+   }
+
+   private void requireRankAllowanceChangeWriteByChangeType(String changeTypePrefix) {
+      this.requirePayrollFeatureWrite(this.rankAllowanceChangeWritePermissionByChangeType(changeTypePrefix));
+   }
+
+   private String rankAllowanceChangeWritePermission(String category) {
+      return switch (this.emptyToNull(category)) {
+         case "jc" -> "PROSECUTION_RANK_CHANGE_PROMOTION_WRITE";
+         case "sp" -> "JUDICIAL_RANK_CHANGE_PROMOTION_WRITE";
+         case "mt" -> "SUPERVISION_RANK_CHANGE_PROMOTION_WRITE";
+         default -> "POLICE_RANK_CHANGE_PROMOTION_WRITE";
+      };
+   }
+
+   private String rankAllowanceChangeWritePermissionByChangeType(String changeTypePrefix) {
+      return switch (this.emptyToNull(changeTypePrefix)) {
+         case "检察等级" -> "PROSECUTION_RANK_CHANGE_PROMOTION_WRITE";
+         case "法官等级" -> "JUDICIAL_RANK_CHANGE_PROMOTION_WRITE";
+         case "监察等级" -> "SUPERVISION_RANK_CHANGE_PROMOTION_WRITE";
+         default -> "POLICE_RANK_CHANGE_PROMOTION_WRITE";
+      };
    }
 
    private void requireStandardWritePermission() {

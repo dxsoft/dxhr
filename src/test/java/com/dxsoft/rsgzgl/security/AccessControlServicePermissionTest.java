@@ -25,10 +25,19 @@ class AccessControlServicePermissionTest {
     }
 
     @Test
-    void hasAnyPermissionSupportsLegacyPayrollWriteFallback() {
-        authenticate(Set.of("PAYROLL_WRITE"));
+    void payrollWriteDoesNotGrantFeatureWriteWithoutExplicitPermission() {
+        authenticate(Set.of("PAYROLL_WRITE", "NORMAL_PROMOTION_READ"));
         AccessControlService service = new AccessControlService();
-        assertTrue(service.hasAnyPermission("LEVEL_PROMOTION_WRITE", "PAYROLL_WRITE"));
+        assertFalse(service.hasPermission("NORMAL_PROMOTION_WRITE"));
+        assertTrue(service.hasPermission("PAYROLL_WRITE"));
+    }
+
+    @Test
+    void featureWriteRequiresExplicitPermission() {
+        authenticate(Set.of("NORMAL_PROMOTION_WRITE"));
+        AccessControlService service = new AccessControlService();
+        assertTrue(service.hasPermission("NORMAL_PROMOTION_WRITE"));
+        assertFalse(service.hasPermission("LEVEL_PROMOTION_WRITE"));
     }
 
     private static void authenticate(Set<String> permissions) {

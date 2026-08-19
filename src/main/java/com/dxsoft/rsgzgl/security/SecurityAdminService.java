@@ -76,7 +76,7 @@ class SecurityAdminService {
         List<String> codes = normalizeCodes(request.codes());
         repository.replaceUserRoles(userId, codes);
         ensureUserHasRequiredDataScope(userId);
-        auditService.record("UPDATE_USER_ROLES", "USER", userId, "更新用户角色 " + codes);
+        auditService.record("UPDATE_USER_ROLES", "USER", userId, summarizeList("更新用户角色", codes));
     }
 
     void updateUserDataScope(Long userId, DataScopeRequest request) {
@@ -244,13 +244,13 @@ class SecurityAdminService {
     void updateRolePermissions(Long roleId, CodesRequest request) {
         List<String> codes = normalizeCodes(request.codes());
         repository.replaceRolePermissions(roleId, codes);
-        auditService.record("UPDATE_ROLE_PERMISSIONS", "ROLE", roleId, "更新角色功能权限 " + codes);
+        auditService.record("UPDATE_ROLE_PERMISSIONS", "ROLE", roleId, summarizeList("更新角色功能权限", codes));
     }
 
     void updateRoleOrganizations(Long roleId, CodesRequest request) {
         List<String> codes = normalizeOrganizationCodes(request.codes());
         repository.replaceRoleOrganizations(roleId, codes);
-        auditService.record("UPDATE_ROLE_ORGANIZATIONS", "ROLE", roleId, "更新角色单位范围 " + codes);
+        auditService.record("UPDATE_ROLE_ORGANIZATIONS", "ROLE", roleId, summarizeList("更新角色单位范围", codes));
     }
 
     List<SecurityAuditLog> auditLogs(Integer limit) {
@@ -274,6 +274,19 @@ class SecurityAdminService {
             throw new IllegalArgumentException("Value must not be blank");
         }
         return value.trim();
+    }
+
+    private String summarizeList(String prefix, List<String> items) {
+        int count = items == null ? 0 : items.size();
+        if (count == 0) {
+            return prefix + "（0项）";
+        }
+        int sampleSize = Math.min(count, 5);
+        String sample = String.join(", ", items.subList(0, sampleSize));
+        if (count <= sampleSize) {
+            return prefix + "（" + count + "项：" + sample + "）";
+        }
+        return prefix + "（" + count + "项，示例：" + sample + " 等）";
     }
 
     private List<String> normalizeCodes(List<String> codes) {

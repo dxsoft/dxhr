@@ -137,23 +137,91 @@ const RANK_CHANGE_MODULES = {
         idPrefix: "police-rank-change",
         apiPrefix: "police-rank-change-promotions",
         moduleName: "警衔变化晋升",
+        writePermission: "POLICE_RANK_CHANGE_PROMOTION_WRITE",
     },
     prosecution: {
         idPrefix: "prosecution-rank-change",
         apiPrefix: "prosecution-rank-change-promotions",
         moduleName: "检察官等级变化晋升",
+        writePermission: "PROSECUTION_RANK_CHANGE_PROMOTION_WRITE",
     },
     judicial: {
         idPrefix: "judicial-rank-change",
         apiPrefix: "judicial-rank-change-promotions",
         moduleName: "法官等级变化晋升",
+        writePermission: "JUDICIAL_RANK_CHANGE_PROMOTION_WRITE",
     },
     supervision: {
         idPrefix: "supervision-rank-change",
         apiPrefix: "supervision-rank-change-promotions",
         moduleName: "监察等级变化晋升",
+        writePermission: "SUPERVISION_RANK_CHANGE_PROMOTION_WRITE",
     },
 };
+
+const PAYROLL_API_WRITE_PERMISSIONS = {
+    "normal-promotions": "NORMAL_PROMOTION_WRITE",
+    "level-promotions": "LEVEL_PROMOTION_WRITE",
+    "position-change-promotions": "POSITION_CHANGE_PROMOTION_WRITE",
+    "regularizations": "REGULARIZATION_WRITE",
+    "new-personnel-salary-determinations": "NEW_PERSONNEL_SALARY_WRITE",
+    "basic-salary-standard-adjustments": "BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE",
+    "education-promotions": "EDUCATION_PROMOTION_WRITE",
+    "teaching-allowance-adjustments": "TEACHING_ALLOWANCE_ADJUSTMENT_WRITE",
+    "floating-to-fixed-conversions": "FLOATING_TO_FIXED_WRITE",
+    "other-payroll-changes": "OTHER_PAYROLL_CHANGE_WRITE",
+    "regularization-high-grades": "REGULARIZATION_HIGH_GRADE_WRITE",
+    "intern-salary-changes": "INTERN_SALARY_CHANGE_WRITE",
+    "police-rank-change-promotions": "POLICE_RANK_CHANGE_PROMOTION_WRITE",
+    "prosecution-rank-change-promotions": "PROSECUTION_RANK_CHANGE_PROMOTION_WRITE",
+    "judicial-rank-change-promotions": "JUDICIAL_RANK_CHANGE_PROMOTION_WRITE",
+    "supervision-rank-change-promotions": "SUPERVISION_RANK_CHANGE_PROMOTION_WRITE",
+};
+
+const PAYROLL_FEATURE_WRITE_UI = [
+    {
+        writePermission: "NORMAL_PROMOTION_WRITE",
+        batchButtonIds: ["normal-promotion-batch-apply", "normal-promotion-apply-all", "normal-promotion-rollback-all"],
+        tableSelector: ".normal-promotion-table .col-select",
+        selectAllId: "normal-promotion-select-all",
+    },
+    {
+        writePermission: "LEVEL_PROMOTION_WRITE",
+        batchButtonIds: ["level-promotion-batch-apply", "level-promotion-apply-all", "level-promotion-batch-rollback", "level-promotion-rollback-all"],
+        tableSelector: ".level-promotion-table .col-select",
+        selectAllId: "level-promotion-select-all",
+    },
+    {
+        writePermission: "POSITION_CHANGE_PROMOTION_WRITE",
+        batchButtonIds: ["position-change-batch-apply", "position-change-batch-rollback"],
+        tableSelector: "#position-change .col-select",
+        selectAllId: "position-change-select-all",
+    },
+    {
+        writePermission: "REGULARIZATION_WRITE",
+        batchButtonIds: ["regularization-batch-apply", "regularization-batch-rollback"],
+        tableSelector: "#regularization .col-select",
+        selectAllId: "regularization-select-all",
+    },
+    {
+        writePermission: "NEW_PERSONNEL_SALARY_WRITE",
+        batchButtonIds: ["new-personnel-salary-batch-apply", "new-personnel-salary-batch-rollback"],
+        tableSelector: "#new-personnel-salary .col-select",
+        selectAllId: "new-personnel-salary-select-all",
+    },
+    {
+        writePermission: "BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE",
+        batchButtonIds: [
+            "basic-salary-standard-adjustment-batch-apply",
+            "basic-salary-standard-adjustment-apply-all",
+            "basic-salary-standard-adjustment-batch-rollback",
+            "basic-salary-standard-adjustment-rollback-all",
+            "basic-salary-standard-adjustment-export-mid-chain",
+        ],
+        tableSelector: ".basic-salary-standard-adjustment-table .col-select",
+        selectAllId: "basic-salary-standard-adjustment-select-all",
+    },
+];
 
 const personnelChangeTypes = [
     { type: "退休", description: "退休" },
@@ -1477,8 +1545,8 @@ async function initializeAuth() {
         }
         if (hasMenu("LEVEL_PROMOTION")) {
             initializeLevelPromotionPage();
-            updateLevelPromotionWriteUi();
         }
+        updateAllPayrollFeatureWriteUi();
         if (hasPersonnelAccess()) {
             refreshPersonnelPanelActions();
         }
@@ -1562,26 +1630,74 @@ function hasPayrollRead() {
     return hasPermission("PAYROLL_READ");
 }
 
+function hasPayrollFeatureWrite(writePermission) {
+    return hasPermission(writePermission);
+}
+
+function payrollWritePermissionForApi(apiPrefix) {
+    return PAYROLL_API_WRITE_PERMISSIONS[apiPrefix] || null;
+}
+
+function ensurePayrollFeatureWrite(writePermission, moduleName) {
+    if (!hasPayrollFeatureWrite(writePermission)) {
+        window.alert(`当前账号没有${moduleName}办理权限。`);
+        return false;
+    }
+    return true;
+}
+
+function ensurePayrollApiWrite(apiPrefix, moduleName) {
+    const writePermission = payrollWritePermissionForApi(apiPrefix);
+    if (!writePermission) {
+        return true;
+    }
+    return ensurePayrollFeatureWrite(writePermission, moduleName);
+}
+
+function updatePayrollFeatureWriteUi(config) {
+    const canWrite = hasPayrollFeatureWrite(config.writePermission);
+    (config.batchButtonIds || []).forEach(id => document.getElementById(id)?.classList.toggle("hidden", !canWrite));
+    if (config.tableSelector) {
+        document.querySelectorAll(config.tableSelector).forEach(cell => {
+            cell.classList.toggle("hidden", !canWrite);
+        });
+    }
+    if (config.selectAllId) {
+        document.getElementById(config.selectAllId)?.classList.toggle("hidden", !canWrite);
+    }
+}
+
+function updateRankChangeWriteUi(config) {
+    const canWrite = hasPayrollFeatureWrite(config.writePermission);
+    const prefix = config.idPrefix;
+    [
+        `${prefix}-batch-apply`,
+        `${prefix}-apply-all`,
+        `${prefix}-batch-rollback`,
+        `${prefix}-rollback-all`,
+        `${prefix}-export-mid-chain`,
+    ].forEach(id => document.getElementById(id)?.classList.toggle("hidden", !canWrite));
+    document.querySelectorAll(`#${prefix} .col-select`).forEach(cell => {
+        cell.classList.toggle("hidden", !canWrite);
+    });
+    document.getElementById(`${prefix}-select-all`)?.classList.toggle("hidden", !canWrite);
+}
+
+function updateAllPayrollFeatureWriteUi() {
+    PAYROLL_FEATURE_WRITE_UI.forEach(updatePayrollFeatureWriteUi);
+    Object.values(RANK_CHANGE_MODULES).forEach(updateRankChangeWriteUi);
+}
+
 function hasLevelPromotionRead() {
     return hasPermission("LEVEL_PROMOTION_READ") || hasPermission("PAYROLL_READ");
 }
 
 function hasLevelPromotionWrite() {
-    return hasPermission("LEVEL_PROMOTION_WRITE") || hasPermission("PAYROLL_WRITE");
+    return hasPayrollFeatureWrite("LEVEL_PROMOTION_WRITE");
 }
 
 function updateLevelPromotionWriteUi() {
-    const canWrite = hasLevelPromotionWrite();
-    [
-        "level-promotion-batch-apply",
-        "level-promotion-apply-all",
-        "level-promotion-batch-rollback",
-        "level-promotion-rollback-all",
-    ].forEach(id => document.getElementById(id)?.classList.toggle("hidden", !canWrite));
-    document.querySelectorAll(".level-promotion-table .col-select").forEach(cell => {
-        cell.classList.toggle("hidden", !canWrite);
-    });
-    document.getElementById("level-promotion-select-all")?.classList.toggle("hidden", !canWrite);
+    updatePayrollFeatureWriteUi(PAYROLL_FEATURE_WRITE_UI.find(config => config.writePermission === "LEVEL_PROMOTION_WRITE"));
 }
 
 function hasSystemConfigWrite() {
@@ -1801,12 +1917,13 @@ function applyRouteNow() {
     });
     document.getElementById("workspace-title").textContent = selectedMenu.title || "工作台";
     document.getElementById("breadcrumb").textContent = menuGroupTitle(selectedMenu.code) + " / " + (selectedMenu.title || "工作台");
+    updateAllPayrollFeatureWriteUi();
     if (selectedId === "normal-promotion") {
         initializeNormalPromotionPage();
     }
     if (selectedId === "level-promotion") {
         initializeLevelPromotionPage();
-        updateLevelPromotionWriteUi();
+        updateAllPayrollFeatureWriteUi();
         if (panelChanged && hasMenu("LEVEL_PROMOTION")) {
             void loadLevelPromotions();
         }
@@ -4836,6 +4953,7 @@ function initializeNormalPromotionPage() {
     if (yearInput && !yearInput.value) {
         yearInput.value = String(new Date().getFullYear());
     }
+    updateAllPayrollFeatureWriteUi();
 }
 
 function currentNormalPromotionYear() {
@@ -4869,7 +4987,7 @@ function initializeLevelPromotionPage() {
     if (yearInput && !yearInput.value) {
         yearInput.value = String(new Date().getFullYear());
     }
-    updateLevelPromotionWriteUi();
+    updateAllPayrollFeatureWriteUi();
 }
 
 function currentLevelPromotionYear() {
@@ -11350,6 +11468,9 @@ function simplePromotionStatusId(apiPrefix) {
 }
 
 async function applySimplePromotionAction(apiPrefix, payrollHistoryId, moduleName, reloadFn) {
+    if (!ensurePayrollApiWrite(apiPrefix, moduleName)) {
+        return;
+    }
     if (!confirm(`确认按当前试算结果处理${moduleName}？系统会新增一条当前工资变动记录，并将原当前记录转为历史记录。`)) {
         return;
     }
@@ -11366,6 +11487,9 @@ async function applySimplePromotionAction(apiPrefix, payrollHistoryId, moduleNam
 }
 
 async function rollbackSimplePromotionAction(apiPrefix, payrollHistoryId, moduleName, reloadFn) {
+    if (!ensurePayrollApiWrite(apiPrefix, moduleName)) {
+        return;
+    }
     if (!confirm(`确认还原当前${moduleName}工资变动？`)) {
         return;
     }
@@ -11384,7 +11508,8 @@ async function rollbackSimplePromotionAction(apiPrefix, payrollHistoryId, module
 function renderSimplePromotionActions(row, apiPrefix, moduleName, reloadFn) {
     const canApply = Boolean(row.applyEligible);
     const canRollback = Boolean(row.rollbackEligible);
-    if (!canApply && !canRollback) {
+    const canWrite = hasPayrollFeatureWrite(payrollWritePermissionForApi(apiPrefix));
+    if (!canWrite || (!canApply && !canRollback)) {
         return "-";
     }
     const parts = [];
@@ -11535,6 +11660,9 @@ async function exportRankChangeMidChain(config) {
 }
 
 async function applyRankChangePromotion(config, payrollHistoryId, row, reloadFn) {
+    if (!ensurePayrollFeatureWrite(config.writePermission, config.moduleName)) {
+        return;
+    }
     if (!confirmRankChangeApply(config, row || {})) {
         return;
     }
@@ -11572,6 +11700,10 @@ function bindRankChangeModuleListeners(config) {
 }
 
 function rankChangeSelectAttr(config, row) {
+    const canWrite = hasPayrollFeatureWrite(config.writePermission);
+    if (!canWrite) {
+        return "";
+    }
     const canApply = Boolean(row.applyEligible);
     const canRollback = Boolean(row.rollbackEligible);
     const canSelect = canApply || canRollback;
@@ -11624,6 +11756,9 @@ async function postRankChangeBatchChunks(config, url, items, status, progressLab
 }
 
 async function applySelectedRankChangePromotions(config) {
+    if (!ensurePayrollFeatureWrite(config.writePermission, config.moduleName)) {
+        return;
+    }
     const prefix = config.idPrefix;
     const base = rankChangeStateBase(prefix);
     const status = document.getElementById(`${prefix}-status`);
@@ -11664,6 +11799,9 @@ async function applySelectedRankChangePromotions(config) {
 }
 
 async function rollbackSelectedRankChangePromotions(config) {
+    if (!ensurePayrollFeatureWrite(config.writePermission, config.moduleName)) {
+        return;
+    }
     const prefix = config.idPrefix;
     const base = rankChangeStateBase(prefix);
     const status = document.getElementById(`${prefix}-status`);
@@ -11712,6 +11850,9 @@ async function rollbackSelectedRankChangePromotions(config) {
 }
 
 async function applyAllEligibleRankChangePromotions(config) {
+    if (!ensurePayrollFeatureWrite(config.writePermission, config.moduleName)) {
+        return;
+    }
     const prefix = config.idPrefix;
     const base = rankChangeStateBase(prefix);
     const status = document.getElementById(`${prefix}-status`);
@@ -11777,6 +11918,9 @@ async function applyAllEligibleRankChangePromotions(config) {
 }
 
 async function rollbackAllProcessedRankChangePromotions(config) {
+    if (!ensurePayrollFeatureWrite(config.writePermission, config.moduleName)) {
+        return;
+    }
     const prefix = config.idPrefix;
     const base = rankChangeStateBase(prefix);
     const status = document.getElementById(`${prefix}-status`);
@@ -11920,15 +12064,16 @@ function bindRankChangeActions(config, container, reloadFn) {
 }
 
 function renderRankChangeActions(config, row) {
+    const canWrite = hasPayrollFeatureWrite(config.writePermission);
     const canApply = Boolean(row.applyEligible);
     const canRollback = Boolean(row.rollbackEligible);
     const parts = [
         `<button class="row-action" type="button" data-rank-change-detail="${escapeHtml(row.payrollHistoryId)}">明细</button>`,
     ];
-    if (canApply) {
+    if (canWrite && canApply) {
         parts.push(`<button class="row-action" type="button" data-rank-change-apply="${escapeHtml(row.payrollHistoryId)}">处理</button>`);
     }
-    if (canRollback) {
+    if (canWrite && canRollback) {
         parts.push(`<button class="row-action danger-button" type="button" data-rank-change-rollback="${escapeHtml(row.payrollHistoryId)}">还原</button>`);
     }
     return parts.join(" ");
@@ -12162,6 +12307,7 @@ async function loadNormalPromotions() {
             year,
         };
         renderNormalPromotionTableRows(result.content || []);
+        updateAllPayrollFeatureWriteUi();
         renderNormalPromotionPagination(total, totalPages);
         status.textContent = total
             ? `共 ${total} 条试算记录（${year} 年），第 ${state.normalPromotionPage + 1} / ${totalPages} 页`
@@ -12199,18 +12345,25 @@ function renderNormalPromotionTableRows(content) {
     if (!rows) {
         return;
     }
+    const canWrite = hasPayrollFeatureWrite("NORMAL_PROMOTION_WRITE");
     updateNormalPromotionLevelStartColumnVisibility(content);
     document.getElementById("normal-promotion-select-all").checked = false;
     rows.innerHTML = (content || []).map(row => {
         const canProcess = Boolean(row.applyEligible);
         const canPromptOverdue = Boolean(row.overdueFromLastYear);
         const levelRequiredFirst = Boolean(row.levelPromotionRequiredFirst);
-        const canClickApply = canProcess || canPromptOverdue || levelRequiredFirst;
+        const canClickApply = canWrite && (canProcess || canPromptOverdue || levelRequiredFirst);
         const canRollback = Boolean(row.rollbackEligible);
         const hideLevelStart = isNormalPromotionInstitutionRow(row);
+        const applyButton = canWrite
+            ? `<button class="row-action" data-normal-apply="${escapeHtml(row.payrollHistoryId)}" data-normal-overdue="${canPromptOverdue ? "true" : "false"}" data-normal-level-first="${levelRequiredFirst ? "true" : "false"}" type="button" ${canClickApply ? "" : "disabled"}>办理</button>`
+            : "";
+        const rollbackButton = canWrite
+            ? `<button class="row-action danger-button" data-normal-rollback="${escapeHtml(row.payrollHistoryId)}" type="button" ${canRollback ? "" : "disabled"}>还原</button>`
+            : "";
         return `
             <tr class="${canRollback ? "highlight-row" : ""}">
-                <td class="col-select"><input type="checkbox" data-normal-select="${escapeHtml(row.payrollHistoryId)}" data-normal-eligible="${canProcess ? "true" : "false"}" data-normal-rollback="${canRollback ? "true" : "false"}" ${(canProcess || canRollback) ? "" : "disabled"} aria-label="选择${escapeHtml(row.name)}"></td>
+                <td class="col-select${canWrite ? "" : " hidden"}"><input type="checkbox" data-normal-select="${escapeHtml(row.payrollHistoryId)}" data-normal-eligible="${canProcess ? "true" : "false"}" data-normal-rollback="${canRollback ? "true" : "false"}" ${canWrite && (canProcess || canRollback) ? "" : "disabled"} aria-label="选择${escapeHtml(row.name)}"></td>
                 <td class="col-org">${escapeHtml(row.organizationCode)}</td>
                 <td class="col-code">${escapeHtml(row.personCode)}</td>
                 <td class="col-name">${escapeHtml(row.name)}</td>
@@ -12230,8 +12383,8 @@ function renderNormalPromotionTableRows(content) {
                 <td class="col-note">${escapeHtml(row.note || "")}</td>
                 <td class="col-action">
                     <button class="row-action" data-normal-detail="${escapeHtml(row.payrollHistoryId)}" type="button">明细</button>
-                    <button class="row-action" data-normal-apply="${escapeHtml(row.payrollHistoryId)}" data-normal-overdue="${canPromptOverdue ? "true" : "false"}" data-normal-level-first="${levelRequiredFirst ? "true" : "false"}" type="button" ${canClickApply ? "" : "disabled"}>办理</button>
-                    <button class="row-action danger-button" data-normal-rollback="${escapeHtml(row.payrollHistoryId)}" type="button" ${canRollback ? "" : "disabled"}>还原</button>
+                    ${applyButton}
+                    ${rollbackButton}
                 </td>
             </tr>
         `;
@@ -12880,8 +13033,10 @@ function levelPromotionApplyPayload(row) {
 }
 
 async function applyPromotionAction(type, payrollHistoryId, overdueFromLastYear = false, levelPromotionRequiredFirst = false, earlierStepPromotionPending = false) {
-    if (type === "level" && !hasLevelPromotionWrite()) {
-        window.alert("当前账号没有级别晋升办理权限。");
+    const writeConfig = type === "normal"
+        ? { permission: "NORMAL_PROMOTION_WRITE", name: "正常档次/薪级晋升" }
+        : { permission: "LEVEL_PROMOTION_WRITE", name: "级别晋升" };
+    if (!ensurePayrollFeatureWrite(writeConfig.permission, writeConfig.name)) {
         return;
     }
     if (levelPromotionRequiredFirst) {
@@ -12941,8 +13096,7 @@ async function applyPromotionAction(type, payrollHistoryId, overdueFromLastYear 
 }
 
 async function applySelectedLevelPromotions() {
-    if (!hasLevelPromotionWrite()) {
-        window.alert("当前账号没有级别晋升办理权限。");
+    if (!ensurePayrollFeatureWrite("LEVEL_PROMOTION_WRITE", "级别晋升")) {
         return;
     }
     const selectedIds = Array.from(document.querySelectorAll("[data-level-select]:checked"))
@@ -12998,8 +13152,7 @@ async function applySelectedLevelPromotions() {
 }
 
 async function applyAllEligibleLevelPromotions() {
-    if (!hasLevelPromotionWrite()) {
-        window.alert("当前账号没有级别晋升办理权限。");
+    if (!ensurePayrollFeatureWrite("LEVEL_PROMOTION_WRITE", "级别晋升")) {
         return;
     }
     const status = document.getElementById("level-promotion-status");
@@ -13069,8 +13222,7 @@ async function applyAllEligibleLevelPromotions() {
 }
 
 async function rollbackSelectedLevelPromotions() {
-    if (!hasLevelPromotionWrite()) {
-        window.alert("当前账号没有级别晋升办理权限。");
+    if (!ensurePayrollFeatureWrite("LEVEL_PROMOTION_WRITE", "级别晋升")) {
         return;
     }
     const selectedIds = Array.from(document.querySelectorAll("[data-level-select]:checked"))
@@ -13128,8 +13280,7 @@ async function rollbackSelectedLevelPromotions() {
 }
 
 async function rollbackAllProcessedLevelPromotions() {
-    if (!hasLevelPromotionWrite()) {
-        window.alert("当前账号没有级别晋升办理权限。");
+    if (!ensurePayrollFeatureWrite("LEVEL_PROMOTION_WRITE", "级别晋升")) {
         return;
     }
     const status = document.getElementById("level-promotion-status");
@@ -13204,6 +13355,9 @@ async function rollbackAllProcessedLevelPromotions() {
 }
 
 async function applySelectedNormalPromotions() {
+    if (!ensurePayrollFeatureWrite("NORMAL_PROMOTION_WRITE", "正常档次/薪级晋升")) {
+        return;
+    }
     const selectedIds = Array.from(document.querySelectorAll("[data-normal-select]:checked"))
         .filter(checkbox => checkbox.dataset.normalEligible === "true")
         .map(checkbox => checkbox.dataset.normalSelect)
@@ -13280,6 +13434,9 @@ async function collectAllPromotionRows(path, baseParams, status, progressLabel) 
 }
 
 async function applyAllEligibleNormalPromotions() {
+    if (!ensurePayrollFeatureWrite("NORMAL_PROMOTION_WRITE", "正常档次/薪级晋升")) {
+        return;
+    }
     const status = document.getElementById("normal-promotion-status");
     const organizationCode = selectedOrganizationCode("normal-promotion-organization-code");
     const keyword = document.getElementById("normal-promotion-keyword").value.trim();
@@ -13348,6 +13505,9 @@ async function applyAllEligibleNormalPromotions() {
 }
 
 async function rollbackAllProcessedNormalPromotions() {
+    if (!ensurePayrollFeatureWrite("NORMAL_PROMOTION_WRITE", "正常档次/薪级晋升")) {
+        return;
+    }
     const status = document.getElementById("normal-promotion-status");
     const organizationCode = selectedOrganizationCode("normal-promotion-organization-code");
     const keyword = document.getElementById("normal-promotion-keyword").value.trim();
@@ -13421,11 +13581,13 @@ async function rollbackAllProcessedNormalPromotions() {
 }
 
 async function rollbackPromotionAction(type, payrollHistoryId) {
-    if (type === "level" && !hasLevelPromotionWrite()) {
-        window.alert("当前账号没有级别晋升办理权限。");
+    const writeConfig = type === "normal"
+        ? { permission: "NORMAL_PROMOTION_WRITE", name: "正常档次/薪级晋升" }
+        : { permission: "LEVEL_PROMOTION_WRITE", name: "级别晋升" };
+    if (!ensurePayrollFeatureWrite(writeConfig.permission, writeConfig.name)) {
         return;
     }
-    const moduleName = type === "normal" ? "正常档次/薪级晋升" : "级别晋升";
+    const moduleName = writeConfig.name;
     if (!confirm(`确认还原当前${moduleName}工资变动？系统会删除当前链头记录，并恢复上一条工资记录为当前执行工资。`)) {
         return;
     }
@@ -13501,13 +13663,20 @@ async function loadPositionChangePromotions() {
             return;
         }
         state.positionChangePage = result.page || 0;
+        const canWrite = hasPayrollFeatureWrite("POSITION_CHANGE_PROMOTION_WRITE");
         document.getElementById("position-change-select-all").checked = false;
         rows.innerHTML = (result.content || []).map(row => {
             const canApply = Boolean(row.applyEligible);
             const canRollback = Boolean(row.rollbackEligible);
+            const applyButton = canWrite
+                ? `<button class="row-action" data-position-change-apply="${escapeHtml(row.payrollHistoryId)}" type="button" ${canApply ? "" : "disabled"}>处理</button>`
+                : "";
+            const rollbackButton = canWrite
+                ? `<button class="row-action danger-button" data-position-change-rollback="${escapeHtml(row.payrollHistoryId)}" type="button" ${canRollback ? "" : "disabled"}>还原</button>`
+                : "";
             return `
             <tr class="${canRollback ? "highlight-row" : ""}">
-                <td class="col-select"><input type="checkbox" data-position-change-select="${escapeHtml(row.payrollHistoryId)}" data-position-change-eligible="${canApply ? "true" : "false"}" data-position-change-rollback="${canRollback ? "true" : "false"}" ${(canApply || canRollback) ? "" : "disabled"} aria-label="选择${escapeHtml(row.name)}"></td>
+                <td class="col-select${canWrite ? "" : " hidden"}"><input type="checkbox" data-position-change-select="${escapeHtml(row.payrollHistoryId)}" data-position-change-eligible="${canApply ? "true" : "false"}" data-position-change-rollback="${canRollback ? "true" : "false"}" ${canWrite && (canApply || canRollback) ? "" : "disabled"} aria-label="选择${escapeHtml(row.name)}"></td>
                 <td class="col-org">${escapeHtml(row.organizationCode)}</td>
                 <td class="col-code">${escapeHtml(row.personCode)}</td>
                 <td class="col-name">${escapeHtml(row.name)}</td>
@@ -13527,8 +13696,8 @@ async function loadPositionChangePromotions() {
                 <td class="col-note">${escapeHtml(row.note || "")}</td>
                 <td class="col-action">
                     <button class="row-action" data-position-change-detail="${escapeHtml(row.payrollHistoryId)}" type="button" ${canRollback ? "" : "disabled"}>明细</button>
-                    <button class="row-action" data-position-change-apply="${escapeHtml(row.payrollHistoryId)}" type="button" ${canApply ? "" : "disabled"}>处理</button>
-                    <button class="row-action danger-button" data-position-change-rollback="${escapeHtml(row.payrollHistoryId)}" type="button" ${canRollback ? "" : "disabled"}>还原</button>
+                    ${applyButton}
+                    ${rollbackButton}
                 </td>
             </tr>
         `;
@@ -13553,6 +13722,9 @@ async function loadPositionChangePromotions() {
 }
 
 async function applySelectedPositionChanges() {
+    if (!ensurePayrollFeatureWrite("POSITION_CHANGE_PROMOTION_WRITE", "职务变化晋升")) {
+        return;
+    }
     const selectedIds = Array.from(document.querySelectorAll("[data-position-change-select]:checked"))
         .filter(checkbox => checkbox.dataset.positionChangeEligible === "true")
         .map(checkbox => checkbox.dataset.positionChangeSelect)
@@ -13587,6 +13759,9 @@ async function applySelectedPositionChanges() {
 }
 
 async function rollbackSelectedPositionChanges() {
+    if (!ensurePayrollFeatureWrite("POSITION_CHANGE_PROMOTION_WRITE", "职务变化晋升")) {
+        return;
+    }
     const selectedIds = Array.from(document.querySelectorAll("[data-position-change-select]:checked"))
         .filter(checkbox => checkbox.dataset.positionChangeRollback === "true")
         .map(checkbox => checkbox.dataset.positionChangeSelect)
@@ -13621,6 +13796,9 @@ async function rollbackSelectedPositionChanges() {
 }
 
 async function applyPositionChangeAction(payrollHistoryId) {
+    if (!ensurePayrollFeatureWrite("POSITION_CHANGE_PROMOTION_WRITE", "职务变化晋升")) {
+        return;
+    }
     if (!confirm("确认按当前试算结果处理职务变化？系统会新增一条当前工资变动记录，并将原当前记录转为历史记录。")) {
         return;
     }
@@ -13637,6 +13815,9 @@ async function applyPositionChangeAction(payrollHistoryId) {
 }
 
 async function rollbackPositionChangeAction(payrollHistoryId) {
+    if (!ensurePayrollFeatureWrite("POSITION_CHANGE_PROMOTION_WRITE", "职务变化晋升")) {
+        return;
+    }
     if (!confirm("确认还原当前职务变化工资变动？系统会删除当前链头记录，并恢复上一条工资记录为当前执行工资。")) {
         return;
     }
@@ -13988,6 +14169,7 @@ function renderRegularizationTableRows(content) {
     if (!rows) {
         return;
     }
+    const canWrite = hasPayrollFeatureWrite("REGULARIZATION_WRITE");
     const selectAll = document.getElementById("regularization-select-all");
     if (selectAll) {
         selectAll.checked = false;
@@ -13995,19 +14177,19 @@ function renderRegularizationTableRows(content) {
     rows.innerHTML = (content || []).map(row => {
         const canApply = Boolean(row.applyEligible);
         const canRollback = Boolean(row.rollbackEligible);
-        const canSelect = canApply || canRollback;
+        const canSelect = canWrite && (canApply || canRollback);
         const action = canApply ? "apply" : (canRollback ? "rollback" : "");
         const actions = [];
         actions.push(`<button class="row-action" type="button" data-regularization-detail="${escapeHtml(row.payrollHistoryId)}">明细</button>`);
-        if (canApply) {
+        if (canWrite && canApply) {
             actions.push(`<button class="row-action" type="button" data-regularization-apply="${escapeHtml(row.payrollHistoryId)}">处理</button>`);
         }
-        if (canRollback) {
+        if (canWrite && canRollback) {
             actions.push(`<button class="row-action danger-button" type="button" data-regularization-rollback="${escapeHtml(row.payrollHistoryId)}">还原</button>`);
         }
         return `
             <tr class="${canRollback ? "highlight-row" : ""}">
-                <td class="col-select"><input type="checkbox" data-regularization-select="${escapeHtml(row.payrollHistoryId)}" data-regularization-action="${escapeHtml(action)}" ${canSelect ? "" : "disabled"} aria-label="选择${escapeHtml(row.name)}"></td>
+                <td class="col-select${canWrite ? "" : " hidden"}"><input type="checkbox" data-regularization-select="${escapeHtml(row.payrollHistoryId)}" data-regularization-action="${escapeHtml(action)}" ${canSelect ? "" : "disabled"} aria-label="选择${escapeHtml(row.name)}"></td>
                 <td>${escapeHtml(row.organizationCode)}</td>
                 <td>${escapeHtml(row.personCode)}</td>
                 <td>${escapeHtml(row.name)}</td>
@@ -14267,6 +14449,9 @@ function openRegularizationDetailModal(payrollHistoryId) {
 }
 
 async function applyRegularizationAction(payrollHistoryId) {
+    if (!ensurePayrollFeatureWrite("REGULARIZATION_WRITE", "转正定级")) {
+        return;
+    }
     if (!confirm("确认按当前试算结果处理转正定级？系统会新增一条当前工资变动记录，并将原当前记录转为历史记录。")) {
         return;
     }
@@ -14298,6 +14483,9 @@ async function applyRegularizationAction(payrollHistoryId) {
 }
 
 async function rollbackRegularizationAction(payrollHistoryId) {
+    if (!ensurePayrollFeatureWrite("REGULARIZATION_WRITE", "转正定级")) {
+        return;
+    }
     if (!confirm("确认还原当前转正定级工资变动？系统会删除当前链头记录，并恢复上一条工资记录为当前执行工资。")) {
         return;
     }
@@ -14324,6 +14512,9 @@ async function rollbackRegularizationAction(payrollHistoryId) {
 }
 
 async function applySelectedRegularizations() {
+    if (!ensurePayrollFeatureWrite("REGULARIZATION_WRITE", "转正定级")) {
+        return;
+    }
     const selectedIds = Array.from(document.querySelectorAll("[data-regularization-select]:checked"))
         .filter(checkbox => checkbox.dataset.regularizationAction === "apply")
         .map(checkbox => checkbox.dataset.regularizationSelect)
@@ -14373,6 +14564,9 @@ async function applySelectedRegularizations() {
 }
 
 async function rollbackSelectedRegularizations() {
+    if (!ensurePayrollFeatureWrite("REGULARIZATION_WRITE", "转正定级")) {
+        return;
+    }
     const selectedIds = Array.from(document.querySelectorAll("[data-regularization-select]:checked"))
         .filter(checkbox => checkbox.dataset.regularizationAction === "rollback")
         .map(checkbox => checkbox.dataset.regularizationSelect)
@@ -14584,6 +14778,7 @@ function renderNewPersonnelSalaryTableRows(content) {
     if (!rows) {
         return;
     }
+    const canWrite = hasPayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE");
     const selectAll = document.getElementById("new-personnel-salary-select-all");
     if (selectAll) {
         selectAll.checked = false;
@@ -14592,11 +14787,11 @@ function renderNewPersonnelSalaryTableRows(content) {
         const uid = String(row.uid || "");
         const canApply = Boolean(row.applyEligible);
         const canRollback = Boolean(row.rollbackEligible);
-        const canSelect = canApply || canRollback;
+        const canSelect = canWrite && (canApply || canRollback);
         const action = canApply ? "apply" : (canRollback ? "rollback" : "");
         return `
             <tr class="${canRollback ? "highlight-row" : ""}">
-                <td class="col-select"><input type="checkbox" data-new-personnel-select="${escapeHtml(uid)}" data-new-personnel-action="${escapeHtml(action)}" data-new-personnel-history="${escapeHtml(row.payrollHistoryId || "")}" ${canSelect ? "" : "disabled"} aria-label="选择${escapeHtml(row.name || "")}"></td>
+                <td class="col-select${canWrite ? "" : " hidden"}"><input type="checkbox" data-new-personnel-select="${escapeHtml(uid)}" data-new-personnel-action="${escapeHtml(action)}" data-new-personnel-history="${escapeHtml(row.payrollHistoryId || "")}" ${canSelect ? "" : "disabled"} aria-label="选择${escapeHtml(row.name || "")}"></td>
                 <td class="col-org" title="${escapeHtml(row.organizationName || row.organizationCode || "")}">${escapeHtml(row.organizationName || row.organizationCode || "")}</td>
                 <td class="col-code">${escapeHtml(row.personCode)}</td>
                 <td class="col-name">${escapeHtml(row.name)}</td>
@@ -14616,15 +14811,16 @@ function renderNewPersonnelSalaryTableRows(content) {
 }
 
 function renderNewPersonnelSalaryActions(row) {
+    const canWrite = hasPayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE");
     const canApply = Boolean(row.applyEligible);
     const canRollback = Boolean(row.rollbackEligible);
     const parts = [
         `<button class="row-action" type="button" data-new-personnel-detail="${escapeHtml(String(row.uid || ""))}">明细</button>`
     ];
-    if (canApply) {
+    if (canWrite && canApply) {
         parts.push(`<button class="row-action" type="button" data-new-personnel-apply="${escapeHtml(String(row.uid || ""))}">处理</button>`);
     }
-    if (canRollback) {
+    if (canWrite && canRollback) {
         parts.push(`<button class="row-action danger-button" type="button" data-new-personnel-rollback="${escapeHtml(row.payrollHistoryId || "")}">还原</button>`);
     }
     return parts.join(" ");
@@ -14718,6 +14914,9 @@ function findNewPersonnelSalaryRowByHistoryId(payrollHistoryId) {
 }
 
 async function applyNewPersonnelSalaryAction(uid) {
+    if (!ensurePayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE", "新进定资")) {
+        return;
+    }
     if (!uid || !confirm("确认办理新进定资？")) {
         return;
     }
@@ -14743,6 +14942,9 @@ async function applyNewPersonnelSalaryAction(uid) {
 }
 
 async function rollbackNewPersonnelSalaryAction(payrollHistoryId) {
+    if (!ensurePayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE", "新进定资")) {
+        return;
+    }
     if (!payrollHistoryId || !confirm("确认还原新进定资？")) {
         return;
     }
@@ -14790,6 +14992,9 @@ function bindNewPersonnelSalaryActions(container) {
 }
 
 async function applySelectedNewPersonnelSalaries() {
+    if (!ensurePayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE", "新进定资")) {
+        return;
+    }
     const selected = Array.from(document.querySelectorAll("[data-new-personnel-select]:checked"))
         .filter(checkbox => checkbox.dataset.newPersonnelAction === "apply");
     const status = document.getElementById("new-personnel-salary-status");
@@ -14843,6 +15048,9 @@ async function applySelectedNewPersonnelSalaries() {
 }
 
 async function rollbackSelectedNewPersonnelSalaries() {
+    if (!ensurePayrollFeatureWrite("NEW_PERSONNEL_SALARY_WRITE", "新进定资")) {
+        return;
+    }
     const selected = Array.from(document.querySelectorAll("[data-new-personnel-select]:checked"))
         .filter(checkbox => checkbox.dataset.newPersonnelAction === "rollback");
     const status = document.getElementById("new-personnel-salary-status");
@@ -15061,9 +15269,10 @@ function parseCalculationPeriod(period) {
 }
 
 function renderOtherPayrollChangeActions(row) {
+    const canWrite = hasPayrollFeatureWrite("OTHER_PAYROLL_CHANGE_WRITE");
     const canApply = Boolean(row.applyEligible);
     const canRollback = Boolean(row.rollbackEligible);
-    if (!canApply && !canRollback) {
+    if (!canWrite || (!canApply && !canRollback)) {
         return "-";
     }
     const parts = [];
@@ -15079,12 +15288,18 @@ function renderOtherPayrollChangeActions(row) {
 function bindOtherPayrollChangeActions(container, rows) {
     container.querySelectorAll("[data-other-payroll-apply]").forEach(button => {
         button.addEventListener("click", () => {
+            if (!ensurePayrollFeatureWrite("OTHER_PAYROLL_CHANGE_WRITE", "其它情况工资变动")) {
+                return;
+            }
             const payrollHistoryId = button.getAttribute("data-other-payroll-apply");
             openOtherPayrollChangeModal(payrollHistoryId, rows);
         });
     });
     container.querySelectorAll("[data-other-payroll-rollback]").forEach(button => {
         button.addEventListener("click", async () => {
+            if (!ensurePayrollFeatureWrite("OTHER_PAYROLL_CHANGE_WRITE", "其它情况工资变动")) {
+                return;
+            }
             const payrollHistoryId = button.getAttribute("data-other-payroll-rollback");
             if (!confirm("确认还原该人员的其它情况工资变动？系统将删除本模块办理的最新记录并恢复上一条。")) {
                 return;
@@ -15728,6 +15943,7 @@ function renderBasicSalaryStandardAdjustmentRows(content) {
     if (!rows) {
         return;
     }
+    const canWrite = hasPayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE");
     const selectAll = document.getElementById("basic-salary-standard-adjustment-select-all");
     if (selectAll) {
         selectAll.checked = false;
@@ -15735,11 +15951,11 @@ function renderBasicSalaryStandardAdjustmentRows(content) {
     rows.innerHTML = sortBasicSalaryStandardAdjustmentRows(content).map(row => {
         const canApply = Boolean(row.applyEligible);
         const canRollback = Boolean(row.rollbackEligible);
-        const canSelect = canApply || canRollback;
+        const canSelect = canWrite && (canApply || canRollback);
         const selectAction = canApply ? "apply" : (canRollback ? "rollback" : "");
         return `
             <tr class="${row.rollbackEligible ? "highlight-row" : ""}">
-                <td class="col-select">${canSelect
+                <td class="col-select${canWrite ? "" : " hidden"}">${canSelect
                     ? `<input type="checkbox" data-basic-adj-select="${escapeHtml(row.payrollHistoryId)}" data-basic-adj-action="${selectAction}" aria-label="选择 ${escapeHtml(row.name || row.personCode || "")}">`
                     : ""}</td>
                 <td class="col-org" title="${escapeHtml(row.organizationName || row.organizationCode || "")}">${escapeHtml(row.organizationName || row.organizationCode || "")}</td>
@@ -15946,6 +16162,9 @@ function markBasicSalaryStandardAdjustmentsProcessedLocally(successItems, target
 }
 
 async function applySelectedBasicSalaryStandardAdjustments() {
+    if (!ensurePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE", "调整基本工资标准")) {
+        return;
+    }
     const target = document.getElementById("basic-salary-standard-adjustment-target")?.value?.trim() || "";
     const status = document.getElementById("basic-salary-standard-adjustment-status");
     if (!target) {
@@ -16016,6 +16235,9 @@ async function applySelectedBasicSalaryStandardAdjustments() {
 }
 
 async function rollbackSelectedBasicSalaryStandardAdjustments() {
+    if (!ensurePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE", "调整基本工资标准")) {
+        return;
+    }
     const status = document.getElementById("basic-salary-standard-adjustment-status");
     const selectedIds = Array.from(document.querySelectorAll("[data-basic-adj-select]:checked"))
         .filter(checkbox => checkbox.dataset.basicAdjAction === "rollback")
@@ -16090,6 +16312,9 @@ async function postBasicSalaryStandardAdjustmentChunks(url, items, status, progr
 }
 
 async function applyAllEligibleBasicSalaryStandardAdjustments() {
+    if (!ensurePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE", "调整基本工资标准")) {
+        return;
+    }
     const target = document.getElementById("basic-salary-standard-adjustment-target")?.value?.trim() || "";
     const status = document.getElementById("basic-salary-standard-adjustment-status");
     if (!target) {
@@ -16173,6 +16398,9 @@ async function applyAllEligibleBasicSalaryStandardAdjustments() {
 }
 
 async function rollbackAllProcessedBasicSalaryStandardAdjustments() {
+    if (!ensurePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE", "调整基本工资标准")) {
+        return;
+    }
     const target = document.getElementById("basic-salary-standard-adjustment-target")?.value?.trim() || "";
     const status = document.getElementById("basic-salary-standard-adjustment-status");
     if (!target) {
@@ -16251,15 +16479,16 @@ async function rollbackAllProcessedBasicSalaryStandardAdjustments() {
 }
 
 function renderBasicSalaryStandardAdjustmentActions(row) {
+    const canWrite = hasPayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE");
     const canApply = Boolean(row.applyEligible);
     const canRollback = Boolean(row.rollbackEligible);
     const parts = [
         `<button class="row-action" type="button" data-basic-adj-detail="${escapeHtml(row.payrollHistoryId)}">明细</button>`,
     ];
-    if (canApply) {
+    if (canWrite && canApply) {
         parts.push(`<button class="row-action" type="button" data-basic-adj-apply="${escapeHtml(row.payrollHistoryId)}">处理</button>`);
     }
-    if (canRollback) {
+    if (canWrite && canRollback) {
         parts.push(`<button class="row-action danger-button" type="button" data-basic-adj-rollback="${escapeHtml(row.payrollHistoryId)}">还原</button>`);
     }
     return parts.join(" ");
@@ -16391,6 +16620,9 @@ function openBasicSalaryStandardAdjustmentDetailModal(payrollHistoryId) {
 }
 
 async function applyBasicSalaryStandardAdjustment(payrollHistoryId) {
+    if (!ensurePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE", "调整基本工资标准")) {
+        return;
+    }
     const target = document.getElementById("basic-salary-standard-adjustment-target")?.value?.trim() || "";
     const status = document.getElementById("basic-salary-standard-adjustment-status");
     if (!target) {
@@ -16428,6 +16660,9 @@ async function applyBasicSalaryStandardAdjustment(payrollHistoryId) {
 }
 
 async function rollbackBasicSalaryStandardAdjustment(payrollHistoryId) {
+    if (!ensurePayrollFeatureWrite("BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE", "调整基本工资标准")) {
+        return;
+    }
     const status = document.getElementById("basic-salary-standard-adjustment-status");
     if (!confirm("确认还原当前工资调标？系统会删除当前链头记录，并恢复上一条工资记录为当前执行工资。")) {
         return;

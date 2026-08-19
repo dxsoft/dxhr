@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class SecurityAuditService {
 
+    private static final int SUMMARY_MAX_LENGTH = 500;
     private static final DateTimeFormatter EXPORT_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final JdbcTemplate jdbcTemplate;
@@ -44,7 +45,7 @@ public class SecurityAuditService {
                 action,
                 targetType,
                 String.valueOf(targetId),
-                summary);
+                normalizeSummary(summary));
     }
 
     public List<SecurityAuditLog> recent(int limit) {
@@ -148,6 +149,16 @@ public class SecurityAuditService {
                 .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%")
                 .addValue("fromAt", fromAt)
                 .addValue("toAt", toAt);
+    }
+
+    private String normalizeSummary(String summary) {
+        if (summary == null) {
+            return "";
+        }
+        if (summary.length() <= SUMMARY_MAX_LENGTH) {
+            return summary;
+        }
+        return summary.substring(0, SUMMARY_MAX_LENGTH - 3) + "...";
     }
 
     private String csvCell(String value) {

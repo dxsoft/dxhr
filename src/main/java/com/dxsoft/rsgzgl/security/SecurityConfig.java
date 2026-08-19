@@ -37,7 +37,8 @@ class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(authorize -> authorize
+                .authorizeHttpRequests(authorize -> {
+                    authorize
                         .requestMatchers(
                                 "/",
                                 "/index.html",
@@ -86,9 +87,9 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/personnel/**").hasAuthority("PERSONNEL_WRITE")
                         .requestMatchers(HttpMethod.DELETE, "/api/personnel/**").hasAuthority("PERSONNEL_WRITE")
                         .requestMatchers("/api/personnel/*/maintenance").hasAuthority("PERSONNEL_WRITE")
-                        .requestMatchers("/api/personnel/**").hasAuthority("PERSONNEL_READ")
-                        .requestMatchers(HttpMethod.POST, "/api/payroll/level-promotions/**")
-                                .hasAnyAuthority("LEVEL_PROMOTION_WRITE", "PAYROLL_WRITE")
+                        .requestMatchers("/api/personnel/**").hasAuthority("PERSONNEL_READ");
+                PayrollFeatureSecurityCustomizer.configurePayrollFeaturePostRules(authorize);
+                authorize
                         .requestMatchers(HttpMethod.POST, "/api/payroll/**").hasAuthority("PAYROLL_WRITE")
                         .requestMatchers(HttpMethod.PUT, "/api/payroll/field-config").hasAuthority("SYSTEM_CONFIG")
                         .requestMatchers(HttpMethod.PUT, "/api/payroll/**").hasAuthority("PAYROLL_WRITE")
@@ -104,11 +105,12 @@ class SecurityConfig {
                                 "/api/payroll/projection-audit-summary", "/api/payroll/projection-audit-export.csv",
                                 "/api/payroll/projection-audit-export.xlsx").hasAuthority("AUDIT_READ")
                         .requestMatchers("/api/payroll/field-config").hasAuthority("SYSTEM_CONFIG")
-                        .requestMatchers("/api/payroll/basic-standards", "/api/payroll/basic-standards/**", "/api/payroll/allowance-standards", "/api/payroll/rank-allowance-standards", "/api/payroll/retained-allowance-standards", "/api/payroll/retained-allowance-standards/**", "/api/payroll/year-allowance-standards", "/api/payroll/intern-salary-standards", "/api/payroll/wage-reform-standards", "/api/payroll/wage-reform-standards/**", "/api/payroll/other-allowance-standards", "/api/payroll/other-allowance-standards/**").hasAuthority("STANDARD_READ")
-                        .requestMatchers("/api/payroll/level-promotions/**")
-                                .hasAnyAuthority("LEVEL_PROMOTION_READ", "PAYROLL_READ")
+                        .requestMatchers("/api/payroll/basic-standards", "/api/payroll/basic-standards/**", "/api/payroll/allowance-standards", "/api/payroll/rank-allowance-standards", "/api/payroll/retained-allowance-standards", "/api/payroll/retained-allowance-standards/**", "/api/payroll/year-allowance-standards", "/api/payroll/intern-salary-standards", "/api/payroll/wage-reform-standards", "/api/payroll/wage-reform-standards/**", "/api/payroll/other-allowance-standards", "/api/payroll/other-allowance-standards/**").hasAuthority("STANDARD_READ");
+                PayrollFeatureSecurityCustomizer.configurePayrollFeatureReadRules(authorize);
+                authorize
                         .requestMatchers("/api/payroll/**").hasAuthority("PAYROLL_READ")
-                        .anyRequest().authenticated())
+                        .anyRequest().authenticated();
+            })
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, authException) -> {
                             String path = request.getRequestURI() == null ? "" : request.getRequestURI();
