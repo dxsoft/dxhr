@@ -24,6 +24,8 @@ public record PersonnelMaintenanceRecord(
         String currentPositionStartYearMonth,
         String ethnicity,
         String politicalStatus,
-        String archiveNumber
+        String archiveNumber,
+        String joinYearMonth,
+        String joinType
 ) {
 }

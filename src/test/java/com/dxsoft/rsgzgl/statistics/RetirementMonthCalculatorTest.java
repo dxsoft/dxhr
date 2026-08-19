@@ -32,4 +32,11 @@ class RetirementMonthCalculatorTest {
         assertThat(result.retirementYearMonth()).isEqualTo("2025.02");
         assertThat(result.delayMonths()).isEqualTo(1);
     }
+
+    @Test
+    void birthUpperBoundsUseEarliestStatutoryAges() {
+        assertThat(RetirementMonthCalculator.maleBirthUpperBound("2026.08")).isEqualTo("196608");
+        assertThat(RetirementMonthCalculator.femaleBirthUpperBound("202608")).isEqualTo("197608");
+        assertThat(RetirementMonthCalculator.yearMonthMinusYears("2026.08", 50)).isEqualTo("197608");
+    }
 }

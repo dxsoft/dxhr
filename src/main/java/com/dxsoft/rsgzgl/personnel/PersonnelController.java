@@ -30,9 +30,11 @@ class PersonnelController {
     PageResponse<PersonnelSummary> list(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String direction,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return personnelService.list(organizationCode, keyword, PageRequest.of(page, size));
+        return personnelService.list(organizationCode, keyword, sort, direction, PageRequest.of(page, size));
     }
 
     @GetMapping("/comprehensive-queries")
@@ -75,6 +77,11 @@ class PersonnelController {
                 gradeLevelFrom,
                 gradeLevelTo,
                 PageRequest.of(page, size));
+    }
+
+    @GetMapping("/comprehensive-query-options")
+    PersonnelComprehensiveQueryOptions comprehensiveQueryOptions() {
+        return personnelService.comprehensiveQueryOptions();
     }
 
     @GetMapping("/{uid}")
@@ -134,9 +141,10 @@ class PersonnelController {
     PageResponse<PersonnelPositionHistoryRecord> positionHistories(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String positionCode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return personnelService.positionHistories(organizationCode, keyword, PageRequest.of(page, size));
+        return personnelService.positionHistories(organizationCode, keyword, positionCode, PageRequest.of(page, size));
     }
 
     @GetMapping("/{uid}/education")
@@ -164,9 +172,10 @@ class PersonnelController {
     PageResponse<PersonnelEducationHistoryRecord> educationHistories(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String educationCode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return personnelService.educationHistories(organizationCode, keyword, PageRequest.of(page, size));
+        return personnelService.educationHistories(organizationCode, keyword, educationCode, PageRequest.of(page, size));
     }
 
     @GetMapping("/{uid}/assessments")
@@ -204,7 +213,7 @@ class PersonnelController {
 
     @GetMapping("/assessments/batch-entry")
     BatchAssessmentPreview batchAssessmentPreview(
-            @RequestParam String organizationCode,
+            @RequestParam(required = false) String organizationCode,
             @RequestParam String year,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false, defaultValue = "false") boolean includeDescendants) {
@@ -246,6 +255,11 @@ class PersonnelController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return personnelService.changedPersonnel(organizationCode, period, keyword, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/changed/{uid}/detail")
+    ChangedPersonnelDetail changedPersonnelDetail(@PathVariable int uid) {
+        return personnelService.changedPersonnelDetail(uid);
     }
 
     @PostMapping("/changed/restore")

@@ -64,13 +64,15 @@ public class DataMaintenanceService {
         int deleted = jdbc.update("""
                 DELETE marker
                 FROM app_record_marker marker
-                LEFT JOIN hisbase h ON marker.table_name = 'hisbase' AND marker.record_id = h.id
+                LEFT JOIN hisbase h ON marker.table_name = 'hisbase'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = h.id COLLATE utf8mb4_0900_ai_ci
                 WHERE marker.table_name = 'hisbase' AND h.id IS NULL
                 """, new MapSqlParameterSource());
         deleted += jdbc.update("""
                 DELETE marker
                 FROM app_record_marker marker
-                LEFT JOIN dtgxx t ON marker.table_name = 'dtgxx' AND marker.record_id = CAST(t.id AS CHAR)
+                LEFT JOIN dtgxx t ON marker.table_name = 'dtgxx'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
                 WHERE marker.table_name = 'dtgxx' AND t.id IS NULL
                 """, new MapSqlParameterSource());
         operationLogService.record(
@@ -96,7 +98,8 @@ public class DataMaintenanceService {
         Long count = jdbc.queryForObject("""
                 SELECT COUNT(*)
                 FROM app_record_marker marker
-                LEFT JOIN hisbase h ON marker.table_name = 'hisbase' AND marker.record_id = h.id
+                LEFT JOIN hisbase h ON marker.table_name = 'hisbase'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = h.id COLLATE utf8mb4_0900_ai_ci
                 WHERE marker.table_name = 'hisbase' AND h.id IS NULL
                 """, new MapSqlParameterSource(), Long.class);
         return count == null ? 0 : count;

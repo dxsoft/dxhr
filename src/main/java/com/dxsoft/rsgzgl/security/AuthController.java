@@ -33,7 +33,8 @@ class AuthController {
                 user.displayName(),
                 user.permissions(),
                 user.allOrganizations(),
-                user.organizationCodes());
+                user.organizationCodes(),
+                user.homeOrganizationCode());
     }
 
     @PutMapping("/password")
@@ -51,7 +52,8 @@ class AuthController {
             String displayName,
             Set<String> permissions,
             Boolean allOrganizations,
-            Set<String> organizationCodes) {
+            Set<String> organizationCodes,
+            String homeOrganizationCode) {
     }
 
     record ChangePasswordRequest(String currentPassword, String newPassword) {

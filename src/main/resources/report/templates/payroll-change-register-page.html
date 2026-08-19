@@ -8,6 +8,20 @@
         <span th:text="|第 ${page.pageNumber} 页&#160;&#160;共 ${page.pageCount} 页|">第 1 页</span>
     </div>
     <table class="register-table">
+        <colgroup>
+            <col class="c-name"/>
+            <col class="c-id"/>
+            <col class="c-ba"/>
+            <col class="c-money"/>
+            <col class="c-position"/>
+            <col class="c-level"/>
+            <col class="c-money"/><col class="c-money"/>
+            <col class="c-money"/><col class="c-money"/><col class="c-money"/><col class="c-money"/>
+            <col class="c-money"/><col class="c-money"/><col class="c-money"/><col class="c-money"/>
+            <col class="c-money"/><col class="c-money"/><col class="c-money"/>
+            <col class="c-diff"/>
+            <col class="c-period"/>
+        </colgroup>
         <thead>
         <tr>
             <th rowspan="2">姓名</th>
@@ -19,14 +33,14 @@
         </tr>
         <tr>
             <th>月工资<br/>合计</th>
-            <th th:utext="${T(com.dxsoft.rsgzgl.report.export.ReportHtmlSupport).escapedMultilineBr(page.labels.position)}">职务岗位</th>
+            <th th:utext="${page.labels.positionHtml}">职务岗位</th>
             <th th:text="${page.labels.level}">级别</th>
             <th th:text="${page.labels.positionSalary}">职务工资</th>
             <th th:text="${page.labels.gradeSalary}">级别工资</th>
             <th>技术<br/>等级<br/>工资</th>
             <th>保留<br/>奖金</th>
             <th>保留<br/>福补</th>
-            <th>警衔<br/>津贴</th>
+            <th>警衔/<br/>监察<br/>津贴</th>
             <th>工改<br/>保留<br/>津贴</th>
             <th>工作性<br/>津贴</th>
             <th>生活性<br/>补贴</th>
@@ -47,7 +61,7 @@
 
 <th:block th:fragment="personRows(person)">
     <tr>
-        <td rowspan="2" th:utext="${T(com.dxsoft.rsgzgl.report.export.ReportHtmlSupport).escape(person.name) + '&lt;br/&gt;' + T(com.dxsoft.rsgzgl.report.export.ReportHtmlSupport).escape(person.personCode)}">姓名</td>
+        <td rowspan="2" th:utext="${person.nameAndCodeHtml}">姓名</td>
         <td rowspan="2" th:text="${person.maskedIdCard}">身份证号</td>
         <td>前</td>
         <td th:text="${person.beforeTotal}">0</td>

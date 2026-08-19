@@ -7,7 +7,6 @@
 1. 先把 VFP 顶级菜单录入 `app_menu`，状态为禁用，作为“待迁移菜单”。
 2. 当前已实现的 Spring Boot 页面继续保持启用：
    - 人员查询
-   - 工资试算
    - 批量对账
    - 权限管理
 3. 后续每完成一个 VFP 功能模块迁移，再把对应菜单改为启用并绑定具体前端页面。
@@ -25,7 +24,7 @@
 | `CHANGED_PERSONNEL` | 变动人员信息 | `#changed-personnel` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询，来源 `dryjbxxb` / `hisbaseb` |
 | `POSITION_HISTORY` | 任职岗位信息 | `#position-history` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `EDUCATION_HISTORY` | 学历信息 | `#education-history` | `PERSONNEL_READ` | 当前 Spring Boot 已实现，只读查询 |
-| `PAYROLL` | 工资试算 | `#payroll` | `PAYROLL_READ` | 当前 Spring Boot 已实现 |
+| `PAYROLL` | 工资试算 | `#payroll` | `PAYROLL_READ` | 已移出菜单；试算入口在人员管理列表「工资试算」 |
 | `PAYROLL_HISTORY` | 工资变动历史 | `#payroll-history` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `TEACHING_ALLOWANCE_ADJUSTMENT` | 调整教护龄津贴 | `#teaching-allowance-adjustment` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
 | `NORMAL_PROMOTION` | 正常档次/薪级晋升 | `#normal-promotion` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
@@ -34,14 +33,15 @@
 | `EDUCATION_PROMOTION` | 学历晋升 | `#education-promotion` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
 | `REGULARIZATION` | 转正定级 | `#regularization` | `PAYROLL_READ` | 当前 Spring Boot 已实现，只读试算 |
 | `FLOATING_TO_FIXED` | 浮动转固定 | `#floating-to-fixed` | `PAYROLL_READ` | 当前 Spring Boot 已实现，试算 + 办理/还原 |
-| `INTERN_SALARY_CHANGE` | 见习工资变动 | `#intern-salary-change` | `PAYROLL_READ` | 当前 Spring Boot 已实现，试算 + 办理/还原 |
+| `INTERN_SALARY_CHANGE` | 见习工资变动 | `#intern-salary-change` | `PAYROLL_READ` | 已移出菜单（功能保留，`enabled=0`） |
 | `AUDIT` | 批量对账 | `#audit` | `AUDIT_READ` | 当前 Spring Boot 已实现 |
 | `BASIC_STANDARDS` | 基本工资标准 | `#basic-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `INTERN_SALARY_STANDARDS` | 见习工资标准 | `#intern-salary-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `ALLOWANCE_STANDARDS` | 津贴补贴标准 | `#allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `RANK_ALLOWANCE_STANDARDS` | 警衔津贴标准 | `#rank-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `RETAINED_ALLOWANCE_STANDARDS` | 保留福补标准 | `#retained-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
-| `YEAR_ALLOWANCE_STANDARDS` | 年补贴标准 | `#year-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
+| `YEAR_ALLOWANCE_STANDARDS` | 年补贴标准 | `#year-allowance-standards` | `STANDARD_READ` | 已移出菜单；请用「农村学校教师补贴」 |
+| `RURAL_TEACHER_ALLOWANCE_STANDARDS` | 农村学校教师补贴 | `#year-allowance-standards` | `STANDARD_READ` | 维护 `njbt` 农教补贴标准 |
 | `WAGE_REFORM_STANDARDS` | 2006套改标准 | `#wage-reform-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `OTHER_ALLOWANCE_STANDARDS` | 其他补贴标准 | `#other-allowance-standards` | `STANDARD_READ` | 当前 Spring Boot 已实现，只读查询 |
 | `DATA_EXCHANGE` | 数据交换 | `#data-exchange` | `DATA_EXCHANGE_READ` | 建库包下发/接收、人员 CSV、年报 CSV/Excel |
@@ -86,13 +86,13 @@
 | 见习工资变动处理 | `DO FORM jxgz2` | 见习工资计算 |
 | 见习人员转正定级 | `DO FORM zzdj` | 转正定级 |
 | 新增人员确定工资 | `DO FORM drdz` | 新增人员工资确定 |
-| 其它情况工资变动 | `DO FORM fzcgzbdcl` | 其他工资变动 |
+| 其它情况工资变动 | `DO FORM fzcgzbdcl` | 已迁移 → 其它情况工资变动（对账表录入 + 自动计算 + 办理/还原） |
 | 浮动转固定工资变动 | `DO FORM fdgd` | 已迁移 → 浮动转固定（试算 + 办理/还原） |
 | 级别滚动晋升 | `DO FORM jbgdgzjs` | 级别滚动晋升 |
 | 转正高定档次薪级 | `DO FORM zzgd` | 高定档次薪级 |
 | 月平均工资计算 | `DO FORM dybdmx` | 月平均工资 |
-| 重算津补贴 | `DO FORM jbtjs` | 津补贴重算 |
-| 2024.07调标 | `DO FORM forms\tbjs2021` | 调标计算 |
+| 重算津补贴 | `DO FORM jbtjs` | 已移出菜单（`ALLOWANCE_RECALCULATION`，`enabled=0`） |
+| 2024.07调标 | `DO FORM forms\tbjs2021` | 已移出菜单（`SALARY_STANDARD_ADJUSTMENT`，`enabled=0`） |
 | 2006年工资套改 | `DO FORM tg2006` | 工资套改 |
 
 ### 数据交换

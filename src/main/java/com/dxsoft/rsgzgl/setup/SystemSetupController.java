@@ -30,13 +30,16 @@ public class SystemSetupController {
     }
 
     @GetMapping("/initialization/preview")
-    SystemInitializationPreview previewInitialization() {
-        return systemInitializationService.preview();
+    SystemInitializationPreview previewInitialization(
+            @RequestParam(required = false, defaultValue = "false") boolean clearOrganizationsAndLicense) {
+        return systemInitializationService.preview(clearOrganizationsAndLicense);
     }
 
     @PostMapping("/initialization/execute")
-    SystemInitializationResult executeInitialization(@RequestParam String confirmPhrase) {
-        return systemInitializationService.execute(confirmPhrase);
+    SystemInitializationResult executeInitialization(
+            @RequestParam String confirmPhrase,
+            @RequestParam(required = false, defaultValue = "false") boolean clearOrganizationsAndLicense) {
+        return systemInitializationService.execute(confirmPhrase, clearOrganizationsAndLicense);
     }
 
     @GetMapping("/excel-import/template")

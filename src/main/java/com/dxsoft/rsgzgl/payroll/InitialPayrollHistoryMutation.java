@@ -22,5 +22,7 @@ record InitialPayrollHistoryMutation(
         String standardYearMonth,
         String allowanceStandardYearMonth,
         String levelAssessmentStartYear,
-        String stepAssessmentStartYear) {
+        String stepAssessmentStartYear,
+        String remark
+) {
 }

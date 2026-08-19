@@ -2,9 +2,9 @@ package com.dxsoft.rsgzgl.statistics;
 
 import java.util.Set;
 
-final class RetirementMonthCalculator {
+public final class RetirementMonthCalculator {
 
-    enum Category {
+    public enum Category {
         MALE("男职工", 60, "1965.01"),
         FEMALE_CADRE("女干部", 55, "1970.01"),
         FEMALE_WORKER("女工勤", 50, "1975.01");
@@ -19,7 +19,7 @@ final class RetirementMonthCalculator {
             this.delayThresholdYearMonth = delayThresholdYearMonth;
         }
 
-        String label() {
+        public String label() {
             return label;
         }
 
@@ -32,7 +32,7 @@ final class RetirementMonthCalculator {
         }
     }
 
-    record CalculationResult(
+    public record CalculationResult(
             String retirementYearMonth,
             int delayMonths,
             Category category) {
@@ -53,7 +53,7 @@ final class RetirementMonthCalculator {
         return Category.FEMALE_CADRE;
     }
 
-    static CalculationResult calculate(String birthYearMonth, String gender, String positionCode) {
+    public static CalculationResult calculate(String birthYearMonth, String gender, String positionCode) {
         Category category = resolveCategory(gender, positionCode);
         String normalizedBirth = normalizeYearMonth(birthYearMonth);
         if (normalizedBirth.isBlank()) {
@@ -66,13 +66,13 @@ final class RetirementMonthCalculator {
                 category);
     }
 
-    static int compareYearMonth(String left, String right) {
+    public static int compareYearMonth(String left, String right) {
         int leftValue = yearMonthValue(left);
         int rightValue = yearMonthValue(right);
         return Integer.compare(leftValue, rightValue);
     }
 
-    static String formatYearMonth(String yearMonth) {
+    public static String formatYearMonth(String yearMonth) {
         String normalized = normalizeYearMonth(yearMonth);
         if (normalized.length() == 6) {
             return normalized.substring(0, 4) + "." + normalized.substring(4, 6);
@@ -80,7 +80,7 @@ final class RetirementMonthCalculator {
         return normalized;
     }
 
-    static String normalizeYearMonth(String yearMonth) {
+    public static String normalizeYearMonth(String yearMonth) {
         if (yearMonth == null) {
             return "";
         }
@@ -98,7 +98,7 @@ final class RetirementMonthCalculator {
         return digits;
     }
 
-    static String storedRetirementYearMonth(int storedValue) {
+    public static String storedRetirementYearMonth(int storedValue) {
         if (storedValue <= 0) {
             return "";
         }
@@ -109,19 +109,56 @@ final class RetirementMonthCalculator {
         return formatYearMonth(digits.substring(0, 6));
     }
 
+    /**
+     * SQL 预筛上界：男职工最早法定退休年龄 60，出生晚于此的不可能已达退休。
+     * 延迟退休只会更晚退休，因此可安全用于缩小候选集。
+     */
+    public static String maleBirthUpperBound(String referencePeriod) {
+        return yearMonthMinusYears(referencePeriod, Category.MALE.baseRetirementAgeYears());
+    }
+
+    /**
+     * SQL 预筛上界：女工勤最早法定退休年龄 50（各类别中最早），出生晚于此的不可能已达退休。
+     */
+    public static String femaleBirthUpperBound(String referencePeriod) {
+        return yearMonthMinusYears(referencePeriod, Category.FEMALE_WORKER.baseRetirementAgeYears());
+    }
+
+    static String yearMonthMinusYears(String yearMonth, int years) {
+        String normalized = normalizeYearMonth(yearMonth);
+        if (normalized.length() < 6 || years < 0) {
+            return "";
+        }
+        try {
+            int year = Integer.parseInt(normalized.substring(0, 4)) - years;
+            int month = Integer.parseInt(normalized.substring(4, 6));
+            if (year < 1 || month < 1 || month > 12) {
+                return "";
+            }
+            return String.format("%04d%02d", year, month);
+        } catch (NumberFormatException ex) {
+            return "";
+        }
+    }
+
     private static boolean isMale(String gender) {
         if (gender == null || gender.isBlank()) {
             return false;
         }
         String value = gender.trim();
-        return "男".equals(value) || "1".equals(value) || value.equalsIgnoreCase("M");
+        return "男".equals(value) || "1".equals(value) || value.equalsIgnoreCase("M") || value.equalsIgnoreCase("male");
     }
 
     private static boolean isWorkerPosition(String positionCode) {
-        if (positionCode == null || positionCode.length() < 2) {
+        if (positionCode == null || positionCode.isBlank()) {
             return false;
         }
-        return WORKER_POSITION_PREFIXES.contains(positionCode.substring(0, 2));
+        String code = positionCode.trim();
+        if (code.length() < 2) {
+            return false;
+        }
+        // 对齐 VFP：女工勤按岗位前缀 05/06/08/09（警员工勤序列）判定。
+        return WORKER_POSITION_PREFIXES.contains(code.substring(0, 2));
     }
 
     private static int delayMonths(String birthYearMonth, Category category) {

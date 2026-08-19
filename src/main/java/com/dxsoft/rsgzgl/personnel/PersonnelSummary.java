@@ -13,6 +13,7 @@ public record PersonnelSummary(
         String organizationType,
         String postCategory,
         String currentPosition,
-        String currentPositionCode
+        String currentPositionCode,
+        String appointmentPosition
 ) {
 }

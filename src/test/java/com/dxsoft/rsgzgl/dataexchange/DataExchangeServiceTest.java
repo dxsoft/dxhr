@@ -10,8 +10,10 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.dxsoft.rsgzgl.maintenance.OperationLogService;
 import tools.jackson.databind.ObjectMapper;
 
 class DataExchangeServiceTest {
@@ -22,7 +24,30 @@ class DataExchangeServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(DataExchangeRepository.class);
-        service = new DataExchangeService(repository, new ObjectMapper());
+        service = new DataExchangeService(repository, new ObjectMapper(), mock(OperationLogService.class));
+    }
+
+    @Test
+    void buildPersonnelPackageIncludesDryjbxxRelatedTable() {
+        when(repository.exportSelectedPersonnel(any())).thenReturn(List.of(
+                sample("02108", "00001", "测试员", "110101199001011234")));
+        when(repository.exportRelatedTables(any())).thenReturn(List.of(
+                new DataExchangeService.ExchangeTable("dryjbxx", List.of(Map.of(
+                        "dwbm", "02108",
+                        "grbm", "00001",
+                        "tc", "已定工资")))));
+
+        DataExchangeService.PersonnelExchangePackage payload = service.buildPersonnelPackage(
+                new DataExchangeController.PersonnelDispatchRequest(
+                        List.of("02108"),
+                        true,
+                        null,
+                        List.of(new DataExchangeController.PersonKey("02108", "00001")),
+                        null));
+
+        assertThat(payload.relatedTables()).isNotEmpty();
+        assertThat(payload.relatedTables().getFirst().tableName()).isEqualTo("dryjbxx");
+        assertThat(payload.relatedTables().getFirst().rows().getFirst().get("tc")).isEqualTo("已定工资");
     }
 
     @Test
@@ -37,7 +62,8 @@ class DataExchangeServiceTest {
                         List.of("001"),
                         true,
                         "张三",
-                        List.of(new DataExchangeController.PersonKey("001", "00001"))));
+                        List.of(new DataExchangeController.PersonKey("001", "00001")),
+                        null));
 
         assertThat(payload.personnel()).hasSize(1);
         assertThat(payload.personnel().getFirst().name()).isEqualTo("张三");
@@ -46,6 +72,7 @@ class DataExchangeServiceTest {
     @Test
     void previewReceiveMarksExistingPersonAsReplace() {
         when(repository.personExists("001", "00001")).thenReturn(true);
+        when(repository.existingPersonKeys(any())).thenReturn(Set.of("001|00001"));
         when(repository.exportRelatedTables(any())).thenReturn(List.of());
 
         String packageJson = """
@@ -123,7 +150,8 @@ class DataExchangeServiceTest {
                         List.of("001"),
                         true,
                         null,
-                        List.of()));
+                        List.of(),
+                        null));
 
         assertThat(payload.packageType()).isEqualTo("SUBMISSION");
         assertThat(payload.personnel()).hasSize(1);
@@ -135,6 +163,8 @@ class DataExchangeServiceTest {
     void previewSubmissionReviewMarksExistingPersonAsReplace() {
         when(repository.personExists("001", "00001")).thenReturn(true);
         when(repository.organizationExists("001")).thenReturn(true);
+        when(repository.findPersonnelExportRecord("001", "00001")).thenReturn(
+                sample("001", "00001", "张三", "110101199001011234"));
         when(repository.findCurrentPayrollSummary("001", "00001")).thenReturn(Map.of(
                 "jslb", "晋级",
                 "period", "202601",
@@ -167,8 +197,8 @@ class DataExchangeServiceTest {
                 new DataExchangeController.SubmissionReviewRequest(packageJson, null, List.of(), null));
 
         assertThat(response.previewRows()).hasSize(1);
-        assertThat(response.previewRows().getFirst().action()).isEqualTo("替换工资记录");
-        assertThat(response.summary().replaceRecords()).isEqualTo(1);
+        assertThat(response.previewRows().getFirst().personExists()).isTrue();
+        assertThat(response.previewRows().getFirst().auditStatus()).isIn("完全一致", "不一致");
     }
 
     @Test
@@ -200,7 +230,7 @@ class DataExchangeServiceTest {
 
     @Test
     void buildApprovalPackageOnlyIncludesApprovedPersonnel() {
-        when(repository.exportApprovedPersonnelPackageByOrganizations(any(), anyBoolean(), any())).thenReturn(List.of(
+        when(repository.exportApprovedPersonnelPackageByOrganizations(any(), anyBoolean(), any(), any())).thenReturn(List.of(
                 sample("001", "00001", "张三", "110101199001011234")));
         when(repository.exportPayrollTables(any())).thenReturn(List.of());
         when(repository.exportSubmissionRelatedTables(any())).thenReturn(List.of());
@@ -210,7 +240,8 @@ class DataExchangeServiceTest {
                         List.of("001"),
                         true,
                         null,
-                        List.of()));
+                        List.of(),
+                        null));
 
         assertThat(payload.packageType()).isEqualTo("APPROVAL");
         assertThat(payload.personnel()).hasSize(1);

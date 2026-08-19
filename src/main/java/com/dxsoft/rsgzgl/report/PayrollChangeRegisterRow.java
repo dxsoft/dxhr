@@ -11,6 +11,8 @@ public record PayrollChangeRegisterRow(
         String calculationYear,
         String calculationMonth,
         String changeType,
+        String beforePositionCode,
+        String beforePositionName,
         String positionCode,
         String positionName,
         String gradeLevel,

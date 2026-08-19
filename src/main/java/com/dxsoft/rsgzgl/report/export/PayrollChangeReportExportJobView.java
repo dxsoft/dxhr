@@ -4,6 +4,7 @@ import java.time.Instant;
 
 public record PayrollChangeReportExportJobView(
         String jobId,
+        String accessToken,
         PayrollChangeReportExportTarget target,
         PayrollChangeReportExportJobStatus status,
         String fileName,

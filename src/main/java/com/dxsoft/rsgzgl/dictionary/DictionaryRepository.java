@@ -3,6 +3,7 @@ package com.dxsoft.rsgzgl.dictionary;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.SqlText;
 import java.util.List;
+import java.util.Map;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -56,6 +57,18 @@ class DictionaryRepository {
                 """, parameters, DICTIONARY_ENTRY_MAPPER);
     }
 
+    List<DictionaryEntry> findEntriesAll(String prefix, String keyword, int limit) {
+        int safeLimit = limit <= 0 ? 2000 : Math.min(limit, 5000);
+        return jdbcTemplate.query("""
+                SELECT bm, mc, czbm, xt, sfsy
+                FROM dmb
+                WHERE (:prefix IS NULL OR bm LIKE :prefixLike)
+                  AND (:keyword IS NULL OR bm LIKE :keywordLike OR mc LIKE :keywordLike OR czbm = :keyword)
+                ORDER BY bm
+                LIMIT :limit
+                """, parameters(prefix, keyword).addValue("limit", safeLimit), DICTIONARY_ENTRY_MAPPER);
+    }
+
     long countEntries(String prefix, String keyword) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
@@ -64,6 +77,15 @@ class DictionaryRepository {
                   AND (:keyword IS NULL OR bm LIKE :keywordLike OR mc LIKE :keywordLike OR czbm = :keyword)
                 """, parameters(prefix, keyword), Long.class);
         return count == null ? 0 : count;
+    }
+
+    List<DictionaryEntry> findCategories() {
+        return jdbcTemplate.query("""
+                SELECT bm, mc, czbm, xt, sfsy
+                FROM dmb
+                WHERE CHAR_LENGTH(TRIM(bm)) = 3
+                ORDER BY bm
+                """, Map.of(), DICTIONARY_ENTRY_MAPPER);
     }
 
     List<DictionaryFieldConfig> findFieldConfigs(String tableName) {

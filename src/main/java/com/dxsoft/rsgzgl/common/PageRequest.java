@@ -11,6 +11,13 @@ public record PageRequest(int page, int size) {
         return new PageRequest(normalizedPage, normalizedSize);
     }
 
+    /** Internal batch/export queries that must exceed {@link #MAX_SIZE}. */
+    public static PageRequest bulk(int page, int size) {
+        int normalizedPage = page < 0 ? 0 : page;
+        int normalizedSize = size <= 0 ? DEFAULT_SIZE : size;
+        return new PageRequest(normalizedPage, normalizedSize);
+    }
+
     public int offset() {
         return page * size;
     }

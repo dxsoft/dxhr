@@ -37,6 +37,16 @@ class PayrollController {
         return payrollService.fields(enabledIn2006Policy, PageRequest.of(page, size));
     }
 
+    @GetMapping("/field-config")
+    List<PayrollFieldMetadata> fieldConfig() {
+        return payrollService.fieldConfig();
+    }
+
+    @PutMapping("/field-config")
+    List<PayrollFieldMetadata> updateFieldConfig(@RequestBody PayrollFieldConfigUpdateRequest request) {
+        return payrollService.updateFieldConfig(request);
+    }
+
     @GetMapping("/position-standards")
     PageResponse<PositionSalaryStandard> positionStandards(
             @RequestParam(required = false) String standardYearMonth,
@@ -56,14 +66,50 @@ class PayrollController {
         return payrollService.allowanceStandards(standardYearMonth, item, positionCode, PageRequest.of(page, size));
     }
 
+    @GetMapping("/allowance-standards/periods")
+    List<String> allowanceStandardPeriods() {
+        return payrollService.allowanceStandardPeriods();
+    }
+
+    @GetMapping("/allowance-standards/categories")
+    List<Integer> allowanceStandardCategories(
+            @RequestParam(required = false) String standardYearMonth) {
+        return payrollService.allowanceStandardCategories(standardYearMonth);
+    }
+
+    @GetMapping("/allowance-standards/position-categories")
+    List<AllowanceStandardPositionCategory> allowanceStandardPositionCategories(
+            @RequestParam(required = false) String standardYearMonth,
+            @RequestParam(required = false) Integer performanceCategory) {
+        return payrollService.allowanceStandardPositionCategories(standardYearMonth, performanceCategory);
+    }
+
+    @GetMapping("/allowance-standards/by-position")
+    List<AllowanceStandardPositionRow> allowanceStandardsByPosition(
+            @RequestParam(required = false) String standardYearMonth,
+            @RequestParam(required = false) Integer performanceCategory,
+            @RequestParam(required = false) String positionPrefix) {
+        return payrollService.allowanceStandardsByPosition(standardYearMonth, performanceCategory, positionPrefix);
+    }
+
     @GetMapping("/basic-standards")
-    PageResponse<BasicStandardRecord> basicStandards(
+    List<BasicStandardRecord> basicStandards(
             @RequestParam String standardType,
             @RequestParam(required = false) String standardYearMonth,
-            @RequestParam(required = false) String code,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
-        return payrollService.basicStandards(standardType, standardYearMonth, code, PageRequest.of(page, size));
+            @RequestParam(required = false) String positionPrefix) {
+        return payrollService.basicStandards(standardType, standardYearMonth, positionPrefix);
+    }
+
+    @GetMapping("/basic-standards/periods")
+    List<String> basicStandardPeriods(@RequestParam String standardType) {
+        return payrollService.basicStandardPeriods(standardType);
+    }
+
+    @GetMapping("/basic-standards/position-categories")
+    List<AllowanceStandardPositionCategory> basicStandardPositionCategories(
+            @RequestParam String standardType,
+            @RequestParam(required = false) String standardYearMonth) {
+        return payrollService.basicStandardPositionCategories(standardType, standardYearMonth);
     }
 
     @GetMapping("/rank-allowance-standards")
@@ -76,12 +122,23 @@ class PayrollController {
         return payrollService.rankAllowanceStandards(standardYearMonth, rankName, category, PageRequest.of(page, size));
     }
 
+    @GetMapping("/rank-allowance-standards/periods")
+    List<String> rankAllowanceStandardPeriods(@RequestParam(required = false) String category) {
+        return payrollService.rankAllowanceStandardPeriods(category);
+    }
+
     @GetMapping("/retained-allowance-standards")
     PageResponse<RetainedAllowanceStandard> retainedAllowanceStandards(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String positionPrefix,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.retainedAllowanceStandards(keyword, PageRequest.of(page, size));
+        return payrollService.retainedAllowanceStandards(keyword, positionPrefix, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/retained-allowance-standards/position-categories")
+    List<AllowanceStandardPositionCategory> retainedAllowanceStandardPositionCategories() {
+        return payrollService.retainedAllowanceStandardPositionCategories();
     }
 
     @GetMapping("/year-allowance-standards")
@@ -104,9 +161,27 @@ class PayrollController {
     @GetMapping("/wage-reform-standards")
     PageResponse<WageReformStandard> wageReformStandards(
             @RequestParam(required = false) String positionCode,
+            @RequestParam(required = false) String positionPrefix,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
+        boolean useFilterList = (positionPrefix != null && !positionPrefix.isBlank())
+                || (positionCode != null && !positionCode.isBlank())
+                || (page == null && size == null);
+        if (useFilterList) {
+            return payrollService.wageReformStandardsFiltered(positionCode, positionPrefix);
+        }
         return payrollService.wageReformStandards(positionCode, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/wage-reform-standards/position-categories")
+    List<AllowanceStandardPositionCategory> wageReformStandardPositionCategories() {
+        return payrollService.wageReformStandardPositionCategories();
+    }
+
+    @GetMapping("/wage-reform-standards/positions")
+    List<AllowanceStandardPositionCategory> wageReformStandardPositions(
+            @RequestParam(required = false) String positionPrefix) {
+        return payrollService.wageReformStandardPositions(positionPrefix);
     }
 
     @GetMapping("/other-allowance-standards")
@@ -114,9 +189,25 @@ class PayrollController {
             @RequestParam String standardType,
             @RequestParam(required = false) String standardYearMonth,
             @RequestParam(required = false) String code,
+            @RequestParam(required = false) String positionPrefix,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
+        if (page == null && size == null && (code == null || code.isBlank())) {
+            return payrollService.otherAllowanceStandardsAll(standardType, standardYearMonth, positionPrefix);
+        }
         return payrollService.otherAllowanceStandards(standardType, standardYearMonth, code, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/other-allowance-standards/periods")
+    List<String> otherAllowanceStandardPeriods(@RequestParam String standardType) {
+        return payrollService.otherAllowanceStandardPeriods(standardType);
+    }
+
+    @GetMapping("/other-allowance-standards/position-categories")
+    List<AllowanceStandardPositionCategory> otherAllowanceStandardPositionCategories(
+            @RequestParam String standardType,
+            @RequestParam(required = false) String standardYearMonth) {
+        return payrollService.otherAllowanceStandardPositionCategories(standardType, standardYearMonth);
     }
 
     @GetMapping("/histories")
@@ -203,23 +294,61 @@ class PayrollController {
     PageResponse<NormalPromotionPreview> normalPromotions(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean includeApply,
+            @RequestParam(required = false) Boolean includeProcessed,
             @RequestParam(required = false) Boolean dueOnly,
             @RequestParam(required = false) String year,
+            @RequestParam(required = false) String laterPeriodMode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
+        if (includeApply != null || includeProcessed != null) {
+            return payrollService.normalPromotionPreviews(
+                    organizationCode,
+                    keyword,
+                    includeApply,
+                    includeProcessed,
+                    year,
+                    laterPeriodMode,
+                    PageRequest.of(page, size));
+        }
         return payrollService.normalPromotionPreviews(organizationCode, keyword, dueOnly, year, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/normal-promotions/{payrollHistoryId}")
+    NormalPromotionDetail normalPromotionDetail(
+            @PathVariable String payrollHistoryId,
+            @RequestParam(required = false) String year) {
+        return payrollService.normalPromotionDetail(payrollHistoryId, year);
     }
 
     @PostMapping("/normal-promotions/{payrollHistoryId}/apply")
     PromotionActionResult applyNormalPromotion(
             @PathVariable String payrollHistoryId,
-            @RequestParam(required = false) String year) {
-        return payrollService.applyNormalPromotion(payrollHistoryId, year);
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String laterPeriodMode,
+            @RequestBody(required = false) NormalPromotionApplyRequest request) {
+        return payrollService.applyNormalPromotion(payrollHistoryId, year, request, laterPeriodMode);
+    }
+
+    @PostMapping("/normal-promotions/batch-apply")
+    NormalPromotionBatchApplyResult batchApplyNormalPromotions(
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String laterPeriodMode,
+            @RequestBody NormalPromotionBatchApplyRequest request) {
+        return payrollService.batchApplyNormalPromotions(year, request, laterPeriodMode);
     }
 
     @PostMapping("/normal-promotions/{payrollHistoryId}/rollback")
-    PromotionActionResult rollbackNormalPromotion(@PathVariable String payrollHistoryId) {
-        return payrollService.rollbackNormalPromotion(payrollHistoryId);
+    PromotionActionResult rollbackNormalPromotion(
+            @PathVariable String payrollHistoryId,
+            @RequestBody(required = false) NormalPromotionRollbackRequest request) {
+        return payrollService.rollbackNormalPromotion(payrollHistoryId, request);
+    }
+
+    @PostMapping("/normal-promotions/batch-rollback")
+    NormalPromotionBatchApplyResult batchRollbackNormalPromotions(
+            @RequestBody NormalPromotionBatchRollbackRequest request) {
+        return payrollService.batchRollbackNormalPromotions(request);
     }
 
     @GetMapping("/level-promotions")
@@ -229,22 +358,48 @@ class PayrollController {
             @RequestParam(required = false) String year,
             @RequestParam(required = false) Boolean includeApply,
             @RequestParam(required = false) Boolean includeProcessed,
+            @RequestParam(required = false) String laterPeriodMode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return payrollService.levelPromotionPreviews(
-                organizationCode, keyword, year, includeApply, includeProcessed, PageRequest.of(page, size));
+                organizationCode, keyword, year, includeApply, includeProcessed, laterPeriodMode, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/level-promotions/{payrollHistoryId}")
+    LevelPromotionDetail levelPromotionDetail(
+            @PathVariable String payrollHistoryId,
+            @RequestParam(required = false) String year) {
+        return payrollService.levelPromotionDetail(payrollHistoryId, year);
     }
 
     @PostMapping("/level-promotions/{payrollHistoryId}/apply")
     PromotionActionResult applyLevelPromotion(
             @PathVariable String payrollHistoryId,
-            @RequestParam(required = false) String year) {
-        return payrollService.applyLevelPromotion(payrollHistoryId, year);
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String laterPeriodMode,
+            @RequestBody(required = false) LevelPromotionApplyRequest request) {
+        return payrollService.applyLevelPromotion(payrollHistoryId, year, request, laterPeriodMode);
+    }
+
+    @PostMapping("/level-promotions/batch-apply")
+    LevelPromotionBatchApplyResult batchApplyLevelPromotions(
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String laterPeriodMode,
+            @RequestBody LevelPromotionBatchApplyRequest request) {
+        return payrollService.batchApplyLevelPromotions(year, request, laterPeriodMode);
     }
 
     @PostMapping("/level-promotions/{payrollHistoryId}/rollback")
-    PromotionActionResult rollbackLevelPromotion(@PathVariable String payrollHistoryId) {
-        return payrollService.rollbackLevelPromotion(payrollHistoryId);
+    PromotionActionResult rollbackLevelPromotion(
+            @PathVariable String payrollHistoryId,
+            @RequestBody(required = false) LevelPromotionRollbackRequest request) {
+        return payrollService.rollbackLevelPromotion(payrollHistoryId, request);
+    }
+
+    @PostMapping("/level-promotions/batch-rollback")
+    LevelPromotionBatchApplyResult batchRollbackLevelPromotions(
+            @RequestBody LevelPromotionBatchRollbackRequest request) {
+        return payrollService.batchRollbackLevelPromotions(request);
     }
 
     @GetMapping("/reform-level-rollings")
@@ -351,9 +506,12 @@ class PayrollController {
     PageResponse<PositionChangePromotionListItem> positionChangePromotions(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean includeApply,
+            @RequestParam(required = false) Boolean includeProcessed,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.positionChangePromotionPreviews(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.positionChangePromotionPreviews(
+                organizationCode, keyword, includeApply, includeProcessed, PageRequest.of(page, size));
     }
 
     @GetMapping("/position-change-promotions/{payrollHistoryId}")
@@ -377,9 +535,12 @@ class PayrollController {
     PageResponse<EducationPromotionPreview> educationPromotions(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean includeApply,
+            @RequestParam(required = false) Boolean includeProcessed,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.educationPromotionPreviews(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.educationPromotionPreviews(
+                organizationCode, keyword, includeApply, includeProcessed, PageRequest.of(page, size));
     }
 
     @PostMapping("/education-promotions/{payrollHistoryId}/apply")
@@ -396,19 +557,38 @@ class PayrollController {
     PageResponse<RegularizationPreview> regularizations(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean includeApply,
+            @RequestParam(required = false) Boolean includeProcessed,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.regularizationPreviews(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.regularizationPreviews(
+                organizationCode, keyword, includeApply, includeProcessed, PageRequest.of(page, size));
     }
 
     @PostMapping("/regularizations/{payrollHistoryId}/apply")
-    PromotionActionResult applyRegularization(@PathVariable String payrollHistoryId) {
-        return payrollService.applyRegularization(payrollHistoryId);
+    PromotionActionResult applyRegularization(
+            @PathVariable String payrollHistoryId,
+            @RequestBody(required = false) RegularizationApplyRequest request) {
+        return payrollService.applyRegularization(payrollHistoryId, request);
+    }
+
+    @PostMapping("/regularizations/batch-apply")
+    RegularizationBatchApplyResult batchApplyRegularizations(
+            @RequestBody RegularizationBatchApplyRequest request) {
+        return payrollService.batchApplyRegularizations(request);
     }
 
     @PostMapping("/regularizations/{payrollHistoryId}/rollback")
-    PromotionActionResult rollbackRegularization(@PathVariable String payrollHistoryId) {
-        return payrollService.rollbackRegularization(payrollHistoryId);
+    PromotionActionResult rollbackRegularization(
+            @PathVariable String payrollHistoryId,
+            @RequestBody(required = false) RegularizationRollbackRequest request) {
+        return payrollService.rollbackRegularization(payrollHistoryId, request);
+    }
+
+    @PostMapping("/regularizations/batch-rollback")
+    RegularizationBatchApplyResult batchRollbackRegularizations(
+            @RequestBody RegularizationBatchRollbackRequest request) {
+        return payrollService.batchRollbackRegularizations(request);
     }
 
     @PostMapping("/teaching-allowance-adjustments/{payrollHistoryId}/apply")
@@ -465,41 +645,62 @@ class PayrollController {
     PageResponse<RankAllowanceChangePromotion> policeRankChangePromotions(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String laterPeriodMode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.policeRankChangePromotions(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.policeRankChangePromotions(
+                organizationCode, keyword, laterPeriodMode, PageRequest.of(page, size));
     }
 
     @GetMapping("/prosecution-rank-change-promotions")
     PageResponse<RankAllowanceChangePromotion> prosecutionRankChangePromotions(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String laterPeriodMode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.prosecutionRankChangePromotions(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.prosecutionRankChangePromotions(
+                organizationCode, keyword, laterPeriodMode, PageRequest.of(page, size));
     }
 
     @GetMapping("/judicial-rank-change-promotions")
     PageResponse<RankAllowanceChangePromotion> judicialRankChangePromotions(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String laterPeriodMode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.judicialRankChangePromotions(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.judicialRankChangePromotions(
+                organizationCode, keyword, laterPeriodMode, PageRequest.of(page, size));
     }
 
     @GetMapping("/supervision-rank-change-promotions")
     PageResponse<RankAllowanceChangePromotion> supervisionRankChangePromotions(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String laterPeriodMode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.supervisionRankChangePromotions(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.supervisionRankChangePromotions(
+                organizationCode, keyword, laterPeriodMode, PageRequest.of(page, size));
     }
 
     @PostMapping("/police-rank-change-promotions/{payrollHistoryId}/apply")
-    PromotionActionResult applyPoliceRankChangePromotion(@PathVariable String payrollHistoryId) {
-        return payrollService.applyPoliceRankChangePromotion(payrollHistoryId);
+    RankAllowanceChangeApplyResult applyPoliceRankChangePromotion(
+            @PathVariable String payrollHistoryId,
+            @RequestParam(required = false) String laterPeriodMode) {
+        return payrollService.applyPoliceRankChangePromotion(payrollHistoryId, laterPeriodMode);
+    }
+
+    @GetMapping(value = "/police-rank-change-promotions/mid-chain-export", produces = "text/csv")
+    org.springframework.http.ResponseEntity<byte[]> exportPoliceRankChangeMidChain(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword) {
+        byte[] csv = payrollService.exportPoliceRankChangeMidChainCsv(organizationCode, keyword);
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"police-rank-change-mid-chain-export.csv\"")
+                .body(csv);
     }
 
     @PostMapping("/police-rank-change-promotions/{payrollHistoryId}/rollback")
@@ -508,8 +709,21 @@ class PayrollController {
     }
 
     @PostMapping("/prosecution-rank-change-promotions/{payrollHistoryId}/apply")
-    PromotionActionResult applyProsecutionRankChangePromotion(@PathVariable String payrollHistoryId) {
-        return payrollService.applyProsecutionRankChangePromotion(payrollHistoryId);
+    RankAllowanceChangeApplyResult applyProsecutionRankChangePromotion(
+            @PathVariable String payrollHistoryId,
+            @RequestParam(required = false) String laterPeriodMode) {
+        return payrollService.applyProsecutionRankChangePromotion(payrollHistoryId, laterPeriodMode);
+    }
+
+    @GetMapping(value = "/prosecution-rank-change-promotions/mid-chain-export", produces = "text/csv")
+    org.springframework.http.ResponseEntity<byte[]> exportProsecutionRankChangeMidChain(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword) {
+        byte[] csv = payrollService.exportProsecutionRankChangeMidChainCsv(organizationCode, keyword);
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"prosecution-rank-change-mid-chain-export.csv\"")
+                .body(csv);
     }
 
     @PostMapping("/prosecution-rank-change-promotions/{payrollHistoryId}/rollback")
@@ -518,8 +732,21 @@ class PayrollController {
     }
 
     @PostMapping("/judicial-rank-change-promotions/{payrollHistoryId}/apply")
-    PromotionActionResult applyJudicialRankChangePromotion(@PathVariable String payrollHistoryId) {
-        return payrollService.applyJudicialRankChangePromotion(payrollHistoryId);
+    RankAllowanceChangeApplyResult applyJudicialRankChangePromotion(
+            @PathVariable String payrollHistoryId,
+            @RequestParam(required = false) String laterPeriodMode) {
+        return payrollService.applyJudicialRankChangePromotion(payrollHistoryId, laterPeriodMode);
+    }
+
+    @GetMapping(value = "/judicial-rank-change-promotions/mid-chain-export", produces = "text/csv")
+    org.springframework.http.ResponseEntity<byte[]> exportJudicialRankChangeMidChain(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword) {
+        byte[] csv = payrollService.exportJudicialRankChangeMidChainCsv(organizationCode, keyword);
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"judicial-rank-change-mid-chain-export.csv\"")
+                .body(csv);
     }
 
     @PostMapping("/judicial-rank-change-promotions/{payrollHistoryId}/rollback")
@@ -528,13 +755,78 @@ class PayrollController {
     }
 
     @PostMapping("/supervision-rank-change-promotions/{payrollHistoryId}/apply")
-    PromotionActionResult applySupervisionRankChangePromotion(@PathVariable String payrollHistoryId) {
-        return payrollService.applySupervisionRankChangePromotion(payrollHistoryId);
+    RankAllowanceChangeApplyResult applySupervisionRankChangePromotion(
+            @PathVariable String payrollHistoryId,
+            @RequestParam(required = false) String laterPeriodMode) {
+        return payrollService.applySupervisionRankChangePromotion(payrollHistoryId, laterPeriodMode);
+    }
+
+    @GetMapping(value = "/supervision-rank-change-promotions/mid-chain-export", produces = "text/csv")
+    org.springframework.http.ResponseEntity<byte[]> exportSupervisionRankChangeMidChain(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword) {
+        byte[] csv = payrollService.exportSupervisionRankChangeMidChainCsv(organizationCode, keyword);
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"supervision-rank-change-mid-chain-export.csv\"")
+                .body(csv);
     }
 
     @PostMapping("/supervision-rank-change-promotions/{payrollHistoryId}/rollback")
     PromotionActionResult rollbackSupervisionRankChangePromotion(@PathVariable String payrollHistoryId) {
         return payrollService.rollbackSupervisionRankChangePromotion(payrollHistoryId);
+    }
+
+    @PostMapping("/police-rank-change-promotions/batch-apply")
+    RankAllowanceChangeBatchApplyResult batchApplyPoliceRankChangePromotions(
+            @RequestBody RankAllowanceChangeBatchApplyRequest request,
+            @RequestParam(required = false) String laterPeriodMode) {
+        return payrollService.batchApplyPoliceRankChangePromotions(request, laterPeriodMode);
+    }
+
+    @PostMapping("/police-rank-change-promotions/batch-rollback")
+    LevelPromotionBatchApplyResult batchRollbackPoliceRankChangePromotions(
+            @RequestBody RankAllowanceChangeBatchRollbackRequest request) {
+        return payrollService.batchRollbackPoliceRankChangePromotions(request);
+    }
+
+    @PostMapping("/prosecution-rank-change-promotions/batch-apply")
+    RankAllowanceChangeBatchApplyResult batchApplyProsecutionRankChangePromotions(
+            @RequestBody RankAllowanceChangeBatchApplyRequest request,
+            @RequestParam(required = false) String laterPeriodMode) {
+        return payrollService.batchApplyProsecutionRankChangePromotions(request, laterPeriodMode);
+    }
+
+    @PostMapping("/prosecution-rank-change-promotions/batch-rollback")
+    LevelPromotionBatchApplyResult batchRollbackProsecutionRankChangePromotions(
+            @RequestBody RankAllowanceChangeBatchRollbackRequest request) {
+        return payrollService.batchRollbackProsecutionRankChangePromotions(request);
+    }
+
+    @PostMapping("/judicial-rank-change-promotions/batch-apply")
+    RankAllowanceChangeBatchApplyResult batchApplyJudicialRankChangePromotions(
+            @RequestBody RankAllowanceChangeBatchApplyRequest request,
+            @RequestParam(required = false) String laterPeriodMode) {
+        return payrollService.batchApplyJudicialRankChangePromotions(request, laterPeriodMode);
+    }
+
+    @PostMapping("/judicial-rank-change-promotions/batch-rollback")
+    LevelPromotionBatchApplyResult batchRollbackJudicialRankChangePromotions(
+            @RequestBody RankAllowanceChangeBatchRollbackRequest request) {
+        return payrollService.batchRollbackJudicialRankChangePromotions(request);
+    }
+
+    @PostMapping("/supervision-rank-change-promotions/batch-apply")
+    RankAllowanceChangeBatchApplyResult batchApplySupervisionRankChangePromotions(
+            @RequestBody RankAllowanceChangeBatchApplyRequest request,
+            @RequestParam(required = false) String laterPeriodMode) {
+        return payrollService.batchApplySupervisionRankChangePromotions(request, laterPeriodMode);
+    }
+
+    @PostMapping("/supervision-rank-change-promotions/batch-rollback")
+    LevelPromotionBatchApplyResult batchRollbackSupervisionRankChangePromotions(
+            @RequestBody RankAllowanceChangeBatchRollbackRequest request) {
+        return payrollService.batchRollbackSupervisionRankChangePromotions(request);
     }
 
     @GetMapping("/other-payroll-changes")
@@ -546,10 +838,22 @@ class PayrollController {
         return payrollService.otherPayrollChanges(organizationCode, keyword, PageRequest.of(page, size));
     }
 
+    @GetMapping("/other-payroll-changes/{payrollHistoryId}")
+    OtherPayrollChangeDetail otherPayrollChangeDetail(@PathVariable String payrollHistoryId) {
+        return payrollService.otherPayrollChangeDetail(payrollHistoryId);
+    }
+
+    @PostMapping("/other-payroll-changes/{payrollHistoryId}/preview")
+    OtherPayrollChangeCalcResult previewOtherPayrollChange(
+            @PathVariable String payrollHistoryId,
+            @RequestBody OtherPayrollChangeCalcRequest request) {
+        return payrollService.previewOtherPayrollChange(payrollHistoryId, request);
+    }
+
     @PostMapping("/other-payroll-changes/{payrollHistoryId}/apply")
     PromotionActionResult applyOtherPayrollChange(
             @PathVariable String payrollHistoryId,
-            @RequestBody PayrollHistoryMaintenanceRequest request) {
+            @RequestBody OtherPayrollChangeCalcRequest request) {
         return payrollService.applyOtherPayrollChange(payrollHistoryId, request);
     }
 
@@ -570,27 +874,74 @@ class PayrollController {
                 organizationCode, keyword, targetStandardYearMonth, scope, PageRequest.of(page, size));
     }
 
+    @GetMapping("/basic-salary-standard-adjustments/periods")
+    List<String> basicSalaryStandardAdjustmentPeriods() {
+        return payrollService.basicSalaryStandardAdjustmentPeriods();
+    }
+
     @GetMapping("/basic-salary-standard-adjustments")
     PageResponse<SalaryStandardAdjustmentPreview> basicSalaryStandardAdjustments(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String targetStandardYearMonth,
+            @RequestParam(required = false) Boolean includeApply,
+            @RequestParam(required = false) Boolean includeProcessed,
+            @RequestParam(required = false) String laterPeriodMode,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
         return payrollService.basicSalaryStandardAdjustments(
-                organizationCode, keyword, targetStandardYearMonth, PageRequest.of(page, size));
+                organizationCode,
+                keyword,
+                targetStandardYearMonth,
+                includeApply,
+                includeProcessed,
+                laterPeriodMode,
+                PageRequest.of(page, size));
     }
 
     @PostMapping("/basic-salary-standard-adjustments/{payrollHistoryId}/apply")
-    PromotionActionResult applyBasicSalaryStandardAdjustment(
+    BasicSalaryStandardAdjustmentApplyResult applyBasicSalaryStandardAdjustment(
             @PathVariable String payrollHistoryId,
-            @RequestParam(required = false) String targetStandardYearMonth) {
-        return payrollService.applyBasicSalaryStandardAdjustment(payrollHistoryId, targetStandardYearMonth);
+            @RequestParam(required = false) String targetStandardYearMonth,
+            @RequestParam(required = false) String laterPeriodMode,
+            @RequestBody(required = false) BasicSalaryStandardAdjustmentBatchApplyRequest.BasicSalaryStandardAdjustmentApplyItem request) {
+        return payrollService.applyBasicSalaryStandardAdjustment(
+                payrollHistoryId, targetStandardYearMonth, request, laterPeriodMode);
+    }
+
+    @PostMapping("/basic-salary-standard-adjustments/batch-apply")
+    BasicSalaryStandardAdjustmentBatchApplyResult batchApplyBasicSalaryStandardAdjustments(
+            @RequestParam String targetStandardYearMonth,
+            @RequestParam(required = false) String laterPeriodMode,
+            @RequestBody BasicSalaryStandardAdjustmentBatchApplyRequest request) {
+        return payrollService.batchApplyBasicSalaryStandardAdjustments(
+                targetStandardYearMonth, request, laterPeriodMode);
+    }
+
+    @GetMapping(value = "/basic-salary-standard-adjustments/mid-chain-export", produces = "text/csv")
+    org.springframework.http.ResponseEntity<byte[]> exportBasicSalaryStandardAdjustmentMidChain(
+            @RequestParam String targetStandardYearMonth,
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword) {
+        byte[] csv = payrollService.exportBasicSalaryStandardAdjustmentMidChainCsv(
+                organizationCode, keyword, targetStandardYearMonth);
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"basic-salary-mid-chain-export.csv\"")
+                .body(csv);
+    }
+
+    @PostMapping("/basic-salary-standard-adjustments/batch-rollback")
+    LevelPromotionBatchApplyResult batchRollbackBasicSalaryStandardAdjustments(
+            @RequestBody BasicSalaryStandardAdjustmentBatchRollbackRequest request) {
+        return payrollService.batchRollbackBasicSalaryStandardAdjustments(request);
     }
 
     @PostMapping("/basic-salary-standard-adjustments/{payrollHistoryId}/rollback")
-    PromotionActionResult rollbackBasicSalaryStandardAdjustment(@PathVariable String payrollHistoryId) {
-        return payrollService.rollbackBasicSalaryStandardAdjustment(payrollHistoryId);
+    PromotionActionResult rollbackBasicSalaryStandardAdjustment(
+            @PathVariable String payrollHistoryId,
+            @RequestBody(required = false) BasicSalaryStandardAdjustmentBatchRollbackRequest.BasicSalaryStandardAdjustmentRollbackItem request) {
+        return payrollService.rollbackBasicSalaryStandardAdjustment(payrollHistoryId, request);
     }
 
     @GetMapping("/civil-allowance-standard-adjustments")
@@ -693,9 +1044,17 @@ class PayrollController {
     PageResponse<NewPersonnelSalaryPreview> newPersonnelSalaryDeterminations(
             @RequestParam(required = false) String organizationCode,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean includeApply,
+            @RequestParam(required = false) Boolean includeProcessed,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.newPersonnelSalaryDeterminations(organizationCode, keyword, PageRequest.of(page, size));
+        return payrollService.newPersonnelSalaryDeterminations(
+                organizationCode, keyword, includeApply, includeProcessed, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/new-personnel-salary-determinations/{uid}")
+    NewPersonnelSalaryDetail newPersonnelSalaryDeterminationDetail(@PathVariable int uid) {
+        return payrollService.newPersonnelSalaryDeterminationDetail(uid);
     }
 
     @PostMapping("/new-personnel-salary-determinations/{uid}/apply")
@@ -703,9 +1062,23 @@ class PayrollController {
         return payrollService.applyNewPersonnelSalaryDetermination(uid);
     }
 
+    @PostMapping("/new-personnel-salary-determinations/batch-apply")
+    NewPersonnelSalaryBatchApplyResult batchApplyNewPersonnelSalaryDeterminations(
+            @RequestBody NewPersonnelSalaryBatchApplyRequest request) {
+        return payrollService.batchApplyNewPersonnelSalaryDeterminations(request);
+    }
+
     @PostMapping("/new-personnel-salary-determinations/{payrollHistoryId}/rollback")
-    PromotionActionResult rollbackNewPersonnelSalaryDetermination(@PathVariable String payrollHistoryId) {
-        return payrollService.rollbackNewPersonnelSalaryDetermination(payrollHistoryId);
+    PromotionActionResult rollbackNewPersonnelSalaryDetermination(
+            @PathVariable String payrollHistoryId,
+            @RequestBody(required = false) NewPersonnelSalaryRollbackRequest request) {
+        return payrollService.rollbackNewPersonnelSalaryDetermination(payrollHistoryId, request);
+    }
+
+    @PostMapping("/new-personnel-salary-determinations/batch-rollback")
+    NewPersonnelSalaryBatchApplyResult batchRollbackNewPersonnelSalaryDeterminations(
+            @RequestBody NewPersonnelSalaryBatchRollbackRequest request) {
+        return payrollService.batchRollbackNewPersonnelSalaryDeterminations(request);
     }
 
     @GetMapping("/intern-salary-changes")
@@ -784,27 +1157,46 @@ class PayrollController {
     @GetMapping("/projection-audit-summary")
     PayrollProjectionAuditSummary projectionAuditSummary(
             @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return payrollService.projectionAuditSummary(organizationCode, PageRequest.of(page, size));
+        return payrollService.projectionAuditSummary(organizationCode, keyword, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/projection-audit-personnel")
+    PageResponse<ProjectionAuditPersonnelRow> projectionAuditPersonnel(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.projectionAuditPersonnelPage(organizationCode, keyword, PageRequest.of(page, size));
+    }
+
+    @PostMapping("/projection-audit-run")
+    PayrollProjectionAuditSummary projectionAuditRun(@RequestBody ProjectionAuditRunRequest request) {
+        return payrollService.projectionAuditRun(request == null ? List.of() : request.uids());
     }
 
     @GetMapping("/personnel/{uid}/projection-history-audits")
-    List<PayrollHistoryProjectionAudit> projectionHistoryAudits(@PathVariable int uid) {
-        return payrollService.projectionHistoryAudits(uid);
+    List<PayrollHistoryProjectionAudit> projectionHistoryAudits(
+            @PathVariable int uid,
+            @RequestParam(required = false, defaultValue = "true") boolean includeStepDetails) {
+        return payrollService.projectionHistoryAudits(uid, includeStepDetails);
     }
 
     @GetMapping("/projection-audit-export.csv")
     org.springframework.http.ResponseEntity<byte[]> downloadProjectionAuditCsv(
             @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false, defaultValue = "false") boolean mismatchesOnly) {
-        return projectionAuditExportService.downloadCsvZip(organizationCode, mismatchesOnly);
+        return projectionAuditExportService.downloadCsvZip(organizationCode, keyword, mismatchesOnly);
     }
 
     @GetMapping("/projection-audit-export.xlsx")
     org.springframework.http.ResponseEntity<byte[]> downloadProjectionAuditExcel(
             @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false, defaultValue = "false") boolean mismatchesOnly) {
-        return projectionAuditExportService.downloadExcel(organizationCode, mismatchesOnly);
+        return projectionAuditExportService.downloadExcel(organizationCode, keyword, mismatchesOnly);
     }
 }

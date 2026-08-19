@@ -1,0 +1,46 @@
+package com.dxsoft.rsgzgl.retirement;
+
+/**
+ * Result of post-2006 retirement fee calculation (ltxbl06: jsgz → jsjbt → jshj).
+ */
+public record RetirementWageCalculation(
+        int salaryYears,
+        int conversionRatio,
+        int increaseRatio,
+        int effectiveRatio,
+        int positionSalary,
+        int gradeSalary,
+        int technicalSalary,
+        int teachingRaise,
+        int rankAllowance,
+        int retainedSpecial,
+        int teachingAllowance,
+        int wageBase,
+        int convertedWageBase,
+        int basicRetirementFee,
+        int beforeRetainedAllowance,
+        int beforeLocalAllowance,
+        int beforePostAllowance,
+        int beforeFloatingSalary,
+        int beforeBonusBalance,
+        int beforeLivingAllowance,
+        int beforeSpecialPostAllowance,
+        int beforePositionAllowance,
+        int beforeOtherAllowance,
+        int beforeAllowanceTotal,
+        int beforeTotal,
+        int afterRetainedAllowance,
+        int afterLocalAllowance,
+        int afterPostAllowance,
+        int afterFloatingSalary,
+        int afterBonusBalance,
+        int afterLivingAllowance,
+        int afterSpecialPostAllowance,
+        int afterPositionAllowance,
+        int afterOtherAllowance,
+        int afterAllowanceTotal,
+        int afterTotal,
+        boolean wagesFromStandards,
+        boolean allowancesFromStandards,
+        String note) {
+}

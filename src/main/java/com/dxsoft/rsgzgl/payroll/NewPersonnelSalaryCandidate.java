@@ -16,6 +16,15 @@ record NewPersonnelSalaryCandidate(
         String educationCode,
         String educationName,
         Integer salaryYears,
+        String classificationTag,
         String payrollHistoryId,
-        String currentChangeType) {
+        String currentChangeType,
+        Integer storedTotal,
+        String tipGradeSalaryLevel,
+        String tipPositionSalaryGrade,
+        String tipLevelAssessmentStartYear,
+        String tipStepAssessmentStartYear,
+        String tipCalculationYear,
+        String tipCalculationMonth
+) {
 }

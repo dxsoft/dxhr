@@ -1,5 +1,7 @@
 package com.dxsoft.rsgzgl.payroll;
 
+import java.util.List;
+
 public record SalaryStandardAdjustmentPreview(
         String payrollHistoryId,
         String organizationCode,
@@ -16,6 +18,10 @@ public record SalaryStandardAdjustmentPreview(
         String positionName,
         Integer currentPositionSalary,
         Integer currentGradeSalary,
+        Integer currentTechnicalGradeSalary,
+        Integer currentPerformanceAllowance,
+        Integer currentSubsidyAllowance,
+        Integer currentFloatingSalary,
         Integer currentTotal,
         Integer calculatedPositionSalary,
         Integer calculatedGradeSalary,
@@ -26,6 +32,13 @@ public record SalaryStandardAdjustmentPreview(
         Integer calculatedTotal,
         Integer differenceAmount,
         String standardNote,
+        String gradeSalaryLabel,
+        String performanceAllowanceCaption,
+        String subsidyAllowanceCaption,
+        Boolean showSubsidyAllowance,
         Boolean applyEligible,
-        Boolean rollbackEligible) {
+        Boolean rollbackEligible,
+        List<PayrollChangeComponentComparison> salaryComponents,
+        Boolean midChainApply,
+        Integer laterPeriodSuccessorCount) {
 }

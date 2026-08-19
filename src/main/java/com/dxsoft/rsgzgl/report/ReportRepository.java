@@ -64,6 +64,8 @@ class ReportRepository {
             SqlText.trim(rs.getString("jsnf")),
             SqlText.trim(rs.getString("jsyf")),
             SqlText.trim(rs.getString("jslb")),
+            SqlText.trim(rs.getString("before_zwbm2")),
+            SqlText.trim(rs.getString("before_zwgw2")),
             SqlText.trim(rs.getString("zwbm2")),
             SqlText.trim(rs.getString("zwgw2")),
             SqlText.trim(rs.getString("jbgzjb2")),
@@ -84,25 +86,42 @@ class ReportRepository {
         this.jdbc = jdbc;
     }
 
-    List<ReportTypeOption> findReportTypes(String category, PageRequest pageRequest) {
+    List<ReportTypeOption> findReportTypes(String category, String reportType, PageRequest pageRequest) {
         return jdbc.query("""
                 SELECT lbbm, cname, ctitle, cfilename, rpttype, bblb, dyclb, cdefault
                 FROM rptinfo
-                WHERE (:category IS NULL OR bblb = :category OR dyclb = :category)
-                ORDER BY lbbm
+                WHERE (:category IS NULL
+                       OR bblb = :category
+                       OR dyclb = :category
+                       OR (:category = '审批表'
+                           AND (cname LIKE '%审批表%' OR ctitle LIKE '%审批表%' OR lbmc LIKE '%审批%'))
+                       OR (:category = '花名册'
+                           AND (cname LIKE '%花名册%' OR ctitle LIKE '%花名册%' OR bblb LIKE '%花名册%')))
+                  AND (:reportType IS NULL OR TRIM(rpttype) = :reportType)
+                ORDER BY lbbm ASC, cname ASC
                 LIMIT :limit OFFSET :offset
                 """, new MapSqlParameterSource()
                 .addValue("category", emptyToNull(category))
+                .addValue("reportType", emptyToNull(reportType))
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset()), REPORT_TYPE_MAPPER);
     }
 
-    long countReportTypes(String category) {
+    long countReportTypes(String category, String reportType) {
         Long count = jdbc.queryForObject("""
                 SELECT COUNT(*)
                 FROM rptinfo
-                WHERE (:category IS NULL OR bblb = :category OR dyclb = :category)
-                """, new MapSqlParameterSource("category", emptyToNull(category)), Long.class);
+                WHERE (:category IS NULL
+                       OR bblb = :category
+                       OR dyclb = :category
+                       OR (:category = '审批表'
+                           AND (cname LIKE '%审批表%' OR ctitle LIKE '%审批表%' OR lbmc LIKE '%审批%'))
+                       OR (:category = '花名册'
+                           AND (cname LIKE '%花名册%' OR ctitle LIKE '%花名册%' OR bblb LIKE '%花名册%')))
+                  AND (:reportType IS NULL OR TRIM(rpttype) = :reportType)
+                """, new MapSqlParameterSource()
+                .addValue("category", emptyToNull(category))
+                .addValue("reportType", emptyToNull(reportType)), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -121,27 +140,75 @@ class ReportRepository {
                 .addValue("offset", pageRequest.offset());
         return jdbc.query("""
                 SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       prev.zwbm2 AS before_zwbm2, prev.zwgw2 AS before_zwgw2,
                        h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.blfb2,
                        h.jxjt, h.njbt, h.pgbc, h.hj2
-                FROM hisbase h
+                FROM (
+                    SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                           h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
+                           h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.blfb2,
+                           h.jxjt, h.njbt, h.pgbc, h.hj2
+                    FROM hisbase h
+                    LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                    WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                      AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                      AND (:year IS NULL OR h.jsnf = :year)
+                      AND (:reportText IS NULL OR :isAllRegister = TRUE
+                           OR (:isNormalStepOrSalary = TRUE AND h.jslb IN ('正常档次', '正常晋档', '正常薪级'))
+                           OR (:isGradePromotion = TRUE AND h.jslb IN ('正常级别', '级别滚动'))
+                           OR (:isPositionChange = TRUE AND (
+                                h.jslb IN ('职务变化', '职级晋升')
+                                OR h.jslb LIKE '职务%'
+                                OR h.jslb LIKE '职级晋升%'
+                           ))
+                           OR (:isEducationChange = TRUE AND (h.jslb = '学历变化' OR h.jslb LIKE '学历%'))
+                           OR (:isAllowanceChange = TRUE AND (
+                                h.jslb IN ('津贴变化', '教护津贴', '警衔津贴', '审判津贴', '检察津贴')
+                                OR h.jslb LIKE '%津贴%'
+                                OR h.jslb LIKE '%补贴%'
+                                OR h.jslb LIKE '%绩效%'
+                           ))
+                           OR (:isInternSalary = TRUE AND (h.jslb = '见习工资' OR h.jslb LIKE '见习%'))
+                           OR (:isRegularization = TRUE AND (h.jslb = '转正定级' OR h.jslb LIKE '转正%'))
+                           OR (:isHighGradeRegularization = TRUE AND (
+                                h.jslb LIKE '%高定%'
+                                OR h.jslb = '转正定级'
+                                OR h.jslb LIKE '转正%'
+                           ))
+                           OR (:isTransfer = TRUE AND (
+                                h.jslb IN ('调入定资', '新进工资')
+                                OR h.jslb LIKE '调入%'
+                                OR h.jslb LIKE '新进%'
+                           ))
+                           OR (:isOtherChange = TRUE AND (h.jslb = '其它情况' OR h.jslb LIKE '其它%' OR h.jslb LIKE '其他%'))
+                           OR (:isDemobilized = TRUE AND (h.jslb = '转业定资' OR h.jslb LIKE '转业%'))
+                           OR (:isVeteran = TRUE AND (h.jslb = '退伍定资' OR h.jslb LIKE '退伍%'))
+                           OR (:isRewardPromotion = TRUE AND (h.jslb = '奖励晋升' OR h.jslb LIKE '奖励%'))
+                           OR (:isPenaltyDemotion = TRUE AND (h.jslb = '降资处分' OR h.jslb LIKE '降资%'))
+                           OR (:isStandardAdjust = TRUE AND (
+                                h.jslb IN ('调标晋升', '工资调标', '调整标准')
+                                OR h.jslb LIKE '调标%'
+                           ))
+                           OR (:isFloatingFixed = TRUE AND (h.jslb LIKE '%浮动%' OR h.jslb LIKE '浮动%'))
+                           OR (:isWageReform = TRUE AND (h.jslb LIKE '%套改%' OR h.jslb LIKE '套改%'))
+                           OR (:isRankChange = TRUE AND (
+                                h.jslb IN ('警衔变化', '法官等级', '检察等级', '监察等级')
+                                OR h.jslb LIKE '警衔变化%'
+                                OR h.jslb LIKE '法官等级%'
+                                OR h.jslb LIKE '检察等级%'
+                                OR h.jslb LIKE '监察等级%'
+                           ))
+                           OR (:useReportTextFallback = TRUE AND h.jslb LIKE :reportTextLike))
+                      AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
+                           OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike
+                           OR CONCAT(h.dwbm, '-', h.grbm) LIKE :keywordLike
+                           OR CONCAT(h.dwbm, h.grbm) LIKE :keywordLike)
+                    ORDER BY h.dwbm, h.grbm, h.jsnf DESC, h.jsyf DESC, h.jslb
+                    LIMIT :limit OFFSET :offset
+                ) h
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
-                WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
-                  AND (:year IS NULL OR h.jsnf = :year)
-                  AND (:reportText IS NULL OR :isAllRegister = TRUE
-                       OR (:isSalaryLevel = TRUE AND (h.jslb LIKE '%薪级%' OR h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
-                       OR (:isStepPromotion = TRUE AND h.jslb NOT LIKE '%薪级%' AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
-                       OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级别%')
-                       OR (:isPositionChange = TRUE AND (h.jslb LIKE '%职务%' OR h.jslb LIKE '%岗位%' OR h.jslb LIKE '%职级%'))
-                       OR (:isAllowanceChange = TRUE AND (h.jslb LIKE '%津贴%' OR h.jslb LIKE '%补贴%' OR h.jslb LIKE '%绩效%'))
-                       OR (:isRegularization = TRUE AND (h.jslb LIKE '%转正%' OR h.jslb LIKE '%见习%'))
-                       OR (:isTransfer = TRUE AND (h.jslb LIKE '%调入%' OR h.jslb LIKE '%新进%'))
-                       OR h.jslb LIKE :reportTextLike)
-                  AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
-                       OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
-                ORDER BY h.dwbm, h.grbm, h.jsnf DESC, h.jsyf DESC, h.jslb
-                LIMIT :limit OFFSET :offset
+                LEFT JOIN hisbase prev ON prev.sid = h.id
                 """, params, PAYROLL_CHANGE_REGISTER_MAPPER);
     }
 
@@ -163,16 +230,55 @@ class ReportRepository {
                   AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:year IS NULL OR h.jsnf = :year)
                   AND (:reportText IS NULL OR :isAllRegister = TRUE
-                       OR (:isSalaryLevel = TRUE AND (h.jslb LIKE '%薪级%' OR h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
-                       OR (:isStepPromotion = TRUE AND h.jslb NOT LIKE '%薪级%' AND (h.jslb LIKE '%档%' OR h.jslb LIKE '%正常晋升%'))
-                       OR (:isGradePromotion = TRUE AND h.jslb LIKE '%级别%')
-                       OR (:isPositionChange = TRUE AND (h.jslb LIKE '%职务%' OR h.jslb LIKE '%岗位%' OR h.jslb LIKE '%职级%'))
-                       OR (:isAllowanceChange = TRUE AND (h.jslb LIKE '%津贴%' OR h.jslb LIKE '%补贴%' OR h.jslb LIKE '%绩效%'))
-                       OR (:isRegularization = TRUE AND (h.jslb LIKE '%转正%' OR h.jslb LIKE '%见习%'))
-                       OR (:isTransfer = TRUE AND (h.jslb LIKE '%调入%' OR h.jslb LIKE '%新进%'))
-                       OR h.jslb LIKE :reportTextLike)
+                       OR (:isNormalStepOrSalary = TRUE AND h.jslb IN ('正常档次', '正常晋档', '正常薪级'))
+                       OR (:isGradePromotion = TRUE AND h.jslb IN ('正常级别', '级别滚动'))
+                       OR (:isPositionChange = TRUE AND (
+                            h.jslb IN ('职务变化', '职级晋升')
+                            OR h.jslb LIKE '职务%'
+                            OR h.jslb LIKE '职级晋升%'
+                       ))
+                       OR (:isEducationChange = TRUE AND (h.jslb = '学历变化' OR h.jslb LIKE '学历%'))
+                       OR (:isAllowanceChange = TRUE AND (
+                            h.jslb IN ('津贴变化', '教护津贴', '警衔津贴', '审判津贴', '检察津贴')
+                            OR h.jslb LIKE '%津贴%'
+                            OR h.jslb LIKE '%补贴%'
+                            OR h.jslb LIKE '%绩效%'
+                       ))
+                       OR (:isInternSalary = TRUE AND (h.jslb = '见习工资' OR h.jslb LIKE '见习%'))
+                       OR (:isRegularization = TRUE AND (h.jslb = '转正定级' OR h.jslb LIKE '转正%'))
+                       OR (:isHighGradeRegularization = TRUE AND (
+                            h.jslb LIKE '%高定%'
+                            OR h.jslb = '转正定级'
+                            OR h.jslb LIKE '转正%'
+                       ))
+                       OR (:isTransfer = TRUE AND (
+                            h.jslb IN ('调入定资', '新进工资')
+                            OR h.jslb LIKE '调入%'
+                            OR h.jslb LIKE '新进%'
+                       ))
+                       OR (:isOtherChange = TRUE AND (h.jslb = '其它情况' OR h.jslb LIKE '其它%' OR h.jslb LIKE '其他%'))
+                       OR (:isDemobilized = TRUE AND (h.jslb = '转业定资' OR h.jslb LIKE '转业%'))
+                       OR (:isVeteran = TRUE AND (h.jslb = '退伍定资' OR h.jslb LIKE '退伍%'))
+                       OR (:isRewardPromotion = TRUE AND (h.jslb = '奖励晋升' OR h.jslb LIKE '奖励%'))
+                       OR (:isPenaltyDemotion = TRUE AND (h.jslb = '降资处分' OR h.jslb LIKE '降资%'))
+                       OR (:isStandardAdjust = TRUE AND (
+                            h.jslb IN ('调标晋升', '工资调标', '调整标准')
+                            OR h.jslb LIKE '调标%'
+                       ))
+                       OR (:isFloatingFixed = TRUE AND (h.jslb LIKE '%浮动%' OR h.jslb LIKE '浮动%'))
+                       OR (:isWageReform = TRUE AND (h.jslb LIKE '%套改%' OR h.jslb LIKE '套改%'))
+                       OR (:isRankChange = TRUE AND (
+                            h.jslb IN ('警衔变化', '法官等级', '检察等级', '监察等级')
+                            OR h.jslb LIKE '警衔变化%'
+                            OR h.jslb LIKE '法官等级%'
+                            OR h.jslb LIKE '检察等级%'
+                            OR h.jslb LIKE '监察等级%'
+                       ))
+                       OR (:useReportTextFallback = TRUE AND h.jslb LIKE :reportTextLike))
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
-                       OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                       OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike
+                       OR CONCAT(h.dwbm, '-', h.grbm) LIKE :keywordLike
+                       OR CONCAT(h.dwbm, h.grbm) LIKE :keywordLike)
                 """, params, Long.class);
         return count == null ? 0 : count;
     }
@@ -185,18 +291,65 @@ class ReportRepository {
             String keyword) {
         String reportText = reportTypeText(reportTypeCode);
         String normalized = reportText == null ? "" : reportText;
+        boolean isAllRegister = normalized.contains("全体工作人员工资花名册") || normalized.contains("工作人员工资花名册");
+        boolean isHighGradeRegularization = normalized.contains("高定");
+        boolean isEducationChange = normalized.contains("学历");
+        boolean isWageReform = normalized.contains("套改");
+        boolean isFloatingFixed = normalized.contains("浮动");
+        boolean isOtherChange = normalized.contains("其它情况") || normalized.contains("其他情况");
+        boolean isDemobilized = normalized.contains("转业");
+        boolean isVeteran = normalized.contains("退伍");
+        boolean isRewardPromotion = normalized.contains("奖励晋升");
+        boolean isPenaltyDemotion = normalized.contains("降资");
+        boolean isStandardAdjust = normalized.contains("调标");
+        boolean isRankChange = (normalized.contains("警衔变化")
+                || normalized.contains("法官等级")
+                || normalized.contains("检察官等级")
+                || normalized.contains("监察等级")
+                || normalized.contains("等级变化"))
+                && !normalized.contains("津贴");
+        boolean isAllowanceChange = (normalized.contains("津贴") || normalized.contains("补贴") || normalized.contains("绩效"))
+                && !isRankChange;
+        boolean isNormalStepOrSalary = (normalized.contains("薪级")
+                || normalized.contains("档次")
+                || normalized.contains("晋档")
+                || normalized.contains("正常晋升"))
+                && !isHighGradeRegularization;
+        boolean isGradePromotion = (normalized.contains("级别滚动") || normalized.contains("正常级别") || normalized.contains("晋级"))
+                && !isRewardPromotion;
+        boolean isPositionChange = (normalized.contains("职务") || normalized.contains("职级")) && !isWageReform;
+        boolean isInternSalary = normalized.contains("见习");
+        boolean isRegularization = normalized.contains("转正") && !isHighGradeRegularization;
+        boolean isTransfer = normalized.contains("调入") || normalized.contains("新进");
+        boolean typedFilter = isAllRegister || isNormalStepOrSalary || isGradePromotion || isPositionChange
+                || isEducationChange || isAllowanceChange || isInternSalary || isRegularization
+                || isHighGradeRegularization || isTransfer || isOtherChange || isDemobilized || isVeteran
+                || isRewardPromotion || isPenaltyDemotion || isStandardAdjust || isFloatingFixed
+                || isWageReform || isRankChange;
         return parameters(scope, organizationFilter, null, keyword)
                 .addValue("year", emptyToNull(year))
                 .addValue("reportText", emptyToNull(reportText))
                 .addValue("reportTextLike", reportText == null ? null : "%" + reportText + "%")
-                .addValue("isAllRegister", normalized.contains("全体工作人员工资花名册") || normalized.contains("工作人员工资花名册"))
-                .addValue("isSalaryLevel", normalized.contains("薪级"))
-                .addValue("isStepPromotion", normalized.contains("档次") || normalized.contains("晋档"))
-                .addValue("isGradePromotion", normalized.contains("级别滚动") || normalized.contains("正常级别") || normalized.contains("晋级"))
-                .addValue("isPositionChange", normalized.contains("职务") || normalized.contains("职级"))
-                .addValue("isAllowanceChange", normalized.contains("津贴") || normalized.contains("补贴") || normalized.contains("绩效"))
-                .addValue("isRegularization", normalized.contains("转正") || normalized.contains("见习"))
-                .addValue("isTransfer", normalized.contains("调入") || normalized.contains("新进"));
+                .addValue("isAllRegister", isAllRegister)
+                .addValue("isNormalStepOrSalary", isNormalStepOrSalary)
+                .addValue("isGradePromotion", isGradePromotion)
+                .addValue("isPositionChange", isPositionChange)
+                .addValue("isEducationChange", isEducationChange)
+                .addValue("isAllowanceChange", isAllowanceChange)
+                .addValue("isInternSalary", isInternSalary)
+                .addValue("isRegularization", isRegularization)
+                .addValue("isHighGradeRegularization", isHighGradeRegularization)
+                .addValue("isTransfer", isTransfer)
+                .addValue("isOtherChange", isOtherChange)
+                .addValue("isDemobilized", isDemobilized)
+                .addValue("isVeteran", isVeteran)
+                .addValue("isRewardPromotion", isRewardPromotion)
+                .addValue("isPenaltyDemotion", isPenaltyDemotion)
+                .addValue("isStandardAdjust", isStandardAdjust)
+                .addValue("isFloatingFixed", isFloatingFixed)
+                .addValue("isWageReform", isWageReform)
+                .addValue("isRankChange", isRankChange)
+                .addValue("useReportTextFallback", emptyToNull(reportText) != null && !typedFilter);
     }
 
     private String reportTypeText(String reportTypeCode) {
@@ -227,16 +380,19 @@ class ReportRepository {
         }
         return jdbc.query("""
                 SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       prev.zwbm2 AS before_zwbm2, prev.zwgw2 AS before_zwgw2,
                        h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.blfb2,
                        h.jxjt, h.njbt, h.pgbc, h.hj2
                 FROM hisbase h
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                LEFT JOIN hisbase prev ON prev.sid = h.id
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationFilter IS NULL OR h.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
                   AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
-                       OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                       OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike
+                       OR prev.zwgw2 LIKE :keywordLike)
                 ORDER BY h.dwbm, h.grbm, h.jsnf DESC, h.jsyf DESC, h.jslb
                 LIMIT :limit OFFSET :offset
                 """, parameters(scope, organizationFilter, period, keyword)

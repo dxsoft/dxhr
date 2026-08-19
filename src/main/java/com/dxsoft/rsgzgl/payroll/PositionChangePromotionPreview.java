@@ -61,6 +61,7 @@ public record PositionChangePromotionPreview(
         Boolean applyEligible,
         Boolean eligible,
         String note,
-        List<String> explanationLines
+        List<String> explanationLines,
+        List<PayrollChangeComponentComparison> salaryComponents
 ) {
 }

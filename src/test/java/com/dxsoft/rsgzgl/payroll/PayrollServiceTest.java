@@ -12,10 +12,12 @@ import static org.mockito.Mockito.when;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import com.dxsoft.rsgzgl.maintenance.OperationLogService;
 import com.dxsoft.rsgzgl.security.AccessControlService;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,7 +32,7 @@ class PayrollServiceTest {
     void wageProjectionReplaysPromotionsBeforeLaterPositionChanges() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot positionChange = history("2017", "03", "职务变化", "0180", "副县处级领导职务", "18", "6", "2014", "2016");
 
         when(repository.findLatestHistory(10268)).thenReturn(Optional.of(positionChange));
@@ -113,7 +115,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesReformLevelRollingIn2008After2007PositionPromotionUid134Style() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot reform = history(
                 "2006", "07", "套改", "01A0", "副科级领导职务", "23", "3", "2006", "2006", "1998.03");
         PayrollHistorySnapshot levelRolling = history(
@@ -198,7 +200,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesReformLevelRollingWhenPromotedOneLayerSinceReform() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history(
                 "2010", "01", "正常级别", "0191", "正科级非领导职务", "21", "4", "2006", "2006", "2007.07");
 
@@ -273,7 +275,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot current = history(
                 "2008", "01", "正常级别", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2001.01");
 
@@ -363,7 +365,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot current = history(
                 "2026", "01", "职务变化", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2001.01");
 
@@ -458,7 +460,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot processed = history(
                 "2008", "01", "正常级别", "0190", "正科级领导职务", "21", "4", "2008", "2008", "2001.01");
 
@@ -484,7 +486,9 @@ class PayrollServiceTest {
         assertThat(page.content()).hasSize(1);
         assertThat(page.content().getFirst().rollbackEligible()).isTrue();
         assertThat(page.content().getFirst().note())
-                .contains("可执行还原")
+                .isEqualTo("已处理")
+                .doesNotContain("可执行还原")
+                .doesNotContain("当前最近工资变动")
                 .doesNotContain("差额未超过5年")
                 .doesNotContain("暂不符合级别晋升条件");
     }
@@ -494,7 +498,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot eligible = history(
                 "2024", "01", "职务变化", "0190", "正科级领导职务", "21", "4", "2018", "2020");
 
@@ -543,7 +547,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot overQualified = history(
                 "2024", "01", "职务变化", "0190", "正科级领导职务", "21", "4", "2017", "2020");
 
@@ -581,7 +585,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot applyCandidate = history(
                 "2024", "01", "职务变化", "0190", "正科级领导职务", "21", "4", "2018", "2020");
         PayrollHistorySnapshot processed = history(
@@ -632,7 +636,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot stepProcessed = history(
                 "2024", "01", "正常档次", "0190", "正科级领导职务", "21", "4", "2024", "2024", "2001.01");
 
@@ -663,7 +667,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot transferIn = history(
                 "2024", "01", "调入定资", "0190", "正科级领导职务", "21", "4", "2018", "2020", "2001.01");
 
@@ -703,7 +707,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot rollingProcessed = history(
                 "2008", "01", "级别滚动", "0190", "正科级领导职务", "21", "4", "2008", "2008", "2001.01");
 
@@ -734,7 +738,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot unchanged = history(
                 "2024", "01", "正常档次", "0190", "正科级领导职务", "21", "4", "2006", "2006");
         PayrollHistorySnapshot pending = history(
@@ -781,11 +785,140 @@ class PayrollServiceTest {
     }
 
     @Test
+    void positionChangePromotionListsPendingFromCandidateRows() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot pending = history(
+                "2024", "01", "正常档次", "0504", "机关中级工", "", "2", "2018", "2018", "2018.06", "05");
+
+        when(repository.findPositionChangePromotionCandidateRows(any(), any(), any()))
+                .thenReturn(List.of(new PositionChangePromotionCandidateRow(
+                        101, 1, "0504", "机关中级工", "0503", "机关高级工",
+                        null, null, "正常档次", "2022.09")));
+        when(repository.findLatestHistory(101)).thenReturn(Optional.of(pending));
+        when(repository.findPositionLevelRange("0503"))
+                .thenReturn(Optional.of(new PositionLevelRange("0503", 0, 0)));
+        when(repository.findPositionLevelRange("0504"))
+                .thenReturn(Optional.of(new PositionLevelRange("0504", 0, 0)));
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.positionSalary(anyString(), anyString())).thenAnswer(invocation -> {
+            String positionCode = invocation.getArgument(0);
+            if ("0503".equals(positionCode)) {
+                return 910;
+            }
+            if ("0504".equals(positionCode)) {
+                return 903;
+            }
+            return 0;
+        });
+        when(repository.positionGradeSalary(anyString(), anyString(), anyString(), anyString())).thenReturn(0);
+
+        var page = service.positionChangePromotionPreviews(null, null, new PageRequest(0, 20));
+
+        assertThat(page.content()).hasSize(1);
+        assertThat(page.content().getFirst().personCode()).isEqualTo("00040");
+        assertThat(page.content().getFirst().currentPositionCode()).isEqualTo("0504");
+        assertThat(page.content().getFirst().newPositionCode()).isEqualTo("0503");
+    }
+
+    @Test
+    void governmentWorkerPositionChangePreviewIncludesTechnicalGradeIncreaseInTotal() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
+        when(accessControlService.hasPermission("PAYROLL_WRITE")).thenReturn(true);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+
+        PayrollHistorySnapshot latest = workerHistoryWithAmounts(
+                "history-id", "010", "00172", "0504", "机关中级工", "5", 1899, 975, 4132);
+
+        when(repository.findPersonnelUidByCurrentHistoryId("history-id")).thenReturn(Optional.of(101));
+        when(repository.findLatestHistory(101)).thenReturn(Optional.of(latest));
+        when(repository.findPositionChangePromotionCandidateRows(any(), any(), any()))
+                .thenReturn(List.of(new PositionChangePromotionCandidateRow(
+                        101, 1, "0504", "机关中级工", "0503", "机关高级工",
+                        null, null, "正常档次", "2019.09")));
+        when(repository.findCurrentPositionChangeCandidatesByUids(List.of(101)))
+                .thenReturn(Map.of(101, new PositionChangeCandidate("0503", "机关高级工", "2019.09")));
+        when(repository.findOrganizationPayrollPolicy("010"))
+                .thenReturn(Optional.of(new OrganizationPayrollPolicy("", "", "")));
+        when(repository.findPositionLevelRange(anyString()))
+                .thenReturn(Optional.of(new PositionLevelRange("0504", 0, 0)));
+        when(repository.findPositionLevelRanges(any())).thenReturn(Map.of());
+        when(repository.findPositionSalaries(anyString(), any())).thenReturn(Map.of());
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.positionSalary("0504", "201607")).thenReturn(900);
+        when(repository.positionSalary("0503", "201607")).thenReturn(927);
+        when(repository.positionGradeSalary(eq("0504"), eq("5"), eq("0"), eq("201607"))).thenReturn(999);
+        when(repository.positionGradeSalary(eq("0503"), anyString(), eq("0"), eq("201607"))).thenAnswer(invocation -> {
+            int grade = Integer.parseInt(invocation.getArgument(1));
+            return grade == 8 ? 1000 : grade * 50;
+        });
+        when(repository.technicalGradeSalary("0504", "201607")).thenReturn(975);
+        when(repository.technicalGradeSalary("0503", "201607")).thenReturn(1200);
+        when(repository.hasAllowanceStandardForPosition(eq("201607"), eq("010"), anyString())).thenReturn(true);
+        when(repository.performanceAllowance("010", "0504", "201607")).thenReturn(BigDecimal.valueOf(486));
+        when(repository.performanceAllowance("010", "0503", "201607")).thenReturn(BigDecimal.valueOf(520));
+        when(repository.subsidyAllowance("010", "0504", "201607")).thenReturn(729);
+        when(repository.subsidyAllowance("010", "0503", "201607")).thenReturn(780);
+        when(repository.retainedAllowance(anyString())).thenReturn(43);
+
+        PositionChangePromotionPreview preview = service.positionChangePromotionDetail("history-id");
+
+        assertThat(preview.gradeSalaryIncrease()).isZero();
+        assertThat(preview.totalIncrease() - preview.netPositionSalaryIncrease() - preview.gradeSalaryIncrease())
+                .isEqualTo(225 + 34 + 51);
+    }
+
+    @Test
+    void positionChangePromotionExcludesWhenAnchorHasNoNextAppointment() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+
+        when(repository.findPositionChangePromotionCandidateRows(any(), any(), any())).thenReturn(List.of());
+
+        var page = service.positionChangePromotionPreviews("010", "00052", new PageRequest(0, 20));
+
+        assertThat(page.content()).isEmpty();
+    }
+
+    @Test
+    void rollbackEducationPromotionWritesOperationAuditLog() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        OperationLogService operationLogService = mock(OperationLogService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true, operationLogService);
+        PayrollHistorySnapshot current = history("2024", "06", "学历变化", "0180", "副县处级领导职务", "18", "6", "2014", "2016");
+
+        when(accessControlService.hasPermission("PAYROLL_WRITE")).thenReturn(true);
+        when(repository.findCurrentHistoryById("history-id")).thenReturn(Optional.of(current));
+        when(repository.findPredecessorHistoryId("001", "00040", "history-id")).thenReturn(Optional.of("prev-id"));
+
+        service.rollbackEducationPromotion("history-id");
+
+        verify(operationLogService).record(
+                eq("ROLLBACK_PAYROLL_CHANGE"),
+                eq("hisbase"),
+                eq("history-id"),
+                org.mockito.ArgumentMatchers.contains("001-00040"));
+    }
+
+    @Test
     void positionChangePromotionPreviewsIncludeRollbackCandidates() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot processed = history(
                 "2024", "06", "职级套改", "2307", "一级主任科员", "20", "6", "2006", "2006");
 
@@ -828,7 +961,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot pendingWithPositionChangeHistory = history(
                 "2024", "06", "职级套改", "01A0", "副科级领导职务", "22", "5", "2006", "2006");
 
@@ -874,7 +1007,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot processed = history(
                 "2024", "06", "职级套改", "2307", "一级主任科员", "20", "6", "2006", "2006");
         PayrollHistorySnapshot predecessor = history(
@@ -911,7 +1044,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot processed = history(
                 "2024", "06", "职级套改", "2307", "一级主任科员", "20", "6", "2006", "2006");
 
@@ -948,7 +1081,7 @@ class PayrollServiceTest {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot processedWithPendingAppointment = history(
                 "2024", "06", "职级套改", "2307", "一级主任科员", "20", "6", "2006", "2006");
 
@@ -983,7 +1116,7 @@ class PayrollServiceTest {
     void wageProjectionSkipsPositionChangeWhenAppointmentRecordWasModified() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot stalePositionChange = history(
                 "2007", "08", "职务变化", "0190", "正科级领导职务", "22", "2", "2006", "2006", "2007.07");
 
@@ -1028,7 +1161,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesUnprocessedAppointmentPositionChange() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(3259)).thenReturn(Optional.of(latest));
@@ -1072,7 +1205,7 @@ class PayrollServiceTest {
     void wageProjectionKeepsLevelWhenSameLayerPositionChangeAlreadyReachedMinimumLevel() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0191", "正科级非领导职务", "18", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(3260)).thenReturn(Optional.of(latest));
@@ -1114,7 +1247,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesAppointmentAtReformStartMonthToNextPayrollMonth() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0191", "正科级非领导职务", "18", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(3260)).thenReturn(Optional.of(latest));
@@ -1158,7 +1291,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesYearStartPositionChangeBeforeJanuaryStepPromotion() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2011", "12", "正常档次", "01A1", "副科级非领导职务", "24", "4", "2008", "2010", "2007.07");
 
         when(repository.findLatestHistory(3260)).thenReturn(Optional.of(latest));
@@ -1203,7 +1336,7 @@ class PayrollServiceTest {
     void projectionHistoryAuditStopsAfterSameMonthPositionChangeBeforeStepPromotion() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot reform = historyWithId(
                 "reform-id", "2006", "07", "套改", "01A1", "副科级非领导职务", "24", "4", "2006", "2006", "2007.07");
         PayrollHistorySnapshot positionRecord = historyWithId(
@@ -1281,7 +1414,7 @@ class PayrollServiceTest {
     void wageProjectionTreatsOtherCivilServiceSequenceToPoliceAsPoliceConversion() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0401", "其他公务员序列职务", "18", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(4810)).thenReturn(Optional.of(latest));
@@ -1330,7 +1463,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesNormalPositionPolicyWithinPoliceSequences() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0401", "其他公务员序列职务", "18", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(4811)).thenReturn(Optional.of(latest));
@@ -1384,7 +1517,7 @@ class PayrollServiceTest {
     void wageProjectionKeepsConvertedLevelWhenPoliceReturnsToSameLayerCivilServicePosition() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0401", "其他公务员序列职务", "18", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(4812)).thenReturn(Optional.of(latest));
@@ -1435,7 +1568,7 @@ class PayrollServiceTest {
     void wageProjectionPromotesOneLevelWhenPoliceReturnsToHigherCivilServicePositionAfterReachingMinimum() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0401", "其他公务员序列职务", "18", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(4813)).thenReturn(Optional.of(latest));
@@ -1486,7 +1619,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesDisciplinaryDemotionWhenPoliceReturnsToLowerCivilServicePosition() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0401", "其他公务员序列职务", "18", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(4814)).thenReturn(Optional.of(latest));
@@ -1540,7 +1673,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesDisciplinaryDemotionBeforePoliceConversionWhenLayerDrops() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0180", "副县处级领导职务", "18", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(4815)).thenReturn(Optional.of(latest));
@@ -1591,7 +1724,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesDisciplinaryDemotionWhenLowerPositionHasSamePeriodSanction() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0180", "副县处级领导职务", "18", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(4820)).thenReturn(Optional.of(latest));
@@ -1635,7 +1768,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesLegacyPolicePositionPolicyFromAdministrativeToPrefix02() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01A1", "副科级非领导职务", "24", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(4830)).thenReturn(Optional.of(latest));
@@ -1678,7 +1811,7 @@ class PayrollServiceTest {
     void wageProjectionKeepsCurrentReformWhenCurrentLevelIsHigherAndStepIsNotLowerThanLowerPosition() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0180", "副县处级领导职务", "21", "5", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(2919)).thenReturn(Optional.of(latest));
@@ -1734,7 +1867,7 @@ class PayrollServiceTest {
     void wageProjectionUsesPreviousPositionReformWithoutRequiringOneLowerLayer() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0180", "副县处级领导职务", "22", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(2920)).thenReturn(Optional.of(latest));
@@ -1782,7 +1915,7 @@ class PayrollServiceTest {
     void wageProjectionUsesEducationRegularizationWhenReformLevelAndSalaryAreLower() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01B0", "科员", "23", "2", "2006", "2006", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("01B0", 0, 99, 0, 99, "23", "2"));
@@ -1804,7 +1937,7 @@ class PayrollServiceTest {
     void wageProjectionUsesEducationRegularizationSalaryWhenReformLevelIsHigherButSalaryIsLower() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "1", "2006", "2006", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "1"));
@@ -1839,7 +1972,7 @@ class PayrollServiceTest {
     void wageProjectionPromotesStepInsteadOfLevelAtHighestPositionLevel() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0180", "副县处级领导职务", "12", "3", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(8795)).thenReturn(Optional.of(latest));
@@ -1893,7 +2026,7 @@ class PayrollServiceTest {
     void wageProjectionResetsStepAssessmentYearWhenLevelIncreaseExceedsStepDifference() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(8796)).thenReturn(Optional.of(latest));
@@ -1953,7 +2086,7 @@ class PayrollServiceTest {
     void wageProjectionRecordsSeparateStepsForAllowanceStandardAndStepPromotion() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "2", "2011", "2012", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "2"));
@@ -2040,7 +2173,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesBasicSalaryStandardAdjustment() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "4"));
@@ -2082,7 +2215,7 @@ class PayrollServiceTest {
     void calculationPreviewUsesProjectedSalaryStandardAtTargetPeriod() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "4"));
@@ -2126,7 +2259,7 @@ class PayrollServiceTest {
     void wageProjectionAppliesRankAllowanceChangeFromNextMonth() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "4"));
@@ -2151,22 +2284,22 @@ class PayrollServiceTest {
     }
 
     @Test
-    void wageProjectionAppliesPositionChangeBeforeRankAllowanceAtSameMonthUid134Style() {
+    void wageProjectionAppliesRankAllowanceBeforeLaterPositionChangeWhenAppointmentIsNextMonth() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history(
                 "2008", "10", "职务变化", "0191", "正科级非领导职务", "21", "1", "2008", "2006", "2007.07");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "2"));
         when(repository.findLatestHistory(134)).thenReturn(Optional.of(latest));
         when(repository.findHistoryChain("001", "00040")).thenReturn(List.of(latest));
-        when(repository.findPositionChangesBetween(eq("001"), eq("00040"), anyString(), eq("200810"), org.mockito.ArgumentMatchers.anySet()))
+        when(repository.findPositionChangesBetween(eq("001"), eq("00040"), anyString(), eq("200811"), org.mockito.ArgumentMatchers.anySet()))
                 .thenReturn(List.of(
                         new PositionChangeCandidate("0190", "正科级领导职务", "2008.09"),
                         new PositionChangeCandidate("0191", "正科级非领导职务", "2008.10")));
         when(repository.findPositionLevelRange(anyString())).thenReturn(Optional.of(new PositionLevelRange("0190", 22, 16)));
-        when(repository.findRankAllowanceChangesBetween("001", "00040", "200607", "200810"))
+        when(repository.findRankAllowanceChangesBetween("001", "00040", "200607", "200811"))
                 .thenReturn(List.of(new RankAllowanceChange("三级警督", "2008.09", "jx")));
         when(repository.findRankAllowanceAtOrBefore("001", "00040", "200607")).thenReturn(Optional.empty());
         when(repository.latestRankAllowanceStandardAtOrBefore(anyString())).thenReturn("200607");
@@ -2175,14 +2308,15 @@ class PayrollServiceTest {
         when(repository.countQualifiedAssessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenReturn(0);
         when(repository.assessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenReturn(Set.of());
 
-        WageProjectionPreview preview = service.wageProjection(134, "200810");
+        WageProjectionPreview preview = service.wageProjection(134, "200811");
 
-        int positionStepIndex = indexOfStepContaining(preview.stepDetails(), "200810", "职务变化");
         int rankStepIndex = indexOfStepContaining(preview.stepDetails(), "200810", "警衔变化");
+        int positionStepIndex = indexOfStepContaining(preview.stepDetails(), "200811", "职务变化");
+        assertThat(rankStepIndex).isGreaterThanOrEqualTo(0);
         assertThat(positionStepIndex).isGreaterThanOrEqualTo(0);
-        assertThat(rankStepIndex).isGreaterThan(positionStepIndex);
+        assertThat(rankStepIndex).isLessThan(positionStepIndex);
         assertThat(preview.stepDetails().stream()
-                .filter(step -> "200810".equals(step.period()))
+                .filter(step -> "200811".equals(step.period()))
                 .map(WageProjectionStepDetail::description)
                 .filter(description -> description != null && description.contains("职务变化"))
                 .count()).isEqualTo(1);
@@ -2207,7 +2341,7 @@ class PayrollServiceTest {
     void wageProjectionAdjustsRankAllowanceWhenNewStandardStarts() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "4"));
@@ -2235,7 +2369,7 @@ class PayrollServiceTest {
     void wageProjectionSkipsRankAllowanceStandardWhenCategoryDoesNotMatchCurrentRank() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "4"));
@@ -2306,7 +2440,7 @@ class PayrollServiceTest {
             String extraValue = invocation.getArgument(2);
             int extra = extraValue == null || extraValue.toString().isBlank() ? 0 : Integer.parseInt(extraValue.toString().trim());
             int highest = highestGradeStepForTest(levelValue);
-            int effectiveStep = step >= highest ? highest + Math.max(0, extra) : step;
+            int effectiveStep = step >= highest ? step + Math.max(0, extra) : step;
             return (30 - level) * 100 + effectiveStep * 10;
         });
     }
@@ -2377,7 +2511,7 @@ class PayrollServiceTest {
     void normalPromotionPreviewUsesSelectedPromotionYearForCalculationPeriod() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history(
                 "2025", "01", "正常档次", "0190", "正科级领导职务", "21", "2", "2008", "2025", "2004.01");
 
@@ -2409,37 +2543,60 @@ class PayrollServiceTest {
     void normalPromotionDueOnlyFilterPaginatesAfterEligibilityCheck() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot eligibleHistory = history(
-                "2025", "01", "正常档次", "0190", "正科级领导职务", "21", "2", "2008", "2025", "2004.01");
+                "2025", "01", "调资", "0190", "正科级领导职务", "21", "2", "2008", "2024", "2004.01");
         PayrollHistorySnapshot ineligibleHistory = history(
-                "2025", "01", "正常档次", "0190", "正科级领导职务", "21", "2", "2008", "2025", "2004.01");
+                "2025", "01", "调资", "0190", "正科级领导职务", "21", "2", "2008", "2024", "2004.01");
+        PayrollHistorySnapshot processedHistory = history(
+                "2026", "01", "正常档次", "0190", "正科级领导职务", "21", "3", "2008", "2026", "2004.01");
 
         when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
-        when(repository.findPersonnelUidsWithCurrentPayroll(any(), any(), any())).thenReturn(List.of(9001, 9002, 9003));
-        when(repository.findLatestHistory(9001)).thenReturn(Optional.of(eligibleHistory));
-        when(repository.findLatestHistory(9002)).thenReturn(Optional.of(ineligibleHistory));
-        when(repository.findLatestHistory(9003)).thenReturn(Optional.of(eligibleHistory));
+        when(repository.findNormalPromotionCandidateUids(any(), any(), any(), eq(2026)))
+                .thenReturn(List.of(9001, 9002, 9003));
+        when(repository.findLatestHistoriesByUids(any())).thenAnswer(invocation -> {
+            List<Integer> uids = invocation.getArgument(0);
+            Map<Integer, PayrollHistorySnapshot> map = new java.util.LinkedHashMap<>();
+            if (uids.contains(9001)) {
+                map.put(9001, eligibleHistory);
+            }
+            if (uids.contains(9002)) {
+                map.put(9002, ineligibleHistory);
+            }
+            if (uids.contains(9003)) {
+                map.put(9003, processedHistory);
+            }
+            return map;
+        });
+        when(repository.findAssessmentYearsByUids(any(), anyInt(), anyInt())).thenReturn(Map.of(
+                9001, assessmentYears(2024, 2025),
+                9002, List.of(),
+                9003, assessmentYears(2024, 2025)));
         when(repository.intValue(any())).thenAnswer(invocation -> {
             String value = invocation.getArgument(0);
             return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
         });
+        when(repository.highestGradeStepForLevel(anyString())).thenReturn(14);
         when(repository.gradeSalary(anyString(), anyString(), anyString())).thenAnswer(invocation -> {
             int level = Integer.parseInt(invocation.getArgument(0));
             int step = Integer.parseInt(invocation.getArgument(1));
             return (30 - level) * 100 + step * 10;
         });
         stubCivilServantGradeSalary(repository);
-        when(repository.countQualifiedAssessmentYears(anyString(), anyString(), anyInt(), anyInt()))
-                .thenReturn(2, 0, 2);
 
-        PageResponse<NormalPromotionPreview> page = service.normalPromotionPreviews(
-                null, null, true, "2026", PageRequest.of(0, 1));
+        PageResponse<NormalPromotionPreview> pendingPage = service.normalPromotionPreviews(
+                null, null, true, false, "2026", PageRequest.of(0, 1));
+        assertThat(pendingPage.totalElements()).isEqualTo(1);
+        assertThat(pendingPage.content()).hasSize(1);
+        assertThat(pendingPage.content().getFirst().uid()).isEqualTo(9001);
+        assertThat(pendingPage.content().getFirst().eligible()).isTrue();
 
-        assertThat(page.totalElements()).isEqualTo(2);
-        assertThat(page.totalPages()).isEqualTo(2);
-        assertThat(page.content()).hasSize(1);
-        assertThat(page.content().getFirst().uid()).isEqualTo(9001);
+        PageResponse<NormalPromotionPreview> processedPage = service.normalPromotionPreviews(
+                null, null, false, true, "2026", PageRequest.of(0, 10));
+        assertThat(processedPage.totalElements()).isEqualTo(1);
+        assertThat(processedPage.content().getFirst().uid()).isEqualTo(9003);
+        assertThat(processedPage.content().getFirst().rollbackEligible()).isTrue();
+
         verify(repository, never()).findPersonnelUidsWithCurrentPayroll(any(), any(), any(), any());
     }
 
@@ -2447,7 +2604,7 @@ class PayrollServiceTest {
     void educationPromotionPreservesStepAssessmentYearWhenLevelIncreaseWithinStepDifference() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01B0", "科员", "23", "2", "2000", "2001", "2004.01");
 
         when(accessControlService.organizationScope(any())).thenReturn(new OrganizationScope(true, Set.of("001")));
@@ -2485,7 +2642,7 @@ class PayrollServiceTest {
     void educationPromotionResetsStepAssessmentYearWhenLevelIncreaseExceedsStepDifference() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01B0", "科员", "23", "2", "2000", "2001", "2004.01");
 
         when(accessControlService.organizationScope(any())).thenReturn(new OrganizationScope(true, Set.of("001")));
@@ -2522,7 +2679,7 @@ class PayrollServiceTest {
     void educationPromotionResetsStepAssessmentYearWhenPromotedTwentyFiveTwoToTwentyFourThree() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01B0", "科员", "25", "2", "2000", "2010", "2004.01");
 
         when(accessControlService.organizationScope(any())).thenReturn(new OrganizationScope(true, Set.of("001")));
@@ -2561,7 +2718,7 @@ class PayrollServiceTest {
     void educationPromotionAppliesStandardStepWhenSameLevelBelowStandardTreatment() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2007", "07", "正常档次", "01B0", "科员", "24", "1", "2006", "2006", "2004.01");
 
         when(accessControlService.organizationScope(any())).thenReturn(new OrganizationScope(true, Set.of("001")));
@@ -2622,7 +2779,7 @@ class PayrollServiceTest {
     void educationPromotionPreservesLevelAssessmentYearWhenPositionHierarchyChangesByOneLevel() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01C0", "科员", "25", "2", "2000", "2010", "2004.01");
 
         when(accessControlService.organizationScope(any())).thenReturn(new OrganizationScope(true, Set.of("001")));
@@ -2678,7 +2835,7 @@ class PayrollServiceTest {
     void educationPromotionResetsLevelAssessmentYearWhenPositionHierarchyChangesByTwoOrMoreLevels() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01C0", "科员", "27", "2", "2000", "2010", "2004.01");
 
         when(accessControlService.organizationScope(any())).thenReturn(new OrganizationScope(true, Set.of("001")));
@@ -2734,7 +2891,7 @@ class PayrollServiceTest {
     void educationPromotionPreservesStepAssessmentYearWhenOnlyPositionHierarchyChanges() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01C0", "办事员", "25", "4", "2000", "2010", "2004.01");
 
         when(accessControlService.organizationScope(any())).thenReturn(new OrganizationScope(true, Set.of("001")));
@@ -2781,7 +2938,7 @@ class PayrollServiceTest {
     void regularizationPreviewUsesStandardPositionWhenRegularizationAppointmentMissing() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2007", "07", "见习", "01FF", "见习期", "0", "0", "2007", "2007", "2007.01");
 
         when(accessControlService.organizationScope(any())).thenReturn(new OrganizationScope(true, Set.of("001")));
@@ -2820,7 +2977,7 @@ class PayrollServiceTest {
     void wageProjectionUsesRegularizationStandardWhenRegularizationAppointmentMissing() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2007", "08", "转正定级", "01B0", "科员", "25", "2", "2007", "2007", "2007.07");
 
         when(repository.findLatestHistory(9101)).thenReturn(Optional.of(latest));
@@ -2869,7 +3026,7 @@ class PayrollServiceTest {
     void wageProjectionMatchesReformStandardWhenNoPositionBeforeReformUsesRegularizationTenure() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01B0", "科员", "25", "2", "2006", "2006", "2007.07");
 
         when(repository.findLatestHistory(9102)).thenReturn(Optional.of(latest));
@@ -2917,7 +3074,7 @@ class PayrollServiceTest {
     void wageProjectionUsesProbationSalaryWhenStillOnProbationAtWageReform() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01FF", "见习期", "0", "0", "2006", "2006", "2006.01");
 
         when(repository.findLatestHistory(3266)).thenReturn(Optional.of(latest));
@@ -2966,7 +3123,7 @@ class PayrollServiceTest {
     void wageProjectionUsesProbationSalaryWhenRegularizationShortlyAfterReformWithoutPreReformAppointment() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot reform = history("2006", "07", "套改", "01FF", "见习期", "0", "0", "2006", "2006", "2006.01");
 
         when(repository.findLatestHistory(3266)).thenReturn(Optional.of(reform));
@@ -3023,7 +3180,7 @@ class PayrollServiceTest {
     void wageProjectionForInstitutionPersonnelIgnoresAdministrativePositions() throws Exception {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2024", "12", "月末结转", "0801", "技工二级", "", "8", "2020", "2020", "2010.06");
 
         when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("2005.06");
@@ -3091,7 +3248,7 @@ class PayrollServiceTest {
     void wageProjectionTreatsInstitutionPersonnelByAppointedPositionNotZwbm2() throws Exception {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2024", "12", "月末结转", "01B0", "科员", "25", "2", "2020", "2020", "2010.06");
 
         when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("2005.06");
@@ -3134,7 +3291,7 @@ class PayrollServiceTest {
     void wageProjectionUsesProbationSalaryWhenRegularizationIn2007WithoutPreReformAppointment() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot reform = history("2006", "07", "套改", "01FF", "见习期", "0", "0", "2006", "2006", "2006.01");
 
         when(repository.findLatestHistory(2806)).thenReturn(Optional.of(reform));
@@ -3196,7 +3353,7 @@ class PayrollServiceTest {
     void wageProjectionUsesPersonnelEducationWhenRegularizationAppointmentMissing() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01FF", "见习期", "25", "2", "2006", "2006", "2007.07");
 
         when(repository.findLatestHistory(9103)).thenReturn(Optional.of(latest));
@@ -3243,7 +3400,7 @@ class PayrollServiceTest {
     void wageProjectionUsesAdministrativePrefixWhenMissingRegularizationAppointmentButHasPreReformPosition() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(3259)).thenReturn(Optional.of(latest));
@@ -3289,7 +3446,7 @@ class PayrollServiceTest {
     void wageProjectionKeepsCurrentReformStepWhenHigherRankAlreadyMeetsEducationSalary() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0191", "正科级非领导职务", "21", "3", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(3259)).thenReturn(Optional.of(latest));
@@ -3343,7 +3500,7 @@ class PayrollServiceTest {
     void wageProjectionUsesStoredWageReformLowerPositionAndEducationForUid3259StyleCase() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(3259)).thenReturn(Optional.of(latest));
@@ -3409,7 +3566,7 @@ class PayrollServiceTest {
     void wageProjectionUsesAdministrativePrefixForRegularizationStandardWhenMissingPreReformAppointment() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "2105", "警员", "8", "1", "2006", "2006", "2004.01");
 
         when(repository.findLatestHistory(9104)).thenReturn(Optional.of(latest));
@@ -3461,7 +3618,7 @@ class PayrollServiceTest {
     void wageProjectionSkipsReformLevelRollingIn2008AfterClerkHierarchyChangeWithoutLevelChange() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "01B0", "科员", "25", "4", "2006", "2010", "1998.10");
 
         when(repository.findLatestHistory(3254)).thenReturn(Optional.of(latest));
@@ -3554,7 +3711,7 @@ class PayrollServiceTest {
     void wageProjectionStepUsesSalaryStandardAtPeriodNotLatestRecord() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = historyWithIdAndStandards(
                 "latest-id", "2024", "07", "正常档次", "0190", "正科级领导职务", "21", "2",
                 "2024", "2024", "2004.01", "202407", "202407", 8000);
@@ -3615,7 +3772,7 @@ class PayrollServiceTest {
     void wageProjectionKeepsTbndOnPromotionButUpdatesOnStandardAdjustment() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "4"));
@@ -3665,7 +3822,7 @@ class PayrollServiceTest {
     void wageProjectionResolvesAllowanceStandardAtEachHistoricalStep() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
 
         stubReformStart(repository, latest, new WageReformStandard("0190", 0, 99, 0, 99, "21", "4"));
@@ -3724,7 +3881,7 @@ class PayrollServiceTest {
     void projectionHistoryAuditUsesRecordSalaryStandardForWageReformMonth() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot reform = historyWithIdAndStandards(
                 "reform-id", "2006", "07", "套改", "0190", "正科级领导职务", "22", "3",
                 "2006", "2006", "2004.01", "200607", "200607", 380, 954, 1334);
@@ -3806,7 +3963,7 @@ class PayrollServiceTest {
     void projectionHistoryAuditResolvesAllowanceStandardAtHistoryPeriod() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot reform = historyWithIdAndStandards(
                 "reform-id", "2006", "07", "套改", "0190", "正科级领导职务", "22", "3",
                 "2006", "2006", "2004.01", "200607", "200607", 380, 954, 1334);
@@ -3918,7 +4075,7 @@ class PayrollServiceTest {
     void projectionHistoryAuditMatchesSameMonthRollingBeforeStepPromotion() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot reform = historyWithId(
                 "reform-id", "2006", "07", "套改", "0190", "正科级领导职务", "22", "3", "2006", "2006", "2004.01");
         PayrollHistorySnapshot levelRecord = historyWithId(
@@ -3998,7 +4155,7 @@ class PayrollServiceTest {
     void wageProjectionUsesPositionAllowanceRowWhenStandardPeriodHasNoMatchingRow() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot latest = history("2010", "01", "正常档次", "0191", "正科级非领导职务", "21", "1", "2008", "2008", "2007.07");
 
         stubReformStart(repository, latest, new WageReformStandard("0191", 0, 99, 0, 99, "21", "1"));
@@ -4041,7 +4198,7 @@ class PayrollServiceTest {
     void projectionHistoryAuditUsesAllowanceStandardFromMatchingPositionChangeStep() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
-        PayrollService service = new PayrollService(repository, accessControlService);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
         PayrollHistorySnapshot reform = historyWithIdAndStandards(
                 "reform-id", "2006", "07", "套改", "01A0", "副科级领导职务", "23", "3",
                 "2006", "2006", "1998.03", "200607", "200607", 1334);
@@ -4227,6 +4384,70 @@ class PayrollServiceTest {
                 storedTotal);
     }
 
+    private static PayrollHistorySnapshot workerHistoryWithAmounts(
+            String id,
+            String organizationCode,
+            String personCode,
+            String positionCode,
+            String positionName,
+            String positionSalaryGrade,
+            int storedPositionSalary,
+            int storedTechnicalGradeSalary,
+            int storedTotal) {
+        PayrollHistorySnapshot base = historyWithId(
+                id, "2026", "07", "正常档次", positionCode, positionName, "", positionSalaryGrade,
+                "2025", "2025", "2017.09");
+        return new PayrollHistorySnapshot(
+                base.id(),
+                organizationCode,
+                personCode,
+                base.name(),
+                base.calculationYear(),
+                base.calculationMonth(),
+                base.calculationType(),
+                "05",
+                base.organizationPerformanceEnabled(),
+                base.individualPerformanceApproved(),
+                base.approvalOrganization(),
+                base.workStartYearMonth(),
+                base.positionStartYearMonth(),
+                base.salaryYears(),
+                base.interruptedSalaryYears(),
+                base.levelAssessmentStartYear(),
+                base.stepAssessmentStartYear(),
+                base.teachingStartYearMonth(),
+                base.teachingInterruptedYears(),
+                base.raisePercentage(),
+                base.rankAllowanceStandardYearMonth(),
+                base.rankName(),
+                base.positionCode(),
+                base.positionName(),
+                positionSalaryGrade,
+                base.floatingStep(),
+                base.gradeSalaryLevel(),
+                base.gradeSalaryStep(),
+                "201607",
+                "201607",
+                base.postAllowanceStandardYearMonth(),
+                base.postAllowanceCategory(),
+                storedPositionSalary,
+                0,
+                storedTechnicalGradeSalary,
+                486,
+                729,
+                43,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                BigDecimal.ZERO,
+                storedTotal);
+    }
+
     private static PayrollHistorySnapshot historyWithId(
             String id,
             String year,
@@ -4316,6 +4537,21 @@ class PayrollServiceTest {
             String levelStartYear,
             String stepStartYear,
             String positionStartYearMonth) {
+        return history(year, month, type, positionCode, positionName, level, step, levelStartYear, stepStartYear, positionStartYearMonth, "01");
+    }
+
+    private static PayrollHistorySnapshot history(
+            String year,
+            String month,
+            String type,
+            String positionCode,
+            String positionName,
+            String level,
+            String step,
+            String levelStartYear,
+            String stepStartYear,
+            String positionStartYearMonth,
+            String organizationType) {
         return new PayrollHistorySnapshot(
                 "history-id",
                 "001",
@@ -4324,7 +4560,7 @@ class PayrollServiceTest {
                 year,
                 month,
                 type,
-                "01",
+                organizationType,
                 1,
                 "",
                 "",
@@ -4365,6 +4601,801 @@ class PayrollServiceTest {
                 0,
                 BigDecimal.ZERO,
                 0);
+    }
+
+    @Test
+    void wageProjectionIncludesWorkerPositionChangesForInstitutionPersonnel() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2024", "12", "月末结转", "0801", "技工二级", "", "8", "2020", "2020", "2010.06");
+
+        when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("2005.06");
+        when(repository.findPositionAtOrBefore("001", "00040", "202412"))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0801", "技工二级", "2008.01")));
+        when(repository.findLatestPositionBefore(anyString(), anyString(), eq("202412"), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0801", "技工二级", "2008.01")));
+
+        Method wageProjectionEvents = PayrollService.class.getDeclaredMethod(
+                "wageProjectionEvents",
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                PayrollHistorySnapshot.class);
+        wageProjectionEvents.setAccessible(true);
+        when(repository.findPositionChangesBetween(anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of(
+                        new PositionChangeCandidate("0505", "机关初级工", "2007.12"),
+                        new PositionChangeCandidate("0802", "技工一级", "2015.06")));
+
+        @SuppressWarnings("unchecked")
+        List<Object> events = (List<Object>) wageProjectionEvents.invoke(
+                service, "001", "00040", "200607", "202412", "2005.06", latest);
+
+        assertThat(events).hasSize(2);
+        List<String> positionCodes = events.stream()
+                .map(event -> {
+                    try {
+                        PositionChangeCandidate position = (PositionChangeCandidate) event.getClass().getMethod("position").invoke(event);
+                        return position.positionCode();
+                    } catch (ReflectiveOperationException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                })
+                .toList();
+        assertThat(positionCodes).containsExactly("0505", "0802");
+    }
+
+    @Test
+    void wageProjectionIgnoresInstitutionPositionChangesForGovernmentWorker() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2024", "12", "月末结转", "0505", "机关初级工", "", "4", "2020", "2020", "2007.12", "05");
+
+        when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("2006.07");
+        when(repository.findPositionAtOrBefore("001", "00040", "202412"))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0505", "机关初级工", "2007.12")));
+        when(repository.findLatestPositionBefore(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(Optional.empty());
+
+        Method wageProjectionEvents = PayrollService.class.getDeclaredMethod(
+                "wageProjectionEvents",
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                PayrollHistorySnapshot.class);
+        wageProjectionEvents.setAccessible(true);
+        when(repository.findPositionChangesBetween(anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of(
+                        new PositionChangeCandidate("0505", "机关初级工", "2007.12"),
+                        new PositionChangeCandidate("0802", "技工一级", "2015.06"),
+                        new PositionChangeCandidate("0504", "机关中级工", "2018.06")));
+
+        @SuppressWarnings("unchecked")
+        List<Object> events = (List<Object>) wageProjectionEvents.invoke(
+                service, "001", "00040", "200607", "202412", "2006.07", latest);
+
+        assertThat(events).hasSize(2);
+        List<String> positionCodes = events.stream()
+                .map(event -> {
+                    try {
+                        PositionChangeCandidate position = (PositionChangeCandidate) event.getClass().getMethod("position").invoke(event);
+                        return position.positionCode();
+                    } catch (ReflectiveOperationException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                })
+                .toList();
+        assertThat(positionCodes).containsExactly("0505", "0504");
+    }
+
+    @Test
+    void wageProjectionPromotesGovernmentWorkerEveryTwoYearsNotAnnually() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2012", "01", "月末", "0505", "机关初级工", "", "3", "2007", "2007", "2006.07", "05");
+
+        when(repository.findLatestHistory(6001)).thenReturn(Optional.of(latest));
+        when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("2006.07");
+        when(repository.findHistoryChain("001", "00040")).thenReturn(List.of(latest));
+        when(repository.findPositionAtOrBefore(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0505", "机关初级工", "2006.07")));
+        when(repository.findPositionAtPeriod("001", "00040", "200607"))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0505", "机关初级工", "2006.07")));
+        when(repository.findLatestPositionBefore(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(Optional.empty());
+        when(repository.findLatestInternPositionBefore(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.empty());
+        when(repository.findEducationRegularizationStandard(anyString(), anyString()))
+                .thenReturn(Optional.of(new EducationRegularizationStandard("31", "本科", "0505", "机关初级工", "", "3")));
+        when(repository.findPersonnelEducationCode("001", "00040")).thenReturn(Optional.of("31"));
+        when(repository.findPersonnelRegularizationDates("001", "00040"))
+                .thenReturn(Optional.of(new PersonnelRegularizationDates("1990.01", "", "2006.07", "")));
+        when(repository.findPositionChangesBetween(anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceChangesBetween(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceStandardPeriodsBetween(anyString(), anyString())).thenReturn(List.of());
+        when(repository.findBasicSalaryStandardPeriodsBetween(anyString(), anyString())).thenReturn(List.of());
+        when(repository.findAllowanceStandardPeriodsBetween(anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(repository.findEducationRecordsBetween(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceAtOrBefore(anyString(), anyString(), anyString())).thenReturn(Optional.empty());
+        when(repository.positionGradeSalary(eq("0505"), anyString(), anyString(), anyString())).thenReturn(500);
+        when(repository.positionSalary(anyString(), anyString())).thenReturn(0);
+        when(repository.hasBasicSalaryStandardForSource(anyString(), eq("WORKER_GRADE"))).thenReturn(true);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.countQualifiedAssessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenAnswer(invocation -> {
+            int start = invocation.getArgument(2);
+            int end = invocation.getArgument(3);
+            return Math.max(0, end - start + 1);
+        });
+        when(repository.assessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenAnswer(invocation -> {
+            int start = invocation.getArgument(2);
+            int end = invocation.getArgument(3);
+            return IntStream.rangeClosed(start, end).boxed().collect(Collectors.toSet());
+        });
+
+        WageProjectionPreview preview = service.wageProjection(6001, "201201");
+
+        long workerPromotions = preview.explanationLines().stream()
+                .filter(line -> line.contains("晋升一档岗位工资"))
+                .count();
+        long salaryLevelPromotions = preview.explanationLines().stream()
+                .filter(line -> line.contains("晋升薪级"))
+                .count();
+        assertThat(workerPromotions).isEqualTo(2);
+        assertThat(salaryLevelPromotions).isZero();
+        assertThat(preview.baseSalarySource()).isEqualTo("WORKER_GRADE");
+    }
+
+    @Test
+    void governmentWorkerPositionChangeUsesNearestHigherGrade() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+
+        when(repository.findOrganizationPayrollPolicy("001"))
+                .thenReturn(Optional.of(new OrganizationPayrollPolicy("", "", "")));
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.positionSalary(anyString(), anyString())).thenAnswer(invocation -> {
+            String positionCode = invocation.getArgument(0);
+            if ("0504".equals(positionCode)) {
+                return 900;
+            }
+            if ("0505".equals(positionCode)) {
+                return 800;
+            }
+            return 0;
+        });
+        when(repository.positionGradeSalary(anyString(), anyString(), anyString(), anyString())).thenAnswer(invocation -> {
+            String positionCode = invocation.getArgument(0);
+            int grade = Integer.parseInt(invocation.getArgument(1));
+            if ("0505".equals(positionCode)) {
+                return grade * 100 + 100;
+            }
+            if ("0504".equals(positionCode)) {
+                return grade * 60 + 340;
+            }
+            return 0;
+        });
+        when(repository.technicalGradeSalary(anyString(), anyString())).thenReturn(0);
+
+        Method method = PayrollService.class.getDeclaredMethod(
+                "governmentWorkerPositionChangeResult",
+                String.class,
+                String.class,
+                String.class,
+                PositionChangeCandidate.class,
+                String.class,
+                String.class,
+                String.class);
+        method.setAccessible(true);
+        Object result = method.invoke(
+                service,
+                "0505",
+                "4",
+                "0",
+                new PositionChangeCandidate("0504", "机关中级工", "2020.06"),
+                "2020",
+                "201607",
+                "001");
+
+        assertThat(result).isNotNull();
+        assertThat(result.getClass().getMethod("eligible").invoke(result)).isEqualTo(true);
+        assertThat(result.getClass().getMethod("promotedGradeStep").invoke(result)).isEqualTo("3");
+        assertThat(result.getClass().getMethod("promotedPositionSalary").invoke(result)).isEqualTo(1420);
+        assertThat(String.valueOf(result.getClass().getMethod("note").invoke(result))).contains("就近就高");
+    }
+
+    @Test
+    void wageProjectionSkipsWorkerPositionChangeWhenAppointmentMatchesCurrentPosition() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history(
+                "2020", "12", "调标晋升", "0505", "机关初级工", "", "2", "2006", "2006", "2007.01", "05");
+        Class<?> stateClass = Class.forName("com.dxsoft.rsgzgl.payroll.PayrollService$WageProjectionState");
+        java.lang.reflect.Constructor<?> stateConstructor = stateClass.getDeclaredConstructor(
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                Integer.class,
+                String.class);
+        stateConstructor.setAccessible(true);
+        Object state = stateConstructor.newInstance(
+                "0505",
+                "机关初级工",
+                "",
+                "2",
+                "0",
+                "2006",
+                "2006",
+                "WORKER_GRADE",
+                "200607",
+                "200607",
+                null,
+                null,
+                0,
+                null);
+        PositionChangeCandidate duplicateAppointment = new PositionChangeCandidate("0505", "机关初级工", "2007.01");
+        java.util.ArrayList<String> lines = new java.util.ArrayList<>();
+
+        Method method = PayrollService.class.getDeclaredMethod(
+                "applyWageProjectionPositionChange",
+                stateClass,
+                PositionChangeCandidate.class,
+                String.class,
+                String.class,
+                List.class,
+                PayrollHistorySnapshot.class);
+        method.setAccessible(true);
+        Object next = method.invoke(
+                service,
+                state,
+                duplicateAppointment,
+                "001",
+                "00040",
+                lines,
+                latest);
+
+        assertThat(next.getClass().getMethod("stepOrSalaryLevel").invoke(next)).isEqualTo("2");
+        assertThat(next.getClass().getMethod("positionCode").invoke(next)).isEqualTo("0505");
+        assertThat(lines).isEmpty();
+    }
+
+    @Test
+    void wageProjectionEventsSkipDuplicatePostRegularizationAppointment() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+
+        Method duplicateCheck = PayrollService.class.getDeclaredMethod(
+                "isDuplicatePostRegularizationAppointment",
+                PositionChangeCandidate.class,
+                String.class,
+                String.class);
+        duplicateCheck.setAccessible(true);
+
+        assertThat(duplicateCheck.invoke(
+                service,
+                new PositionChangeCandidate("0505", "机关初级工", "2007.01"),
+                "200612",
+                "0505")).isEqualTo(true);
+        assertThat(duplicateCheck.invoke(
+                service,
+                new PositionChangeCandidate("0505", "机关初级工", "2006.12"),
+                "200612",
+                "0505")).isEqualTo(false);
+        assertThat(duplicateCheck.invoke(
+                service,
+                new PositionChangeCandidate("0504", "机关中级工", "2018.06"),
+                "200612",
+                "0505")).isEqualTo(false);
+    }
+
+    @Test
+    void wageProjectionAppliesWorkerPositionChangeNearestHigherGrade() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2020", "12", "月末", "0505", "机关初级工", "", "4", "2018", "2018", "2007.12", "05");
+
+        when(repository.findLatestHistory(6001)).thenReturn(Optional.of(latest));
+        when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("2006.07");
+        when(repository.findHistoryChain("001", "00040")).thenReturn(List.of(latest));
+        when(repository.findPositionAtOrBefore(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0505", "机关初级工", "2007.12")));
+        when(repository.findPositionAtPeriod("001", "00040", "200607"))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0505", "机关初级工", "2007.12")));
+        when(repository.findLatestPositionBefore(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(Optional.empty());
+        when(repository.findLatestInternPositionBefore(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.empty());
+        when(repository.findEducationRegularizationStandard(anyString(), anyString()))
+                .thenReturn(Optional.of(new EducationRegularizationStandard("31", "本科", "0505", "机关初级工", "", "3")));
+        when(repository.findPersonnelEducationCode("001", "00040")).thenReturn(Optional.of("31"));
+        when(repository.findPersonnelRegularizationDates("001", "00040"))
+                .thenReturn(Optional.of(new PersonnelRegularizationDates("1990.01", "", "2006.07", "")));
+        when(repository.findPositionChangesBetween(anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of(
+                        new PositionChangeCandidate("0505", "机关初级工", "2007.12"),
+                        new PositionChangeCandidate("0504", "机关中级工", "2018.06")));
+        when(repository.findRankAllowanceChangesBetween(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceStandardPeriodsBetween(anyString(), anyString())).thenReturn(List.of());
+        when(repository.findBasicSalaryStandardPeriodsBetween(anyString(), anyString())).thenReturn(List.of());
+        when(repository.findAllowanceStandardPeriodsBetween(anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(repository.findEducationRecordsBetween(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceAtOrBefore(anyString(), anyString(), anyString())).thenReturn(Optional.empty());
+        when(repository.findOrganizationPayrollPolicy("001"))
+                .thenReturn(Optional.of(new OrganizationPayrollPolicy("", "", "")));
+        when(repository.positionSalary(anyString(), anyString())).thenAnswer(invocation -> {
+            String positionCode = invocation.getArgument(0);
+            if ("0504".equals(positionCode)) {
+                return 900;
+            }
+            if ("0505".equals(positionCode)) {
+                return 800;
+            }
+            return 0;
+        });
+        when(repository.positionGradeSalary(anyString(), anyString(), anyString(), anyString())).thenAnswer(invocation -> {
+            String positionCode = invocation.getArgument(0);
+            int grade = Integer.parseInt(invocation.getArgument(1));
+            if ("0505".equals(positionCode)) {
+                return grade * 100 + 100;
+            }
+            if ("0504".equals(positionCode)) {
+                return grade * 60 + 340;
+            }
+            return 0;
+        });
+        when(repository.technicalGradeSalary(anyString(), anyString())).thenReturn(0);
+        when(repository.hasBasicSalaryStandardForSource(anyString(), eq("WORKER_GRADE"))).thenReturn(true);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.countQualifiedAssessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenReturn(0);
+        when(repository.assessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenReturn(Set.of());
+
+        WageProjectionPreview preview = service.wageProjection(6001, "202012");
+
+        assertThat(preview.stepOrSalaryLevel()).isEqualTo("3");
+        assertThat(preview.positionCode()).isEqualTo("0504");
+        assertThat(preview.explanationLines()).anyMatch(line ->
+                line.contains("0504") && line.contains("4") && line.contains("3"));
+    }
+
+    @Test
+    void workerWageReformAppliesLowerPositionAndConsidersEducation() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history(
+                "2024", "07", "调标晋升", "0504", "机关中级工", "", "2", "2022", "2022", "2004.09", "05");
+        WageReformStandard currentStandard = new WageReformStandard("0504", 1, 4, 12, 14, "", "2", "机关中级工");
+
+        when(repository.findOrganizationPayrollPolicy("001"))
+                .thenReturn(Optional.of(new OrganizationPayrollPolicy("", "", "")));
+        when(repository.findWageReformPositionsBefore(eq("001"), eq("00040"), eq("200607"), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of(
+                        new WageReformPosition("0504", "机关中级工", "2004.09", 0),
+                        new WageReformPosition("0505", "机关初级工", "1998.09", 0)));
+        when(repository.findWageReformStandard("0505", 9, 14))
+                .thenReturn(Optional.of(new WageReformStandard("0505", 1, 99, 12, 14, "", "5", "机关初级工")));
+        when(repository.findLatestEducationForPromotion(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.of(new EducationPromotionSource("23", "大学本科毕业", "1995.08")));
+        when(repository.findEducationRegularizationStandard(eq("0504"), eq("23")))
+                .thenReturn(Optional.of(new EducationRegularizationStandard(
+                        "23", "大学本科毕业", "0505", "机关初级工", "", "3")));
+        when(repository.technicalGradeSalary(anyString(), eq("200607"))).thenReturn(0);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.positionGradeSalary(anyString(), anyString(), eq("0"), eq("200607"))).thenAnswer(invocation -> {
+            String positionCode = invocation.getArgument(0);
+            int grade = Integer.parseInt(invocation.getArgument(1));
+            if ("0504".equals(positionCode)) {
+                return switch (grade) {
+                    case 2 -> 598;
+                    case 3 -> 626;
+                    case 4 -> 654;
+                    default -> grade * 28 + 540;
+                };
+            }
+            if ("0505".equals(positionCode)) {
+                return switch (grade) {
+                    case 3 -> 578;
+                    case 5 -> 634;
+                    default -> grade * 26 + 500;
+                };
+            }
+            return 0;
+        });
+
+        Method method = Arrays.stream(PayrollService.class.getDeclaredMethods())
+                .filter(candidate -> "wageReformSelection".equals(candidate.getName()) && candidate.getParameterCount() == 5)
+                .findFirst()
+                .orElseThrow();
+        method.setAccessible(true);
+        Object selection = method.invoke(
+                service,
+                latest,
+                currentStandard,
+                14,
+                "1995.08",
+                null);
+
+        assertThat(selection).isNotNull();
+        assertThat(selection.getClass().getMethod("step").invoke(selection)).isEqualTo("4");
+        assertThat(selection.getClass().getMethod("positionCode").invoke(selection)).isEqualTo("0504");
+        String note = String.valueOf(selection.getClass().getMethod("note").invoke(selection));
+        assertThat(note).contains("原任低一").contains("就近就高");
+    }
+
+    @Test
+    void workerWageReformAppliesEducationHigherStepOnSamePosition() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history(
+                "2024", "07", "调标晋升", "0505", "机关初级工", "", "2", "2022", "2022", "1998.09", "05");
+        WageReformStandard currentStandard = new WageReformStandard("0505", 1, 99, 12, 14, "", "2", "机关初级工");
+
+        when(repository.findOrganizationPayrollPolicy("001"))
+                .thenReturn(Optional.of(new OrganizationPayrollPolicy("", "", "")));
+        when(repository.findWageReformPositionsBefore(eq("001"), eq("00040"), eq("200607"), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of(new WageReformPosition("0505", "机关初级工", "1998.09", 0)));
+        when(repository.findLatestEducationForPromotion(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.of(new EducationPromotionSource("23", "大学本科毕业", "1995.08")));
+        when(repository.findEducationRegularizationStandard(eq("0505"), eq("23")))
+                .thenReturn(Optional.of(new EducationRegularizationStandard(
+                        "23", "大学本科毕业", "0505", "机关初级工", "", "4")));
+        when(repository.technicalGradeSalary(anyString(), eq("200607"))).thenReturn(0);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.positionGradeSalary(eq("0505"), anyString(), eq("0"), eq("200607"))).thenAnswer(invocation -> {
+            int grade = Integer.parseInt(invocation.getArgument(1));
+            return grade * 26 + 500;
+        });
+
+        Method method = Arrays.stream(PayrollService.class.getDeclaredMethods())
+                .filter(candidate -> "wageReformSelection".equals(candidate.getName()) && candidate.getParameterCount() == 5)
+                .findFirst()
+                .orElseThrow();
+        method.setAccessible(true);
+        Object selection = method.invoke(
+                service,
+                latest,
+                currentStandard,
+                14,
+                "1995.08",
+                null);
+
+        assertThat(selection).isNotNull();
+        assertThat(selection.getClass().getMethod("step").invoke(selection)).isEqualTo("4");
+        assertThat(String.valueOf(selection.getClass().getMethod("note").invoke(selection)))
+                .contains("学历")
+                .contains("定级档次");
+    }
+
+    @Test
+    void governmentWorkerRegularizationDoesNotUseCivilServantNonInternPath() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+
+        Method method = PayrollService.class.getDeclaredMethod(
+                "isNonInternProbationRegularization",
+                String.class,
+                String.class,
+                String.class);
+        method.setAccessible(true);
+
+        assertThat(method.invoke(service, "0505", "见习工资", "新增见习")).isEqualTo(false);
+        assertThat(method.invoke(service, "0504", "见习工资", "新增见习")).isEqualTo(false);
+        assertThat(method.invoke(service, "01B0", "见习工资", "新增见习")).isEqualTo(true);
+    }
+
+    @Test
+    void governmentWorkerUsesWorkerInternAndRegularizationLookupWhenAppointmentMissing() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history(
+                "2012", "01", "调标晋升", "0505", "机关初级工", "", "2", "2007", "2007", "2006.12", "05");
+        when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("2006.12");
+        when(repository.findLatestEducationForPromotion("001", "00040", "200612")).thenReturn(Optional.of(
+                new EducationPromotionSource("05", "高中毕业", "2006.07")));
+        when(repository.findLatestEducationForPromotion("001", "00040", "200607")).thenReturn(Optional.of(
+                new EducationPromotionSource("05", "高中毕业", "2006.07")));
+
+        Method internFallback = PayrollService.class.getDeclaredMethod(
+                "internProbationFallbackPositionCode", PayrollHistorySnapshot.class);
+        internFallback.setAccessible(true);
+        Method workerLookup = PayrollService.class.getDeclaredMethod(
+                "governmentWorkerRegularizationLookupPosition", PayrollHistorySnapshot.class);
+        workerLookup.setAccessible(true);
+        Method resolveLookup = PayrollService.class.getDeclaredMethod(
+                "resolveRegularizationStandardLookupCode",
+                PayrollHistorySnapshot.class,
+                String.class,
+                PositionChangeCandidate.class,
+                boolean.class);
+        resolveLookup.setAccessible(true);
+        Method educationSuffix = PayrollService.class.getDeclaredMethod(
+                "educationPositionSuffix", String.class);
+        educationSuffix.setAccessible(true);
+
+        assertThat(educationSuffix.invoke(service, "高中毕业")).isEqualTo("5");
+        assertThat(educationSuffix.invoke(service, "大学本科毕业")).isEqualTo("4");
+        assertThat(internFallback.invoke(service, latest)).isEqualTo("05F5");
+        assertThat(workerLookup.invoke(service, latest)).isEqualTo("0505");
+        assertThat(resolveLookup.invoke(service, latest, "01FF", null, false)).isEqualTo("0505");
+        assertThat(resolveLookup.invoke(service, latest, "01FF", null, true)).isEqualTo("0505");
+    }
+
+    @Test
+    void normalizeInternProbationPositionCodeReplacesFfSuffixWithEducationDigit() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history(
+                "2006", "07", "套改", "0505", "机关初级工", "", "2", "2006", "2006", "2006.07", "05");
+
+        Method normalize = PayrollService.class.getDeclaredMethod(
+                "normalizeInternProbationPositionCode",
+                PayrollHistorySnapshot.class,
+                String.class,
+                String.class);
+        normalize.setAccessible(true);
+
+        assertThat(normalize.invoke(service, latest, "05FF", "高中毕业")).isEqualTo("05F5");
+        PayrollHistorySnapshot civilServant = history(
+                "2006", "07", "套改", "01A0", "科员", "", "2", "2006", "2006", "2006.07", "01");
+        assertThat(normalize.invoke(service, civilServant, "01FF", "大学本科毕业")).isEqualTo("01F4");
+        assertThat(normalize.invoke(service, latest, "05F5", "高中毕业")).isEqualTo("05F5");
+    }
+
+    @Test
+    void newPersonnelPreviewTreatsMarkedPersonnelWithoutTransferDeterminationAsPending() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        NewPersonnelSalaryCandidate candidate = new NewPersonnelSalaryCandidate(
+                186, "001", "测试单位", "00040", "测试退伍",
+                "2015.12", "部队退伍", "01A0", "科员", "2015.12",
+                "1990.01", "", "", "", 0, "已定工资",
+                "tip-id", "职务变化", 5000, "25", "3", "2010", "2010", "2024", "12");
+
+        when(repository.hasTransferInSalaryDetermination("001", "00040")).thenReturn(false);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        Method previewMethod = PayrollService.class.getDeclaredMethod("toNewPersonnelSalaryPreview", NewPersonnelSalaryCandidate.class);
+        previewMethod.setAccessible(true);
+        NewPersonnelSalaryPreview preview = (NewPersonnelSalaryPreview) previewMethod.invoke(service, candidate);
+
+        assertThat(preview.applyEligible()).isTrue();
+        assertThat(preview.rollbackEligible()).isFalse();
+        assertThat(preview.calculationPeriod()).isEqualTo("2016.01");
+        assertThat(preview.standardNote()).contains("同等条件推算");
+        assertThat(preview.standardNote()).contains("退伍定资");
+    }
+
+    @Test
+    void resolveNewPersonnelApplyPeriodUsesNextMonthForDeterminationExceptIntern() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        Method method = PayrollService.class.getDeclaredMethod(
+                "resolveNewPersonnelApplyPeriod", String.class, String.class);
+        method.setAccessible(true);
+
+        assertThat(method.invoke(service, "2015.12", "退伍定资")).isEqualTo("201601");
+        assertThat(method.invoke(service, "2015.12", "新进工资")).isEqualTo("201601");
+        assertThat(method.invoke(service, "2015.12", "调入定资")).isEqualTo("201601");
+        assertThat(method.invoke(service, "2015.12", "转业定资")).isEqualTo("201601");
+        assertThat(method.invoke(service, "2015.12", "见习工资")).isEqualTo("201512");
+    }
+
+    @Test
+    void salaryExecutionPeriodHelpersApplyNextMonthForPositionAndEducation() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        Method positionMethod = PayrollService.class.getDeclaredMethod(
+                "salaryExecutionPeriodForPositionChange", String.class);
+        positionMethod.setAccessible(true);
+        Method educationMethod = PayrollService.class.getDeclaredMethod(
+                "salaryExecutionPeriodForEducation", String.class);
+        educationMethod.setAccessible(true);
+        Method standardMethod = PayrollService.class.getDeclaredMethod(
+                "salaryExecutionPeriodForStandard", String.class);
+        standardMethod.setAccessible(true);
+
+        assertThat(positionMethod.invoke(service, "2016.07")).isEqualTo("201608");
+        assertThat(educationMethod.invoke(service, "2016.07")).isEqualTo("201608");
+        assertThat(standardMethod.invoke(service, "201601")).isEqualTo("201601");
+    }
+
+    @Test
+    void wageProjectionEventsOrdersVeteranDeterminationBeforeSalaryStandardAtJoinMonth() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2015", "12", "月末", "0505", "机关初级工", "", "6", "2010", "2010", "2006.07", "05");
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        when(repository.findPositionChangesBetween(anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceChangesBetween(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceStandardPeriodsBetween(anyString(), anyString())).thenReturn(List.of());
+        when(repository.findBasicSalaryStandardPeriodsBetween("200607", "201601"))
+                .thenReturn(List.of("201601"));
+        when(repository.findAllowanceStandardPeriodsBetween(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findEducationRecordsBetween(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findPersonnelJoinByOrgPerson("001", "00040")).thenReturn(Optional.of(
+                new PayrollRepository.PersonnelJoinSnapshot(
+                        186, "001", "00040", "李铁军", "部队退伍", "2015.12", "1990.01",
+                        "已定工资", "", "", "0505", "机关初级工", "tip-id")));
+
+        Method wageProjectionEvents = PayrollService.class.getDeclaredMethod(
+                "wageProjectionEvents",
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                PayrollHistorySnapshot.class);
+        wageProjectionEvents.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        List<Object> events = (List<Object>) wageProjectionEvents.invoke(
+                service, "001", "00040", "200607", "201601", "2006.07", latest);
+
+        List<Object> eventsAt201601 = new java.util.ArrayList<>();
+        for (Object event : events) {
+            if ("201601".equals(event.getClass().getMethod("period").invoke(event))) {
+                eventsAt201601.add(event);
+            }
+        }
+        assertThat(eventsAt201601).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(eventsAt201601.getFirst().getClass().getMethod("personnelDeterminationChangeType").invoke(eventsAt201601.getFirst()))
+                .isEqualTo("退伍定资");
+        assertThat(eventsAt201601.get(1).getClass().getMethod("basicSalaryStandardYearMonth").invoke(eventsAt201601.get(1)))
+                .isEqualTo("201601");
+        assertThat((int) eventsAt201601.getFirst().getClass().getMethod("sortOrder").invoke(eventsAt201601.getFirst()))
+                .isLessThan((int) eventsAt201601.get(1).getClass().getMethod("sortOrder").invoke(eventsAt201601.get(1)));
+    }
+
+    @Test
+    void wageProjectionSeparatesVeteranDeterminationAndSalaryStandardAt201601() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2015", "12", "月末", "0505", "机关初级工", "", "6", "2010", "2014", "2006.07", "05");
+
+        when(repository.findLatestHistory(186)).thenReturn(Optional.of(latest));
+        when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("2006.07");
+        when(repository.findHistoryChain("001", "00040")).thenReturn(List.of(latest));
+        when(repository.findPositionAtOrBefore(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0505", "机关初级工", "2006.07")));
+        when(repository.findPositionAtPeriod("001", "00040", "200607"))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0505", "机关初级工", "2006.07")));
+        when(repository.findLatestPositionBefore(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(Optional.empty());
+        when(repository.findLatestInternPositionBefore(anyString(), anyString(), anyString()))
+                .thenReturn(Optional.empty());
+        when(repository.findEducationRegularizationStandard(anyString(), anyString()))
+                .thenReturn(Optional.of(new EducationRegularizationStandard("31", "本科", "0505", "机关初级工", "", "3")));
+        when(repository.findPersonnelEducationCode("001", "00040")).thenReturn(Optional.of("31"));
+        when(repository.findPersonnelRegularizationDates("001", "00040"))
+                .thenReturn(Optional.of(new PersonnelRegularizationDates("1990.01", "", "2006.07", "")));
+        when(repository.findPersonnelJoinByOrgPerson("001", "00040")).thenReturn(Optional.of(
+                new PayrollRepository.PersonnelJoinSnapshot(
+                        186, "001", "00040", "李铁军", "部队退伍", "2015.12", "1990.01",
+                        "已定工资", "", "", "0505", "机关初级工", "tip-id")));
+        when(repository.findPositionChangesBetween(anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceChangesBetween(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceStandardPeriodsBetween(anyString(), anyString())).thenReturn(List.of());
+        when(repository.findBasicSalaryStandardPeriodsBetween(anyString(), anyString()))
+                .thenReturn(List.of("201601"));
+        when(repository.findAllowanceStandardPeriodsBetween(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findEducationRecordsBetween(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findRankAllowanceAtOrBefore(anyString(), anyString(), anyString())).thenReturn(Optional.empty());
+        when(repository.hasBasicSalaryStandardForSource("201601", "WORKER_GRADE")).thenReturn(true);
+        when(repository.positionGradeSalary(eq("0505"), eq("6"), anyString(), eq("201601"))).thenReturn(2808);
+        when(repository.positionGradeSalary(eq("0505"), eq("7"), anyString(), eq("201601"))).thenReturn(2854);
+        when(repository.positionSalary(anyString(), anyString())).thenReturn(0);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.countQualifiedAssessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenAnswer(invocation -> {
+            int start = invocation.getArgument(2);
+            int end = invocation.getArgument(3);
+            if (end == 2007 || end == 2009 || end == 2011) {
+                return 2;
+            }
+            if (end == 2015 && start <= 2014) {
+                return 2;
+            }
+            return 0;
+        });
+        when(repository.assessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenAnswer(invocation -> {
+            int start = invocation.getArgument(2);
+            int end = invocation.getArgument(3);
+            return IntStream.rangeClosed(start, end).boxed().collect(Collectors.toSet());
+        });
+
+        WageProjectionPreview preview = service.wageProjection(186, "201601");
+
+        List<WageProjectionStepDetail> stepsAt201601 = preview.stepDetails().stream()
+                .filter(step -> "201601".equals(step.period()))
+                .filter(step -> !"目标年月".equals(step.changeCategory()))
+                .toList();
+        assertThat(stepsAt201601).hasSizeGreaterThanOrEqualTo(2);
+        int veteranIndex = IntStream.range(0, stepsAt201601.size())
+                .filter(index -> "退伍定资".equals(stepsAt201601.get(index).changeCategory()))
+                .findFirst()
+                .orElseThrow();
+        int salaryIndex = IntStream.range(0, stepsAt201601.size())
+                .filter(index -> stepsAt201601.get(index).changeCategory().contains("工资调"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(veteranIndex).isLessThan(salaryIndex);
+        assertThat(stepsAt201601.get(veteranIndex).step()).isEqualTo("6");
+        assertThat(stepsAt201601.get(salaryIndex).step()).isEqualTo("7");
+        assertThat(preview.explanationLines()).anyMatch(line -> line.contains("2016.01 退伍定资"));
     }
 
     private static PayrollFieldMetadata payrollField(String fieldName, String caption, boolean allowance) {

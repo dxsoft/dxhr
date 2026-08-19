@@ -811,6 +811,7 @@ CREATE TABLE `dryjbxx`  (
   `dynkh` char(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `denkh` char(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `bbz` char(8) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `bz` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '备注（系统内调动等业务说明；bbz 仍用于审批状态）',
   `bh` char(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `gryhzh` char(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `spdw` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
@@ -828,6 +829,32 @@ CREATE TABLE `dryjbxx`  (
   INDEX `dwgrbm`(`dwbm` ASC, `grbm` ASC) USING BTREE,
   INDEX `dwbm`(`dwbm` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 27655 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for app_personnel_transfer（系统内调动履历）
+-- ----------------------------
+DROP TABLE IF EXISTS `app_personnel_transfer`;
+CREATE TABLE `app_personnel_transfer`  (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `person_uid` int NOT NULL,
+  `id_card` varchar(18) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `person_name` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `source_organization_code` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `source_organization_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `source_person_code` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `target_organization_code` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `target_organization_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `target_person_code` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `transfer_period` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `change_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '调动',
+  `remark` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_transfer_uid`(`person_uid` ASC) USING BTREE,
+  INDEX `idx_transfer_id_card`(`id_card` ASC) USING BTREE,
+  INDEX `idx_transfer_target`(`target_organization_code` ASC, `target_person_code` ASC) USING BTREE,
+  INDEX `idx_transfer_source`(`source_organization_code` ASC, `source_person_code` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------
 -- Table structure for dryjbxxb
@@ -1402,7 +1429,8 @@ CREATE TABLE `hisbase`  (
   INDEX `id`(`id` ASC) USING BTREE,
   INDEX `sid`(`sid` ASC) USING BTREE,
   INDEX `dwgrbm`(`dwbm` ASC, `grbm` ASC) USING BTREE,
-  INDEX `jslb`(`dwbm` ASC, `grbm` ASC, `jsnf` ASC, `jsyf` ASC, `jslb` ASC) USING BTREE
+  INDEX `jslb`(`dwbm` ASC, `grbm` ASC, `jsnf` ASC, `jsyf` ASC, `jslb` ASC) USING BTREE,
+  INDEX `idx_hisbase_jslb_dwgr`(`jslb` ASC, `dwbm` ASC, `grbm` ASC) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
 
 -- ----------------------------

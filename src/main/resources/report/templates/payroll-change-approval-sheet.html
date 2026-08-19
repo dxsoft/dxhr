@@ -65,9 +65,9 @@
                     <tfoot>
                     <tr>
                         <th>月工资合计</th>
-                        <th th:text="${T(com.dxsoft.rsgzgl.report.export.ReportFormatSupport).formatMoney(sheet.totals.beforeAmount)}">0</th>
-                        <th th:text="${T(com.dxsoft.rsgzgl.report.export.ReportFormatSupport).formatMoney(sheet.totals.afterAmount)}">0</th>
-                        <th th:text="${T(com.dxsoft.rsgzgl.report.export.ReportFormatSupport).formatMoney(sheet.totals.difference)}">0</th>
+                        <th th:text="${sheet.totals.beforeText}">0</th>
+                        <th th:text="${sheet.totals.afterText}">0</th>
+                        <th th:text="${sheet.totals.differenceText}">0</th>
                     </tr>
                     <tr th:if="${sheet.institution}">
                         <th colspan="2">基础性绩效工资与奖励性绩效工资比例</th>

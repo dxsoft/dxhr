@@ -39,7 +39,11 @@ class PayrollProjectionAuditExportService {
     }
 
     ResponseEntity<byte[]> downloadCsvZip(String organizationCode, boolean mismatchesOnly) {
-        PayrollProjectionAuditExportData data = payrollService.buildProjectionAuditExport(organizationCode, mismatchesOnly);
+        return downloadCsvZip(organizationCode, null, mismatchesOnly);
+    }
+
+    ResponseEntity<byte[]> downloadCsvZip(String organizationCode, String keyword, boolean mismatchesOnly) {
+        PayrollProjectionAuditExportData data = payrollService.buildProjectionAuditExport(organizationCode, keyword, mismatchesOnly);
         byte[] bytes = buildCsvZip(data, mismatchesOnly);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType("application/zip"));
@@ -49,7 +53,11 @@ class PayrollProjectionAuditExportService {
     }
 
     ResponseEntity<byte[]> downloadExcel(String organizationCode, boolean mismatchesOnly) {
-        PayrollProjectionAuditExportData data = payrollService.buildProjectionAuditExport(organizationCode, mismatchesOnly);
+        return downloadExcel(organizationCode, null, mismatchesOnly);
+    }
+
+    ResponseEntity<byte[]> downloadExcel(String organizationCode, String keyword, boolean mismatchesOnly) {
+        PayrollProjectionAuditExportData data = payrollService.buildProjectionAuditExport(organizationCode, keyword, mismatchesOnly);
         byte[] bytes = buildExcel(data);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType(

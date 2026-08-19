@@ -31,11 +31,11 @@ class ReportService {
         this.accessControlService = accessControlService;
     }
 
-    PageResponse<ReportTypeOption> reportTypes(String category, PageRequest pageRequest) {
+    PageResponse<ReportTypeOption> reportTypes(String category, String reportType, PageRequest pageRequest) {
         return PageResponse.of(
-                reportRepository.findReportTypes(category, pageRequest),
+                reportRepository.findReportTypes(category, reportType, pageRequest),
                 pageRequest,
-                reportRepository.countReportTypes(category));
+                reportRepository.countReportTypes(category, reportType));
     }
 
     PageResponse<PayrollChangeRegisterRow> payrollChangeCandidates(

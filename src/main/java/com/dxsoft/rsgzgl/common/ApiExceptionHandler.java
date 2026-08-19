@@ -23,4 +23,22 @@ public class ApiExceptionHandler {
         detail.setProperties(Map.of("timestamp", Instant.now().toString()));
         return detail;
     }
+
+    @ExceptionHandler(IllegalStateException.class)
+    ProblemDetail handleIllegalState(IllegalStateException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        detail.setProperties(Map.of("timestamp", Instant.now().toString()));
+        return detail;
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+    ProblemDetail handleDataAccess(org.springframework.dao.DataAccessException exception) {
+        Throwable root = exception.getMostSpecificCause();
+        String message = root == null || root.getMessage() == null || root.getMessage().isBlank()
+                ? "数据库操作失败。"
+                : root.getMessage();
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, message);
+        detail.setProperties(Map.of("timestamp", Instant.now().toString()));
+        return detail;
+    }
 }

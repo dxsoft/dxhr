@@ -39,9 +39,10 @@ class ReportController {
     @GetMapping("/types")
     PageResponse<ReportTypeOption> reportTypes(
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String reportType,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return reportService.reportTypes(category, PageRequest.of(page, size));
+        return reportService.reportTypes(category, reportType, PageRequest.of(page, size));
     }
 
     @GetMapping("/payroll-change-candidates")
@@ -111,13 +112,17 @@ class ReportController {
     }
 
     @GetMapping("/payroll-change-export-jobs/{jobId}")
-    PayrollChangeReportExportJobView payrollChangeExportJob(@PathVariable String jobId) {
-        return payrollChangeReportAsyncExportService.getJob(jobId);
+    PayrollChangeReportExportJobView payrollChangeExportJob(
+            @PathVariable String jobId,
+            @RequestParam String accessToken) {
+        return payrollChangeReportAsyncExportService.getJob(jobId, accessToken);
     }
 
     @GetMapping("/payroll-change-export-jobs/{jobId}/download")
-    ResponseEntity<byte[]> downloadPayrollChangeExportJob(@PathVariable String jobId) {
-        return payrollChangeReportAsyncExportService.downloadJob(jobId);
+    ResponseEntity<byte[]> downloadPayrollChangeExportJob(
+            @PathVariable String jobId,
+            @RequestParam String accessToken) {
+        return payrollChangeReportAsyncExportService.downloadJob(jobId, accessToken);
     }
 
     @GetMapping("/wage-reform-2006-public-notice")

@@ -6,9 +6,11 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +28,7 @@ public class PayrollChangeReportAsyncExportService {
 
     PayrollChangeReportAsyncExportService(
             PayrollChangeReportExportService exportService,
-            ExecutorService reportExportExecutor) {
+            @Qualifier("reportExportExecutor") ExecutorService reportExportExecutor) {
         this.exportService = exportService;
         this.reportExportExecutor = reportExportExecutor;
     }
@@ -46,8 +48,10 @@ public class PayrollChangeReportAsyncExportService {
         }
 
         String jobId = UUID.randomUUID().toString();
+        String accessToken = UUID.randomUUID().toString().replace("-", "");
         ExportJob job = new ExportJob(
                 jobId,
+                accessToken,
                 request.target(),
                 request.exportRequest(),
                 recordCount,
@@ -63,13 +67,13 @@ public class PayrollChangeReportAsyncExportService {
         return toView(job);
     }
 
-    public PayrollChangeReportExportJobView getJob(String jobId) {
-        ExportJob job = requireJob(jobId);
+    public PayrollChangeReportExportJobView getJob(String jobId, String accessToken) {
+        ExportJob job = requireJob(jobId, accessToken);
         return toView(job);
     }
 
-    public ResponseEntity<byte[]> downloadJob(String jobId) {
-        ExportJob job = requireJob(jobId);
+    public ResponseEntity<byte[]> downloadJob(String jobId, String accessToken) {
+        ExportJob job = requireJob(jobId, accessToken);
         if (job.status() != PayrollChangeReportExportJobStatus.SUCCEEDED || job.resultPath() == null) {
             throw new IllegalStateException("导出任务尚未完成");
         }
@@ -124,10 +128,13 @@ public class PayrollChangeReportAsyncExportService {
         }
     }
 
-    private ExportJob requireJob(String jobId) {
+    private ExportJob requireJob(String jobId, String accessToken) {
         ExportJob job = jobs.get(jobId);
         if (job == null) {
             throw new IllegalArgumentException("导出任务不存在或已过期");
+        }
+        if (accessToken == null || accessToken.isBlank() || !Objects.equals(job.accessToken(), accessToken)) {
+            throw new IllegalArgumentException("导出任务凭证无效");
         }
         return job;
     }
@@ -135,6 +142,7 @@ public class PayrollChangeReportAsyncExportService {
     private PayrollChangeReportExportJobView toView(ExportJob job) {
         return new PayrollChangeReportExportJobView(
                 job.jobId(),
+                job.accessToken(),
                 job.target(),
                 job.status(),
                 job.fileName(),
@@ -158,6 +166,7 @@ public class PayrollChangeReportAsyncExportService {
 
     private record ExportJob(
             String jobId,
+            String accessToken,
             PayrollChangeReportExportTarget target,
             PayrollChangeReportExportRequest exportRequest,
             int recordCount,
@@ -189,6 +198,7 @@ public class PayrollChangeReportAsyncExportService {
                     : completedAt;
             return new ExportJob(
                     jobId,
+                    accessToken,
                     target,
                     exportRequest,
                     recordCount,

@@ -4,7 +4,8 @@ import java.util.Set;
 
 public enum StandardAdjustmentScope {
     ALL("调标晋升", Set.of("调标晋升", "工资调标", "津补贴调标", "绩效标准调标"), null, null),
-    BASIC("工资调标", Set.of("工资调标"), true, null),
+    /** 基本工资调标：写入/识别 jslb=调标晋升。 */
+    BASIC("调标晋升", Set.of("调标晋升"), true, null),
     CIVIL_ALLOWANCE("津补贴调标", Set.of("津补贴调标"), null, true),
     PERFORMANCE("绩效标准调标", Set.of("绩效标准调标"), null, false);
 

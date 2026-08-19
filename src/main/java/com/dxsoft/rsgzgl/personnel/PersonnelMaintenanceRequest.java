@@ -21,6 +21,8 @@ public record PersonnelMaintenanceRequest(
         String currentPositionStartYearMonth,
         String ethnicity,
         String politicalStatus,
-        String archiveNumber
+        String archiveNumber,
+        String joinYearMonth,
+        String joinType
 ) {
 }

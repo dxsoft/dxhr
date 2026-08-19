@@ -9,6 +9,7 @@ public record PayrollCalculationPreview(
         String personCode,
         String name,
         String calculationPeriod,
+        List<PayrollPreviewComponent> salaryItems,
         List<PayrollPreviewComponent> calculatedComponents,
         List<ExcludedPayrollComponent> excludedComponents,
         PgbcComparison pgbcComparison,

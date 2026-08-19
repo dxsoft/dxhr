@@ -3,6 +3,7 @@ package com.dxsoft.rsgzgl.personnel;
 import java.math.BigDecimal;
 
 public record ChangedPersonnelRecord(
+        Integer uid,
         String organizationCode,
         String organizationName,
         String personCode,

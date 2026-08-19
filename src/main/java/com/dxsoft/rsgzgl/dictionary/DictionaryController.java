@@ -31,7 +31,15 @@ class DictionaryController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
+        if (page == null && size == null) {
+            return dictionaryService.entriesAll(prefix, keyword);
+        }
         return dictionaryService.entries(prefix, keyword, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/categories")
+    List<DictionaryEntry> categories() {
+        return dictionaryService.categories();
     }
 
     @GetMapping("/field-configs")

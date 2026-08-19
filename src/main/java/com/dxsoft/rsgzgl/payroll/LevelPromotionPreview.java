@@ -32,7 +32,10 @@ public record LevelPromotionPreview(
         Boolean rollbackEligible,
         Boolean applyEligible,
         Boolean overdueFromLastYear,
+        Boolean earlierStepPromotionPending,
         Boolean levelPromotionHintOnly,
-        String note
+        String note,
+        Boolean midChainApply,
+        Integer laterPeriodSuccessorCount
 ) {
 }

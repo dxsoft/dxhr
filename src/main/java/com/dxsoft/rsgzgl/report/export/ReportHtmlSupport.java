@@ -1,11 +1,11 @@
 package com.dxsoft.rsgzgl.report.export;
 
-final class ReportHtmlSupport {
+public final class ReportHtmlSupport {
 
     private ReportHtmlSupport() {
     }
 
-    static String escape(String value) {
+    public static String escape(String value) {
         if (value == null) {
             return "";
         }
@@ -16,7 +16,7 @@ final class ReportHtmlSupport {
                 .replace("\"", "&quot;");
     }
 
-    static String escapedMultilineBr(String value) {
+    public static String escapedMultilineBr(String value) {
         return escape(value).replace("\n", "<br/>");
     }
 
@@ -28,7 +28,7 @@ final class ReportHtmlSupport {
         return text.isEmpty() ? "-" : text;
     }
 
-    static String loadClasspathText(String path) {
+    public static String loadClasspathText(String path) {
         try (var stream = ReportHtmlSupport.class.getResourceAsStream(path)) {
             if (stream == null) {
                 throw new IllegalStateException("Missing classpath resource: " + path);

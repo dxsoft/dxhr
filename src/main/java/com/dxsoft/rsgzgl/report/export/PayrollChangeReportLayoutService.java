@@ -9,14 +9,54 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 class PayrollChangeReportLayoutService {
 
-    private static final DecimalFormat MONEY = new DecimalFormat("#,##0");
+    private static final DecimalFormat MONEY = new DecimalFormat("##0");
+    private static final Set<String> GOVERNMENT_WORKER_POSITION_PREFIXES = Set.of("05", "06");
 
-    record ApprovalRow(String label, String beforeText, String afterText, String differenceText, boolean highlight) {
+    private final String agencyGradeStepTitle;
+    private final String agencyGradeLevelTitle;
+    private final String institutionSalaryLevelTitle;
+    private final String agencyInternTitle;
+    private final String institutionInternTitle;
+    private final String institutionRegularizationTitle;
+
+    PayrollChangeReportLayoutService(
+            @Value("${rsgzgl.report.approval-title.agency-grade-step:河南省机关工作人员正常档次晋升工资变动审批表}")
+            String agencyGradeStepTitle,
+            @Value("${rsgzgl.report.approval-title.agency-grade-level:河南省机关工作人员正常级别晋升工资变动审批表}")
+            String agencyGradeLevelTitle,
+            @Value("${rsgzgl.report.approval-title.institution-salary-level:河南省事业单位工作人员正常晋升薪级工资审批表}")
+            String institutionSalaryLevelTitle,
+            @Value("${rsgzgl.report.approval-title.agency-intern:河南省机关见习人员见习期工资审批表}")
+            String agencyInternTitle,
+            @Value("${rsgzgl.report.approval-title.institution-intern:河南省事业单位见习人员见习期工资审批表}")
+            String institutionInternTitle,
+            @Value("${rsgzgl.report.approval-title.institution-regularization:河南省事业单位转正人员确定工资审批表}")
+            String institutionRegularizationTitle) {
+        this.agencyGradeStepTitle = agencyGradeStepTitle;
+        this.agencyGradeLevelTitle = agencyGradeLevelTitle;
+        this.institutionSalaryLevelTitle = institutionSalaryLevelTitle;
+        this.agencyInternTitle = agencyInternTitle;
+        this.institutionInternTitle = institutionInternTitle;
+        this.institutionRegularizationTitle = institutionRegularizationTitle;
+    }
+
+    record ApprovalRow(
+            String label,
+            String beforeText,
+            String afterText,
+            String differenceText,
+            boolean highlight,
+            String groupLabel) {
+        ApprovalRow(String label, String beforeText, String afterText, String differenceText, boolean highlight) {
+            this(label, beforeText, afterText, differenceText, highlight, null);
+        }
     }
 
     record ApprovalTotals(BigDecimal beforeAmount, BigDecimal afterAmount, BigDecimal difference) {
@@ -31,11 +71,21 @@ class PayrollChangeReportLayoutService {
             String gender,
             String birthDate,
             String education,
+            String degree,
+            String school,
+            String studyYears,
+            String graduationDate,
+            String educationCategory,
             String organizationName,
             String workStartDate,
             String workYears,
             String currentPositionName,
             String positionStartDate,
+            String legalPositionName,
+            String legalPositionStartDate,
+            String probationFrom,
+            String probationTo,
+            String apprenticePeriod,
             String previousChangeText,
             String stepYear,
             String levelYear,
@@ -45,6 +95,9 @@ class PayrollChangeReportLayoutService {
             String executionYear,
             String executionMonth,
             boolean institution,
+            boolean internForm,
+            boolean regularizationForm,
+            boolean judicialForm,
             String performanceRatio,
             List<ApprovalRow> rows,
             ApprovalTotals totals) {
@@ -65,6 +118,8 @@ class PayrollChangeReportLayoutService {
             String afterPosition,
             String beforeLevel,
             String afterLevel,
+            String beforeStep,
+            String afterStep,
             String beforePositionSalary,
             String afterPositionSalary,
             String beforeGradeSalary,
@@ -90,7 +145,9 @@ class PayrollChangeReportLayoutService {
             String beforeOtherAllowance,
             String afterOtherAllowance,
             String beforeRuralTeacher,
-            String afterRuralTeacher) {
+            String afterRuralTeacher,
+            String beforeSpecialPostAllowance,
+            String afterSpecialPostAllowance) {
     }
 
     record RegisterTotalsRow(
@@ -113,7 +170,15 @@ class PayrollChangeReportLayoutService {
             String beforeRetainedReformSalary,
             String afterRetainedReformSalary,
             String beforeRuralTeacher,
-            String afterRuralTeacher) {
+            String afterRuralTeacher,
+            String beforeRetainedReformAllowance,
+            String afterRetainedReformAllowance,
+            String beforeSpecialPostAllowance,
+            String afterSpecialPostAllowance,
+            String beforeTechnicalSalary,
+            String afterTechnicalSalary,
+            String beforeBonus,
+            String afterBonus) {
     }
 
     record RegisterPageModel(
@@ -122,6 +187,7 @@ class PayrollChangeReportLayoutService {
             String organizationCode,
             int pageNumber,
             int pageCount,
+            boolean judicialForm,
             RegisterColumnLabels labels,
             List<RegisterPersonRow> people,
             RegisterTotalsRow totals) {
@@ -134,8 +200,20 @@ class PayrollChangeReportLayoutService {
         List<ApprovalSheetModel> sheets = new ArrayList<>();
         for (PayrollChangeComparison report : reports) {
             boolean institution = resolveInstitution(report, selectedTitle, institutionOverride);
-            String reportTitle = resolveApprovalTitle(report, selectedTitle);
+            boolean regularizationForm = institution && isRegularizationChange(report.changeType(), selectedTitle);
+            boolean internForm = !regularizationForm && isInternSalaryChange(report.changeType(), selectedTitle);
+            boolean judicialForm = !internForm && !regularizationForm && this.usesJudicialApprovalForm(report);
+            String reportTitle = resolveApprovalTitle(
+                    report, selectedTitle, institution, internForm, regularizationForm, judicialForm);
             String period = safe(report.calculationPeriod());
+            // 事业见习旧表：下次晋档/级别考核年度留空手填，不回填变动年
+            String stepYear = (internForm && institution)
+                    ? ""
+                    : displayApprovalYear(report.nextStepAssessmentYear(),
+                            internForm ? "" : period);
+            String levelYear = (internForm && institution)
+                    ? ""
+                    : displayApprovalYear(report.nextLevelAssessmentYear(), "");
             sheets.add(new ApprovalSheetModel(
                     reportTitle,
                     blank(report.organizationCode()),
@@ -145,22 +223,35 @@ class PayrollChangeReportLayoutService {
                     blank(report.gender()),
                     blank(report.birthDate()),
                     blank(report.education()),
+                    blank(report.degree()),
+                    blank(report.school()),
+                    blank(report.studyYears()),
+                    blank(report.graduationDate()),
+                    blank(report.educationCategory()),
                     blankDash(report.organizationName(), report.organizationCode()),
                     blank(report.workStartDate()),
                     report.workYears() == null ? "-" : String.valueOf(report.workYears()),
                     blank(report.currentPositionName()),
                     blank(report.positionStartDate()),
+                    "",
+                    "",
+                    blank(report.workStartDate()),
+                    blank(report.probationEndDate()),
+                    "",
                     previousChangeText(report),
-                    displayApprovalYear(report.nextStepAssessmentYear(), period),
-                    displayApprovalYear(report.nextLevelAssessmentYear(), ""),
-                    approvalBasisTitle(report.changeType(), institution),
+                    stepYear,
+                    levelYear,
+                    approvalBasisTitle(report.changeType(), institution, internForm, regularizationForm),
                     formatApprovalPeriod(period),
                     basisDetailLines(report),
                     period.length() >= 4 ? period.substring(0, 4) : "-",
                     period.length() >= 6 ? period.substring(4, 6) : "-",
                     institution,
+                    internForm,
+                    regularizationForm,
+                    judicialForm,
                     safe(report.performanceRatio()),
-                    approvalRows(report, institution),
+                    approvalRows(report, institution, internForm, regularizationForm, judicialForm),
                     approvalTotals(report.components())));
         }
         return sheets;
@@ -172,10 +263,9 @@ class PayrollChangeReportLayoutService {
             Boolean institutionOverride) {
         boolean institution = reports.stream()
                 .anyMatch(report -> resolveInstitution(report, selectedTitle, institutionOverride));
+        boolean judicialForm = reports.stream().anyMatch(this::isCourtOrProcuratorateOrganization);
         RegisterColumnLabels labels = registerColumnLabels(institution);
-        String reportTitle = selectedTitle == null || selectedTitle.isBlank()
-                ? "工资变动花名册"
-                : selectedTitle.trim();
+        String reportTitle = resolveRegisterTitle(selectedTitle, judicialForm);
         List<List<PayrollChangeComparison>> pages = chunk(reports, 10);
         List<RegisterPageModel> models = new ArrayList<>();
         for (int index = 0; index < pages.size(); index++) {
@@ -187,30 +277,48 @@ class PayrollChangeReportLayoutService {
                     blank(first.organizationCode()),
                     index + 1,
                     pages.size(),
+                    judicialForm,
                     labels,
                     pageReports.stream()
-                            .map(report -> registerPersonRow(report, institution))
+                            .map(report -> registerPersonRow(report, institution, judicialForm))
                             .toList(),
-                    registerTotals(pageReports)));
+                    registerTotals(pageReports, judicialForm)));
         }
         return models;
     }
 
-    private RegisterPersonRow registerPersonRow(PayrollChangeComparison report, boolean institution) {
+    private RegisterPersonRow registerPersonRow(
+            PayrollChangeComparison report, boolean institution, boolean judicialForm) {
         List<PayrollChangeComponentComparison> components = report.components();
         ApprovalTotals totals = approvalTotals(components);
+        String beforeLevel = judicialForm
+                ? blankDash(report.previousGradeLevel(), "")
+                : registerLevelText(report, true, institution);
+        String afterLevel = judicialForm
+                ? blankDash(report.currentGradeLevel(), "")
+                : registerLevelText(report, false, institution);
+        String beforeStep = judicialForm ? blankDash(report.previousStepOrSalaryLevel(), "") : "";
+        String afterStep = judicialForm ? blankDash(report.currentStepOrSalaryLevel(), "") : "";
+        BigDecimal beforeReformRetention = judicialForm
+                ? amount(components, "JZMCBT", true).add(amount(components, "NZGWSF", true))
+                : amount(components, "TGBLBF", true);
+        BigDecimal afterReformRetention = judicialForm
+                ? amount(components, "JZMCBT", false).add(amount(components, "NZGWSF", false))
+                : amount(components, "TGBLBF", false);
         return new RegisterPersonRow(
                 blank(report.name()),
                 blank(report.personCode()),
                 SensitiveData.maskIdCard(report.idCard()),
                 moneyOrDash(totals.beforeAmount()),
                 moneyOrDash(totals.afterAmount()),
-                money(totals.difference()),
+                moneyOrDash(totals.difference()),
                 formatCompactPeriod(report.calculationPeriod()),
                 blank(report.previousPositionName()),
                 blank(report.currentPositionName()),
-                registerLevelText(report, true, institution),
-                registerLevelText(report, false, institution),
+                beforeLevel,
+                afterLevel,
+                beforeStep,
+                afterStep,
                 moneyOrDash(amount(components, "ZWGZSE2", true)),
                 moneyOrDash(amount(components, "ZWGZSE2", false)),
                 moneyOrDash(amount(components, "JBGZSE2", true)),
@@ -223,8 +331,8 @@ class PayrollChangeReportLayoutService {
                 moneyOrDash(amount(components, "BLFB2", false)),
                 moneyOrDash(amount(components, "JXJT", true)),
                 moneyOrDash(amount(components, "JXJT", false)),
-                moneyOrDash(amount(components, "TGBLBF", true)),
-                moneyOrDash(amount(components, "TGBLBF", false)),
+                moneyOrDash(beforeReformRetention),
+                moneyOrDash(afterReformRetention),
                 moneyOrDash(amount(components, "SDBT", true)),
                 moneyOrDash(amount(components, "SDBT", false)),
                 moneyOrDash(amount(components, "DFBT2", true)),
@@ -236,10 +344,12 @@ class PayrollChangeReportLayoutService {
                 moneyOrDash(amount(components, "QTBT", true)),
                 moneyOrDash(amount(components, "QTBT", false)),
                 moneyOrDash(amount(components, "NJBT", true)),
-                moneyOrDash(amount(components, "NJBT", false)));
+                moneyOrDash(amount(components, "NJBT", false)),
+                moneyOrDash(amount(components, "SIDBT", true)),
+                moneyOrDash(amount(components, "SIDBT", false)));
     }
 
-    private RegisterTotalsRow registerTotals(List<PayrollChangeComparison> reports) {
+    private RegisterTotalsRow registerTotals(List<PayrollChangeComparison> reports, boolean judicialForm) {
         BigDecimal beforeTotal = BigDecimal.ZERO;
         BigDecimal afterTotal = BigDecimal.ZERO;
         BigDecimal difference = BigDecimal.ZERO;
@@ -259,6 +369,14 @@ class PayrollChangeReportLayoutService {
         BigDecimal afterRetainedReformSalary = BigDecimal.ZERO;
         BigDecimal beforeRuralTeacher = BigDecimal.ZERO;
         BigDecimal afterRuralTeacher = BigDecimal.ZERO;
+        BigDecimal beforeRetainedReformAllowance = BigDecimal.ZERO;
+        BigDecimal afterRetainedReformAllowance = BigDecimal.ZERO;
+        BigDecimal beforeSpecialPostAllowance = BigDecimal.ZERO;
+        BigDecimal afterSpecialPostAllowance = BigDecimal.ZERO;
+        BigDecimal beforeTechnicalSalary = BigDecimal.ZERO;
+        BigDecimal afterTechnicalSalary = BigDecimal.ZERO;
+        BigDecimal beforeBonus = BigDecimal.ZERO;
+        BigDecimal afterBonus = BigDecimal.ZERO;
         for (PayrollChangeComparison report : reports) {
             List<PayrollChangeComponentComparison> components = report.components();
             ApprovalTotals totals = approvalTotals(components);
@@ -281,32 +399,205 @@ class PayrollChangeReportLayoutService {
             afterRetainedReformSalary = afterRetainedReformSalary.add(amount(components, "PGBC", false));
             beforeRuralTeacher = beforeRuralTeacher.add(amount(components, "NJBT", true));
             afterRuralTeacher = afterRuralTeacher.add(amount(components, "NJBT", false));
+            beforeTechnicalSalary = beforeTechnicalSalary.add(amount(components, "JSDJGZ2", true));
+            afterTechnicalSalary = afterTechnicalSalary.add(amount(components, "JSDJGZ2", false));
+            beforeBonus = beforeBonus.add(amount(components, "JJJY2", true));
+            afterBonus = afterBonus.add(amount(components, "JJJY2", false));
+            beforeSpecialPostAllowance = beforeSpecialPostAllowance.add(amount(components, "SIDBT", true));
+            afterSpecialPostAllowance = afterSpecialPostAllowance.add(amount(components, "SIDBT", false));
+            if (judicialForm) {
+                beforeRetainedReformAllowance = beforeRetainedReformAllowance
+                        .add(amount(components, "JZMCBT", true))
+                        .add(amount(components, "NZGWSF", true));
+                afterRetainedReformAllowance = afterRetainedReformAllowance
+                        .add(amount(components, "JZMCBT", false))
+                        .add(amount(components, "NZGWSF", false));
+            } else {
+                beforeRetainedReformAllowance = beforeRetainedReformAllowance.add(amount(components, "TGBLBF", true));
+                afterRetainedReformAllowance = afterRetainedReformAllowance.add(amount(components, "TGBLBF", false));
+            }
         }
         return new RegisterTotalsRow(
                 reports.size(),
-                money(beforeTotal),
-                money(afterTotal),
-                money(difference),
-                money(beforePositionSalary),
-                money(afterPositionSalary),
-                money(beforeGradeSalary),
-                money(afterGradeSalary),
-                money(beforeRetained),
-                money(afterRetained),
-                money(beforeRankAllowance),
-                money(afterRankAllowance),
-                money(beforeWorkAllowance),
-                money(afterWorkAllowance),
-                money(beforePerformance),
-                money(afterPerformance),
-                money(beforeRetainedReformSalary),
-                money(afterRetainedReformSalary),
-                money(beforeRuralTeacher),
-                money(afterRuralTeacher));
+                moneyOrDash(beforeTotal),
+                moneyOrDash(afterTotal),
+                moneyOrDash(difference),
+                moneyOrDash(beforePositionSalary),
+                moneyOrDash(afterPositionSalary),
+                moneyOrDash(beforeGradeSalary),
+                moneyOrDash(afterGradeSalary),
+                moneyOrDash(beforeRetained),
+                moneyOrDash(afterRetained),
+                moneyOrDash(beforeRankAllowance),
+                moneyOrDash(afterRankAllowance),
+                moneyOrDash(beforeWorkAllowance),
+                moneyOrDash(afterWorkAllowance),
+                moneyOrDash(beforePerformance),
+                moneyOrDash(afterPerformance),
+                moneyOrDash(beforeRetainedReformSalary),
+                moneyOrDash(afterRetainedReformSalary),
+                moneyOrDash(beforeRuralTeacher),
+                moneyOrDash(afterRuralTeacher),
+                moneyOrDash(beforeRetainedReformAllowance),
+                moneyOrDash(afterRetainedReformAllowance),
+                moneyOrDash(beforeSpecialPostAllowance),
+                moneyOrDash(afterSpecialPostAllowance),
+                moneyOrDash(beforeTechnicalSalary),
+                moneyOrDash(afterTechnicalSalary),
+                moneyOrDash(beforeBonus),
+                moneyOrDash(afterBonus));
     }
 
-    private List<ApprovalRow> approvalRows(PayrollChangeComparison report, boolean institution) {
+    private List<ApprovalRow> approvalRows(
+            PayrollChangeComparison report,
+            boolean institution,
+            boolean internForm,
+            boolean regularizationForm,
+            boolean judicialForm) {
+        if (regularizationForm) {
+            return institutionRegularizationApprovalRows(report);
+        }
+        if (internForm) {
+            return institution ? institutionInternApprovalRows(report) : agencyInternApprovalRows(report);
+        }
+        if (judicialForm) {
+            return judicialApprovalRows(report);
+        }
         return institution ? institutionApprovalRows(report) : agencyApprovalRows(report);
+    }
+
+    private List<ApprovalRow> judicialApprovalRows(PayrollChangeComparison report) {
+        List<PayrollChangeComponentComparison> components = report.components();
+        String group = "基本工资";
+        List<ApprovalRow> rows = new ArrayList<>();
+        rows.add(groupedTextApprovalRow(
+                "执行工资职务层次",
+                report.previousPositionName(),
+                report.currentPositionName(),
+                group));
+        rows.add(groupedTextApprovalRow(
+                "级别",
+                formatJudicialGrade(report.previousGradeLevel()),
+                formatJudicialGrade(report.currentGradeLevel()),
+                group));
+        rows.add(groupedTextApprovalRow(
+                "档次",
+                formatJudicialStep(report.previousStepOrSalaryLevel()),
+                formatJudicialStep(report.currentStepOrSalaryLevel()),
+                group));
+        rows.add(groupedAmountApprovalRow("职务/职务等级工资", component(components, "ZWGZSE2"), group));
+        rows.add(groupedAmountApprovalRow("级别工资", component(components, "JBGZSE2"), group));
+        rows.add(amountApprovalRow("保留职务工资", component(components, "PGBC")));
+        rows.add(amountApprovalRow("技术等级工资", component(components, "JSDJGZ2")));
+        rows.add(amountApprovalRow("保留福补", component(components, "BLFB2")));
+        rows.add(amountApprovalRow("保留奖金", component(components, "JJJY2")));
+        rows.add(amountApprovalRow("生活性补贴", component(components, "DFBT2")));
+        rows.add(amountApprovalRow("工作性津贴", component(components, "SDBT")));
+        rows.add(amountApprovalRow("特殊岗位津贴", component(components, "SIDBT")));
+        rows.add(amountApprovalRow("警衔津贴", component(components, "JXJT")));
+        rows.add(sumAmountApprovalRow("工改保留津贴", components, "JZMCBT", "NZGWSF"));
+        return rows;
+    }
+
+    private List<ApprovalRow> agencyInternApprovalRows(PayrollChangeComparison report) {
+        List<PayrollChangeComponentComparison> components = report.components();
+        List<ApprovalRow> rows = new ArrayList<>();
+        rows.add(textApprovalRow(
+                "执行工资职务层次",
+                report.previousPositionName(),
+                report.currentPositionName()));
+        rows.add(textApprovalRow(
+                "级别档次",
+                gradeStepText(report.previousGradeLevel(), report.previousStepOrSalaryLevel()),
+                gradeStepText(report.currentGradeLevel(), report.currentStepOrSalaryLevel())));
+        rows.add(internSalaryAmountRow("试用期工资(职务工资)", components));
+        rows.add(amountApprovalRow("级别工资", component(components, "JBGZSE2")));
+        rows.add(amountApprovalRow("技术等级工资", component(components, "JSDJGZ2")));
+        rows.add(amountApprovalRow("保留副补", component(components, "BLFB2")));
+        rows.add(amountApprovalRow("保留奖金", component(components, "JJJY2")));
+        rows.add(amountApprovalRow("工改保留津贴", component(components, "TGBLBF")));
+        rows.add(amountApprovalRow("生活性补贴", component(components, "DFBT2")));
+        rows.add(amountApprovalRow("警衔津贴", component(components, "JXJT")));
+        rows.add(amountApprovalRow("特殊岗位津贴", component(components, "SIDBT")));
+        rows.add(amountApprovalRow("其它补贴", component(components, "QTBT")));
+        rows.add(amountApprovalRow("特岗保留部分", component(components, "PGBC")));
+        rows.add(amountApprovalRow("教护龄津贴", component(components, "JHLJT")));
+        rows.add(amountApprovalRow("工作性津贴", component(components, "SDBT")));
+        return rows;
+    }
+
+    private List<ApprovalRow> institutionRegularizationApprovalRows(PayrollChangeComparison report) {
+        List<PayrollChangeComponentComparison> components = report.components();
+        List<ApprovalRow> rows = new ArrayList<>();
+        rows.add(textApprovalRow(
+                "执行工资岗位等级",
+                null,
+                report.currentPositionName()));
+        rows.add(textApprovalRow(
+                "薪级",
+                null,
+                formatSalaryLevel(report.currentStepOrSalaryLevel())));
+        rows.add(internAmountApprovalRow("岗位工资", component(components, "ZWGZSE2")));
+        rows.add(internAmountApprovalRow("薪级工资", component(components, "JBGZSE2")));
+        rows.add(internAmountApprovalRow("教护提高部分", component(components, "JSFSZWTG2")));
+        rows.add(internAmountApprovalRow("教护龄津贴", component(components, "JHLJT")));
+        rows.add(internAmountApprovalRow("保留副补", component(components, "BLFB2")));
+        rows.add(internAmountApprovalRow("保留奖金", component(components, "JJJY2")));
+        rows.add(internAmountApprovalRow("工改保留津贴", component(components, "TGBLBF")));
+        rows.add(internAmountApprovalRow("基础绩效", component(components, "DFBT2")));
+        rows.add(internAmountApprovalRow("浮动工资", component(components, "FDGZ2")));
+        rows.add(internAmountApprovalRow("特殊岗位津贴", component(components, "SIDBT")));
+        rows.add(internAmountApprovalRow("特岗保留部分", component(components, "PGBC")));
+        rows.add(internAmountApprovalRow("农村学校教师补贴", component(components, "NJBT")));
+        rows.add(internAmountApprovalRow("其它补贴", component(components, "QTBT")));
+        return rows;
+    }
+
+    private List<ApprovalRow> institutionInternApprovalRows(PayrollChangeComparison report) {
+        List<PayrollChangeComponentComparison> components = report.components();
+        List<ApprovalRow> rows = new ArrayList<>();
+        rows.add(textApprovalRow(
+                "执行工资岗位等级",
+                null,
+                report.currentPositionName()));
+        rows.add(internSalaryAmountRow("见习工资", components));
+        rows.add(internAmountApprovalRow("薪级工资", component(components, "JBGZSE2")));
+        rows.add(internAmountApprovalRow("教护提高部分", component(components, "JSFSZWTG2")));
+        rows.add(internAmountApprovalRow("教护龄津贴", component(components, "JHLJT")));
+        rows.add(internAmountApprovalRow("保留副补", component(components, "BLFB2")));
+        rows.add(internAmountApprovalRow("保留奖金", component(components, "JJJY2")));
+        rows.add(internAmountApprovalRow("工改保留津贴", component(components, "TGBLBF")));
+        rows.add(internAmountApprovalRow("基础绩效", component(components, "DFBT2")));
+        rows.add(internAmountApprovalRow("警衔津贴", component(components, "JXJT")));
+        rows.add(internAmountApprovalRow("特殊岗位津贴", component(components, "SIDBT")));
+        rows.add(internAmountApprovalRow("特岗保留部分", component(components, "PGBC")));
+        rows.add(internAmountApprovalRow("农村学校教师补贴", component(components, "NJBT")));
+        rows.add(internAmountApprovalRow("其它补贴", component(components, "QTBT")));
+        return rows;
+    }
+
+    private ApprovalRow internSalaryAmountRow(String label, List<PayrollChangeComponentComparison> components) {
+        PayrollChangeComponentComparison intern = component(components, "JXGZ");
+        if (intern != null && (
+                (intern.afterAmount() != null && intern.afterAmount().compareTo(BigDecimal.ZERO) > 0)
+                        || (intern.beforeAmount() != null && intern.beforeAmount().compareTo(BigDecimal.ZERO) > 0))) {
+            return internAmountApprovalRow(label, intern);
+        }
+        return internAmountApprovalRow(label, component(components, "ZWGZSE2"));
+    }
+
+    private ApprovalRow internAmountApprovalRow(String label, PayrollChangeComponentComparison component) {
+        if (component == null) {
+            return new ApprovalRow(label, "——", "——", "——", false);
+        }
+        return new ApprovalRow(label, "——", internMoneyOrDash(component.afterAmount()), "——", false);
+    }
+
+    private String internMoneyOrDash(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) == 0) {
+            return "——";
+        }
+        return new DecimalFormat("#0").format(value);
     }
 
     private List<ApprovalRow> agencyApprovalRows(PayrollChangeComparison report) {
@@ -366,15 +657,25 @@ class PayrollChangeReportLayoutService {
     }
 
     private ApprovalRow textApprovalRow(String label, String beforeValue, String afterValue) {
+        return groupedTextApprovalRow(label, beforeValue, afterValue, null);
+    }
+
+    private ApprovalRow groupedTextApprovalRow(
+            String label, String beforeValue, String afterValue, String groupLabel) {
         String beforeText = blankDash(beforeValue, null);
         String afterText = blankDash(afterValue, null);
         boolean same = Objects.equals(beforeText, afterText);
-        return new ApprovalRow(label, beforeText, afterText, same ? "——" : "", !same);
+        return new ApprovalRow(label, beforeText, afterText, same ? "——" : "", !same, groupLabel);
     }
 
     private ApprovalRow amountApprovalRow(String label, PayrollChangeComponentComparison component) {
+        return groupedAmountApprovalRow(label, component, null);
+    }
+
+    private ApprovalRow groupedAmountApprovalRow(
+            String label, PayrollChangeComponentComparison component, String groupLabel) {
         if (component == null) {
-            return new ApprovalRow(label, "——", "——", "——", false);
+            return new ApprovalRow(label, "——", "——", "——", false, groupLabel);
         }
         BigDecimal difference = component.difference() == null ? BigDecimal.ZERO : component.difference();
         boolean zero = difference.compareTo(BigDecimal.ZERO) == 0;
@@ -383,7 +684,77 @@ class PayrollChangeReportLayoutService {
                 moneyOrDash(component.beforeAmount()),
                 moneyOrDash(component.afterAmount()),
                 zero ? "——" : money(difference),
-                !zero);
+                !zero,
+                groupLabel);
+    }
+
+    private ApprovalRow sumAmountApprovalRow(
+            String label, List<PayrollChangeComponentComparison> components, String... fieldNames) {
+        BigDecimal before = BigDecimal.ZERO;
+        BigDecimal after = BigDecimal.ZERO;
+        for (String fieldName : fieldNames) {
+            before = before.add(amount(components, fieldName, true));
+            after = after.add(amount(components, fieldName, false));
+        }
+        BigDecimal difference = after.subtract(before);
+        boolean zero = difference.compareTo(BigDecimal.ZERO) == 0;
+        return new ApprovalRow(
+                label,
+                moneyOrDash(before),
+                moneyOrDash(after),
+                zero ? "——" : money(difference),
+                !zero,
+                null);
+    }
+
+    private String formatJudicialGrade(String grade) {
+        String text = safe(grade);
+        if (text.isEmpty() || "-".equals(text)) {
+            return text.isEmpty() ? "-" : text;
+        }
+        if (text.matches(".*[一二三四五六七八九十百].*")) {
+            return text;
+        }
+        String digits = text.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) {
+            return text;
+        }
+        try {
+            return toChineseNumber(Integer.parseInt(digits));
+        } catch (NumberFormatException ignored) {
+            return text;
+        }
+    }
+
+    private String formatJudicialStep(String step) {
+        String text = safe(step);
+        if (text.isEmpty() || "-".equals(text)) {
+            return text.isEmpty() ? "-" : text;
+        }
+        String core = text.endsWith("档") ? text.substring(0, text.length() - 1).trim() : text;
+        return core.isEmpty() ? "-" : core + "档";
+    }
+
+    private String toChineseNumber(int value) {
+        if (value <= 0) {
+            return String.valueOf(value);
+        }
+        String[] digits = {"零", "一", "二", "三", "四", "五", "六", "七", "八", "九"};
+        if (value < 10) {
+            return digits[value];
+        }
+        if (value == 10) {
+            return "十";
+        }
+        if (value < 20) {
+            return "十" + digits[value % 10];
+        }
+        if (value < 100) {
+            int tens = value / 10;
+            int ones = value % 10;
+            return digits[tens] + "十" + (ones == 0 ? "" : digits[ones]);
+        }
+        return String.valueOf(value);
     }
 
     private ApprovalTotals approvalTotals(List<PayrollChangeComponentComparison> components) {
@@ -427,14 +798,45 @@ class PayrollChangeReportLayoutService {
                 || position.contains("职员");
     }
 
-    private String resolveApprovalTitle(PayrollChangeComparison report, String selectedTitle) {
-        String title = selectedTitle == null ? "" : selectedTitle.trim();
-        boolean institution = resolveInstitution(report, selectedTitle, null);
-        if (institution) {
-            return "河南省事业单位工作人员正常晋升薪级工资审批表";
+    private String resolveApprovalTitle(
+            PayrollChangeComparison report,
+            String selectedTitle,
+            boolean institution,
+            boolean internForm,
+            boolean regularizationForm,
+            boolean judicialForm) {
+        if (regularizationForm && institution) {
+            return institutionRegularizationTitle;
         }
+        if (internForm) {
+            return institution ? institutionInternTitle : agencyInternTitle;
+        }
+        if (judicialForm) {
+            return "河南省法官、检察官和司法辅助、司法行政人员工资变动审批表";
+        }
+        if (institution) {
+            return institutionSalaryLevelTitle;
+        }
+        // 机关：级别 / 档次晋升分别使用标准标题；优先按变动类别判定，避免「正常+晋升」误判。
+        if (isAgencyGradeLevelPromotion(report, selectedTitle)) {
+            return agencyGradeLevelTitle;
+        }
+        if (isAgencyGradeStepPromotion(report, selectedTitle)) {
+            return agencyGradeStepTitle;
+        }
+        String title = selectedTitle == null ? "" : selectedTitle.trim();
         if (title.isEmpty()) {
             title = "河南省机关工作人员" + safe(report.changeType()) + "工资变动审批表";
+        } else if (!title.startsWith("河南省")) {
+            if (title.startsWith("机关工作人员")) {
+                title = "河南省" + title;
+            } else if (title.startsWith("工作人员")) {
+                title = "河南省机关" + title;
+            } else if (!title.contains("机关工作人员")) {
+                title = "河南省机关工作人员" + title;
+            } else {
+                title = "河南省" + title;
+            }
         }
         if (!title.contains("审批表")) {
             if (title.endsWith("工资变动")) {
@@ -446,6 +848,54 @@ class PayrollChangeReportLayoutService {
         return title;
     }
 
+    private boolean isAgencyGradeLevelPromotion(PayrollChangeComparison report, String selectedTitle) {
+        String type = safe(report.changeType());
+        String title = safe(selectedTitle);
+        if (type.contains("档次") || type.contains("晋档")) {
+            return false;
+        }
+        if (type.contains("级别") || type.contains("晋级") || type.contains("级别滚动")) {
+            return true;
+        }
+        return (title.contains("级别") || title.contains("晋级"))
+                && !title.contains("档次")
+                && !title.contains("晋档")
+                && !title.contains("薪级");
+    }
+
+    private boolean isAgencyGradeStepPromotion(PayrollChangeComparison report, String selectedTitle) {
+        if (isAgencyGradeLevelPromotion(report, selectedTitle)) {
+            return false;
+        }
+        String type = safe(report.changeType());
+        String title = safe(selectedTitle);
+        return type.contains("档次")
+                || type.contains("晋档")
+                || title.contains("档次")
+                || title.contains("晋档")
+                || ((type.contains("正常") || title.contains("正常"))
+                        && (type.contains("晋升") || title.contains("晋升"))
+                        && !type.contains("薪级")
+                        && !title.contains("薪级")
+                        && !type.contains("级别")
+                        && !title.contains("级别"));
+    }
+
+    private boolean isRegularizationChange(String changeType, String selectedTitle) {
+        String type = safe(changeType);
+        String title = safe(selectedTitle);
+        return type.contains("转正") || title.contains("转正");
+    }
+
+    private boolean isInternSalaryChange(String changeType, String selectedTitle) {
+        String type = safe(changeType);
+        String title = safe(selectedTitle);
+        if (isRegularizationChange(type, title)) {
+            return false;
+        }
+        return type.contains("见习") || title.contains("见习");
+    }
+
     private String previousChangeText(PayrollChangeComparison report) {
         if (report.previousPayrollHistoryId() == null || report.previousPayrollHistoryId().isBlank()) {
             return "无";
@@ -455,22 +905,23 @@ class PayrollChangeReportLayoutService {
 
     private List<String> basisDetailLines(PayrollChangeComparison report) {
         List<String> lines = new ArrayList<>();
-        String currentYear = report.calculationPeriod() != null && report.calculationPeriod().length() >= 4
-                ? report.calculationPeriod().substring(0, 4)
-                : "";
-        String previousYear = report.previousCalculationPeriod() != null && report.previousCalculationPeriod().length() >= 4
-                ? report.previousCalculationPeriod().substring(0, 4)
-                : "";
-        if (!currentYear.isEmpty()) {
-            lines.add(currentYear + "年：" + safe(report.changeType()));
-        }
-        if (!previousYear.isEmpty()) {
-            lines.add(previousYear + "年：" + safe(report.previousChangeType()));
+        if (report.basisAssessments() != null) {
+            for (var assessment : report.basisAssessments()) {
+                String result = safe(assessment.result());
+                lines.add(assessment.year() + "年度考核：" + (result.isEmpty() ? "-" : result));
+            }
         }
         return lines;
     }
 
-    private String approvalBasisTitle(String changeType, boolean institution) {
+    private String approvalBasisTitle(
+            String changeType, boolean institution, boolean internForm, boolean regularizationForm) {
+        if (regularizationForm) {
+            return "转正定级工资待遇";
+        }
+        if (internForm) {
+            return "见习期工资待遇";
+        }
         String type = safe(changeType);
         if (institution) {
             return "正常增加薪级工资";
@@ -479,7 +930,7 @@ class PayrollChangeReportLayoutService {
             return "按年度考核结果晋升级别工资档次";
         }
         if (type.contains("级")) {
-            return "按年度考核结果晋升级别工资";
+            return "按年度考核结果晋升级别";
         }
         return type.isEmpty() ? "工资变动" : type;
     }
@@ -576,10 +1027,64 @@ class PayrollChangeReportLayoutService {
     }
 
     private String moneyOrDash(BigDecimal value) {
-        if (value == null) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) == 0) {
             return "——";
         }
         return money(value);
+    }
+
+    private String resolveRegisterTitle(String selectedTitle, boolean judicialForm) {
+        if (judicialForm) {
+            String source = selectedTitle == null ? "" : selectedTitle.trim();
+            if (source.contains("档次")) {
+                return "河南省法官、检察官和司法辅助、司法行政人员正常档次工资变动花名册";
+            }
+            return "河南省法官、检察官和司法辅助、司法行政人员正常级别工资变动花名册";
+        }
+        return withAgencyRegisterTitlePrefix(selectedTitle);
+    }
+
+    private String withAgencyRegisterTitlePrefix(String selectedTitle) {
+        String title = selectedTitle == null || selectedTitle.isBlank()
+                ? "工资变动花名册"
+                : selectedTitle.trim();
+        if (title.startsWith("河南省")) {
+            return title;
+        }
+        return "河南省机关" + title;
+    }
+
+    private boolean usesJudicialApprovalForm(PayrollChangeComparison report) {
+        if (!this.isCourtOrProcuratorateOrganization(report)) {
+            return false;
+        }
+        return !this.isGovernmentWorkerPersonnel(report);
+    }
+
+    /** 法院、检察院内的机关工勤（岗位 05/06 等）走一般机关人员审批表，不走法检专用表。 */
+    private boolean isGovernmentWorkerPersonnel(PayrollChangeComparison report) {
+        if (this.isGovernmentWorkerPositionCode(report.currentPositionCode())
+                || this.isGovernmentWorkerPositionCode(report.previousPositionCode())) {
+            return true;
+        }
+        String position = safe(report.currentPositionName()) + safe(report.previousPositionName());
+        return position.contains("工勤");
+    }
+
+    private boolean isGovernmentWorkerPositionCode(String positionCode) {
+        String normalized = safe(positionCode).toUpperCase(Locale.ROOT);
+        return normalized.length() >= 2
+                && GOVERNMENT_WORKER_POSITION_PREFIXES.contains(normalized.substring(0, 2));
+    }
+
+    private boolean isCourtOrProcuratorateOrganization(PayrollChangeComparison report) {
+        String xtlb = safe(report.organizationSystemCategory());
+        if (xtlb.contains("法院") || xtlb.contains("检察")) {
+            return true;
+        }
+        // xtlb 未维护时，回退单位名称，避免法院空 xtlb 漏判。
+        String name = safe(report.organizationName());
+        return name.contains("法院") || name.contains("检察");
     }
 
     private String blank(String value) {

@@ -41,19 +41,29 @@ class PayrollChangeExcelExportService {
                 int rowIndex = 0;
 
                 Row topLine = page.createRow(rowIndex++);
-                writeCell(topLine, 0, "单位编码：" + sheet.organizationCode(), textStyle);
-                page.addMergedRegion(new CellRangeAddress(topLine.getRowNum(), topLine.getRowNum(), 0, 2));
-                writeCell(topLine, 3, "个人编码：" + sheet.personCode(), textStyle);
-                page.addMergedRegion(new CellRangeAddress(topLine.getRowNum(), topLine.getRowNum(), 3, 4));
-                writeCell(topLine, 5, "档案号：" + sheet.archiveNumber(), textStyle);
-                page.addMergedRegion(new CellRangeAddress(topLine.getRowNum(), topLine.getRowNum(), 5, 7));
+                if (sheet.judicialForm()) {
+                    writeCell(topLine, 0, "个人编码：" + sheet.personCode(), textStyle);
+                    page.addMergedRegion(new CellRangeAddress(topLine.getRowNum(), topLine.getRowNum(), 0, 3));
+                    writeCell(topLine, 4, "档案号：" + sheet.archiveNumber(), textStyle);
+                    page.addMergedRegion(new CellRangeAddress(topLine.getRowNum(), topLine.getRowNum(), 4, 7));
+                } else {
+                    writeCell(topLine, 0, "单位编码：" + sheet.organizationCode(), textStyle);
+                    page.addMergedRegion(new CellRangeAddress(topLine.getRowNum(), topLine.getRowNum(), 0, 2));
+                    writeCell(topLine, 3, "个人编码：" + sheet.personCode(), textStyle);
+                    page.addMergedRegion(new CellRangeAddress(topLine.getRowNum(), topLine.getRowNum(), 3, 4));
+                    writeCell(topLine, 5, "档案号：" + sheet.archiveNumber(), textStyle);
+                    page.addMergedRegion(new CellRangeAddress(topLine.getRowNum(), topLine.getRowNum(), 5, 7));
+                }
 
                 Row titleRow = page.createRow(rowIndex++);
-                titleRow.setHeightInPoints(24);
+                titleRow.setHeightInPoints(sheet.judicialForm() ? 36 : 24);
                 Cell titleCell = titleRow.createCell(0);
                 titleCell.setCellValue(sheet.reportTitle());
                 titleCell.setCellStyle(titleStyle);
                 page.addMergedRegion(new CellRangeAddress(titleRow.getRowNum(), titleRow.getRowNum(), 0, 7));
+                if (sheet.judicialForm()) {
+                    titleRow.setHeightInPoints(28);
+                }
 
                 Row meta1 = page.createRow(rowIndex++);
                 writeCell(meta1, 0, "姓名", headerStyle);
@@ -75,18 +85,25 @@ class PayrollChangeExcelExportService {
                 writeCell(meta2, 7, sheet.workYears(), centerStyle);
 
                 Row meta3 = page.createRow(rowIndex++);
-                writeCell(meta3, 0, "现任职务", headerStyle);
+                writeCell(meta3, 0, sheet.judicialForm() ? "现任职务层次" : "现任职务", headerStyle);
                 writeCell(meta3, 1, sheet.currentPositionName(), centerStyle);
-                page.addMergedRegion(new CellRangeAddress(meta3.getRowNum(), meta3.getRowNum(), 1, 3));
-                writeCell(meta3, 4, "任职时间", headerStyle);
-                writeCell(meta3, 5, sheet.positionStartDate(), centerStyle);
-                writeCell(meta3, 6, "前次变动", headerStyle);
-                writeCell(meta3, 7, sheet.previousChangeText(), centerStyle);
+                page.addMergedRegion(new CellRangeAddress(meta3.getRowNum(), meta3.getRowNum(), 1, 5));
+                writeCell(meta3, 6, "任职时间", headerStyle);
+                writeCell(meta3, 7, sheet.positionStartDate(), centerStyle);
+
+                if (sheet.judicialForm()) {
+                    Row meta4 = page.createRow(rowIndex++);
+                    writeCell(meta4, 0, "现任法律职务", headerStyle);
+                    writeCell(meta4, 1, sheet.legalPositionName() == null ? "" : sheet.legalPositionName(), centerStyle);
+                    page.addMergedRegion(new CellRangeAddress(meta4.getRowNum(), meta4.getRowNum(), 1, 5));
+                    writeCell(meta4, 6, "任法律职务时间", headerStyle);
+                    writeCell(meta4, 7, sheet.legalPositionStartDate() == null ? "" : sheet.legalPositionStartDate(), centerStyle);
+                }
 
                 Row tableHeader = page.createRow(rowIndex++);
                 writeCell(tableHeader, 0, "项目", headerStyle);
-                writeCell(tableHeader, 1, "变动前", headerStyle);
-                writeCell(tableHeader, 2, "变动后", headerStyle);
+                writeCell(tableHeader, 1, sheet.judicialForm() ? "套改前" : "变动前", headerStyle);
+                writeCell(tableHeader, 2, sheet.judicialForm() ? "套改后" : "变动后", headerStyle);
                 writeCell(tableHeader, 3, "增资额", headerStyle);
                 writeCell(tableHeader, 4, "工资变动原因及依据", headerStyle);
                 page.addMergedRegion(new CellRangeAddress(tableHeader.getRowNum(), tableHeader.getRowNum(), 4, 7));
@@ -94,7 +111,10 @@ class PayrollChangeExcelExportService {
                 int bodyStart = rowIndex;
                 for (ApprovalRow row : sheet.rows()) {
                     Row dataRow = page.createRow(rowIndex++);
-                    writeCell(dataRow, 0, row.label(), textStyle);
+                    String label = row.groupLabel() == null || row.groupLabel().isBlank()
+                            ? row.label()
+                            : row.groupLabel() + "-" + row.label();
+                    writeCell(dataRow, 0, label, textStyle);
                     writeCell(dataRow, 1, row.beforeText(), centerStyle);
                     writeCell(dataRow, 2, row.afterText(), centerStyle);
                     writeCell(dataRow, 3, row.differenceText(), centerStyle);
@@ -158,11 +178,17 @@ class PayrollChangeExcelExportService {
 
     private String buildBasisText(ApprovalSheetModel sheet) {
         StringBuilder basis = new StringBuilder();
-        if (sheet.institution()) {
-            basis.append("下次薪级晋升起始考核年度：").append(sheet.stepYear()).append('\n');
-        } else {
-            basis.append("下次档次晋升起始考核年度：").append(sheet.stepYear()).append('\n');
+        if (sheet.regularizationForm()) {
+            basis.append("下次晋档起始考核年度：").append(sheet.stepYear()).append('\n');
+        } else if (sheet.judicialForm()) {
+            basis.append("下一次晋档起始年度：").append(sheet.stepYear()).append('\n');
+            basis.append("下一次晋级起始年度：").append(sheet.levelYear()).append('\n');
+        } else if (sheet.internForm() || !sheet.institution()) {
+            String stepLabel = sheet.internForm() ? "下次晋档起始考核年度：" : "下次档次晋升起始考核年度：";
+            basis.append(stepLabel).append(sheet.stepYear()).append('\n');
             basis.append("下次级别晋升起始考核年度：").append(sheet.levelYear()).append('\n');
+        } else {
+            basis.append("下次薪级晋升起始考核年度：").append(sheet.stepYear()).append('\n');
         }
         basis.append("工资变动原因及依据：").append(sheet.basisTitle()).append('\n');
         basis.append("执行时间：").append(sheet.executionPeriod()).append('\n');
@@ -185,29 +211,41 @@ class PayrollChangeExcelExportService {
                 Row title = sheet.createRow(rowIndex++);
                 title.createCell(0).setCellValue(pageModel.reportTitle());
                 title.getCell(0).setCellStyle(titleStyle);
-                sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 20));
+                sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, pageModel.judicialForm() ? 20 : 19));
                 Row subtitle = sheet.createRow(rowIndex++);
                 subtitle.createCell(0).setCellValue(
                         "单位名称：" + pageModel.organizationName() + "[单位编码：" + pageModel.organizationCode() + "]"
                                 + "    第 " + pageModel.pageNumber() + " 页 共 " + pageModel.pageCount() + " 页");
                 subtitle.getCell(0).setCellStyle(textStyle);
-                sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 20));
-                String[] headers = {
-                        "姓名", "人员编码", "身份证号", "变动前后", "月工资合计",
-                        pageModel.labels().position(), pageModel.labels().level(),
-                        pageModel.labels().positionSalary(), pageModel.labels().gradeSalary(),
-                        "技术等级工资", "保留奖金", "保留福补", "警衔津贴", "工改保留津贴",
-                        "工作性津贴", "生活性补贴", "岗位津贴", "工改保留工资", "其它补贴", "农村学校教师补贴",
-                        "月增减", "执行时间"
-                };
+                sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, pageModel.judicialForm() ? 20 : 19));
+                String[] headers = pageModel.judicialForm()
+                        ? new String[]{
+                            "姓名", "人员编码", "身份证号", "变动前后", "月工资合计",
+                            "职务(或职务等级)", "级别", "档次", "职务(职务等级)工资", "级别工资",
+                            "保留职务工资", "技术等级工资", "保留奖金", "保留福补",
+                            "工作性津贴", "生活性补贴", "特殊岗位津贴", "警衔津贴", "工改保留津贴",
+                            "月增减", "执行时间"
+                        }
+                        : new String[]{
+                            "姓名", "人员编码", "身份证号", "变动前后", "月工资合计",
+                            pageModel.labels().position(), pageModel.labels().level(),
+                            pageModel.labels().positionSalary(), pageModel.labels().gradeSalary(),
+                            "技术等级工资", "保留奖金", "保留福补", "警衔/监察津贴", "工改保留津贴",
+                            "工作性津贴", "生活性补贴", "岗位津贴", "工改保留工资", "其它补贴",
+                            "月增减", "执行时间"
+                        };
                 Row headerRow = sheet.createRow(rowIndex++);
                 for (int column = 0; column < headers.length; column++) {
                     writeCell(headerRow, column, headers[column], headerStyle);
                 }
                 for (RegisterPersonRow person : pageModel.people()) {
-                    rowIndex = writeRegisterPerson(sheet, rowIndex, person, textStyle);
+                    rowIndex = pageModel.judicialForm()
+                            ? writeJudicialRegisterPerson(sheet, rowIndex, person, textStyle)
+                            : writeRegisterPerson(sheet, rowIndex, person, textStyle);
                 }
-                rowIndex = writeRegisterTotals(sheet, rowIndex, pageModel.totals(), headerStyle, textStyle);
+                rowIndex = pageModel.judicialForm()
+                        ? writeJudicialRegisterTotals(sheet, rowIndex, pageModel.totals(), headerStyle, textStyle)
+                        : writeRegisterTotals(sheet, rowIndex, pageModel.totals(), headerStyle, textStyle);
                 for (int column = 0; column < headers.length; column++) {
                     sheet.setColumnWidth(column, 12 * 256);
                 }
@@ -243,7 +281,6 @@ class PayrollChangeExcelExportService {
         writeCell(before, column++, person.beforePositionAllowance(), textStyle);
         writeCell(before, column++, person.beforeRetainedReformSalary(), textStyle);
         writeCell(before, column++, person.beforeOtherAllowance(), textStyle);
-        writeCell(before, column++, person.beforeRuralTeacher(), textStyle);
         writeCell(before, column++, "", textStyle);
         writeCell(before, column, "", textStyle);
 
@@ -268,10 +305,100 @@ class PayrollChangeExcelExportService {
         writeCell(after, column++, person.afterPositionAllowance(), textStyle);
         writeCell(after, column++, person.afterRetainedReformSalary(), textStyle);
         writeCell(after, column++, person.afterOtherAllowance(), textStyle);
-        writeCell(after, column++, person.afterRuralTeacher(), textStyle);
         writeCell(after, column++, person.difference(), textStyle);
         writeCell(after, column, person.executePeriod(), textStyle);
         return rowIndex;
+    }
+
+    private int writeJudicialRegisterPerson(Sheet sheet, int rowIndex, RegisterPersonRow person, CellStyle textStyle) {
+        Row before = sheet.createRow(rowIndex++);
+        int column = 0;
+        writeCell(before, column++, person.name(), textStyle);
+        writeCell(before, column++, person.personCode(), textStyle);
+        writeCell(before, column++, person.maskedIdCard(), textStyle);
+        writeCell(before, column++, "变动前", textStyle);
+        writeCell(before, column++, person.beforeTotal(), textStyle);
+        writeCell(before, column++, person.beforePosition(), textStyle);
+        writeCell(before, column++, person.beforeLevel(), textStyle);
+        writeCell(before, column++, person.beforeStep(), textStyle);
+        writeCell(before, column++, person.beforePositionSalary(), textStyle);
+        writeCell(before, column++, person.beforeGradeSalary(), textStyle);
+        writeCell(before, column++, person.beforeRetainedReformSalary(), textStyle);
+        writeCell(before, column++, person.beforeTechnicalSalary(), textStyle);
+        writeCell(before, column++, person.beforeBonus(), textStyle);
+        writeCell(before, column++, person.beforeRetained(), textStyle);
+        writeCell(before, column++, person.beforeWorkAllowance(), textStyle);
+        writeCell(before, column++, person.beforePerformance(), textStyle);
+        writeCell(before, column++, person.beforeSpecialPostAllowance(), textStyle);
+        writeCell(before, column++, person.beforeRankAllowance(), textStyle);
+        writeCell(before, column++, person.beforeRetainedReformAllowance(), textStyle);
+        writeCell(before, column++, "", textStyle);
+        writeCell(before, column, "", textStyle);
+
+        Row after = sheet.createRow(rowIndex++);
+        column = 0;
+        writeCell(after, column++, "", textStyle);
+        writeCell(after, column++, "", textStyle);
+        writeCell(after, column++, "", textStyle);
+        writeCell(after, column++, "变动后", textStyle);
+        writeCell(after, column++, person.afterTotal(), textStyle);
+        writeCell(after, column++, person.afterPosition(), textStyle);
+        writeCell(after, column++, person.afterLevel(), textStyle);
+        writeCell(after, column++, person.afterStep(), textStyle);
+        writeCell(after, column++, person.afterPositionSalary(), textStyle);
+        writeCell(after, column++, person.afterGradeSalary(), textStyle);
+        writeCell(after, column++, person.afterRetainedReformSalary(), textStyle);
+        writeCell(after, column++, person.afterTechnicalSalary(), textStyle);
+        writeCell(after, column++, person.afterBonus(), textStyle);
+        writeCell(after, column++, person.afterRetained(), textStyle);
+        writeCell(after, column++, person.afterWorkAllowance(), textStyle);
+        writeCell(after, column++, person.afterPerformance(), textStyle);
+        writeCell(after, column++, person.afterSpecialPostAllowance(), textStyle);
+        writeCell(after, column++, person.afterRankAllowance(), textStyle);
+        writeCell(after, column++, person.afterRetainedReformAllowance(), textStyle);
+        writeCell(after, column++, person.difference(), textStyle);
+        writeCell(after, column, person.executePeriod(), textStyle);
+        return rowIndex;
+    }
+
+    private int writeJudicialRegisterTotals(
+            Sheet sheet,
+            int rowIndex,
+            RegisterTotalsRow totals,
+            CellStyle headerStyle,
+            CellStyle textStyle) {
+        Row before = sheet.createRow(rowIndex++);
+        writeCell(before, 0, "合计", headerStyle);
+        writeCell(before, 1, String.valueOf(totals.personCount()), textStyle);
+        writeCell(before, 3, "变动前", headerStyle);
+        writeCell(before, 4, totals.beforeTotal(), textStyle);
+        writeCell(before, 8, totals.beforePositionSalary(), textStyle);
+        writeCell(before, 9, totals.beforeGradeSalary(), textStyle);
+        writeCell(before, 10, totals.beforeRetainedReformSalary(), textStyle);
+        writeCell(before, 11, totals.beforeTechnicalSalary(), textStyle);
+        writeCell(before, 12, totals.beforeBonus(), textStyle);
+        writeCell(before, 13, totals.beforeRetained(), textStyle);
+        writeCell(before, 14, totals.beforeWorkAllowance(), textStyle);
+        writeCell(before, 15, totals.beforePerformance(), textStyle);
+        writeCell(before, 16, totals.beforeSpecialPostAllowance(), textStyle);
+        writeCell(before, 17, totals.beforeRankAllowance(), textStyle);
+        writeCell(before, 18, totals.beforeRetainedReformAllowance(), textStyle);
+        writeCell(before, 19, totals.difference(), textStyle);
+        Row after = sheet.createRow(rowIndex);
+        writeCell(after, 3, "变动后", headerStyle);
+        writeCell(after, 4, totals.afterTotal(), textStyle);
+        writeCell(after, 8, totals.afterPositionSalary(), textStyle);
+        writeCell(after, 9, totals.afterGradeSalary(), textStyle);
+        writeCell(after, 10, totals.afterRetainedReformSalary(), textStyle);
+        writeCell(after, 11, totals.afterTechnicalSalary(), textStyle);
+        writeCell(after, 12, totals.afterBonus(), textStyle);
+        writeCell(after, 13, totals.afterRetained(), textStyle);
+        writeCell(after, 14, totals.afterWorkAllowance(), textStyle);
+        writeCell(after, 15, totals.afterPerformance(), textStyle);
+        writeCell(after, 16, totals.afterSpecialPostAllowance(), textStyle);
+        writeCell(after, 17, totals.afterRankAllowance(), textStyle);
+        writeCell(after, 18, totals.afterRetainedReformAllowance(), textStyle);
+        return rowIndex + 1;
     }
 
     private int writeRegisterTotals(
@@ -292,7 +419,7 @@ class PayrollChangeExcelExportService {
         writeCell(before, 14, totals.beforeWorkAllowance(), textStyle);
         writeCell(before, 15, totals.beforePerformance(), textStyle);
         writeCell(before, 17, totals.beforeRetainedReformSalary(), textStyle);
-        writeCell(before, 19, totals.beforeRuralTeacher(), textStyle);
+        writeCell(before, 19, totals.difference(), textStyle);
         Row after = sheet.createRow(rowIndex);
         writeCell(after, 3, "后", headerStyle);
         writeCell(after, 4, totals.afterTotal(), textStyle);
@@ -303,8 +430,6 @@ class PayrollChangeExcelExportService {
         writeCell(after, 14, totals.afterWorkAllowance(), textStyle);
         writeCell(after, 15, totals.afterPerformance(), textStyle);
         writeCell(after, 17, totals.afterRetainedReformSalary(), textStyle);
-        writeCell(after, 19, totals.afterRuralTeacher(), textStyle);
-        writeCell(after, 20, totals.difference(), textStyle);
         return rowIndex + 1;
     }
 

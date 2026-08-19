@@ -11,4 +11,14 @@ public record OtherAllowanceStandard(
         BigDecimal averageAmount,
         BigDecimal multiplier
 ) {
+    public OtherAllowanceStandard withName(String name) {
+        return new OtherAllowanceStandard(
+                standardType,
+                standardYearMonth,
+                code,
+                name,
+                amount,
+                averageAmount,
+                multiplier);
+    }
 }

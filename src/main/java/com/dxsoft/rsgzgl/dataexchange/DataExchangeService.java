@@ -2,12 +2,17 @@ package com.dxsoft.rsgzgl.dataexchange;
 
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
+import com.dxsoft.rsgzgl.maintenance.OperationLogService;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.poi.ss.usermodel.BorderStyle;
@@ -33,10 +38,15 @@ class DataExchangeService {
 
     private final DataExchangeRepository dataExchangeRepository;
     private final ObjectMapper objectMapper;
+    private final OperationLogService operationLogService;
 
-    DataExchangeService(DataExchangeRepository dataExchangeRepository, ObjectMapper objectMapper) {
+    DataExchangeService(
+            DataExchangeRepository dataExchangeRepository,
+            ObjectMapper objectMapper,
+            OperationLogService operationLogService) {
         this.dataExchangeRepository = dataExchangeRepository;
         this.objectMapper = objectMapper;
+        this.operationLogService = operationLogService;
     }
 
     PageResponse<PersonnelExportRecord> exportPersonnel(
@@ -88,24 +98,39 @@ class DataExchangeService {
     }
 
     PersonnelExchangePackage buildPersonnelPackage(DataExchangeController.PersonnelDispatchRequest request) {
+        return buildPersonnelPackage(request, true);
+    }
+
+    PersonnelExchangePackage buildPersonnelPackage(
+            DataExchangeController.PersonnelDispatchRequest request,
+            boolean includeRelatedTables) {
         List<PersonnelExportRecord> records = resolveDispatchPersonnel(request);
+        if (includeRelatedTables && records.size() > 800) {
+            throw new IllegalArgumentException(
+                    "下发人数过多（" + records.size() + "），请勾选人员分批生成下发包（建议每次不超过 800 人）。");
+        }
         return new PersonnelExchangePackage(
                 "PERSONNEL",
                 LocalDateTime.now().toString(),
                 request.organizationCodes() == null ? List.of() : request.organizationCodes(),
                 request.includeDescendants(),
                 records,
-                dataExchangeRepository.exportRelatedTables(records));
+                includeRelatedTables ? dataExchangeRepository.exportRelatedTables(records) : List.of());
     }
 
-    ResponseEntity<byte[]> dispatchPersonnelPackage(DataExchangeController.PersonnelDispatchRequest request) {
-        PersonnelExchangePackage payload = buildPersonnelPackage(request);
-        byte[] bytes = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(payload);
+    ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> dispatchPersonnelPackage(
+            DataExchangeController.PersonnelDispatchRequest request) {
+        PersonnelExchangePackage payload = buildPersonnelPackage(request, true);
+        this.recordDataExchangeAction(
+                "EXPORT_PERSONNEL_PACKAGE",
+                String.valueOf(payload.personnel() == null ? 0 : payload.personnel().size()),
+                "导出人员下发包 " + (payload.personnel() == null ? 0 : payload.personnel().size()) + " 人");
+        org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody body = outputStream ->
+                objectMapper.writeValue(outputStream, payload);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setContentDispositionFormData("attachment", "rsgzgl_personnel_package.json");
-        headers.setContentLength(bytes.length);
-        return ResponseEntity.ok().headers(headers).body(bytes);
+        return ResponseEntity.ok().headers(headers).body(body);
     }
 
     PayrollSubmissionPackage buildSubmissionPackage(DataExchangeController.PersonnelDispatchRequest request) {
@@ -123,6 +148,10 @@ class DataExchangeService {
     ResponseEntity<byte[]> dispatchSubmissionPackage(DataExchangeController.PersonnelDispatchRequest request) {
         PayrollSubmissionPackage payload = buildSubmissionPackage(request);
         dataExchangeRepository.markPayrollSubmitted(payload.personnel());
+        this.recordDataExchangeAction(
+                "EXPORT_SUBMISSION_PACKAGE",
+                String.valueOf(payload.personnel() == null ? 0 : payload.personnel().size()),
+                "导出申报包 " + (payload.personnel() == null ? 0 : payload.personnel().size()) + " 人");
         byte[] bytes = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(payload);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -143,18 +172,112 @@ class DataExchangeService {
                 dataExchangeRepository.exportSubmissionRelatedTables(records));
     }
 
-    ResponseEntity<byte[]> dispatchApprovalPackage(DataExchangeController.PersonnelDispatchRequest request) {
+    DataExchangeController.ApprovalDispatchPreviewResponse previewApprovalPackage(
+            DataExchangeController.PersonnelDispatchRequest request) {
         PayrollSubmissionPackage payload = buildApprovalPackage(request);
+        List<DataExchangeController.ApprovalStatusCount> statusCounts =
+                dataExchangeRepository.countCurrentPayrollStatuses(
+                        request.organizationCodes(),
+                        request.includeDescendants(),
+                        request.keyword());
+        String distribution = formatApprovalStatusCounts(statusCounts);
+        String message;
         if (payload.personnel() == null || payload.personnel().isEmpty()) {
-            throw new IllegalArgumentException("没有可下发的已审工资审批数据");
+            message = "当前筛选条件下无可列表人员。"
+                    + (distribution.isBlank() ? "" : " 本单位范围状态分布：" + distribution)
+                    + "。可下发状态为：申报 / 已审 / 审批通过；已下发可筛选后「退回已审」。";
+        } else {
+            message = "审批下发预览 " + payload.personnel().size() + " 人"
+                    + (distribution.isBlank() ? "" : "；范围分布：" + distribution)
+                    + "。勾选后可只下发勾选人员。";
+        }
+        return new DataExchangeController.ApprovalDispatchPreviewResponse(payload, statusCounts, message);
+    }
+
+    ResponseEntity<byte[]> dispatchApprovalPackage(DataExchangeController.PersonnelDispatchRequest request) {
+        List<String> statuses = normalizeApprovalStatuses(request.approvalStatuses(), true);
+        if (statuses.size() == 1 && statuses.contains("已下发")) {
+            throw new IllegalArgumentException("「已下发」仅可查看或退回，不能再次生成审批包。请先「退回已审」。");
+        }
+        DataExchangeController.PersonnelDispatchRequest exportRequest = new DataExchangeController.PersonnelDispatchRequest(
+                request.organizationCodes(),
+                request.includeDescendants(),
+                request.keyword(),
+                request.selectedPersonnel(),
+                statuses);
+        PayrollSubmissionPackage payload = buildApprovalPackage(exportRequest);
+        if (payload.personnel() == null || payload.personnel().isEmpty()) {
+            throw new IllegalArgumentException("没有可下发的审批数据（需为申报 / 已审 / 审批通过）");
         }
         dataExchangeRepository.markPayrollApprovalDispatched(payload.personnel());
+        this.recordDataExchangeAction(
+                "EXPORT_APPROVAL_PACKAGE",
+                String.valueOf(payload.personnel().size()),
+                "导出审批下发包 " + payload.personnel().size() + " 人");
         byte[] bytes = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(payload);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setContentDispositionFormData("attachment", "rsgzgl_approval_package.json");
         headers.setContentLength(bytes.length);
         return ResponseEntity.ok().headers(headers).body(bytes);
+    }
+
+    @Transactional
+    public DataExchangeController.ApprovalRevertResponse revertDispatchedApproval(
+            DataExchangeController.PersonnelDispatchRequest request) {
+        List<PersonnelExportRecord> targets;
+        if (request.selectedPersonnel() != null && !request.selectedPersonnel().isEmpty()) {
+            targets = dataExchangeRepository.exportSelectedPersonnelByStatuses(
+                    request.selectedPersonnel(), List.of("已下发"));
+        } else {
+            targets = dataExchangeRepository.exportApprovedPersonnelPackageByOrganizations(
+                    request.organizationCodes(),
+                    request.includeDescendants(),
+                    request.keyword(),
+                    List.of("已下发"));
+        }
+        if (targets.isEmpty()) {
+            throw new IllegalArgumentException("没有可退回的「已下发」记录，请先筛选或勾选已下发人员。");
+        }
+        int updated = dataExchangeRepository.revertPayrollApprovalDispatched(targets);
+        this.recordDataExchangeAction(
+                "REVERT_APPROVAL_DISPATCH",
+                String.valueOf(updated),
+                "退回已下发审批 " + updated + " 人");
+        return new DataExchangeController.ApprovalRevertResponse(
+                updated,
+                "已将 " + updated + " 人从「已下发」退回为「已审」，可重新下发。");
+    }
+
+    private String formatApprovalStatusCounts(List<DataExchangeController.ApprovalStatusCount> statusCounts) {
+        if (statusCounts == null || statusCounts.isEmpty()) {
+            return "";
+        }
+        return statusCounts.stream()
+                .filter(item -> item != null && item.count() > 0)
+                .map(item -> (item.status() == null || item.status().isBlank() ? "(空)" : item.status())
+                        + " " + item.count())
+                .collect(java.util.stream.Collectors.joining("，"));
+    }
+
+    private List<String> normalizeApprovalStatuses(List<String> requested, boolean forExport) {
+        if (requested == null || requested.isEmpty()) {
+            return DataExchangeRepository.DISPATCHABLE_APPROVAL_STATUSES;
+        }
+        List<String> cleaned = requested.stream()
+                .filter(item -> item != null && !item.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (cleaned.isEmpty()) {
+            return DataExchangeRepository.DISPATCHABLE_APPROVAL_STATUSES;
+        }
+        if (forExport) {
+            return cleaned.stream()
+                    .filter(DataExchangeRepository.DISPATCHABLE_APPROVAL_STATUSES::contains)
+                    .toList();
+        }
+        return cleaned;
     }
 
     DataExchangeController.SubmissionReviewPreviewResponse previewApprovalReceive(
@@ -190,6 +313,10 @@ class DataExchangeService {
                     "试运行通过：审批数据接收未写入数据库");
         }
         int count = dataExchangeRepository.applyApprovedSubmission(rows, payload.payrollTables(), payload.relatedTables());
+        this.recordDataExchangeAction(
+                "APPLY_APPROVAL_RECEIVE",
+                String.valueOf(count),
+                "接收审批数据 " + count + " 人");
         return new DataExchangeController.SubmissionReviewApplyResponse(
                 count,
                 buildSubmissionReviewSummary(previewRows),
@@ -203,13 +330,22 @@ class DataExchangeService {
         List<DataExchangeController.SubmissionReviewPreviewRow> previewRows = rows.stream()
                 .map(row -> buildSubmissionReviewPreviewRow(row, payload))
                 .toList();
+        DataExchangeController.SubmissionReviewSummary summary = buildSubmissionReviewSummary(previewRows);
+        String message;
+        if (summary.inconsistentRecords() == 0 && summary.newRecords() == 0) {
+            message = "审核完成：上报人员信息与本地完全一致（" + summary.consistentRecords()
+                    + " 人）。可按需勾选后接收工资变动，一般无需接收。";
+        } else {
+            message = "审核完成：完全一致 " + summary.consistentRecords()
+                    + " 人，不一致 " + summary.inconsistentRecords()
+                    + " 人，新增 " + summary.newRecords()
+                    + " 人。请核对差异后勾选并「同意接收」。";
+        }
         return new DataExchangeController.SubmissionReviewPreviewResponse(
                 rows.size(),
-                previewRows.stream().limit(100).toList(),
-                buildSubmissionReviewSummary(previewRows),
-                "APPROVE".equalsIgnoreCase(request.decision())
-                        ? "预览成功：审核通过后将替换对应人员的工资变动记录"
-                        : "预览成功：退回申报不会写入数据库");
+                previewRows.stream().limit(200).toList(),
+                summary,
+                message);
     }
 
     @Transactional
@@ -218,36 +354,34 @@ class DataExchangeService {
         PayrollSubmissionPackage payload = parseSubmissionPackage(request.packageJson());
         List<PersonnelExportRecord> rows = filterReceiveRows(payload.personnel(), request.selectedPersonnel());
         if (rows.isEmpty()) {
-            throw new IllegalArgumentException("申报包中没有可处理的人员记录");
+            throw new IllegalArgumentException("请先勾选要处理的人员（建议勾选「不一致」或「新增人员」）。");
         }
         boolean approve = !"REJECT".equalsIgnoreCase(request.decision());
-        boolean dryRun = Boolean.TRUE.equals(request.dryRun());
-        if (dryRun) {
-            List<DataExchangeController.SubmissionReviewPreviewRow> previewRows = rows.stream()
-                    .map(row -> buildSubmissionReviewPreviewRow(row, payload))
-                    .toList();
-            return new DataExchangeController.SubmissionReviewApplyResponse(
-                    0,
-                    buildSubmissionReviewSummary(previewRows),
-                    approve ? "试运行通过：审核通过操作未写入数据库" : "试运行通过：退回操作未写入数据库");
-        }
-        if (!approve) {
-            List<DataExchangeController.SubmissionReviewPreviewRow> previewRows = rows.stream()
-                    .map(row -> buildSubmissionReviewPreviewRow(row, payload))
-                    .toList();
-            return new DataExchangeController.SubmissionReviewApplyResponse(
-                    0,
-                    buildSubmissionReviewSummary(previewRows),
-                    "已退回 " + rows.size() + " 条申报记录，未写入数据库");
-        }
-        int count = dataExchangeRepository.applyApprovedSubmission(rows, payload.payrollTables(), payload.relatedTables());
         List<DataExchangeController.SubmissionReviewPreviewRow> previewRows = rows.stream()
                 .map(row -> buildSubmissionReviewPreviewRow(row, payload))
                 .toList();
+        DataExchangeController.SubmissionReviewSummary summary = buildSubmissionReviewSummary(previewRows);
+        if (Boolean.TRUE.equals(request.dryRun())) {
+            return new DataExchangeController.SubmissionReviewApplyResponse(
+                    0,
+                    summary,
+                    approve ? "试运行：同意接收未写入数据库" : "试运行：拒绝接收未写入数据库");
+        }
+        if (!approve) {
+            return new DataExchangeController.SubmissionReviewApplyResponse(
+                    0,
+                    summary,
+                    "已拒绝接收 " + rows.size() + " 条申报记录，未写入数据库");
+        }
+        int count = dataExchangeRepository.applyApprovedSubmission(rows, payload.payrollTables(), payload.relatedTables());
+        this.recordDataExchangeAction(
+                "APPLY_SUBMISSION_REVIEW",
+                String.valueOf(count),
+                "同意接收申报 " + count + " 人");
         return new DataExchangeController.SubmissionReviewApplyResponse(
                 count,
-                buildSubmissionReviewSummary(previewRows),
-                "已审核通过 " + count + " 条申报记录，并更新工资变动数据");
+                summary,
+                "已同意接收 " + count + " 人，并更新工资变动及关联申报数据");
     }
 
     DataExchangeController.ReceivePreviewResponse previewReceive(DataExchangeController.ReceiveRequest request) {
@@ -258,8 +392,8 @@ class DataExchangeService {
         DataExchangeController.ReceiveSummary summary = buildSummary(previewRows, payload.relatedTables());
         return new DataExchangeController.ReceivePreviewResponse(
                 rows.size(),
-                rows.stream().limit(50).toList(),
-                previewRows.stream().limit(100).toList(),
+                rows,
+                previewRows,
                 summary,
                 List.of(),
                 append ? "预览成功：勾选人员将追加到目标单位并重新编码" : "预览成功：整体接收将替换同单位同个人编码数据");
@@ -280,15 +414,17 @@ class DataExchangeService {
                         .map(row -> new DataExchangeController.CodeMapping(
                                 row.organizationCode(), row.personCode(), row.organizationCode(), row.personCode(), row.name()))
                         .toList();
-        int existing = append ? 0 : (int) rows.stream().filter(row -> dataExchangeRepository.personExists(row.organizationCode(), row.personCode())).count();
-        DataExchangeController.ReceiveSummary summary = buildSummary(buildPreviewRows(rows, payload.relatedTables(), append, request.targetOrganizationCode()), payload.relatedTables());
+        List<DataExchangeController.ReceivePreviewRow> previewRows = buildPreviewRows(
+                rows, payload.relatedTables(), append, request.targetOrganizationCode());
+        int existing = (int) previewRows.stream().filter(row -> "替换".equals(row.action())).count();
+        DataExchangeController.ReceiveSummary summary = buildSummary(previewRows, payload.relatedTables());
         if (dryRun) {
             return new DataExchangeController.ReceiveApplyResponse(
                     0,
                     append ? 0 : rows.size() - existing,
                     append ? 0 : existing,
                     append ? rows.size() : 0,
-                    mappings,
+                    mappings.stream().limit(200).toList(),
                     summary,
                     append ? "试运行通过：勾选人员可追加接收并重新编码，未写入数据库" : "试运行通过：整体接收可替换/新增，未写入数据库");
         }
@@ -300,12 +436,16 @@ class DataExchangeService {
         } catch (DataAccessException e) {
             throw new IllegalStateException("数据接收写入失败：" + e.getMostSpecificCause().getMessage(), e);
         }
+        this.recordDataExchangeAction(
+                "APPLY_DATA_RECEIVE",
+                String.valueOf(count),
+                (append ? "追加接收 " : "整体接收 ") + count + " 人");
         return new DataExchangeController.ReceiveApplyResponse(
                 count,
                 append ? 0 : count - existing,
                 append ? 0 : existing,
                 append ? count : 0,
-                mappings,
+                mappings.stream().limit(200).toList(),
                 summary,
                 append ? "已按追加方式接收并重新编码" : "已整体接收并替换相同单位编码和个人编码数据");
     }
@@ -553,42 +693,229 @@ class DataExchangeService {
                 previewRow.payrollRecordCount(),
                 previewRow.organizationExists(),
                 previewRow.personExists(),
-                previewRow.personExists() ? "替换工资记录" : "新增人员并写入审批结果");
+                previewRow.personExists() ? "替换工资记录" : "新增人员并写入审批结果",
+                previewRow.auditStatus(),
+                previewRow.mismatchSummary(),
+                previewRow.diffs());
     }
 
     private List<PersonnelExportRecord> resolveApprovalPersonnel(DataExchangeController.PersonnelDispatchRequest request) {
+        List<String> statuses = normalizeApprovalStatuses(request.approvalStatuses(), false);
         if (request.selectedPersonnel() != null && !request.selectedPersonnel().isEmpty()) {
             return filterByKeyword(
-                    dataExchangeRepository.exportSelectedApprovedPersonnel(request.selectedPersonnel()),
+                    dataExchangeRepository.exportSelectedPersonnelByStatuses(request.selectedPersonnel(), statuses),
                     request.keyword());
         }
         return dataExchangeRepository.exportApprovedPersonnelPackageByOrganizations(
                 request.organizationCodes(),
                 request.includeDescendants(),
-                request.keyword());
+                request.keyword(),
+                statuses);
     }
 
     private DataExchangeController.SubmissionReviewPreviewRow buildSubmissionReviewPreviewRow(
             PersonnelExportRecord row,
             PayrollSubmissionPackage payload) {
-        Map<String, Object> current = dataExchangeRepository.findCurrentPayrollSummary(row.organizationCode(), row.personCode());
+        Map<String, Object> packagePayroll = findPackagePayrollSummary(payload.payrollTables(), row.organizationCode(), row.personCode());
         int payrollCount = payrollCountForPerson(payload.payrollTables(), row.organizationCode(), row.personCode());
         boolean orgExists = dataExchangeRepository.organizationExists(row.organizationCode());
         boolean personExists = dataExchangeRepository.personExists(row.organizationCode(), row.personCode());
+
+        List<DataExchangeController.SubmissionReviewDiff> diffs = new ArrayList<>();
+        List<String> categories = new ArrayList<>();
+        String auditStatus;
+        String action;
+        if (!personExists) {
+            auditStatus = "新增人员";
+            action = "同意接收后新增人员并写入工资";
+            categories.add("新增人员");
+            diffs.add(new DataExchangeController.SubmissionReviewDiff("人员", "本地不存在", "申报新增"));
+        } else {
+            PersonnelExportRecord local = dataExchangeRepository.findPersonnelExportRecord(
+                    row.organizationCode(), row.personCode());
+            comparePersonnelBasics(local, row, diffs);
+            if (!diffs.isEmpty()) {
+                categories.add("基本信息");
+            }
+            int beforeRelated = diffs.size();
+            compareRelatedPresence(payload.relatedTables(), "dryzwbh", row, List.of("xrzw", "zwjb", "zwbm", "xzzw", "srny"), "职务信息", diffs);
+            if (diffs.size() > beforeRelated) {
+                categories.add("职务信息");
+            }
+            beforeRelated = diffs.size();
+            compareRelatedPresence(payload.relatedTables(), "dxl", row, List.of("xl", "bysj"), "学历信息", diffs);
+            if (diffs.size() > beforeRelated) {
+                categories.add("学历信息");
+            }
+            beforeRelated = diffs.size();
+            compareRelatedPresence(payload.relatedTables(), "dndkh", row, List.of("khnd", "khjg"), "年度考核", diffs);
+            if (diffs.size() > beforeRelated) {
+                categories.add("年度考核");
+            }
+            if (diffs.isEmpty()) {
+                auditStatus = "完全一致";
+                action = "基本信息一致，可按需接收工资变动";
+            } else {
+                auditStatus = "不一致";
+                action = "核对差异后同意接收或拒绝";
+            }
+        }
+
+        String mismatchSummary = categories.isEmpty() ? "" : String.join(" ", categories);
         return new DataExchangeController.SubmissionReviewPreviewRow(
                 row.organizationCode(),
                 row.organizationName(),
                 row.personCode(),
                 row.name(),
-                stringValue(current.get("jslb")),
-                stringValue(current.get("period")),
-                numericValue(current.get("hj2")),
-                stringValue(current.get("jzgb")),
-                stringValue(current.get("bbz")),
+                stringValue(packagePayroll.get("jslb")),
+                stringValue(packagePayroll.get("period")),
+                numericValue(packagePayroll.get("hj2")),
+                stringValue(packagePayroll.get("bbz")),
+                "申报",
                 payrollCount,
                 orgExists,
                 personExists,
-                personExists ? "替换工资记录" : "新增人员并写入工资");
+                action,
+                auditStatus,
+                mismatchSummary,
+                diffs);
+    }
+
+    private void comparePersonnelBasics(
+            PersonnelExportRecord local,
+            PersonnelExportRecord submitted,
+            List<DataExchangeController.SubmissionReviewDiff> diffs) {
+        if (local == null) {
+            diffs.add(new DataExchangeController.SubmissionReviewDiff("人员", "本地不存在", "申报存在"));
+            return;
+        }
+        compareField("姓名", local.name(), submitted.name(), diffs);
+        compareField("身份证", local.idCard(), submitted.idCard(), diffs);
+        compareField("性别", local.gender(), submitted.gender(), diffs);
+        compareField("出生年月", local.birthYearMonth(), submitted.birthYearMonth(), diffs);
+        compareField("人员类别", local.personnelCategory(), submitted.personnelCategory(), diffs);
+        compareField("单位属性", local.organizationType(), submitted.organizationType(), diffs);
+        compareField("岗位分类", local.postCategory(), submitted.postCategory(), diffs);
+        compareField("参加工作", local.workStart(), submitted.workStart(), diffs);
+        compareField("转正年月", local.regularization(), submitted.regularization(), diffs);
+        compareField("最高学历", local.highestEducation(), submitted.highestEducation(), diffs);
+        compareField("职务级别", local.positionLevel(), submitted.positionLevel(), diffs);
+        compareField("现任职务", local.currentPosition(), submitted.currentPosition(), diffs);
+        compareField("民族", local.ethnicity(), submitted.ethnicity(), diffs);
+        compareField("档案号", local.archiveNumber(), submitted.archiveNumber(), diffs);
+    }
+
+    private void compareField(
+            String item,
+            String localValue,
+            String submittedValue,
+            List<DataExchangeController.SubmissionReviewDiff> diffs) {
+        String left = normalizeCompareValue(localValue);
+        String right = normalizeCompareValue(submittedValue);
+        if (!left.equals(right)) {
+            diffs.add(new DataExchangeController.SubmissionReviewDiff(item, left, right));
+        }
+    }
+
+    private void compareRelatedPresence(
+            List<ExchangeTable> relatedTables,
+            String tableName,
+            PersonnelExportRecord person,
+            List<String> keyFields,
+            String categoryLabel,
+            List<DataExchangeController.SubmissionReviewDiff> diffs) {
+        List<Map<String, Object>> packageRows = rowsForPerson(relatedTables, tableName, person.organizationCode(), person.personCode());
+        if (packageRows.isEmpty()) {
+            return;
+        }
+        List<Map<String, Object>> localRows = dataExchangeRepository.findRelatedRowsForPerson(
+                tableName, person.organizationCode(), person.personCode());
+        for (Map<String, Object> packageRow : packageRows) {
+            boolean found = localRows.stream().anyMatch(local -> relatedKeysMatch(local, packageRow, keyFields));
+            if (!found) {
+                String submitted = keyFields.stream()
+                        .map(field -> field + "=" + normalizeCompareValue(mapText(packageRow, field)))
+                        .reduce((a, b) -> a + "," + b)
+                        .orElse("");
+                diffs.add(new DataExchangeController.SubmissionReviewDiff(categoryLabel, "本地无匹配", submitted));
+            }
+        }
+    }
+
+    private boolean relatedKeysMatch(Map<String, Object> local, Map<String, Object> submitted, List<String> keyFields) {
+        for (String field : keyFields) {
+            if (!normalizeCompareValue(mapText(local, field)).equals(normalizeCompareValue(mapText(submitted, field)))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<Map<String, Object>> rowsForPerson(
+            List<ExchangeTable> tables,
+            String tableName,
+            String organizationCode,
+            String personCode) {
+        if (tables == null || tables.isEmpty()) {
+            return List.of();
+        }
+        return tables.stream()
+                .filter(table -> tableName.equalsIgnoreCase(table.tableName()))
+                .flatMap(table -> table.rows() == null ? java.util.stream.Stream.<Map<String, Object>>empty() : table.rows().stream())
+                .filter(row -> equalsText(mapText(row, "dwbm"), organizationCode) && equalsText(mapText(row, "grbm"), personCode))
+                .toList();
+    }
+
+    private Map<String, Object> findPackagePayrollSummary(
+            List<ExchangeTable> payrollTables,
+            String organizationCode,
+            String personCode) {
+        if (payrollTables == null) {
+            return Map.of();
+        }
+        return payrollTables.stream()
+                .filter(table -> "hisbase".equalsIgnoreCase(table.tableName()))
+                .flatMap(table -> table.rows() == null ? java.util.stream.Stream.<Map<String, Object>>empty() : table.rows().stream())
+                .filter(row -> equalsText(mapText(row, "dwbm"), organizationCode) && equalsText(mapText(row, "grbm"), personCode))
+                .filter(row -> {
+                    String sid = mapText(row, "sid");
+                    return sid.isBlank();
+                })
+                .findFirst()
+                .map(row -> {
+                    Map<String, Object> summary = new LinkedHashMap<>();
+                    summary.put("jslb", mapText(row, "jslb"));
+                    summary.put("period", mapText(row, "jsnf") + mapText(row, "jsyf"));
+                    summary.put("hj2", row.getOrDefault("hj2", row.get("HJ2")));
+                    summary.put("bbz", mapText(row, "bbz"));
+                    return summary;
+                })
+                .orElse(Map.of());
+    }
+
+    private String mapText(Map<String, Object> row, String field) {
+        if (row == null || field == null) {
+            return "";
+        }
+        Object value = row.get(field);
+        if (value == null) {
+            value = row.get(field.toUpperCase());
+        }
+        if (value == null) {
+            value = row.get(field.toLowerCase());
+        }
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private String normalizeCompareValue(String value) {
+        if (value == null) {
+            return "";
+        }
+        String text = value.trim();
+        if (text.isEmpty() || "null".equalsIgnoreCase(text) || "0".equals(text) || "0.0".equals(text)) {
+            return text.equals("0") || text.equals("0.0") ? "0" : "";
+        }
+        return text;
     }
 
     private DataExchangeController.SubmissionReviewSummary buildSubmissionReviewSummary(
@@ -596,7 +923,10 @@ class DataExchangeService {
         int replaceCount = (int) rows.stream().filter(DataExchangeController.SubmissionReviewPreviewRow::personExists).count();
         int createCount = rows.size() - replaceCount;
         int payrollRows = rows.stream().mapToInt(DataExchangeController.SubmissionReviewPreviewRow::payrollRecordCount).sum();
-        return new DataExchangeController.SubmissionReviewSummary(rows.size(), createCount, replaceCount, payrollRows);
+        int consistent = (int) rows.stream().filter(row -> "完全一致".equals(row.auditStatus())).count();
+        int inconsistent = (int) rows.stream().filter(row -> "不一致".equals(row.auditStatus())).count();
+        return new DataExchangeController.SubmissionReviewSummary(
+                rows.size(), createCount, replaceCount, payrollRows, consistent, inconsistent);
     }
 
     private int payrollCountForPerson(
@@ -651,13 +981,47 @@ class DataExchangeService {
     }
 
     private List<PersonnelExportRecord> resolveDispatchPersonnel(DataExchangeController.PersonnelDispatchRequest request) {
+        List<PersonnelExportRecord> records;
         if (request.selectedPersonnel() != null && !request.selectedPersonnel().isEmpty()) {
-            return filterByKeyword(dataExchangeRepository.exportSelectedPersonnel(request.selectedPersonnel()), request.keyword());
+            records = filterByKeyword(
+                    dataExchangeRepository.exportSelectedPersonnel(dedupePersonKeys(request.selectedPersonnel())),
+                    request.keyword());
+        } else {
+            records = dataExchangeRepository.exportPersonnelPackageByOrganizations(
+                    request.organizationCodes(),
+                    request.includeDescendants(),
+                    request.keyword());
         }
-        return dataExchangeRepository.exportPersonnelPackageByOrganizations(
-                request.organizationCodes(),
-                request.includeDescendants(),
-                request.keyword());
+        return dedupePersonnel(records);
+    }
+
+    private List<DataExchangeController.PersonKey> dedupePersonKeys(List<DataExchangeController.PersonKey> keys) {
+        Map<String, DataExchangeController.PersonKey> unique = new LinkedHashMap<>();
+        for (DataExchangeController.PersonKey key : keys) {
+            if (key == null) {
+                continue;
+            }
+            String code = key.organizationCode() == null ? "" : key.organizationCode().trim();
+            String person = key.personCode() == null ? "" : key.personCode().trim();
+            if (code.isEmpty() || person.isEmpty()) {
+                continue;
+            }
+            unique.putIfAbsent(code + "|" + person, new DataExchangeController.PersonKey(code, person));
+        }
+        return List.copyOf(unique.values());
+    }
+
+    private List<PersonnelExportRecord> dedupePersonnel(List<PersonnelExportRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return List.of();
+        }
+        Map<String, PersonnelExportRecord> unique = new LinkedHashMap<>();
+        for (PersonnelExportRecord record : records) {
+            String code = record.organizationCode() == null ? "" : record.organizationCode().trim();
+            String person = record.personCode() == null ? "" : record.personCode().trim();
+            unique.putIfAbsent(code + "|" + person, record);
+        }
+        return List.copyOf(unique.values());
     }
 
     private List<PersonnelExportRecord> filterByKeyword(List<PersonnelExportRecord> records, String keyword) {
@@ -681,19 +1045,26 @@ class DataExchangeService {
             List<ExchangeTable> relatedTables,
             boolean append,
             String targetOrganizationCode) {
+        Set<String> existingKeys = dataExchangeRepository.existingPersonKeys(rows);
+        boolean targetExists = !append || dataExchangeRepository.organizationExists(targetOrganizationCode);
         List<DataExchangeController.CodeMapping> appendMappings = append
                 ? dataExchangeRepository.plannedAppendMappings(rows, targetOrganizationCode)
                 : List.of();
+        Map<String, String> appendTargetCodes = new HashMap<>();
+        for (DataExchangeController.CodeMapping mapping : appendMappings) {
+            appendTargetCodes.put(
+                    personKey(mapping.sourceOrganizationCode(), mapping.sourcePersonCode()),
+                    mapping.targetPersonCode());
+        }
+        Map<String, List<DataExchangeController.TableCount>> relatedByPerson = indexRelatedCountsByPerson(relatedTables);
+        List<DataExchangeController.TableCount> emptyRelated = emptyRelatedCounts(relatedTables);
         return rows.stream().map(row -> {
-            boolean exists = dataExchangeRepository.personExists(row.organizationCode(), row.personCode());
-            boolean targetExists = !append || dataExchangeRepository.organizationExists(targetOrganizationCode);
+            String key = personKey(row.organizationCode(), row.personCode());
+            boolean exists = existingKeys.contains(key);
             String action = append ? "重新编码追加" : exists ? "替换" : "新增";
-            String targetCode = appendMappings.stream()
-                    .filter(mapping -> equalsText(mapping.sourceOrganizationCode(), row.organizationCode())
-                            && equalsText(mapping.sourcePersonCode(), row.personCode()))
-                    .map(DataExchangeController.CodeMapping::targetPersonCode)
-                    .findFirst()
-                    .orElse(row.personCode());
+            String targetCode = append
+                    ? appendTargetCodes.getOrDefault(key, row.personCode())
+                    : row.personCode();
             return new DataExchangeController.ReceivePreviewRow(
                     row.organizationCode(),
                     row.personCode(),
@@ -702,8 +1073,57 @@ class DataExchangeService {
                     targetExists,
                     append ? targetOrganizationCode : row.organizationCode(),
                     targetCode,
-                    relatedCountsForPerson(relatedTables, row.organizationCode(), row.personCode()));
+                    relatedByPerson.getOrDefault(key, emptyRelated));
         }).toList();
+    }
+
+    private Map<String, List<DataExchangeController.TableCount>> indexRelatedCountsByPerson(List<ExchangeTable> relatedTables) {
+        Map<String, List<DataExchangeController.TableCount>> indexed = new HashMap<>();
+        if (relatedTables == null || relatedTables.isEmpty()) {
+            return indexed;
+        }
+        Map<String, Map<String, Integer>> raw = new HashMap<>();
+        for (ExchangeTable table : relatedTables) {
+            if (table.rows() == null) {
+                continue;
+            }
+            for (Map<String, Object> row : table.rows()) {
+                String orgCode = String.valueOf(row.getOrDefault("dwbm", row.getOrDefault("DWBM", "")));
+                String personCode = String.valueOf(row.getOrDefault("grbm", row.getOrDefault("GRBM", "")));
+                String key = personKey(orgCode, personCode);
+                raw.computeIfAbsent(key, ignored -> new HashMap<>())
+                        .merge(table.tableName(), 1, Integer::sum);
+            }
+        }
+        for (Map.Entry<String, Map<String, Integer>> entry : raw.entrySet()) {
+            List<DataExchangeController.TableCount> counts = new ArrayList<>(relatedTables.size());
+            for (ExchangeTable table : relatedTables) {
+                counts.add(new DataExchangeController.TableCount(
+                        table.tableName(),
+                        entry.getValue().getOrDefault(table.tableName(), 0)));
+            }
+            indexed.put(entry.getKey(), counts);
+        }
+        return indexed;
+    }
+
+    private List<DataExchangeController.TableCount> emptyRelatedCounts(List<ExchangeTable> relatedTables) {
+        if (relatedTables == null || relatedTables.isEmpty()) {
+            return List.of();
+        }
+        return relatedTables.stream()
+                .map(table -> new DataExchangeController.TableCount(table.tableName(), 0))
+                .toList();
+    }
+
+    private String personKey(String organizationCode, String personCode) {
+        return (organizationCode == null ? "" : organizationCode.trim())
+                + "|"
+                + (personCode == null ? "" : personCode.trim());
+    }
+
+    private void recordDataExchangeAction(String action, String targetId, String summary) {
+        operationLogService.record(action, "data_exchange", targetId, summary);
     }
 
     private DataExchangeController.ReceiveSummary buildSummary(
@@ -716,20 +1136,6 @@ class DataExchangeService {
                 .map(table -> new DataExchangeController.TableCount(table.tableName(), table.rows() == null ? 0 : table.rows().size()))
                 .toList();
         return new DataExchangeController.ReceiveSummary(rows.size(), created, replace, append, counts);
-    }
-
-    private List<DataExchangeController.TableCount> relatedCountsForPerson(List<ExchangeTable> relatedTables, String orgCode, String personCode) {
-        if (relatedTables == null) {
-            return List.of();
-        }
-        return relatedTables.stream()
-                .map(table -> new DataExchangeController.TableCount(
-                        table.tableName(),
-                        table.rows() == null ? 0 : (int) table.rows().stream()
-                                .filter(row -> equalsText(String.valueOf(row.getOrDefault("dwbm", row.get("DWBM"))), orgCode)
-                                        && equalsText(String.valueOf(row.getOrDefault("grbm", row.get("GRBM"))), personCode))
-                                .count()))
-                .toList();
     }
 
     record PersonnelExchangePackage(

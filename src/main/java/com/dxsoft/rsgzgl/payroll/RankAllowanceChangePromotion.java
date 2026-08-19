@@ -17,5 +17,8 @@ public record RankAllowanceChangePromotion(
         Integer differenceAmount,
         Boolean eligible,
         Boolean applyEligible,
-        Boolean rollbackEligible) {
+        Boolean rollbackEligible,
+        String standardNote,
+        Boolean midChainApply,
+        Integer laterPeriodSuccessorCount) {
 }

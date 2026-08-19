@@ -19,6 +19,7 @@ record PositionChangeHistoryMutation(
         Integer retainedAllowance,
         Integer salaryIncrease,
         Integer pgbc,
-        Integer totalAmount
+        Integer totalAmount,
+        String remark
 ) {
 }

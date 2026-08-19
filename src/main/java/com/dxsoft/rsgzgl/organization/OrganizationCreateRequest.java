@@ -7,5 +7,16 @@ public record OrganizationCreateRequest(
         String property,
         String category,
         String payrollCategory,
-        String allowanceStandard) {
+        String allowanceStandard,
+        Integer personnelQuota,
+        Integer establishmentCount,
+        Integer actualCount,
+        String organizationLevel,
+        Integer performanceAllowanceEnabled,
+        Integer performanceCategory,
+        Integer yearAllowanceCategory,
+        String financeSource,
+        String housingFundWithheld,
+        String pensionWithheld
+) {
 }

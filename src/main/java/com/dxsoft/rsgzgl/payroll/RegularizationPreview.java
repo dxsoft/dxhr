@@ -1,5 +1,7 @@
 package com.dxsoft.rsgzgl.payroll;
 
+import java.util.List;
+
 public record RegularizationPreview(
         String payrollHistoryId,
         String organizationCode,
@@ -15,14 +17,32 @@ public record RegularizationPreview(
         String regularPositionName,
         String regularLevel,
         String regularStep,
+        String currentLevel,
+        String currentStep,
+        Integer currentPositionSalary,
+        Integer currentGradeSalary,
+        Integer currentTechnicalGradeSalary,
+        Integer currentPerformanceAllowance,
+        Integer currentSubsidyAllowance,
+        Integer currentFloatingSalary,
         Integer currentSalary,
+        Integer currentTotal,
         Integer regularPositionSalary,
         Integer regularBaseSalary,
+        Integer regularTechnicalGradeSalary,
+        Integer regularPerformanceAllowance,
+        Integer regularSubsidyAllowance,
+        Integer regularFloatingSalary,
         Integer totalRegularSalary,
+        Integer regularTotal,
         Integer increaseAmount,
+        String performanceAllowanceCaption,
+        String subsidyAllowanceCaption,
+        Boolean showSubsidyAllowance,
         Boolean eligible,
         String note,
         Boolean applyEligible,
-        Boolean rollbackEligible
+        Boolean rollbackEligible,
+        List<PayrollChangeComponentComparison> salaryComponents
 ) {
 }

@@ -11,6 +11,7 @@ public record PayrollProjectionAuditSummary(
         Integer totalHistoryRecordsCompared,
         Integer totalHistoryRecordMismatches,
         BigDecimal maxAbsoluteDifference,
-        List<PayrollProjectionPersonAudit> differences
+        List<PayrollProjectionPersonAudit> differences,
+        List<PayrollProjectionPersonAudit> audits
 ) {
 }

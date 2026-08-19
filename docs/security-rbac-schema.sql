@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS app_user (
     password_hash VARCHAR(120) NOT NULL,
     display_name VARCHAR(80) NOT NULL,
     enabled TINYINT(1) NOT NULL DEFAULT 1,
+    home_organization_code VARCHAR(20) NULL,
+    all_organizations TINYINT(1) NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -12,6 +12,9 @@ public class AppUserPrincipal extends User {
     private final Set<String> permissions;
     private final boolean allOrganizations;
     private final Set<String> organizationCodes;
+    private final String homeOrganizationCode;
+    private final String ukeyId;
+    private final Integer ukeyRequired;
 
     public AppUserPrincipal(
             Long userId,
@@ -22,13 +25,19 @@ public class AppUserPrincipal extends User {
             Collection<? extends GrantedAuthority> authorities,
             Set<String> permissions,
             boolean allOrganizations,
-            Set<String> organizationCodes) {
+            Set<String> organizationCodes,
+            String homeOrganizationCode,
+            String ukeyId,
+            Integer ukeyRequired) {
         super(username, password, enabled, true, true, true, authorities);
         this.userId = userId;
         this.displayName = displayName;
         this.permissions = Set.copyOf(permissions);
         this.allOrganizations = allOrganizations;
         this.organizationCodes = Set.copyOf(organizationCodes);
+        this.homeOrganizationCode = homeOrganizationCode;
+        this.ukeyId = ukeyId;
+        this.ukeyRequired = ukeyRequired;
     }
 
     public Long userId() {
@@ -49,5 +58,18 @@ public class AppUserPrincipal extends User {
 
     public Set<String> organizationCodes() {
         return organizationCodes;
+    }
+
+    public String homeOrganizationCode() {
+        return homeOrganizationCode;
+    }
+
+    public String ukeyId() {
+        return ukeyId;
+    }
+
+    /** NULL inherit global, 1 force, 0 exempt. */
+    public Integer ukeyRequired() {
+        return ukeyRequired;
     }
 }

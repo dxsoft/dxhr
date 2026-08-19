@@ -8,6 +8,7 @@ public record PayrollChangeComparison(
         String organizationCode,
         String organizationName,
         String organizationNature,
+        String organizationSystemCategory,
         String performanceRatio,
         String personCode,
         String name,
@@ -15,6 +16,12 @@ public record PayrollChangeComparison(
         String gender,
         String birthDate,
         String education,
+        String degree,
+        String school,
+        String studyYears,
+        String graduationDate,
+        String educationCategory,
+        String probationEndDate,
         String workStartDate,
         Integer workYears,
         String archiveNumber,
@@ -23,6 +30,8 @@ public record PayrollChangeComparison(
         String changeType,
         String previousPositionName,
         String currentPositionName,
+        String previousPositionCode,
+        String currentPositionCode,
         String previousGradeLevel,
         String currentGradeLevel,
         String previousStepOrSalaryLevel,
@@ -31,6 +40,7 @@ public record PayrollChangeComparison(
         String previousChangeType,
         String nextStepAssessmentYear,
         String nextLevelAssessmentYear,
+        List<PersonnelAssessmentYear> basisAssessments,
         List<PayrollChangeComponentComparison> components
 ) {
 }

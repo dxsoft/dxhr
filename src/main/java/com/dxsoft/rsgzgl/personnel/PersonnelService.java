@@ -4,6 +4,8 @@ import com.dxsoft.rsgzgl.common.NotFoundException;
 import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.PageResponse;
 import com.dxsoft.rsgzgl.maintenance.OperationLogService;
+import com.dxsoft.rsgzgl.payroll.PayrollService;
+import com.dxsoft.rsgzgl.retirement.RetirementService;
 import com.dxsoft.rsgzgl.security.AccessControlService;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
 import java.time.LocalDate;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,19 +49,27 @@ public class PersonnelService {
     private final PersonnelRepository personnelRepository;
     private final AccessControlService accessControlService;
     private final OperationLogService operationLogService;
+    private final RetirementService retirementService;
+    private final PayrollService payrollService;
 
     public PersonnelService(
             PersonnelRepository personnelRepository,
             AccessControlService accessControlService,
-            OperationLogService operationLogService) {
+            OperationLogService operationLogService,
+            @Lazy RetirementService retirementService,
+            @Lazy PayrollService payrollService) {
         this.personnelRepository = personnelRepository;
         this.accessControlService = accessControlService;
         this.operationLogService = operationLogService;
+        this.retirementService = retirementService;
+        this.payrollService = payrollService;
     }
 
-    public PageResponse<PersonnelSummary> list(String organizationCode, String keyword, PageRequest pageRequest) {
+    public PageResponse<PersonnelSummary> list(String organizationCode, String keyword,
+            String sort, String direction, PageRequest pageRequest) {
         OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
-        List<PersonnelSummary> rows = personnelRepository.findAll(scope, emptyToNull(organizationCode), keyword, pageRequest);
+        List<PersonnelSummary> rows = personnelRepository.findAll(
+                scope, emptyToNull(organizationCode), keyword, sort, direction, pageRequest);
         long total = personnelRepository.countAll(scope, emptyToNull(organizationCode), keyword);
         return PageResponse.of(rows, pageRequest, total);
     }
@@ -82,7 +93,9 @@ public class PersonnelService {
             String gradeLevelFrom,
             String gradeLevelTo,
             PageRequest pageRequest) {
-        OrganizationScope scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        // Use the caller's full org permission set; requested unit is applied as a filter
+        // (including descendants via LIKE) inside the repository SQL.
+        OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
         PersonnelComprehensiveQueryCriteria criteria = new PersonnelComprehensiveQueryCriteria(
                 emptyToNull(organizationCode),
                 keyword,
@@ -104,6 +117,10 @@ public class PersonnelService {
         List<PersonnelComprehensiveQueryRecord> rows = personnelRepository.findComprehensiveQueries(scope, criteria, pageRequest);
         long total = personnelRepository.countComprehensiveQueries(scope, criteria);
         return PageResponse.of(rows, pageRequest, total);
+    }
+
+    public PersonnelComprehensiveQueryOptions comprehensiveQueryOptions() {
+        return personnelRepository.findComprehensiveQueryOptions();
     }
 
     public PersonnelDetail get(int uid) {
@@ -132,6 +149,8 @@ public class PersonnelService {
         requireWritePermission();
         accessControlService.requireOrganization(requiredOrganizationCode(request));
         int uid = personnelRepository.createPersonnel(request);
+        payrollService.ensureNoExperienceInternSalary(uid);
+        payrollService.ensureTransferInSalaryDetermination(uid);
         PersonnelMaintenanceRecord created = maintenance(uid);
         operationLogService.record(
                 "CREATE_PERSONNEL",
@@ -148,6 +167,8 @@ public class PersonnelService {
         accessControlService.requireOrganization(existing.organizationCode());
         accessControlService.requireOrganization(requiredOrganizationCode(request));
         personnelRepository.updatePersonnel(uid, request);
+        payrollService.ensureNoExperienceInternSalary(uid);
+        payrollService.ensureTransferInSalaryDetermination(uid);
         PersonnelMaintenanceRecord updated = maintenance(uid);
         operationLogService.record(
                 "UPDATE_PERSONNEL",
@@ -179,6 +200,35 @@ public class PersonnelService {
         String changeType = emptyToNull(request.changeType());
         if (changeType == null || !List.of("退休", "调动", "调出", "辞职", "辞退", "开除", "死亡").contains(changeType)) {
             throw new IllegalArgumentException("人员变动类别必须为退休、调动、调出、辞职、辞退、开除或死亡。");
+        }
+        if ("调动".equals(changeType)) {
+            String targetOrganizationCode = emptyToNull(request.targetOrganizationCode());
+            if (targetOrganizationCode == null) {
+                throw new IllegalArgumentException("系统内调动必须选择调往单位。");
+            }
+            if (targetOrganizationCode.equals(existing.organizationCode())) {
+                throw new IllegalArgumentException("调往单位不能与原单位相同。");
+            }
+            accessControlService.requireOrganization(targetOrganizationCode);
+            PersonnelChangeResult result = personnelRepository.transferPersonnelWithinSystem(uid, request);
+            operationLogService.record(
+                    "TRANSFER_PERSONNEL",
+                    "ryjbxx",
+                    result.personCode(),
+                    "系统内调动 " + existing.organizationCode() + "-" + existing.personCode()
+                            + " → " + result.organizationCode() + "-" + result.personCode()
+                            + " " + result.name());
+            return result;
+        }
+        if ("退休".equals(changeType)) {
+            PersonnelChangeResult result = retirementService.applyFromPersonnelChange(uid, request);
+            operationLogService.record(
+                    "APPLY_PERSONNEL_CHANGE",
+                    "dryjbxxb",
+                    result.personCode(),
+                    "人员变动退休 " + result.organizationCode() + "-" + result.personCode()
+                            + " " + result.name() + " → 离退待办");
+            return result;
         }
         PersonnelChangeResult result = personnelRepository.movePersonnelToChanged(uid, request);
         operationLogService.record(
@@ -216,12 +266,15 @@ public class PersonnelService {
     public PageResponse<PersonnelPositionHistoryRecord> positionHistories(
             String organizationCode,
             String keyword,
+            String positionCode,
             PageRequest pageRequest) {
         OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
+        String org = emptyToNull(organizationCode);
+        String pos = emptyToNull(positionCode);
         return PageResponse.of(
-                personnelRepository.findPositionHistories(scope, emptyToNull(organizationCode), keyword, pageRequest),
+                personnelRepository.findPositionHistories(scope, org, keyword, pos, pageRequest),
                 pageRequest,
-                personnelRepository.countPositionHistories(scope, emptyToNull(organizationCode), keyword));
+                personnelRepository.countPositionHistories(scope, org, keyword, pos));
     }
 
     public List<EducationRecord> education(int uid) {
@@ -270,12 +323,15 @@ public class PersonnelService {
     public PageResponse<PersonnelEducationHistoryRecord> educationHistories(
             String organizationCode,
             String keyword,
+            String educationCode,
             PageRequest pageRequest) {
         OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
+        String org = emptyToNull(organizationCode);
+        String edu = emptyToNull(educationCode);
         return PageResponse.of(
-                personnelRepository.findEducationHistories(scope, emptyToNull(organizationCode), keyword, pageRequest),
+                personnelRepository.findEducationHistories(scope, org, keyword, edu, pageRequest),
                 pageRequest,
-                personnelRepository.countEducationHistories(scope, emptyToNull(organizationCode), keyword));
+                personnelRepository.countEducationHistories(scope, org, keyword, edu));
     }
 
     public List<AssessmentRecord> assessments(int uid) {
@@ -298,7 +354,13 @@ public class PersonnelService {
 
     public Map<String, Object> relatedRecords(int uid) {
         PersonKey personKey = getPersonKey(uid);
-        return personnelRepository.findPersonnelRelatedRecords(personKey);
+        Map<String, Object> result = new java.util.LinkedHashMap<>(
+                personnelRepository.findPersonnelRelatedRecords(personKey));
+        String idCard = personnelRepository.findMaintenanceByUid(uid)
+                .map(PersonnelMaintenanceRecord::idCard)
+                .orElse("");
+        result.put("transfers", personnelRepository.findTransferHistories(uid, idCard, personKey));
+        return result;
     }
 
     private int targetYear(String targetPeriod) {
@@ -317,24 +379,25 @@ public class PersonnelService {
     }
 
     static String defaultAssessmentResultText(String personnelCategory, String organizationType) {
-        String text = (personnelCategory == null ? "" : personnelCategory)
-                + " " + (organizationType == null ? "" : organizationType);
-        return text.contains("事业") ? "合格" : "称职";
+        return isCivilServantPersonnel(personnelCategory, organizationType) ? "称职" : "合格";
     }
 
     static void validateAssessmentResult(String personnelCategory, String organizationType, String result) {
-        Set<String> allowed = isInstitutionPersonnel(personnelCategory, organizationType)
-                ? INSTITUTION_ASSESSMENT_RESULTS
-                : ADMINISTRATIVE_ASSESSMENT_RESULTS;
+        Set<String> allowed = isCivilServantPersonnel(personnelCategory, organizationType)
+                ? ADMINISTRATIVE_ASSESSMENT_RESULTS
+                : INSTITUTION_ASSESSMENT_RESULTS;
         if (!allowed.contains(result)) {
             throw new IllegalArgumentException("考核结果无效：" + result);
         }
     }
 
+    /** 年度考核：仅公务员使用「称职」等行政考核结果，其余人员使用「合格」等事业考核结果。 */
+    static boolean isCivilServantPersonnel(String personnelCategory, String organizationType) {
+        return personnelCategory != null && personnelCategory.contains("公务员");
+    }
+
     static boolean isInstitutionPersonnel(String personnelCategory, String organizationType) {
-        String text = (personnelCategory == null ? "" : personnelCategory)
-                + " " + (organizationType == null ? "" : organizationType);
-        return text.contains("事业");
+        return !isCivilServantPersonnel(personnelCategory, organizationType);
     }
 
     private String defaultAssessmentResultForSummary(PersonnelSummary person) {
@@ -342,6 +405,9 @@ public class PersonnelService {
     }
 
     private boolean personMatchesBatchScope(String personOrganizationCode, String organizationCode, boolean includeDescendants) {
+        if (organizationCode == null || organizationCode.isBlank()) {
+            return true;
+        }
         if (includeDescendants) {
             return personOrganizationCode.startsWith(organizationCode);
         }
@@ -476,9 +542,11 @@ public class PersonnelService {
             String year,
             String keyword,
             boolean includeDescendants) {
-        String normalizedOrganizationCode = requireOrganizationCode(organizationCode);
+        String normalizedOrganizationCode = emptyToNull(organizationCode);
         String normalizedYear = requiredAssessmentYear(year);
-        accessControlService.requireOrganization(normalizedOrganizationCode);
+        if (normalizedOrganizationCode != null) {
+            accessControlService.requireOrganization(normalizedOrganizationCode);
+        }
         OrganizationScope scope = accessControlService.organizationScope(Optional.empty());
         List<BatchAssessmentEntryRow> rows = personnelRepository.findBatchAssessmentEntries(
                 scope,
@@ -495,7 +563,7 @@ public class PersonnelService {
                 .findFirst()
                 .orElse("");
         return new BatchAssessmentPreview(
-                normalizedOrganizationCode,
+                normalizedOrganizationCode == null ? "" : normalizedOrganizationCode,
                 organizationName,
                 normalizedYear,
                 rows.size(),
@@ -507,9 +575,11 @@ public class PersonnelService {
     @Transactional
     public BatchAssessmentSaveResult saveBatchAssessments(BatchAssessmentSaveRequest request) {
         requireWritePermission();
-        String normalizedOrganizationCode = requireOrganizationCode(request.organizationCode());
+        String normalizedOrganizationCode = emptyToNull(request.organizationCode());
         String normalizedYear = requiredAssessmentYear(request.year());
-        accessControlService.requireOrganization(normalizedOrganizationCode);
+        if (normalizedOrganizationCode != null) {
+            accessControlService.requireOrganization(normalizedOrganizationCode);
+        }
         boolean includeDescendants = Boolean.TRUE.equals(request.includeDescendants());
         List<BatchAssessmentRecordItem> records = request.records() == null ? List.of() : request.records();
         if (records.isEmpty()) {
@@ -573,8 +643,8 @@ public class PersonnelService {
         operationLogService.record(
                 "SAVE_BATCH_ASSESSMENTS",
                 "ndkh",
-                normalizedOrganizationCode,
-                "批量考核录入 " + normalizedOrganizationCode + " " + normalizedYear
+                normalizedOrganizationCode == null ? "*" : normalizedOrganizationCode,
+                "批量考核录入 " + (normalizedOrganizationCode == null ? "全部权限单位" : normalizedOrganizationCode) + " " + normalizedYear
                         + " 年，新增 " + inserted + "、更新 " + updated + "、跳过 " + skipped);
         return result;
     }
@@ -589,6 +659,24 @@ public class PersonnelService {
                 personnelRepository.findChangedPersonnel(scope, emptyToNull(organizationCode), period, keyword, pageRequest),
                 pageRequest,
                 personnelRepository.countChangedPersonnel(scope, emptyToNull(organizationCode), period, keyword));
+    }
+
+    public ChangedPersonnelDetail changedPersonnelDetail(int uid) {
+        PersonnelMaintenanceRecord basic = personnelRepository.findChangedMaintenanceByUid(uid)
+                .orElseThrow(() -> new NotFoundException("Changed personnel record not found: " + uid));
+        accessControlService.requireOrganization(basic.organizationCode());
+        PersonKey key = personnelRepository.findChangedKeyByUid(uid)
+                .orElseThrow(() -> new NotFoundException("Changed personnel record not found: " + uid));
+        Map<String, Object> related = new java.util.LinkedHashMap<>(
+                personnelRepository.findChangedPersonnelRelatedRecords(key));
+        related.put("transfers", personnelRepository.findTransferHistories(uid, basic.idCard(), key));
+        return new ChangedPersonnelDetail(
+                basic,
+                personnelRepository.findChangedEducation(key),
+                personnelRepository.findChangedPositions(key),
+                personnelRepository.findChangedAssessments(key),
+                personnelRepository.findChangedPayrollHistories(key),
+                related);
     }
 
     private PersonKey getPersonKey(int uid) {

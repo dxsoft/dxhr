@@ -16,7 +16,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
-class PersonnelRepository {
+public class PersonnelRepository {
 
     private static final List<TablePair> PERSONNEL_CHANGE_TABLE_PAIRS = List.of(
             new TablePair("dxl", "dxlb"),
@@ -131,7 +131,8 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("dwsx")),
             SqlText.trim(rs.getString("gwfl")),
             SqlText.trim(rs.getString("xrzw")),
-            SqlText.trim(rs.getString("zjbm"))
+            SqlText.trim(rs.getString("zjbm")),
+            SqlText.trim(rs.getString("zwgw2"))
     );
 
     private static final RowMapper<PersonnelDetail> DETAIL_MAPPER = (rs, rowNum) -> new PersonnelDetail(
@@ -181,7 +182,9 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("srny")),
             SqlText.trim(rs.getString("mz")),
             SqlText.trim(rs.getString("zzmm")),
-            SqlText.trim(rs.getString("dah")));
+            SqlText.trim(rs.getString("dah")),
+            SqlText.trim(rs.getString("jrny")),
+            SqlText.trim(rs.getString("jrfs")));
 
     private static final RowMapper<PositionRecord> POSITION_MAPPER = (rs, rowNum) -> new PositionRecord(
             rs.getInt("id"),
@@ -292,6 +295,7 @@ class PersonnelRepository {
     );
 
     private static final RowMapper<ChangedPersonnelRecord> CHANGED_PERSONNEL_MAPPER = (rs, rowNum) -> new ChangedPersonnelRecord(
+            rs.getObject("uid") == null ? null : rs.getInt("uid"),
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("dwmc")),
             SqlText.trim(rs.getString("grbm")),
@@ -302,17 +306,17 @@ class PersonnelRepository {
             SqlText.trim(rs.getString("ryfl")),
             SqlText.trim(rs.getString("dwsx")),
             SqlText.trim(rs.getString("gwfl")),
-            SqlText.trim(rs.getString("jsnf")),
-            SqlText.trim(rs.getString("jsyf")),
-            SqlText.trim(rs.getString("jslb")),
             null,
             null,
             null,
-            SqlText.trim(rs.getString("zwbm2")),
-            SqlText.trim(rs.getString("zwgw2")),
-            rs.getBigDecimal("hj2"),
-            SqlText.trim(rs.getString("tbnd")),
-            SqlText.trim(rs.getString("jbtbz")),
+            null,
+            null,
+            null,
+            SqlText.trim(rs.getString("zjbm")),
+            SqlText.trim(rs.getString("xrzw")),
+            null,
+            null,
+            null,
             SqlText.trim(rs.getString("bz"))
     );
 
@@ -322,7 +326,8 @@ class PersonnelRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    List<PersonnelSummary> findAll(OrganizationScope organizationScope, String organizationFilter, String keyword, PageRequest pageRequest) {
+    List<PersonnelSummary> findAll(OrganizationScope organizationScope, String organizationFilter, String keyword,
+            String sort, String direction, PageRequest pageRequest) {
         if (organizationScope.noneScope()) {
             return List.of();
         }
@@ -331,15 +336,42 @@ class PersonnelRepository {
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
                 SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.sfzh, p.xb, p.csny,
-                       p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm
+                       p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm, h.zwgw2
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                LEFT JOIN hisbase h ON h.id = (
+                    SELECT h2.id
+                    FROM hisbase h2
+                    WHERE h2.dwbm = p.dwbm
+                      AND h2.grbm = p.grbm
+                      AND (h2.sid IS NULL OR TRIM(h2.sid) = '')
+                    ORDER BY COALESCE(h2.jsnf, '') DESC, COALESCE(h2.jsyf, '') DESC, h2.id DESC
+                    LIMIT 1
+                )
                 WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR p.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (%s)
                   AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
-                ORDER BY p.dwbm, p.grbm
+                ORDER BY %s
                 LIMIT :limit OFFSET :offset
-                """, params, SUMMARY_MAPPER);
+                """.formatted(organizationDescendantFilter("p"), personnelSummaryOrderBy(sort, direction)), params, SUMMARY_MAPPER);
+    }
+
+    private String personnelSummaryOrderBy(String sort, String direction) {
+        String column = switch (sort == null ? "" : sort) {
+            case "personCode" -> "p.grbm";
+            case "name" -> "p.xm";
+            case "organizationCode" -> "p.dwbm";
+            case "gender" -> "p.xb";
+            case "birthYearMonth" -> "p.csny";
+            case "currentPosition" -> "p.xrzw";
+            case "appointmentPosition" -> "h.zwgw2";
+            default -> null;
+        };
+        if (column == null) {
+            return "p.dwbm, p.grbm";
+        }
+        String order = "desc".equalsIgnoreCase(direction) ? "DESC" : "ASC";
+        return column + " " + order + ", p.dwbm, p.grbm";
     }
 
     long countAll(OrganizationScope organizationScope, String organizationFilter, String keyword) {
@@ -351,9 +383,9 @@ class PersonnelRepository {
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR p.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (%s)
                   AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
-                """, parameters(organizationScope, organizationFilter, keyword), Long.class);
+                """.formatted(organizationDescendantFilter("p")), parameters(organizationScope, organizationFilter, keyword), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -367,7 +399,8 @@ class PersonnelRepository {
         MapSqlParameterSource params = comprehensiveQueryParameters(organizationScope, criteria)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
-        return jdbcTemplate.query(comprehensiveQuerySql() + """
+        // 分页列表只需为 LIMIT 行解析 tip/任职；相关子查询在索引有序扫描下对首页更快。
+        return jdbcTemplate.query(comprehensiveQuerySql(true) + """
                 ORDER BY p.dwbm, p.grbm
                 LIMIT :limit OFFSET :offset
                 """, params, COMPREHENSIVE_QUERY_MAPPER);
@@ -377,49 +410,197 @@ class PersonnelRepository {
         if (organizationScope.noneScope()) {
             return 0;
         }
-        Long count = jdbcTemplate.queryForObject("""
+        MapSqlParameterSource params = comprehensiveQueryParameters(organizationScope, criteria);
+        // 无 tip/任职过滤条件时，COUNT 不必关联 hisbase/dryzwbh（原先全员相关子查询可达十余秒）。
+        boolean joinTipTables = comprehensiveQueryNeedsTipTables(criteria);
+        String sql = joinTipTables
+                ? """
+                SELECT COUNT(DISTINCT p.uid)
+                """ + comprehensiveQueryCountFromSql() + comprehensiveQueryWhereSql(true)
+                : """
                 SELECT COUNT(*)
-                """ + comprehensiveQueryFromSql() + comprehensiveQueryWhereSql(),
-                comprehensiveQueryParameters(organizationScope, criteria),
-                Long.class);
+                FROM dryjbxx p
+                """ + comprehensiveQueryWhereSql(false);
+        Long count = jdbcTemplate.queryForObject(sql, params, Long.class);
         return count == null ? 0 : count;
     }
 
-    private String comprehensiveQuerySql() {
+    PersonnelComprehensiveQueryOptions findComprehensiveQueryOptions() {
+        List<PersonnelComprehensiveQueryOptions.CodeNameOption> personnelCategories = jdbcTemplate.query("""
+                SELECT TRIM(ryfl) AS code, TRIM(ryfl) AS name
+                FROM dryjbxx
+                WHERE TRIM(COALESCE(ryfl, '')) <> ''
+                GROUP BY TRIM(ryfl)
+                ORDER BY COUNT(*) DESC, TRIM(ryfl)
+                """, (rs, rowNum) -> new PersonnelComprehensiveQueryOptions.CodeNameOption(
+                SqlText.trim(rs.getString("code")),
+                SqlText.trim(rs.getString("name"))));
+        List<PersonnelComprehensiveQueryOptions.CodeNameOption> organizationTypes = jdbcTemplate.query("""
+                SELECT RIGHT(TRIM(bm), 2) AS code, TRIM(mc) AS name
+                FROM dmb
+                WHERE bm LIKE '008%'
+                  AND CHAR_LENGTH(TRIM(bm)) = 5
+                  AND sfsy = 1
+                ORDER BY bm
+                """, (rs, rowNum) -> new PersonnelComprehensiveQueryOptions.CodeNameOption(
+                SqlText.trim(rs.getString("code")),
+                SqlText.trim(rs.getString("name"))));
+        List<PersonnelComprehensiveQueryOptions.CodeNameOption> postCategories = jdbcTemplate.query("""
+                SELECT TRIM(gwfl) AS code, TRIM(gwfl) AS name
+                FROM dryjbxx
+                WHERE TRIM(COALESCE(gwfl, '')) <> ''
+                GROUP BY TRIM(gwfl)
+                ORDER BY COUNT(*) DESC, TRIM(gwfl)
+                """, (rs, rowNum) -> new PersonnelComprehensiveQueryOptions.CodeNameOption(
+                SqlText.trim(rs.getString("code")),
+                SqlText.trim(rs.getString("name"))));
+        List<PersonnelComprehensiveQueryOptions.CodeNameOption> educations = jdbcTemplate.query("""
+                SELECT SUBSTRING(TRIM(bm), 4) AS code, TRIM(mc) AS name
+                FROM dmb
+                WHERE bm LIKE '002%'
+                  AND CHAR_LENGTH(TRIM(bm)) = 5
+                  AND sfsy = 1
+                ORDER BY bm
+                """, (rs, rowNum) -> new PersonnelComprehensiveQueryOptions.CodeNameOption(
+                SqlText.trim(rs.getString("code")),
+                SqlText.trim(rs.getString("name"))));
+        List<PersonnelComprehensiveQueryOptions.CodeNameOption> positions = jdbcTemplate.query("""
+                SELECT code, name
+                FROM (
+                    SELECT code,
+                           name,
+                           usage_count,
+                           ROW_NUMBER() OVER (PARTITION BY code ORDER BY usage_count DESC, name) AS rn
+                    FROM (
+                        SELECT TRIM(z.zwbm) AS code,
+                               COALESCE(NULLIF(TRIM(z.xzzw), ''), TRIM(z.zwbm)) AS name,
+                               COUNT(*) AS usage_count
+                        FROM dryzwbh z
+                        WHERE TRIM(COALESCE(z.zwbm, '')) <> ''
+                        GROUP BY TRIM(z.zwbm), COALESCE(NULLIF(TRIM(z.xzzw), ''), TRIM(z.zwbm))
+                        UNION ALL
+                        SELECT TRIM(h.zwbm2) AS code,
+                               COALESCE(NULLIF(TRIM(h.zwgw2), ''), TRIM(h.zwbm2)) AS name,
+                               COUNT(*) AS usage_count
+                        FROM hisbase h
+                        WHERE (h.sid IS NULL OR h.sid = '')
+                          AND TRIM(COALESCE(h.zwbm2, '')) <> ''
+                        GROUP BY TRIM(h.zwbm2), COALESCE(NULLIF(TRIM(h.zwgw2), ''), TRIM(h.zwbm2))
+                    ) source
+                ) ranked
+                WHERE rn = 1
+                ORDER BY code
+                LIMIT 800
+                """, (rs, rowNum) -> new PersonnelComprehensiveQueryOptions.CodeNameOption(
+                SqlText.trim(rs.getString("code")),
+                SqlText.trim(rs.getString("name"))));
+        return new PersonnelComprehensiveQueryOptions(
+                personnelCategories,
+                organizationTypes,
+                postCategories,
+                educations,
+                positions);
+    }
+
+    private String comprehensiveQuerySql(boolean forPagedList) {
         return """
                 SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.sfzh, p.xb, p.csny,
                        p.ryfl, p.dwsx, p.gwfl, p.cjgzny, p.zzny, p.xlbm, p.zgxl, p.gznx,
                        z.zwbm AS appointment_position_code, z.xzzw AS appointment_position_name, z.srny AS appointment_start,
                        h.jsnf, h.jsyf, h.zwbm2 AS payroll_position_code, h.zwgw2 AS payroll_position_name,
                        h.jbgzjb2 AS grade_level, h.zwgzdc2 AS grade_step, h.hj2 AS total_salary
-                """ + comprehensiveQueryFromSql() + comprehensiveQueryWhereSql();
+                """ + (forPagedList ? comprehensiveQueryListFromSql() : comprehensiveQueryCountFromSql())
+                + comprehensiveQueryWhereSql(true);
     }
 
-    private String comprehensiveQueryFromSql() {
+    private String comprehensiveQueryListFromSql() {
         return """
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
-                LEFT JOIN dryzwbh z ON z.dwbm = p.dwbm AND z.grbm = p.grbm AND z.xrzwbz = '1'
-                LEFT JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                LEFT JOIN dryzwbh z ON z.id = (
+                    SELECT z2.id
+                    FROM dryzwbh z2
+                    WHERE z2.dwbm = p.dwbm
+                      AND z2.grbm = p.grbm
+                      AND z2.xrzwbz = '1'
+                    ORDER BY COALESCE(z2.srny, '') DESC, z2.id DESC
+                    LIMIT 1
+                )
+                LEFT JOIN hisbase h ON h.id = (
+                    SELECT h2.id
+                    FROM hisbase h2
+                    WHERE h2.dwbm = p.dwbm
+                      AND h2.grbm = p.grbm
+                      AND (h2.sid IS NULL OR h2.sid = '')
+                    LIMIT 1
+                )
                 """;
     }
 
-    private String comprehensiveQueryWhereSql() {
+    private String comprehensiveQueryCountFromSql() {
+        return """
+                FROM dryjbxx p
+                LEFT JOIN (
+                    SELECT dwbm, grbm, MAX(id) AS id
+                    FROM hisbase
+                    WHERE sid IS NULL OR sid = ''
+                    GROUP BY dwbm, grbm
+                ) tip ON tip.dwbm = p.dwbm AND tip.grbm = p.grbm
+                LEFT JOIN hisbase h ON h.id = tip.id
+                LEFT JOIN dryzwbh z ON z.dwbm = p.dwbm
+                      AND z.grbm = p.grbm
+                      AND z.xrzwbz = '1'
+                """;
+    }
+
+    private boolean comprehensiveQueryNeedsTipTables(PersonnelComprehensiveQueryCriteria criteria) {
+        String keyword = SqlText.trim(criteria.keyword());
+        return (keyword != null && !keyword.isEmpty())
+                || emptyToNull(criteria.positionCode()) != null
+                || emptyToNull(criteria.positionCodePrefix()) != null
+                || emptyToNull(criteria.gradeLevelFrom()) != null
+                || emptyToNull(criteria.gradeLevelTo()) != null;
+    }
+
+    private String comprehensiveQueryWhereSql(boolean tipTablesJoined) {
+        String keywordExtra = tipTablesJoined
+                ? """
+                       OR z.xzzw LIKE :keywordLike
+                       OR z.zwbm LIKE :keywordLike
+                       OR h.zwgw2 LIKE :keywordLike
+                """
+                : "";
+        String tipFilters = tipTablesJoined
+                ? """
+                  AND (:positionCode IS NULL
+                       OR TRIM(COALESCE(NULLIF(TRIM(z.zwbm), ''), NULLIF(TRIM(p.zjbm), ''), NULLIF(TRIM(h.zwbm2), ''))) = :positionCode)
+                  AND (:positionCodePrefix IS NULL
+                       OR LEFT(TRIM(COALESCE(NULLIF(TRIM(z.zwbm), ''), NULLIF(TRIM(p.zjbm), ''), NULLIF(TRIM(h.zwbm2), ''))), 2) = :positionCodePrefix)
+                  AND (:gradeLevelFrom IS NULL OR CAST(NULLIF(TRIM(h.jbgzjb2), '') AS UNSIGNED) >= CAST(:gradeLevelFrom AS UNSIGNED))
+                  AND (:gradeLevelTo IS NULL OR CAST(NULLIF(TRIM(h.jbgzjb2), '') AS UNSIGNED) <= CAST(:gradeLevelTo AS UNSIGNED))
+                """
+                : """
+                  AND (:positionCode IS NULL)
+                  AND (:positionCodePrefix IS NULL)
+                  AND (:gradeLevelFrom IS NULL)
+                  AND (:gradeLevelTo IS NULL)
+                """;
         return """
                 WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND (:organizationCode IS NULL
+                       OR p.dwbm = :organizationCode
+                       OR p.dwbm LIKE :organizationCodeLike)
                   AND (:keyword IS NULL
                        OR p.grbm LIKE :keywordLike
                        OR p.xm LIKE :keywordLike
                        OR p.sfzh LIKE :keywordLike
                        OR p.xrzw LIKE :keywordLike
-                       OR z.xzzw LIKE :keywordLike
-                       OR z.zwbm LIKE :keywordLike
-                       OR h.zwgw2 LIKE :keywordLike)
+                """ + keywordExtra + """
+                       )
                   AND (:gender IS NULL OR TRIM(p.xb) = :gender)
-                  AND (:personnelCategory IS NULL OR p.ryfl LIKE :personnelCategoryLike)
+                  AND (:personnelCategory IS NULL OR TRIM(p.ryfl) = :personnelCategory)
                   AND (:organizationType IS NULL OR TRIM(p.dwsx) = :organizationType)
-                  AND (:postCategory IS NULL OR p.gwfl LIKE :postCategoryLike)
+                  AND (:postCategory IS NULL OR TRIM(p.gwfl) = :postCategory)
                   AND (:educationCode IS NULL OR TRIM(p.xlbm) = :educationCode)
                   AND (:birthYearMonthFrom IS NULL
                        OR REPLACE(COALESCE(NULLIF(TRIM(p.csny), ''), '000000'), '.', '') >= :birthYearMonthFrom)
@@ -433,11 +614,7 @@ class PersonnelRepository {
                        OR REPLACE(COALESCE(NULLIF(TRIM(p.zzny), ''), '000000'), '.', '') >= :regularizationYearMonthFrom)
                   AND (:regularizationYearMonthTo IS NULL
                        OR REPLACE(COALESCE(NULLIF(TRIM(p.zzny), ''), '999999'), '.', '') <= :regularizationYearMonthTo)
-                  AND (:positionCode IS NULL OR TRIM(z.zwbm) = :positionCode)
-                  AND (:positionCodePrefix IS NULL OR LEFT(TRIM(z.zwbm), 2) = :positionCodePrefix)
-                  AND (:gradeLevelFrom IS NULL OR CAST(NULLIF(TRIM(h.jbgzjb2), '') AS UNSIGNED) >= CAST(:gradeLevelFrom AS UNSIGNED))
-                  AND (:gradeLevelTo IS NULL OR CAST(NULLIF(TRIM(h.jbgzjb2), '') AS UNSIGNED) <= CAST(:gradeLevelTo AS UNSIGNED))
-                """;
+                """ + tipFilters;
     }
 
     private MapSqlParameterSource comprehensiveQueryParameters(
@@ -446,10 +623,12 @@ class PersonnelRepository {
         String keyword = SqlText.trim(criteria.keyword());
         String personnelCategory = SqlText.trim(criteria.personnelCategory());
         String postCategory = SqlText.trim(criteria.postCategory());
+        String organizationCode = emptyToNull(criteria.organizationCode());
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
-                .addValue("organizationCode", emptyToNull(criteria.organizationCode()))
+                .addValue("organizationCode", organizationCode)
+                .addValue("organizationCodeLike", organizationCode == null ? null : organizationCode + "%")
                 .addValue("keyword", keyword == null || keyword.isEmpty() ? null : keyword)
                 .addValue("keywordLike", keyword == null || keyword.isEmpty() ? null : "%" + keyword + "%")
                 .addValue("gender", emptyToNull(criteria.gender()))
@@ -560,7 +739,7 @@ class PersonnelRepository {
                     gryhzh, spdw, mz, zzmm, fdgd, fdsj, jzgb, ydwzw, yzwrzsj, dah, sfjzgb, yctxsj
                 ) VALUES (
                     :organizationCode, :personCode, :name, :idCard, :gender, :birthYearMonth, :personnelCategory, :organizationType, :postCategory,
-                    :workStartYearMonth, :regularizationYearMonth, '', '', 0, :salaryYears, '', 0, :educationCode, :highestEducation, 0, '', '',
+                    :workStartYearMonth, :regularizationYearMonth, :joinYearMonth, :joinType, 0, :salaryYears, '', 0, :educationCode, :highestEducation, 0, '', '',
                     '', :currentPositionLevel, :currentRankCode, :currentPosition, :currentPositionStartYearMonth, 0, '', '', '', '', '', '', '',
                     '', '', :ethnicity, :politicalStatus, '', '', '', '', '', :archiveNumber, '', 0
                 )
@@ -584,6 +763,8 @@ class PersonnelRepository {
                     gwfl = :postCategory,
                     cjgzny = :workStartYearMonth,
                     zzny = :regularizationYearMonth,
+                    jrny = :joinYearMonth,
+                    jrfs = :joinType,
                     gznx = :salaryYears,
                     xlbm = :educationCode,
                     zgxl = :highestEducation,
@@ -600,6 +781,14 @@ class PersonnelRepository {
 
     void deletePersonnel(int uid) {
         jdbcTemplate.update("DELETE FROM dryjbxx WHERE uid = :uid", new MapSqlParameterSource("uid", uid));
+    }
+
+    /**
+     * Archives an active person into changed tables (dryjbxxb / hisbaseb).
+     * Exposed for cross-package callers such as retirement processing.
+     */
+    public PersonnelChangeResult archivePersonnelChange(int uid, PersonnelChangeRequest request) {
+        return movePersonnelToChanged(uid, request);
     }
 
     PersonnelChangeResult movePersonnelToChanged(int uid, PersonnelChangeRequest request) {
@@ -647,6 +836,247 @@ class PersonnelRepository {
         jdbcTemplate.update("DELETE FROM hisbase WHERE dwbm = :dwbm AND grbm = :grbm", keyParameters(personKey));
         jdbcTemplate.update("DELETE FROM dryjbxx WHERE uid = :uid", new MapSqlParameterSource("uid", uid));
         return new PersonnelChangeResult(organizationCode, personCode, record.name(), request.changeType(), "人员变动处理完成");
+    }
+
+    PersonnelChangeResult transferPersonnelWithinSystem(int uid, PersonnelChangeRequest request) {
+        PersonnelMaintenanceRecord record = findMaintenanceByUid(uid)
+                .orElseThrow(() -> new com.dxsoft.rsgzgl.common.NotFoundException("Personnel record not found: " + uid));
+        String sourceOrganizationCode = record.organizationCode();
+        String sourcePersonCode = record.personCode();
+        String targetOrganizationCode = SqlText.trim(request.targetOrganizationCode());
+        String targetOrganizationName = SqlText.trim(request.targetOrganizationName());
+        if (targetOrganizationName.isBlank()) {
+            targetOrganizationName = findOrganizationName(targetOrganizationCode);
+        }
+        String sourceOrganizationName = SqlText.trim(record.organizationName());
+        if (sourceOrganizationName.isBlank()) {
+            sourceOrganizationName = findOrganizationName(sourceOrganizationCode);
+        }
+        String changePeriod = normalizedChangePeriod(request.effectivePeriod());
+        String displayPeriod = displayChangePeriod(changePeriod);
+        String targetPersonCode = sourcePersonCode;
+        if (personKeyExists(targetOrganizationCode, sourcePersonCode)) {
+            targetPersonCode = allocatePersonCode(targetOrganizationCode);
+        }
+        PersonKey sourceKey = new PersonKey(sourceOrganizationCode, sourcePersonCode);
+        PersonKey targetKey = new PersonKey(targetOrganizationCode, targetPersonCode);
+        rekeyActivePersonnelTables(sourceKey, targetKey);
+
+        String formerUnitText = (sourceOrganizationName.isBlank() ? sourceOrganizationCode : sourceOrganizationName)
+                + "（" + sourceOrganizationCode + "）";
+        if (!SqlText.trim(record.currentPosition()).isBlank()) {
+            formerUnitText = formerUnitText + " " + SqlText.trim(record.currentPosition());
+        }
+        String transferRemark = personnelTransferRemark(
+                request,
+                displayPeriod,
+                formerUnitText,
+                targetOrganizationName,
+                targetOrganizationCode);
+        // 清空 tc：新增人员确定工资只列出 tc<>已定工资（或已定但 tip 为定资类）的人员。
+        // 系统内调动后需在新单位按「调入定资」重新办理，故必须重置，否则查不到。
+        jdbcTemplate.update("""
+                UPDATE dryjbxx
+                SET dwbm = :targetOrganizationCode,
+                    grbm = :targetPersonCode,
+                    ydwzw = :formerUnitText,
+                    yzwrzsj = CASE
+                        WHEN :positionStart IS NULL OR TRIM(:positionStart) = '' THEN yzwrzsj
+                        ELSE :positionStart
+                    END,
+                    jrny = :transferPeriod,
+                    jrfs = '调动',
+                    tc = '',
+                    bz = CASE
+                        WHEN bz IS NULL OR TRIM(bz) = '' THEN :transferRemark
+                        ELSE CONCAT(TRIM(bz), '；', :transferRemark)
+                    END
+                WHERE uid = :uid
+                """, new MapSqlParameterSource()
+                .addValue("targetOrganizationCode", targetOrganizationCode)
+                .addValue("targetPersonCode", targetPersonCode)
+                .addValue("formerUnitText", formerUnitText)
+                .addValue("positionStart", valueOrBlank(record.currentPositionStartYearMonth()))
+                .addValue("transferPeriod", displayPeriod)
+                .addValue("transferRemark", transferRemark)
+                .addValue("uid", uid));
+
+        insertPersonnelTransferHistory(
+                uid,
+                record,
+                sourceOrganizationCode,
+                sourceOrganizationName,
+                sourcePersonCode,
+                targetOrganizationCode,
+                targetOrganizationName,
+                targetPersonCode,
+                displayPeriod,
+                transferRemark);
+
+        return new PersonnelChangeResult(
+                targetOrganizationCode,
+                targetPersonCode,
+                record.name(),
+                "调动",
+                "已调往 " + (targetOrganizationName.isBlank() ? targetOrganizationCode : targetOrganizationName)
+                        + "，人员仍保留在职，已写入调动履历");
+    }
+
+    void insertPersonnelTransferHistory(
+            int personUid,
+            PersonnelMaintenanceRecord record,
+            String sourceOrganizationCode,
+            String sourceOrganizationName,
+            String sourcePersonCode,
+            String targetOrganizationCode,
+            String targetOrganizationName,
+            String targetPersonCode,
+            String transferPeriod,
+            String remark) {
+        jdbcTemplate.update("""
+                INSERT INTO app_personnel_transfer (
+                    person_uid, id_card, person_name,
+                    source_organization_code, source_organization_name, source_person_code,
+                    target_organization_code, target_organization_name, target_person_code,
+                    transfer_period, change_type, remark
+                ) VALUES (
+                    :personUid, :idCard, :personName,
+                    :sourceOrganizationCode, :sourceOrganizationName, :sourcePersonCode,
+                    :targetOrganizationCode, :targetOrganizationName, :targetPersonCode,
+                    :transferPeriod, '调动', :remark
+                )
+                """, new MapSqlParameterSource()
+                .addValue("personUid", personUid)
+                .addValue("idCard", valueOrBlank(record.idCard()))
+                .addValue("personName", valueOrBlank(record.name()))
+                .addValue("sourceOrganizationCode", sourceOrganizationCode)
+                .addValue("sourceOrganizationName", valueOrBlank(sourceOrganizationName))
+                .addValue("sourcePersonCode", sourcePersonCode)
+                .addValue("targetOrganizationCode", targetOrganizationCode)
+                .addValue("targetOrganizationName", valueOrBlank(targetOrganizationName))
+                .addValue("targetPersonCode", targetPersonCode)
+                .addValue("transferPeriod", valueOrBlank(transferPeriod))
+                .addValue("remark", truncateText(valueOrBlank(remark), 500)));
+    }
+
+    List<PersonnelTransferRecord> findTransferHistories(int personUid, String idCard, PersonKey key) {
+        String normalizedIdCard = valueOrBlank(idCard);
+        return jdbcTemplate.query("""
+                SELECT id, person_uid, id_card, person_name,
+                       source_organization_code, source_organization_name, source_person_code,
+                       target_organization_code, target_organization_name, target_person_code,
+                       transfer_period, change_type, remark,
+                       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+                FROM app_personnel_transfer
+                WHERE person_uid = :personUid
+                   OR (:idCard <> '' AND id_card = :idCard)
+                   OR (target_organization_code = :dwbm AND target_person_code = :grbm)
+                   OR (source_organization_code = :dwbm AND source_person_code = :grbm)
+                ORDER BY transfer_period DESC, id DESC
+                """, keyParameters(key)
+                .addValue("personUid", personUid)
+                .addValue("idCard", normalizedIdCard), (rs, rowNum) -> new PersonnelTransferRecord(
+                rs.getLong("id"),
+                rs.getInt("person_uid"),
+                SqlText.trim(rs.getString("id_card")),
+                SqlText.trim(rs.getString("person_name")),
+                SqlText.trim(rs.getString("source_organization_code")),
+                SqlText.trim(rs.getString("source_organization_name")),
+                SqlText.trim(rs.getString("source_person_code")),
+                SqlText.trim(rs.getString("target_organization_code")),
+                SqlText.trim(rs.getString("target_organization_name")),
+                SqlText.trim(rs.getString("target_person_code")),
+                SqlText.trim(rs.getString("transfer_period")),
+                SqlText.trim(rs.getString("change_type")),
+                SqlText.trim(rs.getString("remark")),
+                SqlText.trim(rs.getString("created_at"))
+        ));
+    }
+
+    private void rekeyActivePersonnelTables(PersonKey sourceKey, PersonKey targetKey) {
+        if (sourceKey.organizationCode().equals(targetKey.organizationCode())
+                && sourceKey.personCode().equals(targetKey.personCode())) {
+            return;
+        }
+        List<String> tables = new ArrayList<>();
+        tables.add("hisbase");
+        for (TablePair pair : PERSONNEL_CHANGE_TABLE_PAIRS) {
+            tables.add(pair.activeTable());
+        }
+        MapSqlParameterSource parameters = keyParameters(sourceKey)
+                .addValue("targetDwbm", targetKey.organizationCode())
+                .addValue("targetGrbm", targetKey.personCode());
+        for (String tableName : tables) {
+            if (!tableExists(tableName)) {
+                continue;
+            }
+            jdbcTemplate.update("""
+                    UPDATE %s
+                    SET dwbm = :targetDwbm,
+                        grbm = :targetGrbm
+                    WHERE dwbm = :dwbm AND grbm = :grbm
+                    """.formatted(quote(tableName)), parameters);
+        }
+    }
+
+    private boolean personKeyExists(String organizationCode, String personCode) {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM dryjbxx
+                WHERE dwbm = :dwbm AND grbm = :grbm
+                """, keyParameters(new PersonKey(organizationCode, personCode)), Long.class);
+        return count != null && count > 0;
+    }
+
+    private String allocatePersonCode(String organizationCode) {
+        Integer maxCode = jdbcTemplate.query("""
+                SELECT grbm
+                FROM dryjbxx
+                WHERE dwbm = :dwbm
+                """, new MapSqlParameterSource("dwbm", organizationCode), (rs, rowNum) -> {
+            try {
+                return Integer.parseInt(SqlText.trim(rs.getString("grbm")));
+            } catch (NumberFormatException ex) {
+                return 0;
+            }
+        }).stream().max(Integer::compareTo).orElse(0);
+        return "%05d".formatted(maxCode + 1);
+    }
+
+    private String findOrganizationName(String organizationCode) {
+        return jdbcTemplate.query("""
+                SELECT dwmc
+                FROM dwbm
+                WHERE dwbm = :dwbm
+                LIMIT 1
+                """, new MapSqlParameterSource("dwbm", organizationCode), (rs, rowNum) -> SqlText.trim(rs.getString("dwmc")))
+                .stream()
+                .findFirst()
+                .orElse("");
+    }
+
+    private String personnelTransferRemark(
+            PersonnelChangeRequest request,
+            String displayPeriod,
+            String formerUnitText,
+            String targetOrganizationName,
+            String targetOrganizationCode) {
+        String targetText = (targetOrganizationName == null || targetOrganizationName.isBlank()
+                ? targetOrganizationCode
+                : targetOrganizationName) + "（" + targetOrganizationCode + "）";
+        String userRemark = valueOrBlank(request.remark());
+        return ("系统内调动 " + displayPeriod
+                + " 由" + formerUnitText
+                + "调往" + targetText
+                + (userRemark.isBlank() ? "" : " " + userRemark)).trim();
+    }
+
+    private String truncateText(String value, int maxLength) {
+        String text = valueOrBlank(value);
+        if (text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, maxLength);
     }
 
     PersonnelChangeResult restoreChangedPersonnel(String organizationCode, String personCode) {
@@ -698,7 +1128,9 @@ class PersonnelRepository {
                 SELECT z.id, z.dwbm, z.grbm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm, z.zwbm, z.xzzw,
                        z.srny, z.kjnx, z.xrzwbz, z.jsbz, marker.record_id IS NOT NULL AS app_created
                 FROM dryzwbh z
-                LEFT JOIN app_record_marker marker ON marker.table_name = 'dryzwbh' AND marker.record_id = CAST(z.id AS CHAR) AND marker.marker = 'APP_CREATED'
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'dryzwbh'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(z.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
+                    AND marker.marker = 'APP_CREATED'
                 WHERE z.dwbm = :dwbm AND z.grbm = :grbm
                 ORDER BY CASE WHEN z.xrzwbz = '1' THEN 0 ELSE 1 END, z.srny DESC, z.id DESC
                 """, keyParameters(key), POSITION_MAPPER);
@@ -708,11 +1140,12 @@ class PersonnelRepository {
             OrganizationScope organizationScope,
             String organizationCode,
             String keyword,
+            String positionCode,
             PageRequest pageRequest) {
         if (organizationScope.noneScope()) {
             return List.of();
         }
-        MapSqlParameterSource params = personnelHistoryParameters(organizationScope, organizationCode, keyword)
+        MapSqlParameterSource params = personnelHistoryParameters(organizationScope, organizationCode, keyword, positionCode)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
@@ -722,15 +1155,20 @@ class PersonnelRepository {
                 LEFT JOIN dryjbxx p ON p.dwbm = z.dwbm AND p.grbm = z.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = z.dwbm
                 WHERE (:allOrganizations = TRUE OR z.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR z.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (%s)
                   AND (:keyword IS NULL OR z.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
                        OR z.xrzw LIKE :keywordLike OR z.xzzw LIKE :keywordLike OR z.zwbm = :keyword)
+                  AND (:positionCode IS NULL OR TRIM(z.zwbm) = :positionCode OR TRIM(z.xrzwbm) = :positionCode)
                 ORDER BY z.dwbm, z.grbm, z.srny DESC, z.id DESC
                 LIMIT :limit OFFSET :offset
-                """, params, POSITION_HISTORY_MAPPER);
+                """.formatted(organizationDescendantFilter("z")), params, POSITION_HISTORY_MAPPER);
     }
 
-    long countPositionHistories(OrganizationScope organizationScope, String organizationCode, String keyword) {
+    long countPositionHistories(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String positionCode) {
         if (organizationScope.noneScope()) {
             return 0;
         }
@@ -740,10 +1178,11 @@ class PersonnelRepository {
                 LEFT JOIN dryjbxx p ON p.dwbm = z.dwbm AND p.grbm = z.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = z.dwbm
                 WHERE (:allOrganizations = TRUE OR z.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR z.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (%s)
                   AND (:keyword IS NULL OR z.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
                        OR z.xrzw LIKE :keywordLike OR z.xzzw LIKE :keywordLike OR z.zwbm = :keyword)
-                """, personnelHistoryParameters(organizationScope, organizationCode, keyword), Long.class);
+                  AND (:positionCode IS NULL OR TRIM(z.zwbm) = :positionCode OR TRIM(z.xrzwbm) = :positionCode)
+                """.formatted(organizationDescendantFilter("z")), personnelHistoryParameters(organizationScope, organizationCode, keyword, positionCode), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -752,7 +1191,9 @@ class PersonnelRepository {
                 SELECT e.id, e.dwbm, e.grbm, e.xlbm, e.xl, e.byyx, e.rxsj, e.bysj, e.xz, e.xllb, e.bz,
                        marker.record_id IS NOT NULL AS app_created
                 FROM dxl e
-                LEFT JOIN app_record_marker marker ON marker.table_name = 'dxl' AND marker.record_id = CAST(e.id AS CHAR) AND marker.marker = 'APP_CREATED'
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'dxl'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
+                    AND marker.marker = 'APP_CREATED'
                 WHERE e.dwbm = :dwbm AND e.grbm = :grbm
                 ORDER BY bysj DESC, xlbm
                 """, keyParameters(key), EDUCATION_MAPPER);
@@ -762,11 +1203,12 @@ class PersonnelRepository {
             OrganizationScope organizationScope,
             String organizationCode,
             String keyword,
+            String educationCode,
             PageRequest pageRequest) {
         if (organizationScope.noneScope()) {
             return List.of();
         }
-        MapSqlParameterSource params = personnelHistoryParameters(organizationScope, organizationCode, keyword)
+        MapSqlParameterSource params = personnelHistoryParameters(organizationScope, organizationCode, keyword, null, educationCode)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
@@ -776,15 +1218,20 @@ class PersonnelRepository {
                 LEFT JOIN dryjbxx p ON p.dwbm = e.dwbm AND p.grbm = e.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = e.dwbm
                 WHERE (:allOrganizations = TRUE OR e.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR e.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (%s)
                   AND (:keyword IS NULL OR e.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
                        OR e.xlbm = :keyword OR e.xl LIKE :keywordLike OR e.byyx LIKE :keywordLike OR e.xllb LIKE :keywordLike)
+                  AND (:educationCode IS NULL OR TRIM(e.xlbm) = :educationCode)
                 ORDER BY e.dwbm, e.grbm, e.bysj DESC, e.xlbm, e.id DESC
                 LIMIT :limit OFFSET :offset
-                """, params, EDUCATION_HISTORY_MAPPER);
+                """.formatted(organizationDescendantFilter("e")), params, EDUCATION_HISTORY_MAPPER);
     }
 
-    long countEducationHistories(OrganizationScope organizationScope, String organizationCode, String keyword) {
+    long countEducationHistories(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String educationCode) {
         if (organizationScope.noneScope()) {
             return 0;
         }
@@ -794,10 +1241,11 @@ class PersonnelRepository {
                 LEFT JOIN dryjbxx p ON p.dwbm = e.dwbm AND p.grbm = e.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = e.dwbm
                 WHERE (:allOrganizations = TRUE OR e.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR e.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (%s)
                   AND (:keyword IS NULL OR e.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike
                        OR e.xlbm = :keyword OR e.xl LIKE :keywordLike OR e.byyx LIKE :keywordLike OR e.xllb LIKE :keywordLike)
-                """, personnelHistoryParameters(organizationScope, organizationCode, keyword), Long.class);
+                  AND (:educationCode IS NULL OR TRIM(e.xlbm) = :educationCode)
+                """.formatted(organizationDescendantFilter("e")), personnelHistoryParameters(organizationScope, organizationCode, keyword, null, educationCode), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -814,19 +1262,20 @@ class PersonnelRepository {
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
-                SELECT b.dwbm, dw.dwmc, b.grbm, b.xm, b.sfzh, b.xb, b.csny, b.ryfl, b.dwsx, b.gwfl,
-                       h.jsnf, h.jsyf, h.jslb, h.zwbm2, h.zwgw2, h.hj2, h.tbnd, h.jbtbz, b.bz
+                SELECT b.uid, b.dwbm, dw.dwmc, b.grbm, b.xm, b.sfzh, b.xb, b.csny, b.ryfl, b.dwsx, b.gwfl,
+                       b.zjbm, b.xrzw, b.bz
                 FROM dryjbxxb b
                 LEFT JOIN dwbm dw ON dw.dwbm = b.dwbm
-                LEFT JOIN hisbaseb h ON h.dwbm = b.dwbm AND h.grbm = b.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 WHERE (:allOrganizations = TRUE OR b.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR b.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
-                  AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
+                  AND (%s)
+                  AND (:period IS NULL
+                       OR REPLACE(REPLACE(COALESCE(b.txsj, ''), '.', ''), '-', '') LIKE :periodLike
+                       OR REPLACE(REPLACE(COALESCE(b.bz, ''), '.', ''), '-', '') LIKE :periodLike)
                   AND (:keyword IS NULL OR b.grbm LIKE :keywordLike OR b.xm LIKE :keywordLike
-                       OR b.sfzh LIKE :keywordLike OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
-                ORDER BY b.dwbm, b.grbm, h.jsnf DESC, h.jsyf DESC, h.jslb
+                       OR b.sfzh LIKE :keywordLike OR b.xrzw LIKE :keywordLike OR b.bz LIKE :keywordLike)
+                ORDER BY b.dwbm, b.grbm
                 LIMIT :limit OFFSET :offset
-                """, params, CHANGED_PERSONNEL_MAPPER);
+                """.formatted(organizationDescendantFilter("b")), params, CHANGED_PERSONNEL_MAPPER);
     }
 
     long countChangedPersonnel(OrganizationScope organizationScope, String organizationCode, String period, String keyword) {
@@ -837,21 +1286,141 @@ class PersonnelRepository {
                 SELECT COUNT(*)
                 FROM dryjbxxb b
                 LEFT JOIN dwbm dw ON dw.dwbm = b.dwbm
-                LEFT JOIN hisbaseb h ON h.dwbm = b.dwbm AND h.grbm = b.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 WHERE (:allOrganizations = TRUE OR b.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR b.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
-                  AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
+                  AND (%s)
+                  AND (:period IS NULL
+                       OR REPLACE(REPLACE(COALESCE(b.txsj, ''), '.', ''), '-', '') LIKE :periodLike
+                       OR REPLACE(REPLACE(COALESCE(b.bz, ''), '.', ''), '-', '') LIKE :periodLike)
                   AND (:keyword IS NULL OR b.grbm LIKE :keywordLike OR b.xm LIKE :keywordLike
-                       OR b.sfzh LIKE :keywordLike OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
-                """, changedPersonnelParameters(organizationScope, organizationCode, period, keyword), Long.class);
+                       OR b.sfzh LIKE :keywordLike OR b.xrzw LIKE :keywordLike OR b.bz LIKE :keywordLike)
+                """.formatted(organizationDescendantFilter("b")), changedPersonnelParameters(organizationScope, organizationCode, period, keyword), Long.class);
         return count == null ? 0 : count;
+    }
+
+    Optional<PersonnelMaintenanceRecord> findChangedMaintenanceByUid(int uid) {
+        return jdbcTemplate.query("""
+                SELECT p.*, dw.dwmc, dw.dwbz
+                FROM dryjbxxb p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE p.uid = :uid
+                """, new MapSqlParameterSource("uid", uid), MAINTENANCE_MAPPER).stream().findFirst();
+    }
+
+    Optional<PersonKey> findChangedKeyByUid(int uid) {
+        return jdbcTemplate.query("""
+                SELECT dwbm, grbm
+                FROM dryjbxxb
+                WHERE uid = :uid
+                """, new MapSqlParameterSource("uid", uid), (rs, rowNum) -> new PersonKey(
+                SqlText.trim(rs.getString("dwbm")),
+                SqlText.trim(rs.getString("grbm"))
+        )).stream().findFirst();
+    }
+
+    List<EducationRecord> findChangedEducation(PersonKey key) {
+        if (!tableExists("dxlb")) {
+            return List.of();
+        }
+        return jdbcTemplate.query("""
+                SELECT e.id, e.dwbm, e.grbm, e.xlbm, e.xl, e.byyx, e.rxsj, e.bysj, e.xz, e.xllb, e.bz,
+                       FALSE AS app_created
+                FROM dxlb e
+                WHERE e.dwbm = :dwbm AND e.grbm = :grbm
+                ORDER BY bysj DESC, xlbm
+                """, keyParameters(key), EDUCATION_MAPPER);
+    }
+
+    List<PositionRecord> findChangedPositions(PersonKey key) {
+        if (!tableExists("dryzwbhb")) {
+            return List.of();
+        }
+        return jdbcTemplate.query("""
+                SELECT z.id, z.dwbm, z.grbm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm, z.zwbm, z.xzzw,
+                       z.srny, z.kjnx, z.xrzwbz, z.jsbz, FALSE AS app_created
+                FROM dryzwbhb z
+                WHERE z.dwbm = :dwbm AND z.grbm = :grbm
+                ORDER BY CASE WHEN z.xrzwbz = '1' THEN 0 ELSE 1 END, z.srny DESC, z.id DESC
+                """, keyParameters(key), POSITION_MAPPER);
+    }
+
+    List<AssessmentRecord> findChangedAssessments(PersonKey key) {
+        if (!tableExists("dndkhb")) {
+            return List.of();
+        }
+        return jdbcTemplate.query("""
+                SELECT a.id, a.dwbm, a.grbm, a.khnd, a.khjg, FALSE AS app_created
+                FROM dndkhb a
+                WHERE a.dwbm = :dwbm AND a.grbm = :grbm
+                ORDER BY khnd DESC
+                """, keyParameters(key), ASSESSMENT_MAPPER);
+    }
+
+    List<Map<String, Object>> findChangedPayrollHistories(PersonKey key) {
+        if (!tableExists("hisbaseb")) {
+            return List.of();
+        }
+        return jdbcTemplate.query("""
+                SELECT CAST(h.id AS CHAR) AS id,
+                       h.jsnf AS calculationYear,
+                       h.jsyf AS calculationMonth,
+                       h.jslb AS changeType,
+                       h.zwgw2 AS positionName,
+                       h.jbgzjb2 AS gradeSalaryLevel,
+                       h.zwgzdc2 AS positionSalaryGrade,
+                       h.xckhndjb AS levelAssessmentStartYear,
+                       h.xckhndzw AS stepAssessmentStartYear,
+                       h.zwgzse2 AS positionSalary,
+                       h.jbgzse2 AS gradeSalary,
+                       h.hj2 AS totalAmount,
+                       CASE WHEN h.sid IS NULL OR TRIM(h.sid) = '' THEN TRUE ELSE FALSE END AS currentPayroll
+                FROM hisbaseb h
+                WHERE h.dwbm = :dwbm AND h.grbm = :grbm
+                ORDER BY
+                    CASE WHEN h.sid IS NULL OR TRIM(h.sid) = '' THEN 0 ELSE 1 END,
+                    COALESCE(h.jsnf, '') DESC,
+                    LPAD(TRIM(COALESCE(h.jsyf, '')), 2, '0') DESC,
+                    h.id DESC
+                """, keyParameters(key), (rs, rowNum) -> {
+            Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("id", SqlText.trim(rs.getString("id")));
+            row.put("calculationYear", SqlText.trim(rs.getString("calculationYear")));
+            row.put("calculationMonth", SqlText.trim(rs.getString("calculationMonth")));
+            row.put("changeType", SqlText.trim(rs.getString("changeType")));
+            row.put("positionName", SqlText.trim(rs.getString("positionName")));
+            row.put("gradeSalaryLevel", SqlText.trim(rs.getString("gradeSalaryLevel")));
+            row.put("positionSalaryGrade", SqlText.trim(rs.getString("positionSalaryGrade")));
+            row.put("levelAssessmentStartYear", SqlText.trim(rs.getString("levelAssessmentStartYear")));
+            row.put("stepAssessmentStartYear", SqlText.trim(rs.getString("stepAssessmentStartYear")));
+            row.put("positionSalary", rs.getObject("positionSalary"));
+            row.put("gradeSalary", rs.getObject("gradeSalary"));
+            row.put("totalAmount", rs.getObject("totalAmount"));
+            row.put("currentPayroll", rs.getBoolean("currentPayroll"));
+            row.put("appCreated", false);
+            return row;
+        });
+    }
+
+    Map<String, Object> findChangedPersonnelRelatedRecords(PersonKey key) {
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("currentPayroll", firstTableRow(
+                "hisbaseb",
+                key,
+                "CASE WHEN sid IS NULL OR TRIM(sid) = '' THEN 0 ELSE 1 END, jsnf DESC, jsyf DESC"));
+        result.put("awards", tableRows("hjxxb", key, "hjsj DESC, id DESC"));
+        result.put("rankRecords", tableRows("jxb", key, "sysj DESC, id DESC"));
+        result.put("wageReform", tableRows("dtgxxb", key, "id DESC"));
+        result.put("preReformSalary", tableRows("tgqgz2006b", key, "id DESC"));
+        result.put("pensionBase", tableRows("jfjsb", key, "nd DESC, id DESC"));
+        return result;
     }
 
     List<AssessmentRecord> findAssessments(PersonKey key) {
         return jdbcTemplate.query("""
                 SELECT a.id, a.dwbm, a.grbm, a.khnd, a.khjg, marker.record_id IS NOT NULL AS app_created
                 FROM dndkh a
-                LEFT JOIN app_record_marker marker ON marker.table_name = 'dndkh' AND marker.record_id = CAST(a.id AS CHAR) AND marker.marker = 'APP_CREATED'
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'dndkh'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(a.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
+                    AND marker.marker = 'APP_CREATED'
                 WHERE a.dwbm = :dwbm AND a.grbm = :grbm
                 ORDER BY khnd DESC
                 """, keyParameters(key), ASSESSMENT_MAPPER);
@@ -1019,7 +1588,7 @@ class PersonnelRepository {
             String year,
             String keyword,
             boolean includeDescendants) {
-        if (organizationScope.noneScope() || emptyToNull(organizationCode) == null || emptyToNull(year) == null) {
+        if (organizationScope.noneScope() || emptyToNull(year) == null) {
             return List.of();
         }
         MapSqlParameterSource params = batchAssessmentParameters(organizationScope, organizationCode, year, keyword, includeDescendants);
@@ -1031,9 +1600,10 @@ class PersonnelRepository {
                 LEFT JOIN dndkh a ON a.dwbm = p.dwbm AND a.grbm = p.grbm AND a.khnd = :year
                 WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
                   AND (%s)
+                  AND (%s)
                   AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
                 ORDER BY p.dwbm, p.grbm
-                """.formatted(batchOrganizationFilterSql(includeDescendants)), params, BATCH_ASSESSMENT_ENTRY_MAPPER);
+                """.formatted(batchOrganizationFilterSql(includeDescendants), batchAssessmentWorkStartedFilterSql()), params, BATCH_ASSESSMENT_ENTRY_MAPPER);
         return rows.stream()
                 .map(row -> new BatchAssessmentEntryRow(
                         row.uid(),
@@ -1054,9 +1624,18 @@ class PersonnelRepository {
     Optional<PersonnelSummary> findPersonnelSummary(PersonKey key) {
         return jdbcTemplate.query("""
                 SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.sfzh, p.xb, p.csny,
-                       p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm
+                       p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm, h.zwgw2
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                LEFT JOIN hisbase h ON h.id = (
+                    SELECT h2.id
+                    FROM hisbase h2
+                    WHERE h2.dwbm = p.dwbm
+                      AND h2.grbm = p.grbm
+                      AND (h2.sid IS NULL OR TRIM(h2.sid) = '')
+                    ORDER BY COALESCE(h2.jsnf, '') DESC, COALESCE(h2.jsyf, '') DESC, h2.id DESC
+                    LIMIT 1
+                )
                 WHERE p.dwbm = :dwbm AND p.grbm = :grbm
                 """, keyParameters(key), SUMMARY_MAPPER).stream().findFirst();
     }
@@ -1098,12 +1677,12 @@ class PersonnelRepository {
                 LEFT JOIN dryjbxx p ON p.dwbm = a.dwbm AND p.grbm = a.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
                 WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR a.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (%s)
                   AND (:year IS NULL OR a.khnd = :year)
                   AND (:keyword IS NULL OR a.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR a.khjg LIKE :keywordLike)
                 ORDER BY a.khnd DESC, a.dwbm, a.grbm
                 LIMIT :limit OFFSET :offset
-                """, params, ANNUAL_ASSESSMENT_MAPPER);
+                """.formatted(organizationDescendantFilter("a")), params, ANNUAL_ASSESSMENT_MAPPER);
     }
 
     long countAnnualAssessments(
@@ -1120,10 +1699,10 @@ class PersonnelRepository {
                 LEFT JOIN dryjbxx p ON p.dwbm = a.dwbm AND p.grbm = a.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = a.dwbm
                 WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                  AND (:organizationFilter IS NULL OR a.dwbm LIKE :organizationFilterLike OR dw.dwmc LIKE :organizationFilterLike)
+                  AND (%s)
                   AND (:year IS NULL OR a.khnd = :year)
                   AND (:keyword IS NULL OR a.grbm LIKE :keywordLike OR p.xm LIKE :keywordLike OR a.khjg LIKE :keywordLike)
-                """, assessmentParameters(organizationScope, organizationCode, year, keyword), Long.class);
+                """.formatted(organizationDescendantFilter("a")), assessmentParameters(organizationScope, organizationCode, year, keyword), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -1189,7 +1768,7 @@ class PersonnelRepository {
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
-                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
+                .addValue("organizationCodePrefixLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter + "%")
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
     }
@@ -1216,7 +1795,9 @@ class PersonnelRepository {
                 .addValue("currentPositionStartYearMonth", valueOrBlank(request.currentPositionStartYearMonth()))
                 .addValue("ethnicity", valueOrBlank(request.ethnicity()))
                 .addValue("politicalStatus", valueOrBlank(request.politicalStatus()))
-                .addValue("archiveNumber", valueOrBlank(request.archiveNumber()));
+                .addValue("archiveNumber", valueOrBlank(request.archiveNumber()))
+                .addValue("joinYearMonth", valueOrBlank(request.joinYearMonth()))
+                .addValue("joinType", valueOrBlank(request.joinType()));
     }
 
     private MapSqlParameterSource educationParameters(PersonKey key, EducationMaintenanceRequest request) {
@@ -1326,7 +1907,7 @@ class PersonnelRepository {
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
-                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
+                .addValue("organizationCodePrefixLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter + "%")
                 .addValue("year", emptyToNull(year))
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
@@ -1344,8 +1925,9 @@ class PersonnelRepository {
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("organizationCode", trimmedOrganizationCode)
-                .addValue("organizationCodeLike", trimmedOrganizationCode + "%")
-                .addValue("year", trimmedOrganizationCode == null || trimmedOrganizationCode.isEmpty() ? null : SqlText.trim(year))
+                .addValue("organizationCodeLike", trimmedOrganizationCode == null || trimmedOrganizationCode.isEmpty() ? null : trimmedOrganizationCode + "%")
+                .addValue("organizationFilter", trimmedOrganizationCode == null || trimmedOrganizationCode.isEmpty() ? null : trimmedOrganizationCode)
+                .addValue("year", SqlText.trim(year))
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%")
                 .addValue("includeDescendants", includeDescendants);
@@ -1353,14 +1935,34 @@ class PersonnelRepository {
 
     private String batchOrganizationFilterSql(boolean includeDescendants) {
         return includeDescendants
-                ? "p.dwbm LIKE :organizationCodeLike"
-                : "p.dwbm = :organizationCode";
+                ? "(:organizationFilter IS NULL OR p.dwbm LIKE :organizationCodeLike)"
+                : "(:organizationFilter IS NULL OR p.dwbm = :organizationCode)";
+    }
+
+    private String organizationDescendantFilter(String alias) {
+        return "(:organizationFilter IS NULL OR %s.dwbm = :organizationFilter OR %s.dwbm LIKE :organizationCodePrefixLike)"
+                .formatted(alias, alias);
+    }
+
+    /** 仅考核年度已参加工作（cjgzny，缺省取 jrny）的人员参与年度考核录入。 */
+    private String batchAssessmentWorkStartedFilterSql() {
+        return """
+                (
+                  NULLIF(TRIM(p.cjgzny), '') IS NOT NULL
+                  OR NULLIF(TRIM(p.jrny), '') IS NOT NULL
+                )
+                AND LEFT(
+                  REPLACE(
+                    COALESCE(NULLIF(TRIM(p.cjgzny), ''), NULLIF(TRIM(p.jrny), ''), '000000'),
+                    '.', ''
+                  ),
+                  4
+                ) <= :year
+                """;
     }
 
     private String defaultAssessmentResultText(String personnelCategory, String organizationType) {
-        String text = (personnelCategory == null ? "" : personnelCategory)
-                + " " + (organizationType == null ? "" : organizationType);
-        return text.contains("事业") ? "合格" : "称职";
+        return PersonnelService.defaultAssessmentResultText(personnelCategory, organizationType);
     }
 
     private MapSqlParameterSource assessmentSummaryParameters(
@@ -1391,15 +1993,36 @@ class PersonnelRepository {
             OrganizationScope organizationScope,
             String organizationCode,
             String keyword) {
+        return personnelHistoryParameters(organizationScope, organizationCode, keyword, null, null);
+    }
+
+    private MapSqlParameterSource personnelHistoryParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String positionCode) {
+        return personnelHistoryParameters(organizationScope, organizationCode, keyword, positionCode, null);
+    }
+
+    private MapSqlParameterSource personnelHistoryParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String positionCode,
+            String educationCode) {
         String trimmedKeyword = SqlText.trim(keyword);
         String trimmedOrganizationFilter = SqlText.trim(organizationCode);
+        String trimmedPositionCode = SqlText.trim(positionCode);
+        String trimmedEducationCode = SqlText.trim(educationCode);
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
-                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
+                .addValue("organizationCodePrefixLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter + "%")
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
-                .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
+                .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%")
+                .addValue("positionCode", trimmedPositionCode == null || trimmedPositionCode.isEmpty() ? null : trimmedPositionCode)
+                .addValue("educationCode", trimmedEducationCode == null || trimmedEducationCode.isEmpty() ? null : trimmedEducationCode);
     }
 
     private MapSqlParameterSource changedPersonnelParameters(
@@ -1409,12 +2032,14 @@ class PersonnelRepository {
             String keyword) {
         String trimmedKeyword = SqlText.trim(keyword);
         String trimmedOrganizationFilter = SqlText.trim(organizationCode);
+        String normalizedPeriod = emptyToNull(period) == null ? null : period.trim().replaceAll("\\D", "");
         return new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
                 .addValue("organizationFilter", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter)
-                .addValue("organizationFilterLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : "%" + trimmedOrganizationFilter + "%")
-                .addValue("period", emptyToNull(period))
+                .addValue("organizationCodePrefixLike", trimmedOrganizationFilter == null || trimmedOrganizationFilter.isEmpty() ? null : trimmedOrganizationFilter + "%")
+                .addValue("period", normalizedPeriod)
+                .addValue("periodLike", normalizedPeriod == null ? null : "%" + normalizedPeriod + "%")
                 .addValue("keyword", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null || trimmedKeyword.isEmpty() ? null : "%" + trimmedKeyword + "%");
     }

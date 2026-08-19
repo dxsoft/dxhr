@@ -40,11 +40,18 @@ class SecuritySchemaInitializer {
             return;
         }
         createTables();
+        ensureUkeyColumns();
+        ensureHomeOrganizationColumn();
+        ensureAllOrganizationsColumn();
+        ensureMenuParentColumn();
+        ensureAppTableCollations();
         seedPermissions();
         seedMenus();
         ensureAnnualAssessmentMenu();
         ensureRankAllowanceMenus();
         seedAdmin();
+        seedUnitAdminRole();
+        migrateLevelPromotionPermissions();
     }
 
     private void createTables() {
@@ -56,7 +63,15 @@ class SecuritySchemaInitializer {
                     password_hash VARCHAR(120) NOT NULL,
                     display_name VARCHAR(80) NOT NULL,
                     enabled TINYINT(1) NOT NULL DEFAULT 1,
-                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    ukey_id VARCHAR(64) NULL,
+                    sm2_user_id VARCHAR(128) NULL,
+                    sm2_pubkey_x VARCHAR(64) NULL,
+                    sm2_pubkey_y VARCHAR(64) NULL,
+                    enc_algo_key VARCHAR(64) NULL,
+                    ukey_auth_modes VARCHAR(20) NULL,
+                    ukey_required TINYINT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uk_app_user_ukey_id (ukey_id)
                 )
                 """,
                 """
@@ -114,6 +129,7 @@ class SecuritySchemaInitializer {
                     title VARCHAR(80) NOT NULL,
                     path VARCHAR(120) NOT NULL,
                     permission_code VARCHAR(120) NOT NULL,
+                    parent_id BIGINT NULL,
                     sort_order INT NOT NULL DEFAULT 0,
                     enabled TINYINT(1) NOT NULL DEFAULT 1
                 )
@@ -129,6 +145,104 @@ class SecuritySchemaInitializer {
                 """).forEach(jdbcTemplate::execute);
     }
 
+    /** Add SoftKey SM2 binding columns on existing databases created before UKey login. */
+    private void ensureUkeyColumns() {
+        ensureColumn("app_user", "ukey_id", "VARCHAR(64) NULL");
+        ensureColumn("app_user", "sm2_user_id", "VARCHAR(128) NULL");
+        ensureColumn("app_user", "sm2_pubkey_x", "VARCHAR(64) NULL");
+        ensureColumn("app_user", "sm2_pubkey_y", "VARCHAR(64) NULL");
+        ensureColumn("app_user", "enc_algo_key", "VARCHAR(64) NULL");
+        ensureColumn("app_user", "ukey_auth_modes", "VARCHAR(20) NULL");
+        ensureColumn("app_user", "ukey_required", "TINYINT NULL");
+        try {
+            Integer indexCount = jdbcTemplate.query(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = 'app_user'
+                      AND INDEX_NAME = 'uk_app_user_ukey_id'
+                    """,
+                    rs -> rs.next() ? rs.getInt(1) : 0);
+            if (indexCount != null && indexCount == 0) {
+                jdbcTemplate.execute("CREATE UNIQUE INDEX uk_app_user_ukey_id ON app_user (ukey_id)");
+            }
+        } catch (Exception ignored) {
+            // H2 / non-MySQL — skip unique index if unsupported here
+        }
+    }
+
+    private void ensureHomeOrganizationColumn() {
+        ensureColumn("app_user", "home_organization_code", "VARCHAR(20) NULL");
+    }
+
+    private void ensureAllOrganizationsColumn() {
+        ensureColumn("app_user", "all_organizations", "TINYINT(1) NOT NULL DEFAULT 0");
+        jdbcTemplate.update("""
+                UPDATE app_user u
+                SET all_organizations = 1
+                WHERE all_organizations = 0
+                  AND EXISTS (
+                      SELECT 1
+                      FROM app_user_role ur
+                      JOIN app_role r ON r.id = ur.role_id
+                      WHERE ur.user_id = u.id
+                        AND (r.code = 'ADMIN' OR r.data_scope = 'ALL')
+                  )
+                """);
+    }
+
+    private void ensureMenuParentColumn() {
+        ensureColumn("app_menu", "parent_id", "BIGINT NULL");
+    }
+
+    private void ensureColumn(String table, String column, String definition) {
+        try {
+            Integer count = jdbcTemplate.query(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = ?
+                      AND COLUMN_NAME = ?
+                    """,
+                    rs -> rs.next() ? rs.getInt(1) : 0,
+                    table,
+                    column);
+            if (count != null && count == 0) {
+                jdbcTemplate.execute("ALTER TABLE `" + table + "` ADD COLUMN `" + column + "` " + definition);
+            }
+        } catch (Exception ignored) {
+            // H2 / missing metadata — CREATE TABLE already includes columns for new installs
+        }
+    }
+
+    /**
+     * Business tables (dryjbxx/hisbase/…) use utf8mb4_0900_ai_ci. App marker/license tables
+     * created under a unicode_ci database default must be converted or JOINs fail with
+     * "Illegal mix of collations".
+     */
+    private void ensureAppTableCollations() {
+        for (String table : List.of("app_record_marker", "app_license")) {
+            try {
+                String collation = jdbcTemplate.query(
+                        """
+                        SELECT TABLE_COLLATION
+                        FROM information_schema.TABLES
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                        """,
+                        rs -> rs.next() ? rs.getString(1) : null,
+                        table);
+                if (collation != null && !"utf8mb4_0900_ai_ci".equalsIgnoreCase(collation)) {
+                    jdbcTemplate.execute(
+                            "ALTER TABLE `" + table + "` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci");
+                }
+            } catch (Exception ignored) {
+                // H2 / missing table / non-MySQL — skip
+            }
+        }
+    }
+
     private void seedPermissions() {
         upsertPermission("ORG_READ", "单位查询", "ORGANIZATION");
         upsertPermission("ORG_WRITE", "单位信息维护", "ORGANIZATION");
@@ -136,6 +250,8 @@ class SecuritySchemaInitializer {
         upsertPermission("PERSONNEL_WRITE", "人员信息维护", "PERSONNEL");
         upsertPermission("PAYROLL_READ", "工资试算查询", "PAYROLL");
         upsertPermission("PAYROLL_WRITE", "工资变动维护", "PAYROLL");
+        upsertPermission("LEVEL_PROMOTION_READ", "级别晋升查询", "PAYROLL");
+        upsertPermission("LEVEL_PROMOTION_WRITE", "级别晋升办理", "PAYROLL");
         upsertPermission("AUDIT_READ", "工资批量对账", "PAYROLL");
         upsertPermission("STANDARD_READ", "工资标准查询", "PAYROLL");
         upsertPermission("STANDARD_WRITE", "工资标准维护", "PAYROLL");
@@ -143,9 +259,12 @@ class SecuritySchemaInitializer {
         upsertPermission("DATA_EXCHANGE_READ", "数据交换", "DATA");
         upsertPermission("REPORT_READ", "报表打印与查询统计", "REPORT");
         upsertPermission("SYSTEM_CONFIG", "系统初始化与基础设置", "SYSTEM");
+        upsertPermission("LICENSE_IMPORT", "单位授权导入", "SYSTEM");
         upsertPermission("OPERATION_LOG_READ", "上机日志查询", "SYSTEM");
         upsertPermission("DATA_MAINTENANCE", "数据维护", "SYSTEM");
         upsertPermission("HELP_READ", "系统帮助", "SYSTEM");
+        upsertPermission("RETIREMENT_READ", "离退休查询", "RETIREMENT");
+        upsertPermission("RETIREMENT_WRITE", "离退休办理与维护", "RETIREMENT");
     }
 
     private void seedMenus() {
@@ -161,48 +280,56 @@ class SecuritySchemaInitializer {
         upsertMenu("CHANGED_PERSONNEL", "变动人员信息", "#changed-personnel", "PERSONNEL_READ", 17);
         upsertMenu("POSITION_HISTORY", "任职岗位信息", "#position-history", "PERSONNEL_READ", 18);
         upsertMenu("EDUCATION_HISTORY", "学历信息", "#education-history", "PERSONNEL_READ", 19);
-        upsertMenu("PAYROLL", "工资试算", "#payroll", "PAYROLL_READ", 20);
-        upsertMenu("PAYROLL_HISTORY", "工资变动历史", "#payroll-history", "PAYROLL_READ", 25);
-        upsertMenu("TEACHING_ALLOWANCE_ADJUSTMENT", "调整教护龄津贴", "#teaching-allowance-adjustment", "PAYROLL_READ", 28);
+        upsertMenu("PAYROLL", "工资试算", "#payroll", "PAYROLL_READ", 20, false);
+        // 工资变动主菜单次序（侧栏组内亦按 sort_order 排列）
+        upsertMenu("LEVEL_PROMOTION", "级别晋升", "#level-promotion", "LEVEL_PROMOTION_READ", 25);
+        upsertMenu("NORMAL_PROMOTION", "正常档次/薪级晋升", "#normal-promotion", "PAYROLL_READ", 26);
+        upsertMenu("POSITION_CHANGE_PROMOTION", "职务变化晋升", "#position-change-promotion", "PAYROLL_READ", 27);
+        upsertMenu("NEW_PERSONNEL_SALARY", "新进定资", "#new-personnel-salary", "PAYROLL_READ", 28);
+        upsertMenu("REGULARIZATION", "转正定级", "#regularization", "PAYROLL_READ", 29);
+        upsertMenu("EDUCATION_PROMOTION", "学历晋升", "#education-promotion", "PAYROLL_READ", 30);
+        upsertMenu("TEACHING_ALLOWANCE_ADJUSTMENT", "调整教护龄津贴", "#teaching-allowance-adjustment", "PAYROLL_READ", 31);
+        upsertMenu("FLOATING_TO_FIXED", "浮动固定", "#floating-to-fixed", "PAYROLL_READ", 32);
+        upsertMenu("OTHER_PAYROLL_CHANGE", "其它情况工资变动", "#other-payroll-change", "PAYROLL_READ", 33);
+        upsertMenu("REGULARIZATION_HIGH_GRADE", "转正高定档次薪级", "#regularization-high-grade", "PAYROLL_READ", 34);
+        upsertMenu("WAGE_REFORM_2006", "2006年工资套改", "#wage-reform-2006", "PAYROLL_READ", 35);
+        upsertMenu("PAYROLL_HISTORY", "工资变动历史", "#payroll-history", "PAYROLL_READ", 36);
+        upsertMenu("AUDIT", "批量对账", "#audit", "AUDIT_READ", 37);
         upsertMenu("PROSECUTION_ALLOWANCE_ADJUSTMENT", "调整检察津贴", "#prosecution-allowance-adjustment", "PAYROLL_READ", 281);
         upsertMenu("JUDICIAL_ALLOWANCE_ADJUSTMENT", "调整审判津贴", "#judicial-allowance-adjustment", "PAYROLL_READ", 282);
         upsertMenu("POLICE_ALLOWANCE_ADJUSTMENT", "调整警衔津贴", "#police-allowance-adjustment", "PAYROLL_READ", 283);
         upsertMenu("SUPERVISION_ALLOWANCE_ADJUSTMENT", "调整监察津贴", "#supervision-allowance-adjustment", "PAYROLL_READ", 284);
-        upsertMenu("POLICE_RANK_CHANGE_PROMOTION", "警衔工资晋升", "#police-rank-change-promotion", "PAYROLL_READ", 285);
+        upsertMenu("POLICE_RANK_CHANGE_PROMOTION", "警衔变化晋升", "#police-rank-change-promotion", "PAYROLL_READ", 285);
         upsertMenu("PROSECUTION_RANK_CHANGE_PROMOTION", "检察官等级变化晋升", "#prosecution-rank-change-promotion", "PAYROLL_READ", 286);
         upsertMenu("JUDICIAL_RANK_CHANGE_PROMOTION", "法官等级变化晋升", "#judicial-rank-change-promotion", "PAYROLL_READ", 287);
         upsertMenu("SUPERVISION_RANK_CHANGE_PROMOTION", "监察等级变化晋升", "#supervision-rank-change-promotion", "PAYROLL_READ", 288);
-        upsertMenu("NORMAL_PROMOTION", "正常档次/薪级晋升", "#normal-promotion", "PAYROLL_READ", 29);
-        upsertMenu("LEVEL_PROMOTION", "级别晋升", "#level-promotion", "PAYROLL_READ", 30);
-        upsertMenu("POSITION_CHANGE_PROMOTION", "职务变化晋升", "#position-change-promotion", "PAYROLL_READ", 31);
-        upsertMenu("EDUCATION_PROMOTION", "学历晋升", "#education-promotion", "PAYROLL_READ", 32);
-        upsertMenu("REGULARIZATION", "转正定级", "#regularization", "PAYROLL_READ", 33);
-        upsertMenu("FLOATING_TO_FIXED", "浮动转固定", "#floating-to-fixed", "PAYROLL_READ", 34);
-        upsertMenu("INTERN_SALARY_CHANGE", "见习工资变动", "#intern-salary-change", "PAYROLL_READ", 35);
-        upsertMenu("NEW_PERSONNEL_SALARY", "新增人员确定工资", "#new-personnel-salary", "PAYROLL_READ", 36);
-        upsertMenu("OTHER_PAYROLL_CHANGE", "其它情况工资变动", "#other-payroll-change", "PAYROLL_READ", 37);
-        upsertMenu("SALARY_STANDARD_ADJUSTMENT", "2024.07调标", "#salary-standard-adjustment", "PAYROLL_READ", 38);
+        upsertMenu("INTERN_SALARY_CHANGE", "见习工资变动", "#intern-salary-change", "PAYROLL_READ", 350, false);
+        upsertMenu("SALARY_STANDARD_ADJUSTMENT", "2024.07调标", "#salary-standard-adjustment", "PAYROLL_READ", 38, false);
         upsertMenu("BASIC_SALARY_STANDARD_ADJUSTMENT", "调整基本工资标准", "#basic-salary-standard-adjustment", "PAYROLL_READ", 381);
         upsertMenu("CIVIL_ALLOWANCE_STANDARD_ADJUSTMENT", "调整公务员津贴补贴", "#civil-allowance-standard-adjustment", "PAYROLL_READ", 382);
         upsertMenu("PERFORMANCE_STANDARD_ADJUSTMENT", "调整绩效工资标准", "#performance-standard-adjustment", "PAYROLL_READ", 383);
         upsertMenu("PERFORMANCE_RATIO_ADJUSTMENT", "调整绩效比例", "#performance-ratio-adjustment", "PAYROLL_READ", 384);
-        upsertMenu("ALLOWANCE_RECALCULATION", "重算津补贴", "#allowance-recalculation", "PAYROLL_READ", 39);
-        upsertMenu("REFORM_LEVEL_ROLLING", "级别滚动晋升", "#reform-level-rolling", "PAYROLL_READ", 40);
-        upsertMenu("REGULARIZATION_HIGH_GRADE", "转正高定档次薪级", "#regularization-high-grade", "PAYROLL_READ", 41);
+        upsertMenu("ALLOWANCE_RECALCULATION", "重算津补贴", "#allowance-recalculation", "PAYROLL_READ", 39, false);
+        upsertMenu("REFORM_LEVEL_ROLLING", "级别滚动晋升（已并入级别晋升）", "#level-promotion", "PAYROLL_READ", 40, false);
         upsertMenu("MONTHLY_AVERAGE_SALARY", "月平均工资计算", "#monthly-average-salary", "PAYROLL_READ", 42);
-        upsertMenu("WAGE_REFORM_2006", "2006年工资套改", "#wage-reform-2006", "PAYROLL_READ", 43);
-        upsertMenu("AUDIT", "批量对账", "#audit", "AUDIT_READ", 35);
-        upsertMenu("BASIC_STANDARDS", "基本工资标准", "#basic-standards", "STANDARD_READ", 40);
-        upsertMenu("INTERN_SALARY_STANDARDS", "见习工资标准", "#intern-salary-standards", "STANDARD_READ", 45);
-        upsertMenu("ALLOWANCE_STANDARDS", "津贴补贴标准", "#allowance-standards", "STANDARD_READ", 50);
-        upsertMenu("RANK_ALLOWANCE_STANDARDS", "警衔津贴标准", "#rank-allowance-standards", "STANDARD_READ", 55);
-        upsertMenu("PROSECUTION_ALLOWANCE_STANDARDS", "检察津贴标准", "#rank-allowance-standards/jc", "STANDARD_READ", 56);
-        upsertMenu("JUDICIAL_ALLOWANCE_STANDARDS", "审判津贴标准", "#rank-allowance-standards/sp", "STANDARD_READ", 57);
-        upsertMenu("RETAINED_ALLOWANCE_STANDARDS", "保留福补标准", "#retained-allowance-standards", "STANDARD_READ", 60);
-        upsertMenu("YEAR_ALLOWANCE_STANDARDS", "年补贴标准", "#year-allowance-standards", "STANDARD_READ", 65);
-        upsertMenu("RURAL_TEACHER_ALLOWANCE_STANDARDS", "农村学校教师补贴", "#year-allowance-standards", "STANDARD_READ", 66);
-        upsertMenu("WAGE_REFORM_STANDARDS", "2006套改标准", "#wage-reform-standards", "STANDARD_READ", 70);
-        upsertMenu("OTHER_ALLOWANCE_STANDARDS", "其他补贴标准", "#other-allowance-standards", "STANDARD_READ", 75);
+        // 报表打印：紧接工资变动之后、标准维护之前
+        upsertMenu("PAYROLL_CHANGE_REGISTER_REPORT", "工资变动花名册", "#payroll-change-register-report", "REPORT_READ", 44);
+        upsertMenu("PAYROLL_CHANGE_APPROVAL_REPORT", "工资变动审批表", "#payroll-change-approval-report", "REPORT_READ", 45);
+        upsertMenu("WAGE_REFORM_2006_PUBLIC_NOTICE_REPORT", "2006套改公示表", "#wage-reform-2006-public-notice-report", "REPORT_READ", 46);
+        upsertMenu("PERSONNEL_INFORMATION_COLLECTION_REPORT", "人员信息采集表", "#personnel-information-collection-report", "REPORT_READ", 47);
+        upsertMenu("PERSONNEL_INFORMATION_REGISTRATION_REPORT", "人员信息登记表", "#personnel-information-registration-report", "REPORT_READ", 48);
+        upsertMenu("DATA_EXCHANGE", "数据交换", "#data-exchange", "DATA_EXCHANGE_READ", 49);
+        upsertMenu("BASIC_STANDARDS", "基本工资标准", "#basic-standards", "STANDARD_READ", 50);
+        upsertMenu("INTERN_SALARY_STANDARDS", "见习工资标准", "#intern-salary-standards", "STANDARD_READ", 51);
+        upsertMenu("ALLOWANCE_STANDARDS", "津贴补贴标准", "#allowance-standards", "STANDARD_READ", 52);
+        upsertMenu("RANK_ALLOWANCE_STANDARDS", "警衔/检察/审判/监察津贴标准", "#rank-allowance-standards", "STANDARD_READ", 53);
+        disableMenu("PROSECUTION_ALLOWANCE_STANDARDS");
+        disableMenu("JUDICIAL_ALLOWANCE_STANDARDS");
+        upsertMenu("RETAINED_ALLOWANCE_STANDARDS", "保留福补标准", "#retained-allowance-standards", "STANDARD_READ", 56);
+        upsertMenu("YEAR_ALLOWANCE_STANDARDS", "年补贴标准", "#year-allowance-standards", "STANDARD_READ", 57, false);
+        upsertMenu("RURAL_TEACHER_ALLOWANCE_STANDARDS", "农村学校教师补贴", "#year-allowance-standards", "STANDARD_READ", 58);
+        upsertMenu("WAGE_REFORM_STANDARDS", "2006套改标准", "#wage-reform-standards", "STANDARD_READ", 59);
+        upsertMenu("OTHER_ALLOWANCE_STANDARDS", "其他补贴标准", "#other-allowance-standards", "STANDARD_READ", 60);
         upsertMenu("ORGANIZATION_MAINTENANCE", "单位信息维护", "#organization-maintenance", "ORG_READ", 80);
         upsertMenu("LOCAL_POLICY_CONFIG", "本地工资政策", "#local-policy-config", "SYSTEM_CONFIG", 82);
         upsertMenu("DICTIONARY_MAINTENANCE", "设置常用值", "#dictionary-maintenance", "SYSTEM_CONFIG", 85);
@@ -213,12 +340,14 @@ class SecuritySchemaInitializer {
         upsertMenu("DATA_MAINTENANCE", "数据维护", "#data-maintenance", "DATA_MAINTENANCE", 92);
         upsertMenu("SYSTEM_HELP", "系统帮助", "#system-help", "HELP_READ", 93);
         upsertMenu("SYSTEM_SETUP", "系统初始化与导入", "#system-setup", "SYSTEM_CONFIG", 94);
-        upsertMenu("PAYROLL_CHANGE_REGISTER_REPORT", "工资变动花名册", "#payroll-change-register-report", "REPORT_READ", 100);
-        upsertMenu("PAYROLL_CHANGE_APPROVAL_REPORT", "工资变动审批表", "#payroll-change-approval-report", "REPORT_READ", 101);
-        upsertMenu("WAGE_REFORM_2006_PUBLIC_NOTICE_REPORT", "2006套改公示表", "#wage-reform-2006-public-notice-report", "REPORT_READ", 102);
-        upsertMenu("PERSONNEL_INFORMATION_COLLECTION_REPORT", "人员信息采集表", "#personnel-information-collection-report", "REPORT_READ", 103);
-        upsertMenu("PERSONNEL_INFORMATION_REGISTRATION_REPORT", "人员信息登记表", "#personnel-information-registration-report", "REPORT_READ", 104);
-        upsertMenu("DATA_EXCHANGE", "数据交换", "#data-exchange", "DATA_EXCHANGE_READ", 105);
+        upsertMenu("LICENSE_IMPORT", "单位授权", "#license-import", "LICENSE_IMPORT", 95);
+        // 离退域菜单（工作台「离退」入口下使用）
+        // 退休办理已并入离退休人员（在职变动退休入队 + 名册办理/审批）
+        upsertMenu("RETIREMENT_PROCESSING", "退休办理（已并入离退休人员）", "#retiree-personnel", "RETIREMENT_WRITE", 200, false);
+        upsertMenu("RETIREE_PERSONNEL", "离退休人员", "#retiree-personnel", "RETIREMENT_READ", 201);
+        upsertMenu("RETIREMENT_RATIO_STANDARDS", "折算比例标准", "#retirement-ratio-standards", "RETIREMENT_READ", 202);
+        upsertMenu("RETIREMENT_APPROVAL_REPORT", "退休审批表", "#retirement-approval-report", "RETIREMENT_READ", 203);
+        upsertMenu("RETIREMENT_DATA_EXCHANGE", "离退数据交换", "#retirement-data-exchange", "RETIREMENT_READ", 204);
         upsertMenu("LEGACY_INFO_MAINTENANCE", "VFP-信息维护（待迁移）", "#legacy-info", "PERSONNEL_READ", 110, false);
         upsertMenu("LEGACY_PAYROLL_CHANGE", "VFP-工资变动（待迁移）", "#legacy-payroll-change", "PAYROLL_READ", 120, false);
         upsertMenu("LEGACY_DATA_EXCHANGE", "VFP-数据交换（已由数据交换替代）", "#legacy-data-exchange", "DATA_EXCHANGE_READ", 130, false);
@@ -227,6 +356,86 @@ class SecuritySchemaInitializer {
         upsertMenu("LEGACY_INITIAL_SETTINGS", "VFP-初始设置（已由标准/配置菜单替代）", "#legacy-initial-settings", "SYSTEM_CONFIG", 160, false);
         upsertMenu("LEGACY_SYSTEM_MAINTENANCE", "VFP-系统维护（待迁移）", "#legacy-system-maintenance", "SECURITY_ADMIN", 170, false);
         upsertMenu("LEGACY_HELP", "VFP-系统帮助（已由系统帮助替代）", "#legacy-help", "HELP_READ", 180, false);
+        ensureDisabledMenus();
+    }
+
+    /** 已移出侧边栏的菜单：启动时强制 enabled=0，避免旧库残留仍显示。 */
+    private void ensureDisabledMenus() {
+        List.of(
+                "PAYROLL",
+                "INTERN_SALARY_CHANGE",
+                "ALLOWANCE_RECALCULATION",
+                "SALARY_STANDARD_ADJUSTMENT",
+                "YEAR_ALLOWANCE_STANDARDS",
+                "REFORM_LEVEL_ROLLING",
+                "PERSONNEL_MAINTENANCE",
+                "ANNUAL_ASSESSMENTS",
+                "ANNUAL_ASSESSMENT_BATCH",
+                "ASSESSMENT_SUMMARY",
+                "RAISE_GRADE_STANDARDS",
+                "PERSONNEL_STRUCTURE_SUMMARY",
+                "LEGACY_INFO_MAINTENANCE",
+                "LEGACY_PAYROLL_CHANGE",
+                "LEGACY_DATA_EXCHANGE",
+                "LEGACY_REPORT_PRINT",
+                "LEGACY_QUERY_STATISTICS",
+                "LEGACY_INITIAL_SETTINGS",
+                "LEGACY_SYSTEM_MAINTENANCE",
+                "LEGACY_HELP",
+                "RETIREMENT_PROCESSING"
+        ).forEach(this::disableMenu);
+    }
+
+    private void migrateLevelPromotionPermissions() {
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                SELECT rp.role_id, p_new.id
+                FROM app_role_permission rp
+                JOIN app_permission p_old ON p_old.id = rp.permission_id AND p_old.code = 'PAYROLL_READ'
+                JOIN app_permission p_new ON p_new.code = 'LEVEL_PROMOTION_READ'
+                """);
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                SELECT rp.role_id, p_new.id
+                FROM app_role_permission rp
+                JOIN app_permission p_old ON p_old.id = rp.permission_id AND p_old.code = 'PAYROLL_WRITE'
+                JOIN app_permission p_new ON p_new.code = 'LEVEL_PROMOTION_WRITE'
+                """);
+    }
+
+    private void seedUnitAdminRole() {
+        jdbcTemplate.update("""
+                INSERT INTO app_role (code, name, data_scope)
+                SELECT 'UNIT_ADMIN', '单位管理员', 'CUSTOM'
+                WHERE NOT EXISTS (SELECT 1 FROM app_role WHERE code = 'UNIT_ADMIN')
+                """);
+        // Copy permissions from legacy per-unit role 001 when present; otherwise grant standard unit-admin set.
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                SELECT ua.id, rp.permission_id
+                FROM app_role ua
+                JOIN app_role legacy ON legacy.code = '001'
+                JOIN app_role_permission rp ON rp.role_id = legacy.id
+                WHERE ua.code = 'UNIT_ADMIN'
+                """);
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                SELECT ua.id, p.id
+                FROM app_role ua, app_permission p
+                WHERE ua.code = 'UNIT_ADMIN'
+                  AND p.code IN (
+                      'ORG_READ', 'ORG_WRITE',
+                      'PERSONNEL_READ', 'PERSONNEL_WRITE',
+                      'PAYROLL_READ', 'PAYROLL_WRITE',
+                      'AUDIT_READ', 'STANDARD_READ',
+                      'DATA_EXCHANGE_READ', 'REPORT_READ',
+                      'OPERATION_LOG_READ', 'HELP_READ'
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM app_role_permission rp
+                      WHERE rp.role_id = ua.id
+                  )
+                """);
     }
 
     private void seedAdmin() {
@@ -256,6 +465,11 @@ class SecuritySchemaInitializer {
                 SELECT u.id, r.id
                 FROM app_user u, app_role r
                 WHERE u.username = ? AND r.code = 'ADMIN'
+                """, adminUsername);
+        jdbcTemplate.update("""
+                UPDATE app_user
+                SET all_organizations = 1, home_organization_code = NULL
+                WHERE username = ?
                 """, adminUsername);
         jdbcTemplate.update("""
                 INSERT IGNORE INTO app_role_permission (role_id, permission_id)
@@ -313,7 +527,7 @@ class SecuritySchemaInitializer {
         upsertMenu("JUDICIAL_ALLOWANCE_ADJUSTMENT", "调整审判津贴", "#judicial-allowance-adjustment", "PAYROLL_READ", 282);
         upsertMenu("POLICE_ALLOWANCE_ADJUSTMENT", "调整警衔津贴", "#police-allowance-adjustment", "PAYROLL_READ", 283);
         upsertMenu("SUPERVISION_ALLOWANCE_ADJUSTMENT", "调整监察津贴", "#supervision-allowance-adjustment", "PAYROLL_READ", 284);
-        upsertMenu("POLICE_RANK_CHANGE_PROMOTION", "警衔工资晋升", "#police-rank-change-promotion", "PAYROLL_READ", 285);
+        upsertMenu("POLICE_RANK_CHANGE_PROMOTION", "警衔变化晋升", "#police-rank-change-promotion", "PAYROLL_READ", 285);
         upsertMenu("PROSECUTION_RANK_CHANGE_PROMOTION", "检察官等级变化晋升", "#prosecution-rank-change-promotion", "PAYROLL_READ", 286);
         upsertMenu("JUDICIAL_RANK_CHANGE_PROMOTION", "法官等级变化晋升", "#judicial-rank-change-promotion", "PAYROLL_READ", 287);
         upsertMenu("SUPERVISION_RANK_CHANGE_PROMOTION", "监察等级变化晋升", "#supervision-rank-change-promotion", "PAYROLL_READ", 288);

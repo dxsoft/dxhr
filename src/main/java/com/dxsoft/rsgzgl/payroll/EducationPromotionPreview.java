@@ -8,6 +8,8 @@ public record EducationPromotionPreview(
         String calculationPeriod,
         String currentPositionCode,
         String currentPositionName,
+        String currentLevel,
+        String currentStep,
         String educationCode,
         String educationName,
         String graduationDate,
@@ -16,6 +18,7 @@ public record EducationPromotionPreview(
         String standardLevel,
         String standardStep,
         String promotedPositionCode,
+        String promotedPositionName,
         String promotedLevel,
         String promotedStep,
         String promotedGradeStepDifference,
@@ -31,6 +34,7 @@ public record EducationPromotionPreview(
         Boolean eligible,
         String note,
         Boolean applyEligible,
-        Boolean rollbackEligible
+        Boolean rollbackEligible,
+        java.util.List<PayrollChangeComponentComparison> salaryComponents
 ) {
 }

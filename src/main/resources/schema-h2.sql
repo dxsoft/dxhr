@@ -8,8 +8,16 @@ CREATE TABLE IF NOT EXISTS app_user (
     password_hash VARCHAR(120) NOT NULL,
     display_name VARCHAR(80) NOT NULL,
     enabled TINYINT(1) NOT NULL DEFAULT 1,
+    ukey_id VARCHAR(64) NULL,
+    sm2_user_id VARCHAR(128) NULL,
+    sm2_pubkey_x VARCHAR(64) NULL,
+    sm2_pubkey_y VARCHAR(64) NULL,
+    enc_algo_key VARCHAR(64) NULL,
+    ukey_auth_modes VARCHAR(20) NULL,
+    ukey_required TINYINT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS uk_app_user_ukey_id ON app_user (ukey_id);
 
 CREATE TABLE IF NOT EXISTS app_role (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -49,6 +57,7 @@ CREATE TABLE IF NOT EXISTS app_menu (
     title VARCHAR(80) NOT NULL,
     path VARCHAR(120) NOT NULL,
     permission_code VARCHAR(120) NOT NULL,
+    parent_id BIGINT NULL,
     sort_order INT NOT NULL DEFAULT 0,
     enabled TINYINT(1) NOT NULL DEFAULT 1
 );
@@ -124,6 +133,7 @@ CREATE TABLE IF NOT EXISTS dryjbxx (
     jx VARCHAR(20),
     jxjtbz VARCHAR(6),
     jxjt INTEGER DEFAULT 0,
+    tc VARCHAR(8),
     UNIQUE KEY uk_dryjbxx_dwbm_grbm (dwbm, grbm)
 );
 

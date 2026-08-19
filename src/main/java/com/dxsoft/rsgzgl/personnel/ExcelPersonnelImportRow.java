@@ -9,12 +9,18 @@ public record ExcelPersonnelImportRow(
         String birthYearMonth,
         String workStartYearMonth,
         String joinYearMonth,
-        String probationAssessment,
+        String regularizationYearMonth,
+        String personnelCategory,
+        String organizationType,
+        String postCategory,
         String highestEducation,
         String school,
         String graduationDate,
-        String assessmentSummary,
         String positionLevel,
+        String currentPosition,
         String positionStartYearMonth,
-        String annualAssessmentSummary) {
+        String ethnicity,
+        String politicalStatus,
+        String archiveNumber,
+        String salaryYears) {
 }

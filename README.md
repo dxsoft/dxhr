@@ -4,6 +4,10 @@
 
 - [VFP 到 Spring Boot 迁移分析](docs/vfp-to-springboot-migration.md)
 
+## 托管式 SaaS（每客户独立实例）
+
+云上按客户开通独立 Spring Boot + MySQL，浏览器访问，开通材料见 [deploy/saas/README.md](deploy/saas/README.md)。
+
 ## Spring Boot 后端
 
 当前仓库已包含第一版 Spring Boot + MySQL 后端骨架，使用 `gzjsgl` 数据库结构中的核心表提供只读查询接口。

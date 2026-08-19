@@ -16,6 +16,7 @@ public record NormalPromotionPreview(
         String gradeSalaryLevel,
         String levelAssessmentStartYear,
         String stepAssessmentStartYear,
+        String nextStepAssessmentStartYear,
         String assessmentPeriod,
         Integer qualifiedYears,
         Integer requiredYears,
@@ -28,6 +29,12 @@ public record NormalPromotionPreview(
         Integer currentBaseSalary,
         Integer promotedBaseSalary,
         Integer increaseAmount,
-        String baseSalarySource
+        String baseSalarySource,
+        Boolean midChainApply,
+        Integer laterPeriodSuccessorCount,
+        Integer currentTotal,
+        Integer promotedTotal,
+        Integer baseSalaryIncrease,
+        Integer totalIncrease
 ) {
 }

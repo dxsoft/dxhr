@@ -39,11 +39,12 @@ class DataExchangeController {
 
     @PostMapping("/dispatch/preview")
     DataExchangeService.PersonnelExchangePackage previewDispatchPackage(@RequestBody PersonnelDispatchRequest request) {
-        return dataExchangeService.buildPersonnelPackage(request);
+        return dataExchangeService.buildPersonnelPackage(request, false);
     }
 
     @PostMapping("/dispatch/personnel")
-    ResponseEntity<byte[]> dispatchPersonnelPackage(@RequestBody PersonnelDispatchRequest request) {
+    ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody> dispatchPersonnelPackage(
+            @RequestBody PersonnelDispatchRequest request) {
         return dataExchangeService.dispatchPersonnelPackage(request);
     }
 
@@ -68,13 +69,18 @@ class DataExchangeController {
     }
 
     @PostMapping("/approval/preview")
-    PayrollSubmissionPackage previewApprovalPackage(@RequestBody PersonnelDispatchRequest request) {
-        return dataExchangeService.buildApprovalPackage(request);
+    ApprovalDispatchPreviewResponse previewApprovalPackage(@RequestBody PersonnelDispatchRequest request) {
+        return dataExchangeService.previewApprovalPackage(request);
     }
 
     @PostMapping("/approval/export")
     ResponseEntity<byte[]> exportApprovalPackage(@RequestBody PersonnelDispatchRequest request) {
         return dataExchangeService.dispatchApprovalPackage(request);
+    }
+
+    @PostMapping("/approval/revert-dispatched")
+    ApprovalRevertResponse revertDispatchedApproval(@RequestBody PersonnelDispatchRequest request) {
+        return dataExchangeService.revertDispatchedApproval(request);
     }
 
     @PostMapping("/approval/receive/preview")
@@ -127,10 +133,23 @@ class DataExchangeController {
             List<String> organizationCodes,
             boolean includeDescendants,
             String keyword,
-            List<PersonKey> selectedPersonnel) {
+            List<PersonKey> selectedPersonnel,
+            List<String> approvalStatuses) {
     }
 
     record PersonKey(String organizationCode, String personCode) {
+    }
+
+    record ApprovalStatusCount(String status, int count) {
+    }
+
+    record ApprovalDispatchPreviewResponse(
+            PayrollSubmissionPackage packageData,
+            List<ApprovalStatusCount> statusCounts,
+            String message) {
+    }
+
+    record ApprovalRevertResponse(int updatedRecords, String message) {
     }
 
     record ReceiveRequest(
@@ -192,6 +211,12 @@ class DataExchangeController {
             Boolean dryRun) {
     }
 
+    record SubmissionReviewDiff(
+            String item,
+            String localValue,
+            String submittedValue) {
+    }
+
     record SubmissionReviewPreviewRow(
             String organizationCode,
             String organizationName,
@@ -205,14 +230,19 @@ class DataExchangeController {
             int payrollRecordCount,
             boolean organizationExists,
             boolean personExists,
-            String action) {
+            String action,
+            String auditStatus,
+            String mismatchSummary,
+            List<SubmissionReviewDiff> diffs) {
     }
 
     record SubmissionReviewSummary(
             int totalRecords,
             int newRecords,
             int replaceRecords,
-            int payrollRecords) {
+            int payrollRecords,
+            int consistentRecords,
+            int inconsistentRecords) {
     }
 
     record SubmissionReviewPreviewResponse(

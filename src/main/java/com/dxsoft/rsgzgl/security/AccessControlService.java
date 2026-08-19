@@ -13,13 +13,23 @@ public class AccessControlService {
     public AppUserPrincipal currentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof AppUserPrincipal principal)) {
-            throw new AccessDeniedException("Authentication required");
+            throw new AccessDeniedException("登录已失效，请重新登录后再操作。");
         }
         return principal;
     }
 
     public boolean hasPermission(String permission) {
         return currentUser().permissions().contains(permission);
+    }
+
+    public boolean hasAnyPermission(String... permissions) {
+        Set<String> granted = currentUser().permissions();
+        for (String permission : permissions) {
+            if (granted.contains(permission)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean canAccessOrganization(String organizationCode) {

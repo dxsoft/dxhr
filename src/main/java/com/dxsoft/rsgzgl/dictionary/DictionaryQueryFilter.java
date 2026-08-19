@@ -105,6 +105,15 @@ final class DictionaryQueryFilter {
             return new DictionaryFilterSpec("051",
                     "bm LIKE '051%' AND LENGTH(TRIM(bm)) >= 7 AND bm >= '05105' AND bm < '05121'");
         }
+        // 普通专技(10)与义务教育专技(11)并列可选，便于单位逐步改用 11xx
+        if ("10".equals(safeDwsx)) {
+            return new DictionaryFilterSpec("05110",
+                    "(bm LIKE '05110%' OR bm LIKE '05111%') AND LENGTH(TRIM(bm)) >= 7");
+        }
+        if ("11".equals(safeDwsx)) {
+            return new DictionaryFilterSpec("05111",
+                    "bm LIKE '05111%' AND LENGTH(TRIM(bm)) >= 7");
+        }
         if (!safeDwsx.isEmpty()) {
             return new DictionaryFilterSpec("051" + safeDwsx,
                     "bm LIKE '051" + safeDwsx + "%' AND LENGTH(TRIM(bm)) >= 7");

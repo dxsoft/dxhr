@@ -26,8 +26,18 @@ class StatisticsController {
     @GetMapping("/payroll-change-summary")
     List<PayrollChangeSummaryStatistics> payrollChangeSummary(
             @RequestParam(required = false) String organizationCode,
-            @RequestParam(required = false) String year) {
-        return statisticsService.payrollChangeSummary(organizationCode, year);
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String month,
+            @RequestParam(required = false) List<String> changeTypes) {
+        return statisticsService.payrollChangeSummary(organizationCode, year, month, changeTypes);
+    }
+
+    @GetMapping("/payroll-change-types")
+    List<String> payrollChangeTypes(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String year,
+            @RequestParam(required = false) String month) {
+        return statisticsService.payrollChangeTypes(organizationCode, year, month);
     }
 
     @GetMapping("/retirement-due-personnel")

@@ -1,0 +1,24 @@
+[Unit]
+Description=rsgzgl HR payroll service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rsgzgl
+Group=rsgzgl
+WorkingDirectory=/opt/rsgzgl
+EnvironmentFile=/opt/rsgzgl/app.env
+ExecStart=__JAVA_BIN__ -Xms512m -Xmx1024m -jar /opt/rsgzgl/app.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/opt/rsgzgl/logs/stdout.log
+StandardError=append:/opt/rsgzgl/logs/stderr.log
+
+# 基本加固
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

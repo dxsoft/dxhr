@@ -37,6 +37,16 @@ public class DictionaryService {
                 dictionaryRepository.countEntries(prefix, keyword));
     }
 
+    public PageResponse<DictionaryEntry> entriesAll(String prefix, String keyword) {
+        List<DictionaryEntry> rows = dictionaryRepository.findEntriesAll(prefix, keyword, 5000);
+        long total = dictionaryRepository.countEntries(prefix, keyword);
+        return PageResponse.of(rows, new PageRequest(0, Math.max(rows.size(), 1)), total);
+    }
+
+    public List<DictionaryEntry> categories() {
+        return dictionaryRepository.findCategories();
+    }
+
     public List<DictionaryFieldConfig> fieldConfigs(String tableName) {
         return dictionaryRepository.findFieldConfigs(tableName);
     }

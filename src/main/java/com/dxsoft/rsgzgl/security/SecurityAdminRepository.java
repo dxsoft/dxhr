@@ -20,38 +20,32 @@ class SecurityAdminRepository {
 
     List<SecurityAdminService.UserAdminView> users() {
         return jdbcTemplate.query("""
-                SELECT id, username, display_name, enabled
+                SELECT id, username, display_name, enabled, ukey_id, sm2_user_id, sm2_pubkey_x, sm2_pubkey_y,
+                       enc_algo_key, ukey_auth_modes, ukey_required, home_organization_code, all_organizations
                 FROM app_user
                 ORDER BY username
-                """, (rs, rowNum) -> new SecurityAdminService.UserAdminView(
-                rs.getLong("id"),
-                rs.getString("username"),
-                rs.getString("display_name"),
-                rs.getBoolean("enabled"),
-                rolesForUser(rs.getLong("id"))));
+                """, (rs, rowNum) -> mapUser(rs));
     }
 
     List<SecurityAdminService.UserAdminView> users(String keyword, PageRequest pageRequest) {
         MapSqlParameterSource parameters = pagingParameters(keyword, pageRequest);
         return namedJdbcTemplate.query("""
-                SELECT id, username, display_name, enabled
+                SELECT id, username, display_name, enabled, ukey_id, sm2_user_id, sm2_pubkey_x, sm2_pubkey_y,
+                       enc_algo_key, ukey_auth_modes, ukey_required, home_organization_code, all_organizations
                 FROM app_user
-                WHERE (:keyword IS NULL OR username LIKE :keywordLike OR display_name LIKE :keywordLike)
+                WHERE (:keyword IS NULL OR username LIKE :keywordLike OR display_name LIKE :keywordLike
+                   OR ukey_id LIKE :keywordLike OR sm2_user_id LIKE :keywordLike)
                 ORDER BY username
                 LIMIT :limit OFFSET :offset
-                """, parameters, (rs, rowNum) -> new SecurityAdminService.UserAdminView(
-                rs.getLong("id"),
-                rs.getString("username"),
-                rs.getString("display_name"),
-                rs.getBoolean("enabled"),
-                rolesForUser(rs.getLong("id"))));
+                """, parameters, (rs, rowNum) -> mapUser(rs));
     }
 
     long countUsers(String keyword) {
         Long count = namedJdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM app_user
-                WHERE (:keyword IS NULL OR username LIKE :keywordLike OR display_name LIKE :keywordLike)
+                WHERE (:keyword IS NULL OR username LIKE :keywordLike OR display_name LIKE :keywordLike
+                   OR ukey_id LIKE :keywordLike OR sm2_user_id LIKE :keywordLike)
                 """, keywordParameters(keyword), Long.class);
         return count == null ? 0 : count;
     }
@@ -110,7 +104,7 @@ class SecurityAdminRepository {
     List<SecurityAdminService.MenuAdminView> menus(String keyword, PageRequest pageRequest) {
         MapSqlParameterSource parameters = pagingParameters(keyword, pageRequest);
         return namedJdbcTemplate.query("""
-                SELECT id, code, title, path, permission_code, sort_order, enabled
+                SELECT id, code, title, path, permission_code, parent_id, sort_order, enabled
                 FROM app_menu
                 WHERE (:keyword IS NULL
                    OR code LIKE :keywordLike
@@ -119,14 +113,20 @@ class SecurityAdminRepository {
                    OR permission_code LIKE :keywordLike)
                 ORDER BY sort_order, id
                 LIMIT :limit OFFSET :offset
-                """, parameters, (rs, rowNum) -> new SecurityAdminService.MenuAdminView(
-                rs.getLong("id"),
-                rs.getString("code"),
-                rs.getString("title"),
-                rs.getString("path"),
-                rs.getString("permission_code"),
-                rs.getInt("sort_order"),
-                rs.getBoolean("enabled")));
+                """, parameters, (rs, rowNum) -> mapMenu(rs));
+    }
+
+    List<SecurityAdminService.MenuAdminView> menusAll(String keyword) {
+        return namedJdbcTemplate.query("""
+                SELECT id, code, title, path, permission_code, parent_id, sort_order, enabled
+                FROM app_menu
+                WHERE (:keyword IS NULL
+                   OR code LIKE :keywordLike
+                   OR title LIKE :keywordLike
+                   OR path LIKE :keywordLike
+                   OR permission_code LIKE :keywordLike)
+                ORDER BY sort_order, id
+                """, keywordParameters(keyword), (rs, rowNum) -> mapMenu(rs));
     }
 
     long countMenus(String keyword) {
@@ -154,8 +154,124 @@ class SecurityAdminRepository {
         jdbcTemplate.update("UPDATE app_user SET enabled = ? WHERE id = ?", enabled ? 1 : 0, userId);
     }
 
+    void updateUsersEnabled(List<Long> userIds, boolean enabled) {
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("enabled", enabled ? 1 : 0)
+                .addValue("ids", userIds);
+        namedJdbcTemplate.update("UPDATE app_user SET enabled = :enabled WHERE id IN (:ids)", parameters);
+    }
+
     void updateUserPassword(Long userId, String passwordHash) {
         jdbcTemplate.update("UPDATE app_user SET password_hash = ? WHERE id = ?", passwordHash, userId);
+    }
+
+    void updateUserUkey(
+            Long userId,
+            String ukeyId,
+            String sm2UserId,
+            String sm2PubkeyX,
+            String sm2PubkeyY,
+            String encAlgoKey,
+            String ukeyAuthModes,
+            Integer ukeyRequired) {
+        jdbcTemplate.update("""
+                UPDATE app_user
+                SET ukey_id = ?, sm2_user_id = ?, sm2_pubkey_x = ?, sm2_pubkey_y = ?,
+                    enc_algo_key = ?, ukey_auth_modes = ?, ukey_required = ?
+                WHERE id = ?
+                """, ukeyId, sm2UserId, sm2PubkeyX, sm2PubkeyY, encAlgoKey, ukeyAuthModes, ukeyRequired, userId);
+    }
+
+    /** Binding import: preserve existing ukey_required. */
+    void updateUserUkeyBinding(
+            Long userId,
+            String ukeyId,
+            String sm2UserId,
+            String sm2PubkeyX,
+            String sm2PubkeyY,
+            String encAlgoKey,
+            String ukeyAuthModes) {
+        jdbcTemplate.update("""
+                UPDATE app_user
+                SET ukey_id = ?, sm2_user_id = ?, sm2_pubkey_x = ?, sm2_pubkey_y = ?,
+                    enc_algo_key = ?, ukey_auth_modes = ?
+                WHERE id = ?
+                """, ukeyId, sm2UserId, sm2PubkeyX, sm2PubkeyY, encAlgoKey, ukeyAuthModes, userId);
+    }
+
+    Long findUserIdByUkeyId(String ukeyId) {
+        List<Long> ids = jdbcTemplate.queryForList(
+                "SELECT id FROM app_user WHERE ukey_id = ?",
+                Long.class,
+                ukeyId);
+        return ids.isEmpty() ? null : ids.getFirst();
+    }
+
+    Long findUserIdByUsername(String username) {
+        List<Long> ids = jdbcTemplate.queryForList(
+                "SELECT id FROM app_user WHERE username = ?",
+                Long.class,
+                username);
+        return ids.isEmpty() ? null : ids.getFirst();
+    }
+
+    void updateUserDataScope(Long userId, boolean allOrganizations, String organizationCode) {
+        jdbcTemplate.update(
+                """
+                UPDATE app_user
+                SET all_organizations = ?, home_organization_code = ?
+                WHERE id = ?
+                """,
+                allOrganizations ? 1 : 0,
+                organizationCode,
+                userId);
+    }
+
+    boolean userHasAnyRole(Long userId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM app_user_role WHERE user_id = ?",
+                Integer.class,
+                userId);
+        return count != null && count > 0;
+    }
+
+    boolean userAllOrganizations(Long userId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT all_organizations FROM app_user WHERE id = ?",
+                Integer.class,
+                userId);
+        return count != null && count == 1;
+    }
+
+    String homeOrganizationCodeForUser(Long userId) {
+        List<String> rows = jdbcTemplate.queryForList(
+                "SELECT home_organization_code FROM app_user WHERE id = ?",
+                String.class,
+                userId);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    private SecurityAdminService.UserAdminView mapUser(java.sql.ResultSet rs) throws java.sql.SQLException {
+        long id = rs.getLong("id");
+        Integer ukeyRequired = (Integer) rs.getObject("ukey_required");
+        return new SecurityAdminService.UserAdminView(
+                id,
+                rs.getString("username"),
+                rs.getString("display_name"),
+                rs.getBoolean("enabled"),
+                rolesForUser(id),
+                rs.getBoolean("all_organizations"),
+                rs.getString("home_organization_code"),
+                rs.getString("ukey_id"),
+                rs.getString("sm2_user_id"),
+                rs.getString("sm2_pubkey_x"),
+                rs.getString("sm2_pubkey_y"),
+                rs.getString("enc_algo_key"),
+                rs.getString("ukey_auth_modes"),
+                ukeyRequired);
     }
 
     void replaceUserRoles(Long userId, List<String> roleCodes) {
@@ -174,20 +290,60 @@ class SecurityAdminRepository {
         return jdbcTemplate.queryForObject("SELECT id FROM app_role WHERE code = ?", Long.class, code);
     }
 
-    Long createMenu(String code, String title, String path, String permissionCode, Integer sortOrder, boolean enabled) {
+    Long createMenu(
+            String code,
+            String title,
+            String path,
+            String permissionCode,
+            Long parentId,
+            Integer sortOrder,
+            boolean enabled) {
         jdbcTemplate.update("""
-                INSERT INTO app_menu (code, title, path, permission_code, sort_order, enabled)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """, code, title, path, permissionCode, sortOrder == null ? 0 : sortOrder, enabled ? 1 : 0);
+                INSERT INTO app_menu (code, title, path, permission_code, parent_id, sort_order, enabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, code, title, path, permissionCode, parentId, sortOrder == null ? 0 : sortOrder, enabled ? 1 : 0);
         return jdbcTemplate.queryForObject("SELECT id FROM app_menu WHERE code = ?", Long.class, code);
     }
 
-    void updateMenu(Long menuId, String title, String path, String permissionCode, Integer sortOrder, boolean enabled) {
+    void updateMenu(
+            Long menuId,
+            String title,
+            String path,
+            String permissionCode,
+            Long parentId,
+            Integer sortOrder,
+            boolean enabled) {
         jdbcTemplate.update("""
                 UPDATE app_menu
-                SET title = ?, path = ?, permission_code = ?, sort_order = ?, enabled = ?
+                SET title = ?, path = ?, permission_code = ?, parent_id = ?, sort_order = ?, enabled = ?
                 WHERE id = ?
-                """, title, path, permissionCode, sortOrder == null ? 0 : sortOrder, enabled ? 1 : 0, menuId);
+                """, title, path, permissionCode, parentId, sortOrder == null ? 0 : sortOrder, enabled ? 1 : 0, menuId);
+    }
+
+    void reorderMenus(List<SecurityAdminService.MenuOrderItem> items) {
+        for (SecurityAdminService.MenuOrderItem item : items) {
+            if (item == null || item.id() == null) {
+                continue;
+            }
+            jdbcTemplate.update(
+                    "UPDATE app_menu SET parent_id = ?, sort_order = ? WHERE id = ?",
+                    item.parentId(),
+                    item.sortOrder() == null ? 0 : item.sortOrder(),
+                    item.id());
+        }
+    }
+
+    private SecurityAdminService.MenuAdminView mapMenu(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Object parentId = rs.getObject("parent_id");
+        return new SecurityAdminService.MenuAdminView(
+                rs.getLong("id"),
+                rs.getString("code"),
+                rs.getString("title"),
+                rs.getString("path"),
+                rs.getString("permission_code"),
+                parentId == null ? null : ((Number) parentId).longValue(),
+                rs.getInt("sort_order"),
+                rs.getBoolean("enabled"));
     }
 
     void replaceRolePermissions(Long roleId, List<String> permissionCodes) {

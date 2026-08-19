@@ -3,3 +3,9 @@ target/
 *.log
 .idea/
 *.iml
+electron/node_modules/
+electron/dist/
+electron/dist-*/
+electron/runtime/
+electron/runtime-linux/
+electron/.cache/

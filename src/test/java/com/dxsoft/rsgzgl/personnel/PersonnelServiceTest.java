@@ -13,15 +13,27 @@ class PersonnelServiceTest {
     }
 
     @Test
+    void defaultsTeacherAssessmentToQualified() {
+        assertThat(PersonnelService.defaultAssessmentResult(record("专业技术人员", "事业单位")))
+                .isEqualTo("合格");
+    }
+
+    @Test
     void defaultsNonInstitutionAssessmentToCompetent() {
         assertThat(PersonnelService.defaultAssessmentResult(record("公务员", "机关")))
                 .isEqualTo("称职");
     }
 
     @Test
-    void treatsMissingCategoryAsNonInstitution() {
+    void defaultsWorkerAtAgencyAssessmentToQualified() {
+        assertThat(PersonnelService.defaultAssessmentResult(record("机关工人", "机关")))
+                .isEqualTo("合格");
+    }
+
+    @Test
+    void treatsMissingCategoryAsQualified() {
         assertThat(PersonnelService.defaultAssessmentResult(record(null, null)))
-                .isEqualTo("称职");
+                .isEqualTo("合格");
     }
 
     @Test
@@ -62,6 +74,8 @@ class PersonnelServiceTest {
                 "",
                 "",
                 0,
+                "",
+                "",
                 "",
                 "",
                 "",

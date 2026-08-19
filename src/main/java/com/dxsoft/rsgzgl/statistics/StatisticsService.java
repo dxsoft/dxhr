@@ -26,9 +26,19 @@ public class StatisticsService {
         return statisticsRepository.personnelSummary(scope, emptyToNull(organizationCode));
     }
 
-    public List<PayrollChangeSummaryStatistics> payrollChangeSummary(String organizationCode, String year) {
+    public List<PayrollChangeSummaryStatistics> payrollChangeSummary(
+            String organizationCode,
+            String year,
+            String month,
+            List<String> changeTypes) {
         var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
-        return statisticsRepository.payrollChangeSummary(scope, emptyToNull(organizationCode), year);
+        return statisticsRepository.payrollChangeSummary(
+                scope, emptyToNull(organizationCode), year, month, changeTypes);
+    }
+
+    public List<String> payrollChangeTypes(String organizationCode, String year, String month) {
+        var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
+        return statisticsRepository.payrollChangeTypes(scope, emptyToNull(organizationCode), year, month);
     }
 
     public PageResponse<RetirementDuePersonnel> retirementDuePersonnel(
@@ -38,17 +48,29 @@ public class StatisticsService {
             PageRequest pageRequest) {
         var scope = accessControlService.organizationScope(Optional.ofNullable(emptyToNull(organizationCode)));
         String reference = resolveReferencePeriod(referencePeriod);
+        String maleBirthUpper = RetirementMonthCalculator.maleBirthUpperBound(reference);
+        String femaleBirthUpper = RetirementMonthCalculator.femaleBirthUpperBound(reference);
         List<RetirementDuePersonnel> rows = new ArrayList<>();
         for (RetirementDueCandidate candidate : statisticsRepository.findRetirementDueCandidates(
-                scope, emptyToNull(organizationCode), keyword)) {
+                scope, emptyToNull(organizationCode), keyword, maleBirthUpper, femaleBirthUpper)) {
             RetirementDuePersonnel row = toRetirementDuePersonnel(candidate, reference);
             if (row != null) {
                 rows.add(row);
             }
         }
-        rows.sort((left, right) -> RetirementMonthCalculator.compareYearMonth(
-                left.calculatedRetirementMonth(),
-                right.calculatedRetirementMonth()));
+        rows.sort((left, right) -> {
+            int byOrganization = nullToEmpty(left.organizationCode()).compareTo(nullToEmpty(right.organizationCode()));
+            if (byOrganization != 0) {
+                return byOrganization;
+            }
+            int byPerson = nullToEmpty(left.personCode()).compareTo(nullToEmpty(right.personCode()));
+            if (byPerson != 0) {
+                return byPerson;
+            }
+            return RetirementMonthCalculator.compareYearMonth(
+                    left.calculatedRetirementMonth(),
+                    right.calculatedRetirementMonth());
+        });
         int fromIndex = pageRequest.offset();
         if (fromIndex >= rows.size()) {
             return PageResponse.of(List.of(), pageRequest, rows.size());
@@ -96,5 +118,9 @@ public class StatisticsService {
 
     private String emptyToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 }

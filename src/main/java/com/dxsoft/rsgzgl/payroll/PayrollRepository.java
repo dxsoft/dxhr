@@ -5,22 +5,42 @@ import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.SqlText;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
-class PayrollRepository {
+public class PayrollRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(PayrollRepository.class);
+
+    private static final RowMapper<PositionChangePromotionCandidateRow> POSITION_CHANGE_CANDIDATE_ROW_MAPPER = (rs, rowNum) ->
+            new PositionChangePromotionCandidateRow(
+                    rs.getInt("uid"),
+                    rs.getInt("px"),
+                    SqlText.trim(rs.getString("before_position_code")),
+                    SqlText.trim(rs.getString("before_position_name")),
+                    SqlText.trim(rs.getString("after_position_code")),
+                    SqlText.trim(rs.getString("after_position_name")),
+                    SqlText.trim(rs.getString("before_rank_code")),
+                    SqlText.trim(rs.getString("after_rank_code")),
+                    SqlText.trim(rs.getString("payroll_change_type")),
+                    SqlText.trim(rs.getString("appointment_year_month")));
 
     private static final RowMapper<PayrollFieldMetadata> FIELD_MAPPER = (rs, rowNum) -> new PayrollFieldMetadata(
             rs.getInt("id"),
@@ -63,6 +83,21 @@ class PayrollRepository {
             rs.getInt("workupper"),
             rs.getInt("bz"),
             rs.getInt("jxlb"));
+
+    private static final RowMapper<AllowanceStandardPositionRow> ALLOWANCE_STANDARD_POSITION_MAPPER = (rs, rowNum) ->
+            new AllowanceStandardPositionRow(
+                    SqlText.trim(rs.getString("zwbm")),
+                    SqlText.trim(rs.getString("mc")),
+                    rs.getObject("jxlb") == null ? null : rs.getInt("jxlb"),
+                    rs.getObject("dfbt2_id") == null ? null : rs.getInt("dfbt2_id"),
+                    rs.getObject("dfbt2") == null ? null : rs.getInt("dfbt2"),
+                    rs.getObject("sdbt_id") == null ? null : rs.getInt("sdbt_id"),
+                    rs.getObject("sdbt") == null ? null : rs.getInt("sdbt"));
+
+    private static final RowMapper<AllowanceStandardPositionCategory> ALLOWANCE_STANDARD_POSITION_CATEGORY_MAPPER =
+            (rs, rowNum) -> new AllowanceStandardPositionCategory(
+                    SqlText.trim(rs.getString("zwbm")),
+                    SqlText.trim(rs.getString("mc")));
 
     private static final RowMapper<RankAllowanceStandard> RANK_ALLOWANCE_STANDARD_MAPPER = (rs, rowNum) -> new RankAllowanceStandard(
             rs.getInt("id"),
@@ -115,6 +150,24 @@ class PayrollRepository {
             SqlText.trim(rs.getString("sysj")),
             SqlText.trim(rs.getString("lb")));
 
+    private static final RowMapper<RankAllowanceChangePromotionContext> RANK_ALLOWANCE_CHANGE_PROMOTION_CONTEXT_MAPPER = (rs, rowNum) -> new RankAllowanceChangePromotionContext(
+            SqlText.trim(rs.getString("id")),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("dwmc")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("xm")),
+            SqlText.trim(rs.getString("jsnf")),
+            SqlText.trim(rs.getString("jsyf")),
+            SqlText.trim(rs.getString("jslb")),
+            SqlText.trim(rs.getString("zwbm2")),
+            SqlText.trim(rs.getString("zwgw2")),
+            SqlText.trim(rs.getString("jx")),
+            rs.getInt("jxjt"),
+            SqlText.trim(rs.getString("jxjtbz")),
+            SqlText.trim(rs.getString("jcjtbz")),
+            SqlText.trim(rs.getString("spjtbz")),
+            SqlText.trim(rs.getString("srny")));
+
     private static final RowMapper<OtherAllowanceStandard> OTHER_ALLOWANCE_STANDARD_MAPPER = (rs, rowNum) -> new OtherAllowanceStandard(
             SqlText.trim(rs.getString("standard_type")),
             SqlText.trim(rs.getString("tbnd")),
@@ -123,6 +176,19 @@ class PayrollRepository {
             rs.getBigDecimal("amount"),
             rs.getBigDecimal("average_amount"),
             rs.getBigDecimal("multiplier"));
+
+    private static final RowMapper<ProjectionAuditPersonnelRow> PROJECTION_AUDIT_PERSONNEL_ROW_MAPPER = (rs, rowNum) -> {
+        String year = SqlText.trim(rs.getString("jsnf"));
+        String month = SqlText.trim(rs.getString("jsyf"));
+        String latestPeriod = year == null || month == null ? "" : year + month;
+        return new ProjectionAuditPersonnelRow(
+                rs.getInt("uid"),
+                SqlText.trim(rs.getString("dwbm")),
+                SqlText.trim(rs.getString("grbm")),
+                SqlText.trim(rs.getString("xm")),
+                latestPeriod,
+                rs.getObject("hj2") == null ? null : rs.getInt("hj2"));
+    };
 
     private static final RowMapper<PayrollHistorySnapshot> HISTORY_MAPPER = (rs, rowNum) -> new PayrollHistorySnapshot(
             SqlText.trim(rs.getString("id")),
@@ -197,10 +263,16 @@ class PayrollRepository {
             SqlText.trim(rs.getString("xckhndzw")),
             SqlText.trim(rs.getString("tbnd")),
             SqlText.trim(rs.getString("jbtbz")),
+            SqlText.trim(rs.getString("tgbl")),
+            SqlText.trim(rs.getString("jx")),
+            SqlText.trim(rs.getString("jxjtbz")),
+            SqlText.trim(rs.getString("fddc")),
             rs.getInt("zwgzse2"),
             rs.getInt("jbgzse2"),
             rs.getInt("jsdjgz2"),
+            rs.getInt("jxgz"),
             rs.getInt("dfbt2"),
+            rs.getInt("sdbt"),
             rs.getInt("blfb2"),
             rs.getInt("jxjt"),
             rs.getInt("fdgz2"),
@@ -209,6 +281,12 @@ class PayrollRepository {
             rs.getInt("jsfszwtg2"),
             rs.getBigDecimal("njbt"),
             rs.getInt("pgbc"),
+            rs.getInt("zwjt"),
+            rs.getInt("jzmcbt"),
+            rs.getInt("tgblbf"),
+            rs.getInt("nzgwsf"),
+            rs.getInt("gwjt2"),
+            rs.getInt("qtbt"),
             rs.getInt("hj2"));
 
     private static final RowMapper<TeachingAllowanceAdjustment> TEACHING_ALLOWANCE_ADJUSTMENT_MAPPER = (rs, rowNum) -> new TeachingAllowanceAdjustment(
@@ -287,7 +365,10 @@ class PayrollRepository {
             SqlText.trim(rs.getString("jsnf")),
             SqlText.trim(rs.getString("jsyf")));
 
-    private static final RowMapper<NewPersonnelSalaryCandidate> NEW_PERSONNEL_SALARY_MAPPER = (rs, rowNum) -> new NewPersonnelSalaryCandidate(
+    private static final RowMapper<NewPersonnelSalaryCandidate> NEW_PERSONNEL_SALARY_MAPPER = (rs, rowNum) -> mapNewPersonnelSalaryCandidate(rs);
+
+    private static NewPersonnelSalaryCandidate mapNewPersonnelSalaryCandidate(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new NewPersonnelSalaryCandidate(
             rs.getInt("uid"),
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("dwmc")),
@@ -303,8 +384,17 @@ class PayrollRepository {
             SqlText.trim(rs.getString("xlbm")),
             SqlText.trim(rs.getString("zgxl")),
             rs.getInt("gznx"),
+            SqlText.trim(rs.getString("tc")),
             SqlText.trim(rs.getString("payroll_history_id")),
-            SqlText.trim(rs.getString("current_change_type")));
+            SqlText.trim(rs.getString("current_change_type")),
+            rs.getObject("stored_total") == null ? null : rs.getInt("stored_total"),
+            SqlText.trim(rs.getString("tip_grade_level")),
+            SqlText.trim(rs.getString("tip_grade_step")),
+            SqlText.trim(rs.getString("tip_level_start")),
+            SqlText.trim(rs.getString("tip_step_start")),
+            SqlText.trim(rs.getString("tip_calculation_year")),
+            SqlText.trim(rs.getString("tip_calculation_month")));
+    }
 
     private static final RowMapper<OtherPayrollChangePreview> OTHER_PAYROLL_CHANGE_MAPPER = (rs, rowNum) -> new OtherPayrollChangePreview(
             SqlText.trim(rs.getString("id")),
@@ -366,6 +456,10 @@ class PayrollRepository {
             SqlText.trim(rs.getString("zwgw2")),
             rs.getInt("zwgzse2"),
             rs.getInt("jbgzse2"),
+            null,
+            null,
+            null,
+            null,
             rs.getInt("hj2"),
             null,
             null,
@@ -376,6 +470,13 @@ class PayrollRepository {
             null,
             null,
             null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            java.util.List.of(),
             null,
             null);
 
@@ -498,6 +599,81 @@ class PayrollRepository {
         return count == null ? 0 : count;
     }
 
+    List<String> findAllowanceStandardPeriods() {
+        return jdbcTemplate.queryForList("""
+                SELECT DISTINCT TRIM(tbnd) AS tbnd
+                FROM bz06_jbt
+                WHERE TRIM(COALESCE(tbnd, '')) <> ''
+                ORDER BY tbnd DESC
+                """, new MapSqlParameterSource(), String.class).stream()
+                .map(SqlText::trim)
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    List<Integer> findAllowanceStandardCategories(String standardYearMonth) {
+        if (emptyToNull(standardYearMonth) == null) {
+            return List.of();
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT DISTINCT jxlb
+                FROM bz06_jbt
+                WHERE tbnd = :standardYearMonth
+                ORDER BY jxlb
+                """, new MapSqlParameterSource("standardYearMonth", standardYearMonth), Integer.class);
+    }
+
+    List<AllowanceStandardPositionCategory> findAllowanceStandardPositionCategories(
+            String standardYearMonth,
+            Integer performanceCategory) {
+        if (emptyToNull(standardYearMonth) == null) {
+            return List.of();
+        }
+        return jdbcTemplate.query("""
+                SELECT TRIM(zwbm) AS zwbm, MAX(mc) AS mc
+                FROM bz06_jbt
+                WHERE tbnd = :standardYearMonth
+                  AND UPPER(TRIM(item)) IN ('DFBT2', 'SDBT')
+                  AND CHAR_LENGTH(TRIM(zwbm)) = 2
+                  AND (:performanceCategory IS NULL OR jxlb = :performanceCategory)
+                GROUP BY TRIM(zwbm)
+                ORDER BY zwbm
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth)
+                .addValue("performanceCategory", performanceCategory), ALLOWANCE_STANDARD_POSITION_CATEGORY_MAPPER);
+    }
+
+    List<AllowanceStandardPositionRow> findAllowanceStandardsByPosition(
+            String standardYearMonth,
+            Integer performanceCategory,
+            String positionPrefix) {
+        if (emptyToNull(standardYearMonth) == null) {
+            return List.of();
+        }
+        String prefix = emptyToNull(positionPrefix);
+        return jdbcTemplate.query("""
+                SELECT zwbm,
+                       MAX(mc) AS mc,
+                       jxlb,
+                       MAX(CASE WHEN UPPER(TRIM(item)) = 'DFBT2' THEN id END) AS dfbt2_id,
+                       MAX(CASE WHEN UPPER(TRIM(item)) = 'DFBT2' THEN bz END) AS dfbt2,
+                       MAX(CASE WHEN UPPER(TRIM(item)) = 'SDBT' THEN id END) AS sdbt_id,
+                       MAX(CASE WHEN UPPER(TRIM(item)) = 'SDBT' THEN bz END) AS sdbt
+                FROM bz06_jbt
+                WHERE tbnd = :standardYearMonth
+                  AND UPPER(TRIM(item)) IN ('DFBT2', 'SDBT')
+                  AND CHAR_LENGTH(TRIM(zwbm)) = 4
+                  AND (:performanceCategory IS NULL OR jxlb = :performanceCategory)
+                  AND (:positionPrefix IS NULL OR TRIM(zwbm) LIKE CONCAT(:positionPrefix, '%'))
+                GROUP BY zwbm, jxlb
+                ORDER BY jxlb, zwbm
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth)
+                .addValue("performanceCategory", performanceCategory)
+                .addValue("positionPrefix", prefix), ALLOWANCE_STANDARD_POSITION_MAPPER);
+    }
+
     List<AllowanceStandard> findAllowanceStandards(String standardYearMonth, String item, String positionCode, PageRequest pageRequest) {
         MapSqlParameterSource parameters = standardParameters(standardYearMonth, positionCode)
                 .addValue("item", emptyToNull(item))
@@ -567,32 +743,69 @@ class PayrollRepository {
         return count == null ? 0 : count;
     }
 
-    List<RetainedAllowanceStandard> findRetainedAllowanceStandards(String keyword, PageRequest pageRequest) {
+    List<String> findRankAllowanceStandardPeriods(String category) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("keyword", emptyToNull(keyword))
-                .addValue("keywordLike", emptyToNull(keyword) == null ? null : "%" + keyword.trim() + "%")
+                .addValue("category", emptyToNull(category));
+        return jdbcTemplate.queryForList("""
+                SELECT DISTINCT TRIM(tbnd) AS tbnd
+                FROM jxjtbz
+                WHERE TRIM(COALESCE(tbnd, '')) <> ''
+                  AND (:category IS NULL OR lb = :category)
+                ORDER BY tbnd DESC
+                """, parameters, String.class).stream()
+                .map(SqlText::trim)
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    List<RetainedAllowanceStandard> findRetainedAllowanceStandards(
+            String keyword,
+            String positionPrefix,
+            PageRequest pageRequest) {
+        String trimmedKeyword = emptyToNull(keyword);
+        String prefix = emptyToNull(positionPrefix);
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword.trim() + "%")
+                .addValue("positionPrefix", prefix)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
                 SELECT zwbm, mc, bz
                 FROM bz06_blfb
                 WHERE (:keyword IS NULL OR zwbm = :keyword OR mc LIKE :keywordLike)
+                  AND (:positionPrefix IS NULL OR LEFT(TRIM(zwbm), 2) = :positionPrefix)
                 ORDER BY zwbm
                 LIMIT :limit OFFSET :offset
                 """, parameters, RETAINED_ALLOWANCE_STANDARD_MAPPER);
     }
 
-    long countRetainedAllowanceStandards(String keyword) {
+    long countRetainedAllowanceStandards(String keyword, String positionPrefix) {
         String trimmedKeyword = emptyToNull(keyword);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("keyword", trimmedKeyword)
-                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%");
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%")
+                .addValue("positionPrefix", emptyToNull(positionPrefix));
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM bz06_blfb
                 WHERE (:keyword IS NULL OR zwbm = :keyword OR mc LIKE :keywordLike)
+                  AND (:positionPrefix IS NULL OR LEFT(TRIM(zwbm), 2) = :positionPrefix)
                 """, parameters, Long.class);
         return count == null ? 0 : count;
+    }
+
+    List<AllowanceStandardPositionCategory> findRetainedAllowanceStandardPositionCategories() {
+        return applyBasicStandardCategoryNameOverrides(jdbcTemplate.query("""
+                SELECT LEFT(TRIM(s.zwbm), 2) AS zwbm,
+                       MAX(COALESCE(NULLIF(TRIM(d.mc), ''), LEFT(TRIM(s.zwbm), 2))) AS mc
+                FROM bz06_blfb s
+                LEFT JOIN dmb d ON TRIM(d.bm) = CONCAT('051', LEFT(TRIM(s.zwbm), 2))
+                WHERE CHAR_LENGTH(TRIM(s.zwbm)) >= 2
+                GROUP BY LEFT(TRIM(s.zwbm), 2)
+                ORDER BY zwbm
+                """, Map.of(), ALLOWANCE_STANDARD_POSITION_CATEGORY_MAPPER));
     }
 
     List<YearAllowanceStandard> findYearAllowanceStandards(String standardYearMonth, PageRequest pageRequest) {
@@ -668,13 +881,106 @@ class PayrollRepository {
                 """, parameters, WAGE_REFORM_STANDARD_MAPPER);
     }
 
+    List<WageReformStandard> findWageReformStandardsByPrefix(String positionPrefix, int limit) {
+        return findWageReformStandardsFiltered(null, positionPrefix, limit);
+    }
+
+    List<WageReformStandard> findWageReformStandardsFiltered(String positionCode, String positionPrefix, int limit) {
+        String code = emptyToNull(positionCode);
+        String prefix = emptyToNull(positionPrefix);
+        int safeLimit = limit <= 0 ? 2000 : Math.min(limit, 5000);
+        List<WageReformStandard> rows = jdbcTemplate.query("""
+                SELECT zwbm, rzns, rznz, tgns, tgnz, jb, dc
+                FROM bz06_tgb
+                WHERE (:positionCode IS NULL OR zwbm = :positionCode)
+                  AND (:positionPrefix IS NULL OR LEFT(TRIM(zwbm), 2) = :positionPrefix)
+                ORDER BY zwbm, rzns, rznz, tgns, tgnz
+                LIMIT :limit
+                """, new MapSqlParameterSource()
+                .addValue("positionCode", code)
+                .addValue("positionPrefix", prefix)
+                .addValue("limit", safeLimit), WAGE_REFORM_STANDARD_MAPPER);
+        return enrichWageReformStandardNames(rows);
+    }
+
     long countWageReformStandards(String positionCode) {
+        return countWageReformStandardsFiltered(positionCode, null);
+    }
+
+    long countWageReformStandardsByPrefix(String positionPrefix) {
+        return countWageReformStandardsFiltered(null, positionPrefix);
+    }
+
+    long countWageReformStandardsFiltered(String positionCode, String positionPrefix) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM bz06_tgb
                 WHERE (:positionCode IS NULL OR zwbm = :positionCode)
-                """, new MapSqlParameterSource("positionCode", emptyToNull(positionCode)), Long.class);
+                  AND (:positionPrefix IS NULL OR LEFT(TRIM(zwbm), 2) = :positionPrefix)
+                """, new MapSqlParameterSource()
+                .addValue("positionCode", emptyToNull(positionCode))
+                .addValue("positionPrefix", emptyToNull(positionPrefix)), Long.class);
         return count == null ? 0 : count;
+    }
+
+    List<AllowanceStandardPositionCategory> findWageReformStandardPositionCategories() {
+        return applyBasicStandardCategoryNameOverrides(jdbcTemplate.query("""
+                SELECT LEFT(TRIM(s.zwbm), 2) AS zwbm,
+                       MAX(COALESCE(NULLIF(TRIM(d.mc), ''), LEFT(TRIM(s.zwbm), 2))) AS mc
+                FROM bz06_tgb s
+                LEFT JOIN dmb d ON TRIM(d.bm) = CONCAT('051', LEFT(TRIM(s.zwbm), 2))
+                WHERE CHAR_LENGTH(TRIM(s.zwbm)) >= 2
+                GROUP BY LEFT(TRIM(s.zwbm), 2)
+                ORDER BY zwbm
+                """, Map.of(), ALLOWANCE_STANDARD_POSITION_CATEGORY_MAPPER));
+    }
+
+    List<AllowanceStandardPositionCategory> findWageReformStandardPositions(String positionPrefix) {
+        String prefix = emptyToNull(positionPrefix);
+        List<AllowanceStandardPositionCategory> rows = jdbcTemplate.query("""
+                SELECT TRIM(s.zwbm) AS zwbm,
+                       MAX(COALESCE(NULLIF(TRIM(d.mc), ''), TRIM(s.zwbm))) AS mc
+                FROM bz06_tgb s
+                LEFT JOIN dmb d ON TRIM(d.bm) = CONCAT('051', TRIM(s.zwbm))
+                WHERE CHAR_LENGTH(TRIM(s.zwbm)) >= 2
+                  AND (:positionPrefix IS NULL OR LEFT(TRIM(s.zwbm), 2) = :positionPrefix)
+                GROUP BY TRIM(s.zwbm)
+                ORDER BY zwbm
+                """, new MapSqlParameterSource("positionPrefix", prefix), ALLOWANCE_STANDARD_POSITION_CATEGORY_MAPPER);
+        if (rows.isEmpty()) {
+            return rows;
+        }
+        List<String> codes = rows.stream().map(AllowanceStandardPositionCategory::positionCode).toList();
+        Map<String, String> names = lookupPositionDictionaryNames(codes);
+        return rows.stream()
+                .map(item -> {
+                    String code = item.positionCode() == null ? "" : item.positionCode().trim();
+                    String name = names.getOrDefault(code, item.name() == null ? "" : item.name().trim());
+                    if (name.isBlank() || name.equals(code)) {
+                        name = item.name() == null ? code : item.name().trim();
+                    }
+                    return new AllowanceStandardPositionCategory(code, name);
+                })
+                .toList();
+    }
+
+    private List<WageReformStandard> enrichWageReformStandardNames(List<WageReformStandard> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return rows == null ? List.of() : rows;
+        }
+        List<String> codes = rows.stream()
+                .map(WageReformStandard::positionCode)
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        Map<String, String> names = lookupPositionDictionaryNames(codes);
+        return rows.stream()
+                .map(row -> {
+                    String code = row.positionCode() == null ? "" : row.positionCode().trim();
+                    return row.withPositionName(names.getOrDefault(code, ""));
+                })
+                .toList();
     }
 
     Optional<WageReformStandard> findWageReformStandard(String positionCode, int appointmentYears, int reformYears) {
@@ -748,11 +1054,20 @@ class PayrollRepository {
             String standardYearMonth,
             String code,
             PageRequest pageRequest) {
+        return findOtherAllowanceStandards(standardType, standardYearMonth, code, null, pageRequest);
+    }
+
+    List<OtherAllowanceStandard> findOtherAllowanceStandards(
+            String standardType,
+            String standardYearMonth,
+            String code,
+            String positionPrefix,
+            PageRequest pageRequest) {
         OtherAllowanceStandardQuery query = otherAllowanceStandardQuery(standardType);
-        MapSqlParameterSource parameters = otherAllowanceParameters(standardYearMonth, code)
+        MapSqlParameterSource parameters = otherAllowanceParameters(standardYearMonth, code, positionPrefix)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
-        return jdbcTemplate.query("""
+        List<OtherAllowanceStandard> rows = jdbcTemplate.query("""
                 SELECT '%s' AS standard_type, %s
                 FROM %s
                 WHERE %s
@@ -761,48 +1076,361 @@ class PayrollRepository {
                 """.formatted(query.standardType(), query.columns(), query.tableName(), query.whereClause(), query.orderBy()),
                 parameters,
                 OTHER_ALLOWANCE_STANDARD_MAPPER);
+        return enrichOtherAllowanceStandardNames(query.standardType(), rows);
+    }
+
+    List<OtherAllowanceStandard> findOtherAllowanceStandardsAll(
+            String standardType,
+            String standardYearMonth,
+            int limit) {
+        return findOtherAllowanceStandardsAll(standardType, standardYearMonth, null, limit);
+    }
+
+    List<OtherAllowanceStandard> findOtherAllowanceStandardsAll(
+            String standardType,
+            String standardYearMonth,
+            String positionPrefix,
+            int limit) {
+        OtherAllowanceStandardQuery query = otherAllowanceStandardQuery(standardType);
+        int safeLimit = limit <= 0 ? 2000 : Math.min(limit, 5000);
+        List<OtherAllowanceStandard> rows = jdbcTemplate.query("""
+                SELECT '%s' AS standard_type, %s
+                FROM %s
+                WHERE %s
+                ORDER BY %s
+                LIMIT :limit
+                """.formatted(query.standardType(), query.columns(), query.tableName(), query.whereClause(), query.orderBy()),
+                otherAllowanceParameters(standardYearMonth, null, positionPrefix).addValue("limit", safeLimit),
+                OTHER_ALLOWANCE_STANDARD_MAPPER);
+        return enrichOtherAllowanceStandardNames(query.standardType(), rows);
     }
 
     long countOtherAllowanceStandards(String standardType, String standardYearMonth, String code) {
+        return countOtherAllowanceStandards(standardType, standardYearMonth, code, null);
+    }
+
+    long countOtherAllowanceStandards(String standardType, String standardYearMonth, String code, String positionPrefix) {
         OtherAllowanceStandardQuery query = otherAllowanceStandardQuery(standardType);
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM %s
                 WHERE %s
-                """.formatted(query.tableName(), query.whereClause()), otherAllowanceParameters(standardYearMonth, code), Long.class);
+                """.formatted(query.tableName(), query.whereClause()),
+                otherAllowanceParameters(standardYearMonth, code, positionPrefix), Long.class);
         return count == null ? 0 : count;
+    }
+
+    List<String> findOtherAllowanceStandardPeriods(String standardType) {
+        String normalized = normalizeOtherAllowanceType(standardType);
+        if ("civilized".equals(normalized)) {
+            return List.of();
+        }
+        OtherAllowanceStandardQuery query = otherAllowanceStandardQuery(standardType);
+        return jdbcTemplate.queryForList("""
+                SELECT DISTINCT TRIM(tbnd) AS tbnd
+                FROM %s
+                WHERE tbnd IS NOT NULL AND TRIM(tbnd) <> ''
+                ORDER BY tbnd DESC
+                """.formatted(query.tableName()), Map.of(), String.class);
+    }
+
+    List<AllowanceStandardPositionCategory> findOtherAllowanceStandardPositionCategories(
+            String standardType,
+            String standardYearMonth) {
+        String normalized = normalizeOtherAllowanceType(standardType);
+        if (!"property".equals(normalized) && !"communication".equals(normalized)) {
+            return List.of();
+        }
+        OtherAllowanceStandardQuery query = otherAllowanceStandardQuery(standardType);
+        return applyBasicStandardCategoryNameOverrides(jdbcTemplate.query("""
+                SELECT LEFT(TRIM(s.zwbm), 2) AS zwbm,
+                       MAX(COALESCE(NULLIF(TRIM(d.mc), ''), LEFT(TRIM(s.zwbm), 2))) AS mc
+                FROM %s s
+                LEFT JOIN dmb d ON TRIM(d.bm) = CONCAT('051', LEFT(TRIM(s.zwbm), 2))
+                WHERE CHAR_LENGTH(TRIM(s.zwbm)) >= 2
+                  AND (:standardYearMonth IS NULL OR s.tbnd = :standardYearMonth)
+                GROUP BY LEFT(TRIM(s.zwbm), 2)
+                ORDER BY zwbm
+                """.formatted(query.tableName()),
+                new MapSqlParameterSource("standardYearMonth", emptyToNull(standardYearMonth)),
+                ALLOWANCE_STANDARD_POSITION_CATEGORY_MAPPER));
+    }
+
+    private List<OtherAllowanceStandard> enrichOtherAllowanceStandardNames(
+            String standardType,
+            List<OtherAllowanceStandard> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return rows == null ? List.of() : rows;
+        }
+        String normalized = normalizeOtherAllowanceType(standardType);
+        if (!"property".equals(normalized) && !"communication".equals(normalized)) {
+            return rows;
+        }
+        List<String> codes = rows.stream()
+                .map(OtherAllowanceStandard::code)
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        Map<String, String> names = lookupPositionDictionaryNames(codes);
+        return rows.stream()
+                .map(row -> {
+                    String code = row.code() == null ? "" : row.code().trim();
+                    String existing = row.name() == null ? "" : row.name().trim();
+                    if (!existing.isBlank()) {
+                        return row;
+                    }
+                    return row.withName(names.getOrDefault(code, ""));
+                })
+                .toList();
     }
 
     List<BasicStandardRecord> findBasicStandards(
             String standardType,
             String standardYearMonth,
-            String code,
-            PageRequest pageRequest) {
+            String positionPrefix) {
+        if (emptyToNull(standardYearMonth) == null) {
+            return List.of();
+        }
         BasicStandardQuery query = basicStandardQuery(standardType);
-        MapSqlParameterSource parameters = basicStandardParameters(standardYearMonth, code)
-                .addValue("limit", pageRequest.size())
-                .addValue("offset", pageRequest.offset());
-        return jdbcTemplate.queryForList("""
+        String prefix = emptyToNull(positionPrefix);
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth.trim())
+                .addValue("positionPrefix", prefix);
+        String prefixPredicate = basicStandardPrefixPredicate(standardType);
+        List<BasicStandardRecord> records = jdbcTemplate.queryForList("""
                 SELECT %s
                 FROM %s
-                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
-                  AND (:code IS NULL OR %s)
+                WHERE tbnd = :standardYearMonth
+                  %s
                 ORDER BY %s
-                LIMIT :limit OFFSET :offset
-                """.formatted(query.columns(), query.tableName(), query.codePredicate(), query.orderBy()), parameters)
+                LIMIT 2000
+                """.formatted(query.columns(), query.tableName(), prefixPredicate, query.orderBy()), parameters)
                 .stream()
                 .map(row -> new BasicStandardRecord(standardType, new LinkedHashMap<>(row)))
                 .toList();
+        return enrichBasicStandardPositionNames(standardType, records);
     }
 
-    long countBasicStandards(String standardType, String standardYearMonth, String code) {
+    List<String> findBasicStandardPeriods(String standardType) {
         BasicStandardQuery query = basicStandardQuery(standardType);
+        return jdbcTemplate.queryForList("""
+                SELECT DISTINCT TRIM(tbnd) AS tbnd
+                FROM %s
+                WHERE tbnd IS NOT NULL AND TRIM(tbnd) <> ''
+                ORDER BY tbnd DESC
+                """.formatted(query.tableName()), Map.of(), String.class);
+    }
+
+    List<AllowanceStandardPositionCategory> findBasicStandardPositionCategories(
+            String standardType,
+            String standardYearMonth) {
+        if (emptyToNull(standardYearMonth) == null) {
+            return List.of();
+        }
+        String normalized = emptyToNull(standardType) == null ? "" : standardType.trim().toLowerCase();
+        if ("position".equals(normalized) || "position-grade".equals(normalized)) {
+            BasicStandardQuery query = basicStandardQuery(standardType);
+            return applyBasicStandardCategoryNameOverrides(jdbcTemplate.query("""
+                    SELECT LEFT(TRIM(s.zwbm), 2) AS zwbm,
+                           MAX(COALESCE(NULLIF(TRIM(d.mc), ''), LEFT(TRIM(s.zwbm), 2))) AS mc
+                    FROM %s s
+                    LEFT JOIN dmb d ON TRIM(d.bm) = CONCAT('051', LEFT(TRIM(s.zwbm), 2))
+                    WHERE s.tbnd = :standardYearMonth
+                      AND CHAR_LENGTH(TRIM(s.zwbm)) >= 2
+                    GROUP BY LEFT(TRIM(s.zwbm), 2)
+                    ORDER BY zwbm
+                    """.formatted(query.tableName()), new MapSqlParameterSource()
+                    .addValue("standardYearMonth", standardYearMonth.trim()), ALLOWANCE_STANDARD_POSITION_CATEGORY_MAPPER));
+        }
+        if ("salary-level".equals(normalized)) {
+            // 事业岗位分类：与字典 GWFL 事业口径一致（05107–05120）
+            return applyBasicStandardCategoryNameOverrides(jdbcTemplate.query("""
+                    SELECT TRIM(s.gwflbm) AS zwbm,
+                           MAX(COALESCE(NULLIF(TRIM(d.mc), ''), TRIM(s.gwflbm))) AS mc
+                    FROM bz06_xjgz s
+                    LEFT JOIN dmb d ON TRIM(d.bm) = CONCAT('051', TRIM(s.gwflbm))
+                    WHERE s.tbnd = :standardYearMonth
+                      AND CHAR_LENGTH(TRIM(s.gwflbm)) >= 2
+                      AND CONCAT('051', TRIM(s.gwflbm)) > '05106'
+                      AND CONCAT('051', TRIM(s.gwflbm)) < '05121'
+                    GROUP BY TRIM(s.gwflbm)
+                    ORDER BY zwbm
+                    """, new MapSqlParameterSource()
+                    .addValue("standardYearMonth", standardYearMonth.trim()), ALLOWANCE_STANDARD_POSITION_CATEGORY_MAPPER));
+        }
+        return List.of();
+    }
+
+    /** dmb 无 05111 等缺项时的岗位类别显示名（有字典名时优先用 dmb）。 */
+    private static final Map<String, String> BASIC_STANDARD_CATEGORY_NAME_OVERRIDES = Map.of(
+            "11", "义务教育专技岗位");
+
+    private List<AllowanceStandardPositionCategory> applyBasicStandardCategoryNameOverrides(
+            List<AllowanceStandardPositionCategory> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return categories == null ? List.of() : categories;
+        }
+        return categories.stream()
+                .map(item -> {
+                    String code = item.positionCode() == null ? "" : item.positionCode().trim();
+                    String override = BASIC_STANDARD_CATEGORY_NAME_OVERRIDES.get(code);
+                    if (override == null) {
+                        return item;
+                    }
+                    String name = item.name() == null ? "" : item.name().trim();
+                    if (name.isBlank() || name.equals(code)) {
+                        return new AllowanceStandardPositionCategory(code, override);
+                    }
+                    return item;
+                })
+                .toList();
+    }
+
+    private String basicStandardPrefixPredicate(String standardType) {
+        String normalized = emptyToNull(standardType) == null ? "" : standardType.trim().toLowerCase();
+        if ("position".equals(normalized) || "position-grade".equals(normalized)) {
+            return "AND (:positionPrefix IS NULL OR LEFT(TRIM(zwbm), 2) = :positionPrefix)";
+        }
+        if ("salary-level".equals(normalized)) {
+            return "AND (:positionPrefix IS NULL OR TRIM(gwflbm) = :positionPrefix)";
+        }
+        return "";
+    }
+
+    private List<BasicStandardRecord> enrichBasicStandardPositionNames(
+            String standardType,
+            List<BasicStandardRecord> records) {
+        String normalized = emptyToNull(standardType) == null ? "" : standardType.trim().toLowerCase();
+        if ("salary-level".equals(normalized)) {
+            return enrichBasicStandardJobCategoryNames(records);
+        }
+        if (!"position".equals(normalized) && !"position-grade".equals(normalized)) {
+            return records;
+        }
+        List<String> codes = records.stream()
+                .map(record -> {
+                    Object raw = record.values().get("zwbm");
+                    if (raw == null) {
+                        raw = record.values().get("ZWBM");
+                    }
+                    return raw == null ? null : String.valueOf(raw).trim();
+                })
+                .filter(code -> code != null && !code.isBlank())
+                .distinct()
+                .toList();
+        Map<String, String> names = lookupPositionDictionaryNames(codes);
+        return records.stream()
+                .map(record -> {
+                    LinkedHashMap<String, Object> values = new LinkedHashMap<>();
+                    for (Map.Entry<String, Object> entry : record.values().entrySet()) {
+                        values.put(entry.getKey(), entry.getValue());
+                        if ("zwbm".equalsIgnoreCase(entry.getKey())) {
+                            String code = entry.getValue() == null ? "" : String.valueOf(entry.getValue()).trim();
+                            values.put("zwmc", names.getOrDefault(code, ""));
+                        }
+                    }
+                    return new BasicStandardRecord(record.standardType(), values);
+                })
+                .toList();
+    }
+
+    private List<BasicStandardRecord> enrichBasicStandardJobCategoryNames(List<BasicStandardRecord> records) {
+        List<String> codes = records.stream()
+                .map(record -> {
+                    Object raw = record.values().get("gwflbm");
+                    if (raw == null) {
+                        raw = record.values().get("GWFLBM");
+                    }
+                    return raw == null ? null : String.valueOf(raw).trim();
+                })
+                .filter(code -> code != null && !code.isBlank())
+                .distinct()
+                .toList();
+        Map<String, String> names = lookupPositionDictionaryNames(codes);
+        for (String code : codes) {
+            String override = BASIC_STANDARD_CATEGORY_NAME_OVERRIDES.get(code);
+            if (override == null) {
+                continue;
+            }
+            String name = names.getOrDefault(code, "");
+            if (name.isBlank() || name.equals(code)) {
+                names.put(code, override);
+            }
+        }
+        return records.stream()
+                .map(record -> {
+                    LinkedHashMap<String, Object> values = new LinkedHashMap<>();
+                    for (Map.Entry<String, Object> entry : record.values().entrySet()) {
+                        values.put(entry.getKey(), entry.getValue());
+                        if ("gwflbm".equalsIgnoreCase(entry.getKey())) {
+                            String code = entry.getValue() == null ? "" : String.valueOf(entry.getValue()).trim();
+                            values.put("gwflmc", names.getOrDefault(code, ""));
+                        }
+                    }
+                    return new BasicStandardRecord(record.standardType(), values);
+                })
+                .toList();
+    }
+
+    private Map<String, String> lookupPositionDictionaryNames(List<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return Map.of();
+        }
+        List<String> lookupKeys = new ArrayList<>();
+        for (String code : codes) {
+            lookupKeys.add(code);
+            if (!code.startsWith("051")) {
+                lookupKeys.add("051" + code);
+            }
+        }
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT bm, mc
+                FROM dmb
+                WHERE bm IN (:codes)
+                """, new MapSqlParameterSource("codes", lookupKeys));
+        Map<String, String> byFullCode = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            String bm = row.get("bm") == null ? "" : String.valueOf(row.get("bm")).trim();
+            String mc = row.get("mc") == null ? "" : String.valueOf(row.get("mc")).trim();
+            if (!bm.isBlank()) {
+                byFullCode.put(bm, mc);
+            }
+        }
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String code : codes) {
+            String name = byFullCode.get(code);
+            if ((name == null || name.isBlank()) && !code.startsWith("051")) {
+                name = byFullCode.get("051" + code);
+            }
+            if (name == null || name.isBlank()) {
+                // Suffix match: dictionary stores 051xxxx while standard uses xxxx.
+                for (Map.Entry<String, String> entry : byFullCode.entrySet()) {
+                    if (entry.getKey().endsWith(code)) {
+                        name = entry.getValue();
+                        break;
+                    }
+                }
+            }
+            result.put(code, name == null ? "" : name);
+        }
+        return result;
+    }
+
+    long countBasicStandards(String standardType, String standardYearMonth, String positionPrefix) {
+        if (emptyToNull(standardYearMonth) == null) {
+            return 0L;
+        }
+        BasicStandardQuery query = basicStandardQuery(standardType);
+        String prefixPredicate = basicStandardPrefixPredicate(standardType);
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM %s
-                WHERE (:standardYearMonth IS NULL OR tbnd = :standardYearMonth)
-                  AND (:code IS NULL OR %s)
-                """.formatted(query.tableName(), query.codePredicate()), basicStandardParameters(standardYearMonth, code), Long.class);
+                WHERE tbnd = :standardYearMonth
+                  %s
+                """.formatted(query.tableName(), prefixPredicate), new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth.trim())
+                .addValue("positionPrefix", emptyToNull(positionPrefix)), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -826,13 +1454,35 @@ class PayrollRepository {
                 """, new MapSqlParameterSource("uid", uid), HISTORY_MAPPER).stream().findFirst();
     }
 
+    boolean hasNormalPromotionInYear(int uid, int promotionYear) {
+        if (promotionYear < 2007) {
+            return false;
+        }
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                WHERE p.uid = :uid
+                  AND h.jsnf = :promotionYear
+                  AND h.jslb IN ('正常档次', '正常薪级')
+                """, new MapSqlParameterSource()
+                .addValue("uid", uid)
+                .addValue("promotionYear", String.valueOf(promotionYear)), Long.class);
+        return count != null && count > 0L;
+    }
+
     Map<Integer, PayrollHistorySnapshot> findLatestHistoriesByUids(List<Integer> uids) {
         if (uids == null || uids.isEmpty()) {
             return Map.of();
         }
         List<Integer> distinctUids = uids.stream().distinct().toList();
-        Map<Integer, PayrollHistorySnapshot> histories = new LinkedHashMap<>();
-        jdbcTemplate.query("""
+        Map<Integer, PayrollHistorySnapshot> histories = new ConcurrentHashMap<>();
+        int batchSize = 400;
+        ArrayList<List<Integer>> batches = new ArrayList<>();
+        for (int from = 0; from < distinctUids.size(); from += batchSize) {
+            batches.add(distinctUids.subList(from, Math.min(from + batchSize, distinctUids.size())));
+        }
+        batches.parallelStream().forEach(batch -> jdbcTemplate.query("""
                 WITH ranked AS (
                     SELECT p.uid AS personnel_uid,
                            h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
@@ -845,11 +1495,13 @@ class PayrollRepository {
                            h.pgbc, h.njbt, h.hj2,
                            ROW_NUMBER() OVER (
                                PARTITION BY p.uid
-                               ORDER BY CASE WHEN h.sid IS NULL OR TRIM(h.sid) = '' THEN 0 ELSE 1 END,
-                                        h.jsnf DESC, h.jsyf DESC, h.id DESC
+                               ORDER BY COALESCE(h.jsnf, '') DESC, COALESCE(h.jsyf, '') DESC, h.id DESC
                            ) AS rn
                     FROM dryjbxx p
-                    JOIN hisbase h ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                    JOIN hisbase h
+                      ON p.dwbm = h.dwbm
+                     AND p.grbm = h.grbm
+                     AND h.sid = ''
                     LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
                     WHERE p.uid IN (:uids)
                 )
@@ -863,12 +1515,19 @@ class PayrollRepository {
                        pgbc, njbt, hj2
                 FROM ranked
                 WHERE rn = 1
-                """, new MapSqlParameterSource("uids", distinctUids), (rs, rowNum) -> {
+                """, new MapSqlParameterSource("uids", batch), (rs, rowNum) -> {
             int uid = rs.getInt("personnel_uid");
             histories.put(uid, HISTORY_MAPPER.mapRow(rs, rowNum));
             return uid;
-        });
-        return histories;
+        }));
+        LinkedHashMap<Integer, PayrollHistorySnapshot> ordered = new LinkedHashMap<>();
+        for (Integer uid : distinctUids) {
+            PayrollHistorySnapshot history = histories.get(uid);
+            if (history != null) {
+                ordered.put(uid, history);
+            }
+        }
+        return ordered;
     }
 
     Map<Integer, PositionChangeDisplayPair> findProcessedPositionChangeDisplaysByUids(List<Integer> uids) {
@@ -894,8 +1553,8 @@ class PayrollRepository {
                      AND h1.grbm = h.grbm
                      AND h1.sid = h.id
                     WHERE p.uid IN (:uids)
-                      AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                      AND TRIM(h.jslb) IN ('职务变化','职级晋升','法检套改','警员套改','警务套改','职级套改')
+                      AND h.sid = ''
+                      AND h.jslb IN ('职务变化','职级晋升','法检套改','警员套改','警务套改','职级套改')
                 )
                 SELECT personnel_uid, before_position_code, before_position_name,
                        after_position_code, after_position_name
@@ -932,7 +1591,7 @@ class PayrollRepository {
                   ON h1.dwbm = h.dwbm
                  AND h1.grbm = h.grbm
                  AND h1.sid = h.id
-                WHERE h.id IN (:ids)
+                WHERE TRIM(h.id) IN (:ids)
                 """, new MapSqlParameterSource("ids", ids), (rs, rowNum) -> {
             displays.put(SqlText.trim(rs.getString("history_id")), POSITION_CHANGE_DISPLAY_PAIR_MAPPER.mapRow(rs, rowNum));
             return null;
@@ -946,36 +1605,56 @@ class PayrollRepository {
         }
         Map<Integer, PositionChangeCandidate> candidates = new LinkedHashMap<>();
         jdbcTemplate.query("""
-                WITH ranked AS (
+                WITH tip AS (
                     SELECT p.uid AS personnel_uid,
-                           b.zwbm, b.xzzw, b.srny,
-                           ROW_NUMBER() OVER (
-                               PARTITION BY p.uid
-                               ORDER BY b.srny DESC, b.id DESC
-                           ) AS rn
+                           h.id AS tip_id,
+                           h.zwbm2,
+                           h.jsnf,
+                           h.jsyf,
+                           h.srny
                     FROM dryjbxx p
-                    JOIN dryzwbh b ON p.dwbm = b.dwbm AND p.grbm = b.grbm
-                    INNER JOIN hisbase h
-                        ON h.dwbm = b.dwbm
-                       AND h.grbm = b.grbm
-                       AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                    """ + latestPayrollTipJoin("p", "h") + """
                     WHERE p.uid IN (:uids)
-                      AND b.xrzwbz = '1'
-                      AND b.srny >= '2006.07'
-                      AND b.srny >= h.srny
-                      AND (
-                           COALESCE(h.zwbm2, '') <> COALESCE(b.zwbm, '')
-                           OR COALESCE(h.zjbm, '') <> COALESCE(b.zjbm, '')
-                      )
-                      AND (
-                           CASE WHEN LEFT(COALESCE(h.zwbm2, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
-                           =
-                           CASE WHEN LEFT(COALESCE(b.zwbm, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
-                      )
+                ),
+                next_appointment AS (
+                    SELECT t.personnel_uid,
+                           b.zwbm,
+                           b.xzzw,
+                           b.srny
+                    FROM tip t
+                    INNER JOIN dryjbxx p ON p.uid = t.personnel_uid
+                    INNER JOIN dryzwbh b ON b.id = (
+                        SELECT b3.id
+                        FROM dryzwbh b3
+                        WHERE b3.dwbm = p.dwbm
+                          AND b3.grbm = p.grbm
+                          AND REPLACE(b3.srny, '.', '') > REPLACE(
+                              COALESCE(
+                                  (SELECT b2.srny
+                                   FROM dryzwbh b2
+                                   WHERE b2.dwbm = p.dwbm
+                                     AND b2.grbm = p.grbm
+                                     AND COALESCE(b2.zwbm, '') = COALESCE(t.zwbm2, '')
+                                   ORDER BY REPLACE(b2.srny, '.', '') DESC, b2.id DESC
+                                   LIMIT 1),
+                                  t.srny,
+                                  '2006.07'
+                              ), '.', '')
+                          AND b3.srny >= '2006.07'
+                        ORDER BY REPLACE(b3.srny, '.', '') ASC, b3.id ASC
+                        LIMIT 1
+                    )
                 )
-                SELECT personnel_uid, zwbm, xzzw, srny
-                FROM ranked
-                WHERE rn = 1
+                SELECT na.personnel_uid, na.zwbm, na.xzzw, na.srny
+                FROM next_appointment na
+                INNER JOIN tip t ON t.personnel_uid = na.personnel_uid
+                WHERE na.srny >= CONCAT(COALESCE(t.jsnf, ''), '.', LPAD(COALESCE(t.jsyf, ''), 2, '0'))
+                  AND COALESCE(t.zwbm2, '') <> COALESCE(na.zwbm, '')
+                  AND (
+                       CASE WHEN LEFT(COALESCE(t.zwbm2, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
+                       =
+                       CASE WHEN LEFT(COALESCE(na.zwbm, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
+                  )
                 """, new MapSqlParameterSource("uids", uids.stream().distinct().toList()), (rs, rowNum) -> {
             int uid = rs.getInt("personnel_uid");
             candidates.put(uid, POSITION_CHANGE_CANDIDATE_MAPPER.mapRow(rs, rowNum));
@@ -1038,6 +1717,31 @@ class PayrollRepository {
         return salaries;
     }
 
+    Map<String, Integer> findTechnicalGradeSalaries(String standardYearMonth, Collection<String> positionCodes) {
+        if (positionCodes == null || positionCodes.isEmpty() || emptyToNull(standardYearMonth) == null) {
+            return Map.of();
+        }
+        List<String> codes = positionCodes.stream()
+                .filter(code -> code != null && !code.isBlank())
+                .distinct()
+                .toList();
+        if (codes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Integer> salaries = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT zwbm, jsdjgz
+                FROM bz06_zwgz_gr
+                WHERE tbnd = :standardYearMonth AND zwbm IN (:codes)
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth)
+                .addValue("codes", codes), (rs, rowNum) -> {
+            salaries.put(SqlText.trim(rs.getString("zwbm")), rs.getInt("jsdjgz"));
+            return null;
+        });
+        return salaries;
+    }
+
     Optional<PayrollHistorySnapshot> findHistoryAtOrBefore(int uid, String period) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
@@ -1079,15 +1783,199 @@ class PayrollRepository {
                 .addValue("personCode", personCode), HISTORY_MAPPER);
     }
 
+    Map<String, List<PayrollHistorySnapshot>> findHistoryChainsByOrgPersons(List<OrgPersonKey> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashSet<String> organizationCodes = new LinkedHashSet<>();
+        LinkedHashSet<String> personCodes = new LinkedHashSet<>();
+        for (OrgPersonKey key : keys) {
+            if (emptyToNull(key.organizationCode()) != null) {
+                organizationCodes.add(key.organizationCode().trim());
+            }
+            if (emptyToNull(key.personCode()) != null) {
+                personCodes.add(key.personCode().trim());
+            }
+        }
+        if (organizationCodes.isEmpty() || personCodes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<PayrollHistorySnapshot>> chains = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                       h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.gwjtbz, h.gwjtlb,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf,
+                       h.pgbc, h.njbt, h.hj2
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE h.dwbm IN (:organizationCodes)
+                  AND h.grbm IN (:personCodes)
+                ORDER BY h.dwbm, h.grbm, h.jsnf, h.jsyf, h.id
+                """, new MapSqlParameterSource()
+                .addValue("organizationCodes", organizationCodes)
+                .addValue("personCodes", personCodes), (rs, rowNum) -> {
+            PayrollHistorySnapshot snapshot = HISTORY_MAPPER.mapRow(rs, rowNum);
+            String chainKey = SqlText.trim(rs.getString("dwbm")) + "\u0001" + SqlText.trim(rs.getString("grbm"));
+            chains.computeIfAbsent(chainKey, ignored -> new ArrayList<>()).add(snapshot);
+            return snapshot;
+        });
+        return chains;
+    }
+
+    Map<String, String> findInternStartPeriodsByOrgPersons(List<OrgPersonKey> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashSet<String> organizationCodes = new LinkedHashSet<>();
+        LinkedHashSet<String> personCodes = new LinkedHashSet<>();
+        for (OrgPersonKey key : keys) {
+            if (emptyToNull(key.organizationCode()) != null) {
+                organizationCodes.add(key.organizationCode().trim());
+            }
+            if (emptyToNull(key.personCode()) != null) {
+                personCodes.add(key.personCode().trim());
+            }
+        }
+        if (organizationCodes.isEmpty() || personCodes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> periods = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT h.dwbm, h.grbm,
+                       MIN(CONCAT(TRIM(h.jsnf), LPAD(TRIM(h.jsyf), 2, '0'))) AS intern_start_period
+                FROM hisbase h
+                WHERE h.dwbm IN (:organizationCodes)
+                  AND h.grbm IN (:personCodes)
+                  AND (
+                        TRIM(COALESCE(h.jslb, '')) IN ('见习工资', '新进工资')
+                     OR INSTR(COALESCE(h.zwbm2, ''), 'F') > 0
+                     OR COALESCE(h.zwgw2, '') LIKE '%见习%'
+                     OR COALESCE(h.zwgw2, '') LIKE '%试用%'
+                  )
+                GROUP BY h.dwbm, h.grbm
+                """, new MapSqlParameterSource()
+                .addValue("organizationCodes", organizationCodes)
+                .addValue("personCodes", personCodes), (rs, rowNum) -> {
+            String chainKey = SqlText.trim(rs.getString("dwbm")) + "\u0001" + SqlText.trim(rs.getString("grbm"));
+            periods.put(chainKey, SqlText.trim(rs.getString("intern_start_period")));
+            return null;
+        });
+        return periods;
+    }
+
+    Map<String, PersonnelRegularizationDates> findPersonnelRegularizationDatesByOrgPersons(List<OrgPersonKey> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashSet<String> organizationCodes = new LinkedHashSet<>();
+        LinkedHashSet<String> personCodes = new LinkedHashSet<>();
+        for (OrgPersonKey key : keys) {
+            if (emptyToNull(key.organizationCode()) != null) {
+                organizationCodes.add(key.organizationCode().trim());
+            }
+            if (emptyToNull(key.personCode()) != null) {
+                personCodes.add(key.personCode().trim());
+            }
+        }
+        if (organizationCodes.isEmpty() || personCodes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, PersonnelRegularizationDates> dates = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT dwbm, grbm, cjgzny, jrny, zzny, tc
+                FROM dryjbxx
+                WHERE dwbm IN (:organizationCodes)
+                  AND grbm IN (:personCodes)
+                """, new MapSqlParameterSource()
+                .addValue("organizationCodes", organizationCodes)
+                .addValue("personCodes", personCodes), (rs, rowNum) -> {
+            String chainKey = SqlText.trim(rs.getString("dwbm")) + "\u0001" + SqlText.trim(rs.getString("grbm"));
+            dates.put(chainKey, new PersonnelRegularizationDates(
+                    SqlText.trim(rs.getString("cjgzny")),
+                    SqlText.trim(rs.getString("jrny")),
+                    SqlText.trim(rs.getString("zzny")),
+                    SqlText.trim(rs.getString("tc"))));
+            return null;
+        });
+        return dates;
+    }
+
+    Map<String, Integer> findStoredInternSalaryAmountsByHistoryIds(List<String> payrollHistoryIds) {
+        if (payrollHistoryIds == null || payrollHistoryIds.isEmpty()) {
+            return Map.of();
+        }
+        List<String> ids = payrollHistoryIds.stream()
+                .filter(id -> emptyToNull(id) != null)
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Integer> amounts = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT TRIM(id) AS id,
+                       CASE
+                           WHEN jxgz > 0 THEN jxgz
+                           ELSE zwgzse2 + jbgzse2
+                       END AS intern_salary
+                FROM hisbase
+                WHERE TRIM(id) IN (:ids)
+                """, new MapSqlParameterSource("ids", ids), (rs, rowNum) -> {
+            amounts.put(SqlText.trim(rs.getString("id")), rs.getInt("intern_salary"));
+            return null;
+        });
+        return amounts;
+    }
+
     String findRegularizationYearMonth(String organizationCode, String personCode) {
-        return jdbcTemplate.queryForList("""
-                SELECT zzny
+        return findPersonnelRegularizationDates(organizationCode, personCode)
+                .map(PersonnelRegularizationDates::regularizationYearMonth)
+                .orElse("");
+    }
+
+    Optional<PersonnelRegularizationDates> findPersonnelRegularizationDates(String organizationCode, String personCode) {
+        return jdbcTemplate.query("""
+                SELECT cjgzny, jrny, zzny, tc
                 FROM dryjbxx
                 WHERE dwbm = :organizationCode AND grbm = :personCode
                 LIMIT 1
                 """, new MapSqlParameterSource()
                 .addValue("organizationCode", organizationCode)
-                .addValue("personCode", personCode), String.class).stream().findFirst().map(SqlText::trim).orElse("");
+                .addValue("personCode", personCode), (rs, rowNum) -> new PersonnelRegularizationDates(
+                SqlText.trim(rs.getString("cjgzny")),
+                SqlText.trim(rs.getString("jrny")),
+                SqlText.trim(rs.getString("zzny")),
+                SqlText.trim(rs.getString("tc")))).stream().findFirst();
+    }
+
+    Optional<String> findOrganizationName(String organizationCode) {
+        if (organizationCode == null || organizationCode.isBlank()) {
+            return Optional.empty();
+        }
+        return jdbcTemplate.query("""
+                SELECT dwmc
+                FROM dwbm
+                WHERE dwbm = :organizationCode
+                LIMIT 1
+                """, new MapSqlParameterSource("organizationCode", organizationCode),
+                (rs, rowNum) -> SqlText.trim(rs.getString("dwmc"))).stream().findFirst();
+    }
+
+    void updatePersonnelClassificationTag(String organizationCode, String personCode, String classificationTag) {
+        jdbcTemplate.update("""
+                UPDATE dryjbxx
+                SET tc = :classificationTag
+                WHERE dwbm = :organizationCode AND grbm = :personCode
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("classificationTag", valueOrBlank(classificationTag)));
     }
 
     Optional<PositionChangeCandidate> findAdministrativePositionBeforeReform(String organizationCode, String personCode) {
@@ -1296,7 +2184,7 @@ class PayrollRepository {
                 FROM dtgxx t
                 INNER JOIN app_record_marker marker
                     ON marker.table_name = 'dtgxx'
-                   AND marker.record_id = CAST(t.id AS CHAR)
+                   AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
                    AND marker.marker = 'APP_CREATED'
                 WHERE t.dwbm = :organizationCode AND t.grbm = :personCode
                 """, new MapSqlParameterSource()
@@ -1364,7 +2252,7 @@ class PayrollRepository {
                 FROM dtgxx t
                 INNER JOIN app_record_marker marker
                     ON marker.table_name = 'dtgxx'
-                   AND marker.record_id = CAST(t.id AS CHAR)
+                   AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
                    AND marker.marker = 'APP_CREATED'
                 WHERE t.dwbm = :organizationCode AND t.grbm = :personCode
                 """, new MapSqlParameterSource()
@@ -1441,21 +2329,26 @@ class PayrollRepository {
                        h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
                        h.ryfl, h.dwsx, h.zwbm2, h.zwgw2, h.zwgzdc2, h.jbgzjb2,
                        h.xckhndjb, h.xckhndzw,
-                       h.tbnd, h.jbtbz, h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2,
+                       h.tbnd, h.jbtbz, h.tgbl, h.jx, h.jxjtbz, h.fddc,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.jxgz, h.dfbt2, h.sdbt,
                        h.blfb2, h.jxjt, h.fdgz2, h.jjjy2, h.jhljt, h.jsfszwtg2,
-                       h.njbt, h.pgbc, h.hj2
+                       h.njbt, h.pgbc, h.zwjt, h.jzmcbt, h.tgblbf, h.nzgwsf,
+                       h.gwjt2, h.qtbt, h.hj2
                 FROM hisbase h
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
                 LEFT JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
-                LEFT JOIN app_record_marker marker ON marker.table_name = 'hisbase' AND marker.record_id = h.id AND marker.marker = 'APP_CREATED'
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'hisbase'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = h.id COLLATE utf8mb4_0900_ai_ci
+                    AND marker.marker = 'APP_CREATED'
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
                   AND (:period IS NULL OR CONCAT(h.jsnf, h.jsyf) = :period)
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike
                        OR h.jslb LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
                 ORDER BY h.dwbm, h.grbm,
+                         h.jsnf DESC, h.jsyf DESC,
                          CASE WHEN h.sid IS NULL OR TRIM(h.sid) = '' THEN 0 ELSE 1 END,
-                         h.jsnf DESC, h.jsyf DESC, h.id DESC
+                         h.id DESC
                 LIMIT :limit OFFSET :offset
                 """, parameters, PAYROLL_HISTORY_MAPPER);
     }
@@ -1533,6 +2426,7 @@ class PayrollRepository {
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
                   AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                  AND TRIM(REPLACE(COALESCE(h.jhlqsny, ''), '.', '')) <> ''
                   AND (LEFT(h.zwbm2, 2) >= '07' AND LEFT(h.zwbm2, 2) < '20' OR h.jhljt <> 0)
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
                 ORDER BY h.dwbm, h.grbm
@@ -1550,6 +2444,7 @@ class PayrollRepository {
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
                   AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                  AND TRIM(REPLACE(COALESCE(h.jhlqsny, ''), '.', '')) <> ''
                   AND (LEFT(h.zwbm2, 2) >= '07' AND LEFT(h.zwbm2, 2) < '20' OR h.jhljt <> 0)
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
                 """, payrollChangeParameters(organizationScope, organizationCode, keyword), Long.class);
@@ -1617,6 +2512,176 @@ class PayrollRepository {
         return count == null ? 0 : count;
     }
 
+    List<RankAllowanceChangePromotionContext> findRankAllowanceChangePromotionContexts(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String category) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.zwbm2, h.zwgw2, h.jx, h.jxjt, h.jxjtbz, h.jcjtbz, h.spjtbz, h.srny
+                FROM hisbase h
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                  AND LEFT(h.zwbm2, 2) IN ('01', '02', '03', '21', '22', '23', '24', '25', '26', '27', '28')
+                  AND (
+                      (:category = 'jx' AND h.jslb LIKE '\u8b66\u8854\u53d8\u5316%')
+                      OR (:category = 'jc' AND h.jslb LIKE '\u68c0\u5bdf\u7b49\u7ea7%')
+                      OR (:category = 'sp' AND (h.jslb LIKE '\u6cd5\u5b98\u7b49\u7ea7%' OR h.jslb LIKE '\u5ba1\u5224\u7b49\u7ea7%'))
+                      OR (:category = 'mt' AND h.jslb LIKE '\u76d1\u5bdf\u7b49\u7ea7%')
+                      OR EXISTS (
+                          SELECT 1
+                          FROM jx j
+                          WHERE j.dwbm = h.dwbm
+                            AND j.grbm = h.grbm
+                            AND (
+                                (:category = 'jx' AND (j.lb = 'jx' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND j.jx LIKE '%\u8b66%')))
+                                OR (:category = 'jc' AND (j.lb = 'jc' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND (j.jx LIKE '%\u68c0\u5bdf%' OR j.jx LIKE '%\u68c0\u5bdf\u5b98%') AND j.jx NOT LIKE '%\u76d1\u5bdf%')))
+                                OR (:category = 'sp' AND (j.lb = 'sp' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND (j.jx LIKE '%\u6cd5%' OR j.jx LIKE '%\u5ba1\u5224%' OR j.jx LIKE '%\u6cd5\u5b98%'))))
+                                OR (:category = 'mt' AND (j.lb = 'mt' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND j.jx LIKE '%\u76d1\u5bdf%')))
+                            )
+                      )
+                  )
+                  AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
+                ORDER BY h.dwbm, h.grbm
+                """, payrollChangeParameters(organizationScope, organizationCode, keyword)
+                .addValue("category", emptyToNull(category)), RANK_ALLOWANCE_CHANGE_PROMOTION_CONTEXT_MAPPER);
+    }
+
+    Map<String, List<RankAllowanceChange>> findRankAllowanceChangesByOrgPersons(List<OrgPersonKey> keys, String category) {
+        if (keys == null || keys.isEmpty()) {
+            return Map.of();
+        }
+        java.util.LinkedHashSet<String> organizationCodes = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<String> personCodes = new java.util.LinkedHashSet<>();
+        for (OrgPersonKey key : keys) {
+            if (emptyToNull(key.organizationCode()) != null) {
+                organizationCodes.add(key.organizationCode());
+            }
+            if (emptyToNull(key.personCode()) != null) {
+                personCodes.add(key.personCode());
+            }
+        }
+        if (organizationCodes.isEmpty() || personCodes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<RankAllowanceChange>> changesByPerson = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT dwbm, grbm, jx, sysj, lb
+                FROM jx
+                WHERE dwbm IN (:organizationCodes)
+                  AND grbm IN (:personCodes)
+                  AND (
+                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%\u8b66%')))
+                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%\u68c0\u5bdf%' OR jx LIKE '%\u68c0\u5bdf\u5b98%') AND jx NOT LIKE '%\u76d1\u5bdf%')))
+                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%\u6cd5%' OR jx LIKE '%\u5ba1\u5224%' OR jx LIKE '%\u6cd5\u5b98%'))))
+                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%\u76d1\u5bdf%')))
+                  )
+                ORDER BY dwbm, grbm, REPLACE(COALESCE(sysj, ''), '.', '') DESC, id DESC
+                """, new MapSqlParameterSource()
+                .addValue("organizationCodes", organizationCodes)
+                .addValue("personCodes", personCodes)
+                .addValue("category", category), (rs, rowNum) -> {
+            String key = SqlText.trim(rs.getString("dwbm")) + "|" + SqlText.trim(rs.getString("grbm"));
+            changesByPerson.computeIfAbsent(key, ignored -> new java.util.ArrayList<>()).add(new RankAllowanceChange(
+                    SqlText.trim(rs.getString("jx")),
+                    SqlText.trim(rs.getString("sysj")),
+                    SqlText.trim(rs.getString("lb"))));
+            return null;
+        });
+        return changesByPerson;
+    }
+
+    Map<String, Integer> findRankAllowanceAmountsByPeriods(Collection<String> periods) {
+        if (periods == null || periods.isEmpty()) {
+            return Map.of();
+        }
+        List<String> normalizedPeriods = periods.stream()
+                .map(this::emptyToNull)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (normalizedPeriods.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Integer> amounts = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT tbnd, jx, lb, jtbz
+                FROM jxjtbz
+                WHERE tbnd IN (:periods)
+                """, new MapSqlParameterSource("periods", normalizedPeriods), (rs, rowNum) -> {
+            String period = SqlText.trim(rs.getString("tbnd"));
+            String rankName = SqlText.trim(rs.getString("jx"));
+            String lb = SqlText.trim(rs.getString("lb"));
+            if (period == null || rankName == null) {
+                return null;
+            }
+            amounts.putIfAbsent(rankAllowanceAmountKey(period, rankName, lb), rs.getInt("jtbz"));
+            return null;
+        });
+        return amounts;
+    }
+
+    static String rankAllowanceAmountKey(String period, String rankName, String standardLb) {
+        return period + "\0" + rankName + "\0" + (standardLb == null ? "" : standardLb.trim());
+    }
+
+    int rankAllowanceFromAmounts(Map<String, Integer> amounts, String standardYearMonth, String rankName, String standardLb) {
+        if (amounts == null || amounts.isEmpty() || emptyToNull(standardYearMonth) == null || emptyToNull(rankName) == null) {
+            return 0;
+        }
+        String normalizedLb = emptyToNull(standardLb);
+        if (normalizedLb != null) {
+            Integer direct = amounts.get(rankAllowanceAmountKey(standardYearMonth, rankName, normalizedLb));
+            if (direct != null) {
+                return direct;
+            }
+        }
+        if ("jx".equals(normalizedLb)) {
+            Integer fallback = amounts.get(rankAllowanceAmountKey(standardYearMonth, rankName, ""));
+            if (fallback != null) {
+                return fallback;
+            }
+        }
+        return rankAllowanceByRank(standardYearMonth, rankName, standardLb);
+    }
+
+    List<PayrollHistorySnapshot> findCurrentHistoriesByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        List<String> normalized = ids.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(id -> !id.isEmpty())
+                .distinct()
+                .toList();
+        if (normalized.isEmpty()) {
+            return List.of();
+        }
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                       h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.gwjtbz, h.gwjtlb,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf,
+                       h.pgbc, h.njbt, h.hj2
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE TRIM(h.id) IN (:ids)
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                ORDER BY h.dwbm, h.grbm
+                """, new MapSqlParameterSource("ids", normalized), HISTORY_MAPPER);
+    }
+
     Optional<RankAllowanceStandardContext> findRankAllowanceStandardContext(String payrollHistoryId) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, CONCAT(h.jsnf, h.jsyf) AS calculation_period,
@@ -1651,7 +2716,7 @@ class PayrollRepository {
                        h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, :prosecutionStandardYearMonth, :judicialStandardYearMonth, h.njbt,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE CAST(TRIM(h.id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("sourceId", latest.id())
@@ -1666,7 +2731,7 @@ class PayrollRepository {
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
                 .addValue("sourceId", latest.id()));
@@ -1764,7 +2829,7 @@ class PayrollRepository {
                        h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE CAST(TRIM(h.id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("sourceId", latest.id())
@@ -1779,7 +2844,7 @@ class PayrollRepository {
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
                 .addValue("sourceId", latest.id()));
@@ -1860,7 +2925,7 @@ class PayrollRepository {
                        h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE CAST(TRIM(h.id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("sourceId", latest.id())
@@ -1873,7 +2938,7 @@ class PayrollRepository {
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
                 .addValue("sourceId", latest.id()));
@@ -1881,11 +2946,186 @@ class PayrollRepository {
         return id;
     }
 
+    int findStoredInternSalaryAmount(String payrollHistoryId) {
+        String id = payrollHistoryId == null ? "" : payrollHistoryId.trim();
+        if (id.isEmpty()) {
+            return 0;
+        }
+        Integer amount = queryInteger("""
+                SELECT CASE
+                           WHEN jxgz > 0 THEN jxgz
+                           ELSE zwgzse2 + jbgzse2
+                       END
+                FROM hisbase
+                WHERE TRIM(id) = :id
+                LIMIT 1
+                """, new MapSqlParameterSource("id", id));
+        return amount == null ? 0 : amount;
+    }
+
+    void updateInternSalaryStandardRecalc(
+            String payrollHistoryId,
+            String salaryStandardYearMonth,
+            int internSalary,
+            int totalAmount) {
+        String id = payrollHistoryId == null ? "" : payrollHistoryId.trim();
+        String standard = salaryStandardYearMonth == null ? "" : salaryStandardYearMonth.trim();
+        if (id.isEmpty() || standard.isEmpty()) {
+            throw new IllegalArgumentException("缺少工资记录或目标标准年月。");
+        }
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET tbnd = :salaryStandardYearMonth,
+                    zwgzse2 = 0,
+                    jbgzse2 = 0,
+                    jsdjgz2 = 0,
+                    jxgz = :internSalary,
+                    sdbt = 0,
+                    hj2 = :totalAmount
+                WHERE TRIM(id) = :id
+                """, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("salaryStandardYearMonth", standard)
+                .addValue("internSalary", internSalary)
+                .addValue("totalAmount", totalAmount));
+    }
+
+    /**
+     * 中段插入调标晋升：从锚点复制插入，新记录 sid 指向原后继，锚点 sid 指向新记录。
+     */
+    String insertSalaryStandardAdjustmentMidChain(
+            PayrollHistorySnapshot anchor,
+            String nextSuccessorId,
+            SalaryStandardAdjustmentHistoryMutation mutation) {
+        if (anchor == null) {
+            throw new IllegalArgumentException("缺少锚点工资记录。");
+        }
+        String anchorId = anchor.id() == null ? "" : anchor.id().trim();
+        String organizationCode = anchor.organizationCode() == null ? "" : anchor.organizationCode().trim();
+        String personCode = anchor.personCode() == null ? "" : anchor.personCode().trim();
+        if (anchorId.isEmpty() || organizationCode.isEmpty() || personCode.isEmpty()) {
+            throw new IllegalArgumentException("缺少锚点工资记录标识。");
+        }
+        String id = java.util.UUID.randomUUID().toString().toUpperCase();
+        String successorId = nextSuccessorId == null ? "" : nextSuccessorId.trim();
+        int inserted = jdbcTemplate.update("""
+                INSERT INTO hisbase
+                SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
+                       h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
+                       h.tc, h.xckhndzw, h.xckhndjb, h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
+                       h.jx, h.tgbl, h.jtbl, h.fddc, h.fdgd, h.fdsj,
+                       :calculationYear, :calculationMonth, :changeType,
+                       h.khqk, h.dynkh, h.denkh, h.bbz, :totalAmount,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, :positionSalary, h.jbgzjb2, h.djc2, :gradeSalary,
+                       h.jcgz2, h.glgz2, :technicalGradeSalary, h.grjj2, :retainedAllowance, :salaryIncrease,
+                       h.jt2, :floatingSalary, h.jjjy2, :performanceAllowance, h.gwjt2, h.bh, h.jxgz, h.zzbc,
+                       h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt, :subsidyAllowance, h.grsds, h.zfgjj,
+                       h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, h.qtbt, h.jxjt,
+                       h.gryhzh, h.tfnf, h.tfyf, h.spdw, :salaryStandardYearMonth, h.jxjtbz, :allowanceStandardYearMonth, h.jhljt,
+                       h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
+                       h.gwjtbz, h.gwjtlb, h.sfjzgb, :successorId
+                FROM hisbase h
+                WHERE h.dwbm = :organizationCode
+                  AND h.grbm = :personCode
+                  AND TRIM(h.id) = :anchorId
+                """, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("anchorId", anchorId)
+                .addValue("successorId", successorId)
+                .addValue("calculationYear", mutation.calculationYear())
+                .addValue("calculationMonth", mutation.calculationMonth())
+                .addValue("changeType", mutation.changeType())
+                .addValue("positionSalary", mutation.positionSalary() == null ? 0 : mutation.positionSalary())
+                .addValue("gradeSalary", mutation.gradeSalary() == null ? 0 : mutation.gradeSalary())
+                .addValue("technicalGradeSalary", mutation.technicalGradeSalary() == null ? 0 : mutation.technicalGradeSalary())
+                .addValue("performanceAllowance", mutation.performanceAllowance() == null ? 0 : mutation.performanceAllowance())
+                .addValue("subsidyAllowance", mutation.subsidyAllowance() == null ? 0 : mutation.subsidyAllowance())
+                .addValue("retainedAllowance", mutation.retainedAllowance() == null ? 0 : mutation.retainedAllowance())
+                .addValue("floatingSalary", mutation.floatingSalary() == null ? 0 : mutation.floatingSalary())
+                .addValue("salaryIncrease", mutation.salaryIncrease() == null ? 0 : mutation.salaryIncrease())
+                .addValue("totalAmount", mutation.totalAmount() == null ? 0 : mutation.totalAmount())
+                .addValue("salaryStandardYearMonth", valueOrBlank(mutation.salaryStandardYearMonth()))
+                .addValue("allowanceStandardYearMonth", valueOrBlank(mutation.allowanceStandardYearMonth())));
+        if (inserted != 1) {
+            throw new IllegalArgumentException("锚点工资记录已变化，请重新查询后再办理。");
+        }
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET sid = :newId
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :anchorId
+                """, new MapSqlParameterSource()
+                .addValue("newId", id)
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("anchorId", anchorId));
+        markAppCreated("hisbase", id);
+        return id;
+    }
+
+    void updateHistoryBasicSalaryAmounts(
+            String organizationCode,
+            String personCode,
+            String historyId,
+            String salaryStandardYearMonth,
+            Integer positionSalary,
+            Integer gradeSalary,
+            Integer technicalGradeSalary,
+            Integer salaryIncrease,
+            Integer totalAmount) {
+        String normalizedId = historyId == null ? "" : historyId.trim();
+        if (normalizedId.isEmpty()) {
+            throw new IllegalArgumentException("缺少工资记录标识。");
+        }
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET tbnd = :salaryStandardYearMonth,
+                    zwgzse2 = :positionSalary,
+                    jbgzse2 = :gradeSalary,
+                    jsdjgz2 = :technicalGradeSalary,
+                    jsfszwtg2 = :salaryIncrease,
+                    hj2 = :totalAmount
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :historyId
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("historyId", normalizedId)
+                .addValue("salaryStandardYearMonth", valueOrBlank(salaryStandardYearMonth))
+                .addValue("positionSalary", positionSalary == null ? 0 : positionSalary)
+                .addValue("gradeSalary", gradeSalary == null ? 0 : gradeSalary)
+                .addValue("technicalGradeSalary", technicalGradeSalary == null ? 0 : technicalGradeSalary)
+                .addValue("salaryIncrease", salaryIncrease == null ? 0 : salaryIncrease)
+                .addValue("totalAmount", totalAmount == null ? 0 : totalAmount));
+    }
+
     String createSalaryStandardAdjustmentHistoryFromLatest(int uid, SalaryStandardAdjustmentHistoryMutation mutation) {
         PayrollHistorySnapshot latest = findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        return createSalaryStandardAdjustmentHistoryFromSource(latest, mutation);
+    }
+
+    /**
+     * 按已知当前记录复制改写：用 dwbm+grbm 定位（可走索引），再按 id 校验，避免 TRIM(id) 全表扫描。
+     */
+    String createSalaryStandardAdjustmentHistoryFromSource(
+            PayrollHistorySnapshot source,
+            SalaryStandardAdjustmentHistoryMutation mutation) {
+        if (source == null) {
+            throw new IllegalArgumentException("缺少源工资记录。");
+        }
+        String sourceId = source.id() == null ? "" : source.id().trim();
+        String organizationCode = source.organizationCode() == null ? "" : source.organizationCode().trim();
+        String personCode = source.personCode() == null ? "" : source.personCode().trim();
+        if (sourceId.isEmpty() || organizationCode.isEmpty() || personCode.isEmpty()) {
+            throw new IllegalArgumentException("缺少源工资记录标识。");
+        }
         String id = java.util.UUID.randomUUID().toString().toUpperCase();
-        jdbcTemplate.update("""
+        int inserted = jdbcTemplate.update("""
                 INSERT INTO hisbase
                 SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
                        h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
@@ -1902,10 +3142,15 @@ class PayrollRepository {
                        h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE h.dwbm = :organizationCode
+                  AND h.grbm = :personCode
+                  AND TRIM(h.id) = :sourceId
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
-                .addValue("sourceId", latest.id())
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("sourceId", sourceId)
                 .addValue("calculationYear", mutation.calculationYear())
                 .addValue("calculationMonth", mutation.calculationMonth())
                 .addValue("changeType", mutation.changeType())
@@ -1920,13 +3165,21 @@ class PayrollRepository {
                 .addValue("totalAmount", mutation.totalAmount() == null ? 0 : mutation.totalAmount())
                 .addValue("salaryStandardYearMonth", valueOrBlank(mutation.salaryStandardYearMonth()))
                 .addValue("allowanceStandardYearMonth", valueOrBlank(mutation.allowanceStandardYearMonth())));
+        if (inserted != 1) {
+            throw new IllegalArgumentException("工资记录已变化，请重新查询后再办理。");
+        }
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :sourceId
+                  AND (sid IS NULL OR TRIM(sid) = '')
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
-                .addValue("sourceId", latest.id()));
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("sourceId", sourceId));
         markAppCreated("hisbase", id);
         return id;
     }
@@ -1938,16 +3191,30 @@ class PayrollRepository {
             String targetStandardYearMonth,
             StandardAdjustmentScope scope,
             PageRequest pageRequest) {
-        if (organizationScope.noneScope()) {
+        return findSalaryStandardAdjustmentPreviews(
+                organizationScope, organizationCode, keyword, targetStandardYearMonth, scope, true, true, pageRequest);
+    }
+
+    List<SalaryStandardAdjustmentPreview> findSalaryStandardAdjustmentPreviews(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String targetStandardYearMonth,
+            StandardAdjustmentScope scope,
+            boolean includeApply,
+            boolean includeProcessed,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope() || (!includeApply && !includeProcessed)) {
             return List.of();
         }
         MapSqlParameterSource parameters = payrollChangeParameters(organizationScope, organizationCode, keyword)
                 .addValue("targetStandard", targetStandardYearMonth)
                 .addValue("targetPeriod", targetStandardYearMonth)
                 .addValue("limit", pageRequest.size())
-                .addValue("offset", pageRequest.offset());
+                .addValue("offset", pageRequest.offset())
+                .addValue("rollbackChangeTypes", List.copyOf(scope.rollbackChangeTypes()));
         return jdbcTemplate.query("""
-                SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, CONCAT(h.jsnf, LPAD(TRIM(h.jsyf), 2, '0')) AS calculation_period,
+                SELECT h.id, h.dwbm, dw.dwmc, h.grbm, h.xm, CONCAT(TRIM(h.jsnf), LPAD(TRIM(h.jsyf), 2, '0')) AS calculation_period,
                        h.jslb, h.tbnd, h.jbtbz, h.zwbm2, h.zwgw2, h.zwgzse2, h.jbgzse2, h.hj2
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
@@ -1955,18 +3222,12 @@ class PayrollRepository {
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
                   AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                  AND (
-                      %s
-                      OR (
-                          h.jslb IN (:rollbackChangeTypes)
-                          AND CONCAT(h.jsnf, LPAD(TRIM(h.jsyf), 2, '0')) = :targetPeriod
-                      )
-                  )
+                  AND %s
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
-                ORDER BY h.dwbm, h.grbm
+                ORDER BY h.dwbm, h.grbm, h.id
                 LIMIT :limit OFFSET :offset
-                """.formatted(salaryStandardAdjustmentCandidateFilter(scope)),
-                parameters.addValue("rollbackChangeTypes", scope.rollbackChangeTypes()),
+                """.formatted(salaryStandardAdjustmentStatusFilter(scope, includeApply, includeProcessed)),
+                parameters,
                 SALARY_STANDARD_ADJUSTMENT_MAPPER);
     }
 
@@ -1976,13 +3237,25 @@ class PayrollRepository {
             String keyword,
             String targetStandardYearMonth,
             StandardAdjustmentScope scope) {
-        if (organizationScope.noneScope()) {
+        return countSalaryStandardAdjustmentPreviews(
+                organizationScope, organizationCode, keyword, targetStandardYearMonth, scope, true, true);
+    }
+
+    long countSalaryStandardAdjustmentPreviews(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String targetStandardYearMonth,
+            StandardAdjustmentScope scope,
+            boolean includeApply,
+            boolean includeProcessed) {
+        if (organizationScope.noneScope() || (!includeApply && !includeProcessed)) {
             return 0;
         }
         MapSqlParameterSource parameters = payrollChangeParameters(organizationScope, organizationCode, keyword)
                 .addValue("targetStandard", targetStandardYearMonth)
                 .addValue("targetPeriod", targetStandardYearMonth)
-                .addValue("rollbackChangeTypes", scope.rollbackChangeTypes());
+                .addValue("rollbackChangeTypes", List.copyOf(scope.rollbackChangeTypes()));
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM hisbase h
@@ -1990,15 +3263,9 @@ class PayrollRepository {
                 WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
                   AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
                   AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                  AND (
-                      %s
-                      OR (
-                          h.jslb IN (:rollbackChangeTypes)
-                          AND CONCAT(h.jsnf, LPAD(TRIM(h.jsyf), 2, '0')) = :targetPeriod
-                      )
-                  )
+                  AND %s
                   AND (:keyword IS NULL OR h.grbm LIKE :keywordLike OR h.xm LIKE :keywordLike OR h.zwgw2 LIKE :keywordLike)
-                """.formatted(salaryStandardAdjustmentCandidateFilter(scope)),
+                """.formatted(salaryStandardAdjustmentStatusFilter(scope, includeApply, includeProcessed)),
                 parameters, Long.class);
         return count == null ? 0 : count;
     }
@@ -2021,6 +3288,39 @@ class PayrollRepository {
                     OR COALESCE(NULLIF(TRIM(h.jbtbz), ''), '000000') < :targetStandard
                     """;
         };
+    }
+
+    private static String salaryStandardAdjustmentProcessedFilter() {
+        // 已办理：
+        // 1) tip 本身为调标晋升（目标年月或 tbnd=目标）
+        // 2) tip.tbnd 已达目标（含中段插入后 tip 为后继变动、或其它路径已用新标准）
+        return """
+                (
+                    (
+                        TRIM(h.jslb) IN (:rollbackChangeTypes)
+                        AND (
+                            CONCAT(TRIM(h.jsnf), LPAD(TRIM(h.jsyf), 2, '0')) = :targetPeriod
+                            OR REPLACE(TRIM(COALESCE(h.tbnd, '')), '.', '') = :targetStandard
+                        )
+                    )
+                    OR REPLACE(TRIM(COALESCE(h.tbnd, '')), '.', '') >= :targetStandard
+                )
+                """;
+    }
+
+    private static String salaryStandardAdjustmentStatusFilter(
+            StandardAdjustmentScope scope,
+            boolean includeApply,
+            boolean includeProcessed) {
+        String pending = "(" + salaryStandardAdjustmentCandidateFilter(scope) + ")";
+        String processed = salaryStandardAdjustmentProcessedFilter();
+        if (includeApply && includeProcessed) {
+            return "(" + pending + " OR " + processed + ")";
+        }
+        if (includeApply) {
+            return "(" + pending + " AND NOT " + processed + ")";
+        }
+        return processed;
     }
 
     private static final RowMapper<PerformanceRatioAdjustmentPreview> PERFORMANCE_RATIO_ADJUSTMENT_MAPPER = (rs, rowNum) -> new PerformanceRatioAdjustmentPreview(
@@ -2146,7 +3446,7 @@ class PayrollRepository {
                        h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE CAST(TRIM(h.id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("sourceId", latest.id())
@@ -2159,7 +3459,7 @@ class PayrollRepository {
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
                 .addValue("sourceId", latest.id()));
@@ -2188,7 +3488,7 @@ class PayrollRepository {
                        h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, :yearAllowance,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE CAST(TRIM(h.id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("sourceId", latest.id())
@@ -2205,7 +3505,7 @@ class PayrollRepository {
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
                 .addValue("sourceId", latest.id()));
@@ -2333,7 +3633,15 @@ class PayrollRepository {
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 LEFT JOIN dryzwbh z ON z.dwbm = p.dwbm AND z.grbm = p.grbm AND z.xrzwbz = '1'
-                LEFT JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                LEFT JOIN hisbase h ON h.id = (
+                    SELECT h2.id
+                    FROM hisbase h2
+                    WHERE h2.dwbm = p.dwbm
+                      AND h2.grbm = p.grbm
+                      AND (h2.sid IS NULL OR TRIM(h2.sid) = '')
+                    ORDER BY COALESCE(h2.jsnf, '') DESC, COALESCE(h2.jsyf, '') DESC, h2.id DESC
+                    LIMIT 1
+                )
                 WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
                   AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
                   AND REPLACE(COALESCE(NULLIF(TRIM(p.cjgzny), ''), '999999'), '.', '') < '200607'
@@ -2359,7 +3667,15 @@ class PayrollRepository {
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 LEFT JOIN dryzwbh z ON z.dwbm = p.dwbm AND z.grbm = p.grbm AND z.xrzwbz = '1'
-                LEFT JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                LEFT JOIN hisbase h ON h.id = (
+                    SELECT h2.id
+                    FROM hisbase h2
+                    WHERE h2.dwbm = p.dwbm
+                      AND h2.grbm = p.grbm
+                      AND (h2.sid IS NULL OR TRIM(h2.sid) = '')
+                    ORDER BY COALESCE(h2.jsnf, '') DESC, COALESCE(h2.jsyf, '') DESC, h2.id DESC
+                    LIMIT 1
+                )
                 WHERE p.uid = :uid
                   AND REPLACE(COALESCE(NULLIF(TRIM(p.cjgzny), ''), '999999'), '.', '') < '200607'
                   AND (
@@ -2370,98 +3686,476 @@ class PayrollRepository {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
     }
 
-    List<NewPersonnelSalaryCandidate> findNewPersonnelSalaryCandidates(
+    NewPersonnelSalaryCandidatePage findNewPersonnelSalaryCandidates(
             OrganizationScope organizationScope,
             String organizationCode,
             String keyword,
             PageRequest pageRequest) {
         if (organizationScope.noneScope()) {
-            return List.of();
+            return new NewPersonnelSalaryCandidatePage(List.of(), 0);
         }
         MapSqlParameterSource parameters = payrollChangeParameters(organizationScope, organizationCode, keyword)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
-        return jdbcTemplate.query("""
-                SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.jrny, p.jrfs,
-                       z.zwbm AS position_code, z.xzzw AS position_name, z.srny AS position_start,
-                       p.cjgzny, p.zzny, p.xlbm, p.zgxl, p.gznx,
-                       h.id AS payroll_history_id, h.jslb AS current_change_type
-                FROM dryjbxx p
-                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
-                INNER JOIN dryzwbh z ON z.dwbm = p.dwbm AND z.grbm = p.grbm AND z.xrzwbz = '1'
-                LEFT JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
-                  AND REPLACE(COALESCE(NULLIF(TRIM(z.srny), ''), '000000'), '.', '') >= '200607'
-                  AND (
-                        h.id IS NULL
-                        OR (h.jslb = '调入定资' AND NOT EXISTS (
-                            SELECT 1 FROM hisbase hp WHERE hp.sid = h.id
-                        ))
-                  )
-                  AND (:keyword IS NULL
-                       OR p.grbm LIKE :keywordLike
-                       OR p.xm LIKE :keywordLike
-                       OR z.xzzw LIKE :keywordLike
-                       OR z.zwbm LIKE :keywordLike)
-                ORDER BY p.dwbm, p.grbm
+        java.util.ArrayList<NewPersonnelSalaryCandidate> rows = new java.util.ArrayList<>();
+        long[] totalHolder = {0L};
+        jdbcTemplate.query(newPersonnelSalaryCandidateCteSql() + """
+                SELECT c.uid, c.dwbm, dw.dwmc, c.grbm, c.xm, c.jrny, c.jrfs,
+                       COALESCE(NULLIF(TRIM(c.zwbm2), ''), NULLIF(TRIM(c.zjbm), '')) AS position_code,
+                       COALESCE(NULLIF(TRIM(c.zwgw2), ''), NULLIF(TRIM(c.xrzw), '')) AS position_name,
+                       COALESCE(NULLIF(TRIM(c.srny), ''), NULLIF(TRIM(c.jrny), '')) AS position_start,
+                       c.cjgzny, c.zzny, c.xlbm, c.zgxl, c.gznx, c.tc,
+                       c.tip_id AS payroll_history_id, c.jslb AS current_change_type, c.hj2 AS stored_total,
+                       c.jbgzjb2 AS tip_grade_level, c.zwgzdc2 AS tip_grade_step,
+                       c.xckhndjb AS tip_level_start, c.xckhndzw AS tip_step_start,
+                       c.jsnf AS tip_calculation_year, c.jsyf AS tip_calculation_month,
+                       COUNT(*) OVER() AS total_count
+                FROM candidates c
+                LEFT JOIN dwbm dw ON dw.dwbm = c.dwbm
+                WHERE (:keyword IS NULL
+                       OR c.grbm LIKE :keywordLike
+                       OR c.xm LIKE :keywordLike
+                       OR COALESCE(c.zwgw2, c.xrzw, '') LIKE :keywordLike
+                       OR COALESCE(c.zwbm2, c.zjbm, '') LIKE :keywordLike)
+                ORDER BY c.dwbm, c.grbm
                 LIMIT :limit OFFSET :offset
-                """, parameters, NEW_PERSONNEL_SALARY_MAPPER);
+                """, parameters, (rs, rowNum) -> {
+            if (rowNum == 0) {
+                totalHolder[0] = rs.getLong("total_count");
+            }
+            rows.add(mapNewPersonnelSalaryCandidate(rs));
+            return null;
+        });
+        return new NewPersonnelSalaryCandidatePage(enrichNewPersonnelSalaryPage(rows), totalHolder[0]);
     }
 
     long countNewPersonnelSalaryCandidates(OrganizationScope organizationScope, String organizationCode, String keyword) {
         if (organizationScope.noneScope()) {
             return 0;
         }
-        Long count = jdbcTemplate.queryForObject("""
+        Long count = jdbcTemplate.queryForObject(newPersonnelSalaryCandidateCteSql() + """
                 SELECT COUNT(*)
-                FROM dryjbxx p
-                INNER JOIN dryzwbh z ON z.dwbm = p.dwbm AND z.grbm = p.grbm AND z.xrzwbz = '1'
-                LEFT JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
-                  AND REPLACE(COALESCE(NULLIF(TRIM(z.srny), ''), '000000'), '.', '') >= '200607'
-                  AND (
-                        h.id IS NULL
-                        OR (h.jslb = '调入定资' AND NOT EXISTS (
-                            SELECT 1 FROM hisbase hp WHERE hp.sid = h.id
-                        ))
-                  )
-                  AND (:keyword IS NULL
-                       OR p.grbm LIKE :keywordLike
-                       OR p.xm LIKE :keywordLike
-                       OR z.xzzw LIKE :keywordLike
-                       OR z.zwbm LIKE :keywordLike)
+                FROM candidates c
+                WHERE (:keyword IS NULL
+                       OR c.grbm LIKE :keywordLike
+                       OR c.xm LIKE :keywordLike
+                       OR COALESCE(c.zwgw2, c.xrzw, '') LIKE :keywordLike
+                       OR COALESCE(c.zwbm2, c.zjbm, '') LIKE :keywordLike)
                 """, payrollChangeParameters(organizationScope, organizationCode, keyword), Long.class);
         return count == null ? 0 : count;
+    }
+
+    private List<NewPersonnelSalaryCandidate> enrichNewPersonnelSalaryPage(List<NewPersonnelSalaryCandidate> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        java.util.ArrayList<Integer> uids = new java.util.ArrayList<>(rows.size());
+        java.util.LinkedHashSet<String> organizationCodes = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<String> personCodes = new java.util.LinkedHashSet<>();
+        for (NewPersonnelSalaryCandidate row : rows) {
+            if (row.uid() != null) {
+                uids.add(row.uid());
+            }
+            if (row.organizationCode() != null && !row.organizationCode().isBlank()) {
+                organizationCodes.add(row.organizationCode());
+            }
+            if (row.personCode() != null && !row.personCode().isBlank()) {
+                personCodes.add(row.personCode());
+            }
+        }
+
+        java.util.HashMap<Integer, Object[]> tipsByUid = new java.util.HashMap<>();
+        if (!uids.isEmpty()) {
+            jdbcTemplate.query("""
+                    SELECT p.uid,
+                           h.id, h.jslb, h.hj2, h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
+                           h.xckhndjb, h.xckhndzw, h.jsnf, h.jsyf,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY p.uid
+                               ORDER BY COALESCE(h.jsnf, '') DESC, COALESCE(h.jsyf, '') DESC, h.id DESC
+                           ) AS rn
+                    FROM dryjbxx p
+                    INNER JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm
+                    WHERE p.uid IN (:uids)
+                      AND h.sid = ''
+                    """, new MapSqlParameterSource("uids", uids), (rs, rowNum) -> {
+                if (rs.getInt("rn") != 1) {
+                    return null;
+                }
+                tipsByUid.put(rs.getInt("uid"), new Object[]{
+                        SqlText.trim(rs.getString("id")),
+                        SqlText.trim(rs.getString("jslb")),
+                        rs.getObject("hj2") == null ? null : rs.getInt("hj2"),
+                        SqlText.trim(rs.getString("zwbm2")),
+                        SqlText.trim(rs.getString("zwgw2")),
+                        SqlText.trim(rs.getString("jbgzjb2")),
+                        SqlText.trim(rs.getString("zwgzdc2")),
+                        SqlText.trim(rs.getString("xckhndjb")),
+                        SqlText.trim(rs.getString("xckhndzw")),
+                        SqlText.trim(rs.getString("jsnf")),
+                        SqlText.trim(rs.getString("jsyf"))
+                });
+                return null;
+            });
+        }
+
+        java.util.HashMap<String, String[]> positions = new java.util.HashMap<>();
+        if (!organizationCodes.isEmpty() && !personCodes.isEmpty()) {
+            jdbcTemplate.query("""
+                    SELECT dwbm, grbm, zwbm, xzzw, srny,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY dwbm, grbm
+                               ORDER BY REPLACE(COALESCE(NULLIF(TRIM(srny), ''), '000000'), '.', '') DESC, id DESC
+                           ) AS rn
+                    FROM dryzwbh
+                    WHERE dwbm IN (:organizationCodes)
+                      AND grbm IN (:personCodes)
+                      AND (xrzwbz = '1' OR TRIM(COALESCE(xrzwbz, '')) = '1')
+                    """, new MapSqlParameterSource()
+                    .addValue("organizationCodes", organizationCodes)
+                    .addValue("personCodes", personCodes), (rs, rowNum) -> {
+                if (rs.getInt("rn") != 1) {
+                    return null;
+                }
+                String key = SqlText.trim(rs.getString("dwbm")) + "|" + SqlText.trim(rs.getString("grbm"));
+                positions.put(key, new String[]{
+                        SqlText.trim(rs.getString("zwbm")),
+                        SqlText.trim(rs.getString("xzzw")),
+                        SqlText.trim(rs.getString("srny"))
+                });
+                return null;
+            });
+        }
+
+        java.util.ArrayList<NewPersonnelSalaryCandidate> enriched = new java.util.ArrayList<>(rows.size());
+        for (NewPersonnelSalaryCandidate row : rows) {
+            Object[] tip = row.uid() == null ? null : tipsByUid.get(row.uid());
+            String[] position = positions.get(row.organizationCode() + "|" + row.personCode());
+
+            String tipId = tip == null ? row.payrollHistoryId() : (String) tip[0];
+            String changeType = tip == null ? row.currentChangeType() : (String) tip[1];
+            Integer storedTotal = tip == null ? row.storedTotal() : (Integer) tip[2];
+            String tipPosCode = tip == null ? null : (String) tip[3];
+            String tipPosName = tip == null ? null : (String) tip[4];
+            String tipLevel = tip == null ? row.tipGradeSalaryLevel() : (String) tip[5];
+            String tipStep = tip == null ? row.tipPositionSalaryGrade() : (String) tip[6];
+            String tipLevelStart = tip == null ? row.tipLevelAssessmentStartYear() : (String) tip[7];
+            String tipStepStart = tip == null ? row.tipStepAssessmentStartYear() : (String) tip[8];
+            String tipYear = tip == null ? row.tipCalculationYear() : (String) tip[9];
+            String tipMonth = tip == null ? row.tipCalculationMonth() : (String) tip[10];
+
+            String positionCode = firstNonBlank(tipPosCode, position == null ? null : position[0], row.positionCode());
+            String positionName = firstNonBlank(tipPosName, position == null ? null : position[1], row.positionName());
+            String positionStart = firstNonBlank(position == null ? null : position[2], row.positionStartYearMonth(), row.joinYearMonth());
+
+            enriched.add(new NewPersonnelSalaryCandidate(
+                    row.uid(),
+                    row.organizationCode(),
+                    row.organizationName(),
+                    row.personCode(),
+                    row.name(),
+                    row.joinYearMonth(),
+                    row.joinType(),
+                    positionCode,
+                    positionName,
+                    positionStart,
+                    row.workStartYearMonth(),
+                    row.regularizationYearMonth(),
+                    row.educationCode(),
+                    row.educationName(),
+                    row.salaryYears(),
+                    row.classificationTag(),
+                    tipId,
+                    changeType,
+                    storedTotal,
+                    tipLevel,
+                    tipStep,
+                    tipLevelStart,
+                    tipStepStart,
+                    tipYear,
+                    tipMonth));
+        }
+        return enriched;
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private static String newPersonnelSalaryCandidateCteSql() {
+        return """
+                WITH pending AS (
+                    SELECT p.uid, p.dwbm, p.grbm, p.xm, p.jrny, p.jrfs, p.cjgzny, p.zzny, p.xlbm, p.zgxl,
+                           COALESCE(p.gznx, 0) AS gznx, p.tc, p.zjbm, p.xrzw, p.srny,
+                           CAST(NULL AS CHAR(36)) AS tip_id,
+                           CAST(NULL AS CHAR(8)) AS jslb,
+                           CAST(NULL AS SIGNED) AS hj2,
+                           CAST(NULL AS CHAR(4)) AS zwbm2,
+                           CAST(NULL AS CHAR(18)) AS zwgw2,
+                           CAST(NULL AS CHAR(2)) AS jbgzjb2,
+                           CAST(NULL AS CHAR(2)) AS zwgzdc2,
+                           CAST(NULL AS CHAR(4)) AS xckhndjb,
+                           CAST(NULL AS CHAR(4)) AS xckhndzw,
+                           CAST(NULL AS CHAR(4)) AS jsnf,
+                           CAST(NULL AS CHAR(2)) AS jsyf
+                    FROM dryjbxx p
+                    WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                      AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                      AND TRIM(COALESCE(p.tc, '')) NOT IN ('已定工资', '新增见习', '已定级人员')
+                      AND TRIM(REPLACE(COALESCE(p.jrny, ''), '.', '')) <> ''
+                      AND NOT (
+                          TRIM(COALESCE(p.jrfs, '')) = '新招人员'
+                          AND LENGTH(REPLACE(COALESCE(p.cjgzny, ''), '.', '')) = 6
+                          AND LENGTH(REPLACE(COALESCE(p.jrny, ''), '.', '')) = 6
+                          AND REPLACE(COALESCE(p.cjgzny, ''), '.', '') = REPLACE(COALESCE(p.jrny, ''), '.', '')
+                      )
+                ),
+                nh_tip_ranked AS (
+                    SELECT h.id AS tip_id, h.dwbm, h.grbm, h.jslb, h.hj2, h.zwbm2, h.zwgw2,
+                           h.jbgzjb2, h.zwgzdc2, h.xckhndjb, h.xckhndzw, h.jsnf, h.jsyf,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY h.dwbm, h.grbm
+                               ORDER BY COALESCE(h.jsnf, '') DESC, COALESCE(h.jsyf, '') DESC, h.id DESC
+                           ) AS rn
+                    FROM hisbase h
+                    WHERE h.sid = ''
+                      AND h.jslb IN ('见习工资', '新进工资', '调入定资', '转业定资', '退伍定资')
+                      AND (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                      AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
+                ),
+                processed AS (
+                    SELECT p.uid, p.dwbm, p.grbm, p.xm, p.jrny, p.jrfs, p.cjgzny, p.zzny, p.xlbm, p.zgxl,
+                           COALESCE(p.gznx, 0) AS gznx, p.tc, p.zjbm, p.xrzw, p.srny,
+                           h.tip_id, h.jslb, h.hj2, h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
+                           h.xckhndjb, h.xckhndzw, h.jsnf, h.jsyf
+                    FROM nh_tip_ranked h
+                    INNER JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                    WHERE h.rn = 1
+                      AND (
+                            TRIM(COALESCE(p.tc, '')) = '已定工资'
+                         OR (
+                              TRIM(COALESCE(p.tc, '')) = '新增见习'
+                              AND TRIM(COALESCE(h.jslb, '')) = '见习工资'
+                            )
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM hisbase x
+                          WHERE x.dwbm = h.dwbm
+                            AND x.grbm = h.grbm
+                            AND (x.sid IS NULL OR x.sid = '')
+                            AND (
+                                  COALESCE(x.jsnf, '') > COALESCE(h.jsnf, '')
+                               OR (
+                                    COALESCE(x.jsnf, '') = COALESCE(h.jsnf, '')
+                                    AND COALESCE(x.jsyf, '') > COALESCE(h.jsyf, '')
+                                  )
+                               OR (
+                                    COALESCE(x.jsnf, '') = COALESCE(h.jsnf, '')
+                                    AND COALESCE(x.jsyf, '') = COALESCE(h.jsyf, '')
+                                    AND x.id > h.tip_id
+                                  )
+                            )
+                      )
+                ),
+                transfer_missing AS (
+                    SELECT p.uid, p.dwbm, p.grbm, p.xm, p.jrny, p.jrfs, p.cjgzny, p.zzny, p.xlbm, p.zgxl,
+                           COALESCE(p.gznx, 0) AS gznx, p.tc, p.zjbm, p.xrzw, p.srny,
+                           h.id AS tip_id, h.jslb, h.hj2, h.zwbm2, h.zwgw2, h.jbgzjb2, h.zwgzdc2,
+                           h.xckhndjb, h.xckhndzw, h.jsnf, h.jsyf
+                    FROM dryjbxx p
+                    INNER JOIN hisbase h ON h.id = (
+                        SELECT h2.id
+                        FROM hisbase h2
+                        WHERE h2.dwbm = p.dwbm
+                          AND h2.grbm = p.grbm
+                          AND (h2.sid IS NULL OR h2.sid = '' OR TRIM(h2.sid) = '')
+                        ORDER BY COALESCE(h2.jsnf, '') DESC, COALESCE(h2.jsyf, '') DESC, h2.id DESC
+                        LIMIT 1
+                    )
+                    WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                      AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                      AND TRIM(COALESCE(p.tc, '')) = '已定工资'
+                      AND TRIM(REPLACE(COALESCE(p.jrny, ''), '.', '')) <> ''
+                      AND (
+                            TRIM(COALESCE(p.jrfs, '')) IN ('部队退伍', '部队转业')
+                         OR (
+                              TRIM(COALESCE(p.jrfs, '')) <> ''
+                              AND TRIM(COALESCE(p.jrfs, '')) NOT IN ('新招人员', '部队退伍', '部队转业')
+                            )
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM hisbase x
+                          WHERE x.dwbm = p.dwbm
+                            AND x.grbm = p.grbm
+                            AND (x.sid IS NULL OR x.sid = '' OR TRIM(x.sid) = '')
+                            AND TRIM(COALESCE(x.jslb, '')) IN ('调入定资', '转业定资', '退伍定资')
+                      )
+                ),
+                candidates AS (
+                    SELECT uid, dwbm, grbm, xm, jrny, jrfs, cjgzny, zzny, xlbm, zgxl, gznx, tc, zjbm, xrzw, srny,
+                           tip_id, jslb, hj2, zwbm2, zwgw2, jbgzjb2, zwgzdc2, xckhndjb, xckhndzw, jsnf, jsyf
+                    FROM pending
+                    UNION ALL
+                    SELECT uid, dwbm, grbm, xm, jrny, jrfs, cjgzny, zzny, xlbm, zgxl, gznx, tc, zjbm, xrzw, srny,
+                           tip_id, jslb, hj2, zwbm2, zwgw2, jbgzjb2, zwgzdc2, xckhndjb, xckhndzw, jsnf, jsyf
+                    FROM processed
+                    UNION ALL
+                    SELECT uid, dwbm, grbm, xm, jrny, jrfs, cjgzny, zzny, xlbm, zgxl, gznx, tc, zjbm, xrzw, srny,
+                           tip_id, jslb, hj2, zwbm2, zwgw2, jbgzjb2, zwgzdc2, xckhndjb, xckhndzw, jsnf, jsyf
+                    FROM transfer_missing
+                )
+                """;
     }
 
     Optional<NewPersonnelSalaryCandidate> findNewPersonnelSalaryCandidate(int uid) {
         List<NewPersonnelSalaryCandidate> rows = jdbcTemplate.query("""
                 SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.jrny, p.jrfs,
-                       z.zwbm AS position_code, z.xzzw AS position_name, z.srny AS position_start,
-                       p.cjgzny, p.zzny, p.xlbm, p.zgxl, p.gznx,
-                       h.id AS payroll_history_id, h.jslb AS current_change_type
+                       COALESCE(NULLIF(TRIM(h.zwbm2), ''), NULLIF(TRIM(z.zwbm), ''), NULLIF(TRIM(p.zjbm), '')) AS position_code,
+                       COALESCE(NULLIF(TRIM(h.zwgw2), ''), NULLIF(TRIM(z.xzzw), ''), NULLIF(TRIM(p.xrzw), '')) AS position_name,
+                       COALESCE(NULLIF(TRIM(z.srny), ''), NULLIF(TRIM(p.srny), ''), NULLIF(TRIM(p.jrny), '')) AS position_start,
+                       p.cjgzny, p.zzny, p.xlbm, p.zgxl, COALESCE(p.gznx, 0) AS gznx, p.tc,
+                       h.id AS payroll_history_id, h.jslb AS current_change_type, h.hj2 AS stored_total,
+                       h.jbgzjb2 AS tip_grade_level, h.zwgzdc2 AS tip_grade_step,
+                       h.xckhndjb AS tip_level_start, h.xckhndzw AS tip_step_start,
+                       h.jsnf AS tip_calculation_year, h.jsyf AS tip_calculation_month
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
-                INNER JOIN dryzwbh z ON z.dwbm = p.dwbm AND z.grbm = p.grbm AND z.xrzwbz = '1'
-                LEFT JOIN hisbase h ON h.dwbm = p.dwbm AND h.grbm = p.grbm AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                LEFT JOIN dryzwbh z ON z.id = (
+                    SELECT z2.id
+                    FROM dryzwbh z2
+                    WHERE z2.dwbm = p.dwbm
+                      AND z2.grbm = p.grbm
+                      AND (z2.xrzwbz = '1' OR TRIM(COALESCE(z2.xrzwbz, '')) = '1')
+                    ORDER BY REPLACE(COALESCE(NULLIF(TRIM(z2.srny), ''), '000000'), '.', '') DESC, z2.id DESC
+                    LIMIT 1
+                )
+                LEFT JOIN hisbase h ON h.id = (
+                    SELECT h2.id
+                    FROM hisbase h2
+                    WHERE h2.dwbm = p.dwbm
+                      AND h2.grbm = p.grbm
+                      AND (h2.sid IS NULL OR h2.sid = '' OR TRIM(h2.sid) = '')
+                    ORDER BY COALESCE(h2.jsnf, '') DESC, COALESCE(h2.jsyf, '') DESC, h2.id DESC
+                    LIMIT 1
+                )
                 WHERE p.uid = :uid
-                  AND REPLACE(COALESCE(NULLIF(TRIM(z.srny), ''), '000000'), '.', '') >= '200607'
                   AND (
-                        h.id IS NULL
-                        OR (h.jslb = '调入定资' AND NOT EXISTS (
-                            SELECT 1 FROM hisbase hp WHERE hp.sid = h.id
-                        ))
+                        (
+                            TRIM(COALESCE(p.tc, '')) NOT IN ('已定工资', '新增见习', '已定级人员')
+                            AND TRIM(REPLACE(COALESCE(p.jrny, ''), '.', '')) <> ''
+                            AND NOT (
+                                TRIM(COALESCE(p.jrfs, '')) = '新招人员'
+                                AND LENGTH(REPLACE(COALESCE(p.cjgzny, ''), '.', '')) = 6
+                                AND LENGTH(REPLACE(COALESCE(p.jrny, ''), '.', '')) = 6
+                                AND REPLACE(COALESCE(p.cjgzny, ''), '.', '') = REPLACE(COALESCE(p.jrny, ''), '.', '')
+                            )
+                        )
+                        OR (
+                            TRIM(COALESCE(p.tc, '')) = '已定工资'
+                            AND TRIM(COALESCE(h.jslb, '')) IN ('见习工资', '新进工资', '调入定资', '转业定资', '退伍定资')
+                        )
+                        OR (
+                            TRIM(COALESCE(p.tc, '')) = '新增见习'
+                            AND TRIM(COALESCE(h.jslb, '')) = '见习工资'
+                        )
+                        OR (
+                            TRIM(COALESCE(p.tc, '')) = '已定工资'
+                            AND TRIM(REPLACE(COALESCE(p.jrny, ''), '.', '')) <> ''
+                            AND (
+                                  TRIM(COALESCE(p.jrfs, '')) IN ('部队退伍', '部队转业')
+                               OR (
+                                    TRIM(COALESCE(p.jrfs, '')) <> ''
+                                    AND TRIM(COALESCE(p.jrfs, '')) NOT IN ('新招人员', '部队退伍', '部队转业')
+                                  )
+                            )
+                            AND NOT EXISTS (
+                                SELECT 1
+                                FROM hisbase x
+                                WHERE x.dwbm = p.dwbm
+                                  AND x.grbm = p.grbm
+                                  AND (x.sid IS NULL OR x.sid = '' OR TRIM(x.sid) = '')
+                                  AND TRIM(COALESCE(x.jslb, '')) IN ('调入定资', '转业定资', '退伍定资')
+                            )
+                        )
                   )
                 LIMIT 1
                 """, new MapSqlParameterSource("uid", uid), NEW_PERSONNEL_SALARY_MAPPER);
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
     }
 
+    boolean hasTransferInSalaryDetermination(String organizationCode, String personCode) {
+        Boolean exists = jdbcTemplate.queryForObject("""
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM hisbase h
+                    WHERE h.dwbm = :organizationCode
+                      AND h.grbm = :personCode
+                      AND (h.sid IS NULL OR h.sid = '' OR TRIM(h.sid) = '')
+                      AND TRIM(COALESCE(h.jslb, '')) IN ('调入定资', '转业定资', '退伍定资')
+                )
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode), Boolean.class);
+        return Boolean.TRUE.equals(exists);
+    }
+
+    Optional<PersonnelJoinSnapshot> findPersonnelJoinByOrgPerson(String organizationCode, String personCode) {
+        List<PersonnelJoinSnapshot> rows = jdbcTemplate.query("""
+                SELECT p.uid, p.dwbm, p.grbm, p.xm, p.jrfs, p.jrny, p.cjgzny, p.tc, p.xlbm, p.zgxl,
+                       COALESCE(NULLIF(TRIM(h.zwbm2), ''), NULLIF(TRIM(z.zwbm), ''), NULLIF(TRIM(p.zjbm), '')) AS position_code,
+                       COALESCE(NULLIF(TRIM(h.zwgw2), ''), NULLIF(TRIM(z.xzzw), ''), NULLIF(TRIM(p.xrzw), '')) AS position_name,
+                       h.id AS tip_id
+                FROM dryjbxx p
+                LEFT JOIN dryzwbh z ON z.id = (
+                    SELECT z2.id FROM dryzwbh z2
+                    WHERE z2.dwbm = p.dwbm AND z2.grbm = p.grbm
+                    ORDER BY CASE WHEN TRIM(COALESCE(z2.xrzwbz, '')) = '1' THEN 0 ELSE 1 END,
+                             REPLACE(COALESCE(NULLIF(TRIM(z2.srny), ''), '000000'), '.', '') DESC, z2.id DESC
+                    LIMIT 1
+                )
+                LEFT JOIN hisbase h ON h.id = (
+                    SELECT h2.id FROM hisbase h2
+                    WHERE h2.dwbm = p.dwbm AND h2.grbm = p.grbm
+                      AND (h2.sid IS NULL OR h2.sid = '' OR TRIM(h2.sid) = '')
+                    ORDER BY COALESCE(h2.jsnf, '') DESC, COALESCE(h2.jsyf, '') DESC, h2.id DESC
+                    LIMIT 1
+                )
+                WHERE p.dwbm = :organizationCode
+                  AND p.grbm = :personCode
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode), (rs, rowNum) -> new PersonnelJoinSnapshot(
+                rs.getInt("uid"),
+                SqlText.trim(rs.getString("dwbm")),
+                SqlText.trim(rs.getString("grbm")),
+                SqlText.trim(rs.getString("xm")),
+                SqlText.trim(rs.getString("jrfs")),
+                SqlText.trim(rs.getString("jrny")),
+                SqlText.trim(rs.getString("cjgzny")),
+                SqlText.trim(rs.getString("tc")),
+                SqlText.trim(rs.getString("xlbm")),
+                SqlText.trim(rs.getString("zgxl")),
+                SqlText.trim(rs.getString("position_code")),
+                SqlText.trim(rs.getString("position_name")),
+                SqlText.trim(rs.getString("tip_id"))));
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
+    }
+
     String insertInitialPayrollHistory(int uid, InitialPayrollHistoryMutation mutation) {
         String id = java.util.UUID.randomUUID().toString().toUpperCase();
-        jdbcTemplate.update("""
+        // 新招录人员常无 hisbase、也可能无 xrzwbz=1 任职；仅依赖 dryjbxx，任职表左连可选。
+        int inserted = jdbcTemplate.update("""
                 INSERT INTO hisbase
                 SELECT :id, p.dwbm, p.grbm, p.xm,
                        COALESCE(NULLIF(TRIM(p.ryfl), ''), ''), COALESCE(NULLIF(TRIM(p.dwsx), ''), ''),
@@ -2472,24 +4166,34 @@ class PayrollRepository {
                        COALESCE(NULLIF(TRIM(p.jhlqsny), ''), ''), COALESCE(p.zdjhlnx, 0),
                        COALESCE(NULLIF(TRIM(p.xlbm), ''), ''), COALESCE(NULLIF(TRIM(p.zgxl), ''), ''),
                        COALESCE(p.bjglxlnx, 0), COALESCE(NULLIF(TRIM(p.tc), ''), ''),
-                       COALESCE(NULLIF(TRIM(p.xckhndzw), ''), ''), COALESCE(NULLIF(TRIM(p.xckhndjb), ''), ''),
+                       '', '',
                        '', COALESCE(NULLIF(TRIM(p.zwjb), ''), ''), COALESCE(NULLIF(TRIM(p.zjbm), ''), ''),
-                       COALESCE(NULLIF(TRIM(p.xrzw), ''), ''), COALESCE(NULLIF(TRIM(z.srny), ''), COALESCE(NULLIF(TRIM(p.srny), ''), '')),
-                       COALESCE(NULLIF(TRIM(p.jx), ''), ''), COALESCE(p.tgbl, 0), COALESCE(NULLIF(TRIM(p.jtbl), ''), ''),
+                       COALESCE(NULLIF(TRIM(p.xrzw), ''), ''),
+                       COALESCE(NULLIF(TRIM(z.srny), ''), COALESCE(NULLIF(TRIM(p.srny), ''), '')),
+                       '', COALESCE(p.tgbl, 0), COALESCE(NULLIF(TRIM(p.jtbl), ''), ''),
                        COALESCE(NULLIF(TRIM(p.fddc), ''), ''), COALESCE(NULLIF(TRIM(p.fdgd), ''), ''),
                        COALESCE(NULLIF(TRIM(p.fdsj), ''), ''),
                        :calculationYear, :calculationMonth, :changeType,
-                       COALESCE(NULLIF(TRIM(p.khqk), ''), ''), '', '', '', :totalAmount,
+                       COALESCE(NULLIF(TRIM(p.khqk), ''), ''), '', '', COALESCE(:remark, ''), :totalAmount,
                        :positionCode, :positionName, :positionSalaryGrade, :positionSalary,
                        :gradeSalaryLevel, :gradeSalaryStep, :gradeSalary,
                        0, 0, :technicalGradeSalary, 0, :retainedAllowance, :salaryIncrease,
                        0, 0, 0, :performanceAllowance, :subsidyAllowance, '', :internSalary, 0,
-                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                        COALESCE(NULLIF(TRIM(p.gryhzh), ''), ''), '', '',
                        COALESCE(NULLIF(TRIM(p.spdw), ''), ''), :standardYearMonth, '', :allowanceStandardYearMonth,
                        :teachingAllowance, 0, 0, '', 0, 0, '', '', 0, '', '', '', ''
                 FROM dryjbxx p
-                INNER JOIN dryzwbh z ON z.dwbm = p.dwbm AND z.grbm = p.grbm AND z.xrzwbz = '1'
+                LEFT JOIN dryzwbh z ON z.id = (
+                    SELECT z2.id
+                    FROM dryzwbh z2
+                    WHERE z2.dwbm = p.dwbm
+                      AND z2.grbm = p.grbm
+                    ORDER BY CASE WHEN TRIM(COALESCE(z2.xrzwbz, '')) = '1' THEN 0 ELSE 1 END,
+                             REPLACE(COALESCE(NULLIF(TRIM(z2.srny), ''), '000000'), '.', '') DESC,
+                             z2.id DESC
+                    LIMIT 1
+                )
                 WHERE p.uid = :uid
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
@@ -2497,6 +4201,7 @@ class PayrollRepository {
                 .addValue("calculationYear", mutation.calculationYear())
                 .addValue("calculationMonth", mutation.calculationMonth())
                 .addValue("changeType", mutation.changeType())
+                .addValue("remark", emptyToNull(mutation.remark()))
                 .addValue("positionCode", valueOrBlank(mutation.positionCode()))
                 .addValue("positionName", valueOrBlank(mutation.positionName()))
                 .addValue("positionSalaryGrade", valueOrBlank(mutation.positionSalaryGrade()))
@@ -2514,10 +4219,13 @@ class PayrollRepository {
                 .addValue("totalAmount", mutation.totalAmount() == null ? 0 : mutation.totalAmount())
                 .addValue("standardYearMonth", valueOrBlank(mutation.standardYearMonth()))
                 .addValue("allowanceStandardYearMonth", valueOrBlank(mutation.allowanceStandardYearMonth())));
+        if (inserted <= 0) {
+            throw new IllegalArgumentException("未找到人员基本信息，无法写入工资记录：" + uid);
+        }
         jdbcTemplate.update("""
                 UPDATE hisbase
-                SET xckhndjb = :stepAssessmentStartYear,
-                    xckhndzw = :levelAssessmentStartYear
+                SET xckhndzw = :stepAssessmentStartYear,
+                    xckhndjb = :levelAssessmentStartYear
                 WHERE id = :id
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
@@ -2554,6 +4262,20 @@ class PayrollRepository {
                 """, parameters, OTHER_PAYROLL_CHANGE_MAPPER);
     }
 
+    List<String> findDistinctPayrollChangeTypes(OrganizationScope organizationScope, String organizationCode) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT DISTINCT TRIM(h.jslb) AS change_type
+                FROM hisbase h
+                WHERE (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
+                  AND TRIM(COALESCE(h.jslb, '')) <> ''
+                ORDER BY change_type
+                """, payrollChangeParameters(organizationScope, organizationCode, null), String.class);
+    }
+
     long countOtherPayrollChangePreviews(OrganizationScope organizationScope, String organizationCode, String keyword) {
         if (organizationScope.noneScope()) {
             return 0;
@@ -2582,13 +4304,54 @@ class PayrollRepository {
         return count != null && count > 0;
     }
 
+    Set<String> findAppCreatedPayrollHistoryIds(Collection<String> payrollHistoryIds) {
+        if (payrollHistoryIds == null || payrollHistoryIds.isEmpty()) {
+            return Set.of();
+        }
+        List<String> normalizedIds = payrollHistoryIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(id -> !id.isBlank())
+                .distinct()
+                .toList();
+        if (normalizedIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> created = new LinkedHashSet<>();
+        int batchSize = 400;
+        for (int from = 0; from < normalizedIds.size(); from += batchSize) {
+            List<String> batch = normalizedIds.subList(from, Math.min(from + batchSize, normalizedIds.size()));
+            created.addAll(jdbcTemplate.queryForList("""
+                    SELECT record_id
+                    FROM app_record_marker
+                    WHERE table_name = 'hisbase'
+                      AND marker = 'APP_CREATED'
+                      AND record_id IN (:ids)
+                    """, new MapSqlParameterSource("ids", batch), String.class).stream()
+                    .map(SqlText::trim)
+                    .filter(id -> id != null && !id.isBlank())
+                    .toList());
+        }
+        return created;
+    }
+
     List<Integer> findPersonnelUidsWithPayrollHistory(OrganizationScope organizationScope, PageRequest pageRequest) {
+        return findPersonnelUidsWithPayrollHistory(organizationScope, null, pageRequest);
+    }
+
+    List<Integer> findPersonnelUidsWithPayrollHistory(
+            OrganizationScope organizationScope,
+            String keyword,
+            PageRequest pageRequest) {
         if (organizationScope.noneScope()) {
             return List.of();
         }
+        String trimmedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
                 .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%")
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.queryForList("""
@@ -2600,15 +4363,71 @@ class PayrollRepository {
                       FROM hisbase h
                       WHERE h.dwbm = p.dwbm AND h.grbm = p.grbm
                   )
+                  AND (:keyword IS NULL
+                       OR p.grbm LIKE :keywordLike
+                       OR p.xm LIKE :keywordLike)
                 ORDER BY p.dwbm, p.grbm
                 LIMIT :limit OFFSET :offset
                 """, parameters, Integer.class);
     }
 
-    List<Integer> findAllPersonnelUidsWithPayrollHistory(OrganizationScope organizationScope) {
+    List<ProjectionAuditPersonnelRow> findProjectionAuditPersonnelPage(
+            OrganizationScope organizationScope,
+            String keyword,
+            PageRequest pageRequest) {
         if (organizationScope.noneScope()) {
             return List.of();
         }
+        String trimmedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("allOrganizations", organizationScope.all())
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%")
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                WITH ranked AS (
+                    SELECT p.uid,
+                           p.dwbm,
+                           p.grbm,
+                           p.xm,
+                           h.jsnf,
+                           h.jsyf,
+                           h.hj2,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY p.uid
+                               ORDER BY CASE WHEN h.sid IS NULL OR TRIM(h.sid) = '' THEN 0 ELSE 1 END,
+                                        COALESCE(h.jsnf, '') DESC,
+                                        COALESCE(h.jsyf, '') DESC,
+                                        h.id DESC
+                           ) AS rn
+                    FROM dryjbxx p
+                    JOIN hisbase h
+                      ON p.dwbm = h.dwbm
+                     AND p.grbm = h.grbm
+                    WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                      AND (:keyword IS NULL
+                           OR p.grbm LIKE :keywordLike
+                           OR p.xm LIKE :keywordLike)
+                )
+                SELECT uid, dwbm, grbm, xm, jsnf, jsyf, hj2
+                FROM ranked
+                WHERE rn = 1
+                ORDER BY dwbm, grbm
+                LIMIT :limit OFFSET :offset
+                """, parameters, PROJECTION_AUDIT_PERSONNEL_ROW_MAPPER);
+    }
+
+    List<Integer> findAllPersonnelUidsWithPayrollHistory(OrganizationScope organizationScope) {
+        return findAllPersonnelUidsWithPayrollHistory(organizationScope, null);
+    }
+
+    List<Integer> findAllPersonnelUidsWithPayrollHistory(OrganizationScope organizationScope, String keyword) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        String trimmedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         return jdbcTemplate.queryForList("""
                 SELECT p.uid
                 FROM dryjbxx p
@@ -2618,10 +4437,15 @@ class PayrollRepository {
                       FROM hisbase h
                       WHERE h.dwbm = p.dwbm AND h.grbm = p.grbm
                   )
+                  AND (:keyword IS NULL
+                       OR p.grbm LIKE :keywordLike
+                       OR p.xm LIKE :keywordLike)
                 ORDER BY p.dwbm, p.grbm
                 """, new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
-                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes()), Integer.class);
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%"), Integer.class);
     }
 
     List<Integer> findPersonnelUidsWithCurrentPayroll(
@@ -2645,7 +4469,7 @@ class PayrollRepository {
                       FROM hisbase h
                       WHERE h.dwbm = p.dwbm
                         AND h.grbm = p.grbm
-                        AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                        AND h.sid = ''
                   )
                   AND (:keyword IS NULL
                        OR p.grbm LIKE :keywordLike
@@ -2660,6 +4484,129 @@ class PayrollRepository {
                 ORDER BY p.dwbm, p.grbm
                 LIMIT :limit OFFSET :offset
                 """, parameters, Integer.class);
+    }
+
+    /**
+     * 学历晋升候选：tip 为「学历变化」可还原，或 tip 工资年月之后取得过可用学历。
+     * 拆成 UNION：还原侧从「学历变化」tip 反查是否仍为链头；办理侧先缩到有学历的人再取 tip。
+     */
+    List<Integer> findEducationPromotionCandidateUids(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT uid
+                FROM (
+                    SELECT p.uid, p.dwbm, p.grbm, p.xm, h.zwgw2
+                    FROM hisbase h
+                    INNER JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                    WHERE h.jslb = '学历变化'
+                      AND h.sid = ''
+                      AND (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                      AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM hisbase n
+                          WHERE n.dwbm = h.dwbm
+                            AND n.grbm = h.grbm
+                            AND (n.sid IS NULL OR n.sid = '')
+                            AND (
+                                CONCAT(COALESCE(n.jsnf, ''), COALESCE(n.jsyf, ''))
+                                  > CONCAT(COALESCE(h.jsnf, ''), COALESCE(h.jsyf, ''))
+                                OR (
+                                    CONCAT(COALESCE(n.jsnf, ''), COALESCE(n.jsyf, ''))
+                                      = CONCAT(COALESCE(h.jsnf, ''), COALESCE(h.jsyf, ''))
+                                    AND n.id > h.id
+                                )
+                            )
+                      )
+                    UNION
+                    SELECT t.uid, t.dwbm, t.grbm, t.xm, t.zwgw2
+                    FROM (
+                        WITH edu_people AS (
+                            SELECT DISTINCT dwbm, grbm
+                            FROM dxl
+                            WHERE xllb <> '后取'
+                              AND bysj IS NOT NULL
+                              AND CHAR_LENGTH(REPLACE(TRIM(bysj), '.', '')) >= 6
+                        ),
+                        tip AS (
+                            SELECT p.uid,
+                                   p.dwbm,
+                                   p.grbm,
+                                   p.xm,
+                                   h.zwgw2,
+                                   CONCAT(COALESCE(TRIM(h.jsnf), ''), COALESCE(TRIM(h.jsyf), '')) AS tip_period,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY p.uid
+                                       ORDER BY COALESCE(h.jsnf, '') DESC, COALESCE(h.jsyf, '') DESC, h.id DESC
+                                   ) AS rn
+                            FROM dryjbxx p
+                            INNER JOIN edu_people e ON e.dwbm = p.dwbm AND e.grbm = p.grbm
+                            INNER JOIN hisbase h
+                              ON h.dwbm = p.dwbm
+                             AND h.grbm = p.grbm
+                             AND h.sid = ''
+                            WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                              AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                        )
+                        SELECT uid, dwbm, grbm, xm, zwgw2, tip_period
+                        FROM tip
+                        WHERE rn = 1
+                          AND CHAR_LENGTH(tip_period) >= 6
+                    ) t
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM dxl xl
+                        WHERE xl.dwbm = t.dwbm
+                          AND xl.grbm = t.grbm
+                          AND xl.xllb <> '后取'
+                          AND xl.bysj IS NOT NULL
+                          AND CHAR_LENGTH(REPLACE(TRIM(xl.bysj), '.', '')) >= 6
+                          AND REPLACE(TRIM(xl.bysj), '.', '') > t.tip_period
+                    )
+                ) candidates
+                WHERE (:keyword IS NULL
+                       OR grbm LIKE :keywordLike
+                       OR xm LIKE :keywordLike
+                       OR COALESCE(zwgw2, '') LIKE :keywordLike)
+                ORDER BY dwbm, grbm
+                """, payrollChangeParameters(organizationScope, organizationCode, keyword), Integer.class);
+    }
+
+    ProbationPersonnelPage findProbationPersonnelPage(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return new ProbationPersonnelPage(List.of(), 0);
+        }
+        MapSqlParameterSource parameters = payrollChangeParameters(organizationScope, organizationCode, keyword)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        java.util.ArrayList<Integer> uids = new java.util.ArrayList<>();
+        long[] totalHolder = {0L};
+        jdbcTemplate.query(probationPersonnelCandidateCteSql() + """
+                SELECT c.uid, COUNT(*) OVER() AS total_count
+                FROM candidates c
+                WHERE (:keyword IS NULL
+                       OR c.grbm LIKE :keywordLike
+                       OR c.xm LIKE :keywordLike
+                       OR COALESCE(c.zwgw2, '') LIKE :keywordLike)
+                ORDER BY c.dwbm, c.grbm
+                LIMIT :limit OFFSET :offset
+                """, parameters, (rs, rowNum) -> {
+            if (rowNum == 0) {
+                totalHolder[0] = rs.getLong("total_count");
+            }
+            uids.add(rs.getInt("uid"));
+            return null;
+        });
+        return new ProbationPersonnelPage(uids, totalHolder[0]);
     }
 
     List<Integer> findProbationPersonnelUidsWithCurrentPayroll(
@@ -2667,70 +4614,188 @@ class PayrollRepository {
             String organizationCode,
             String keyword,
             PageRequest pageRequest) {
-        if (organizationScope.noneScope()) {
-            return List.of();
-        }
-        MapSqlParameterSource parameters = payrollChangeParameters(organizationScope, organizationCode, keyword)
-                .addValue("limit", pageRequest.size())
-                .addValue("offset", pageRequest.offset());
-        return jdbcTemplate.queryForList("""
-                SELECT p.uid
-                FROM dryjbxx p
-                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
-                  AND EXISTS (
-                      SELECT 1
-                      FROM hisbase h
-                      WHERE h.dwbm = p.dwbm
-                        AND h.grbm = p.grbm
-                        AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                        AND h.zwbm2 LIKE '%F%'
-                  )
-                  AND (:keyword IS NULL
-                       OR p.grbm LIKE :keywordLike
-                       OR p.xm LIKE :keywordLike
-                       OR EXISTS (
-                           SELECT 1
-                           FROM hisbase hk
-                           WHERE hk.dwbm = p.dwbm
-                             AND hk.grbm = p.grbm
-                             AND hk.zwgw2 LIKE :keywordLike
-                       ))
-                ORDER BY p.dwbm, p.grbm
-                LIMIT :limit OFFSET :offset
-                """, parameters, Integer.class);
+        return findProbationPersonnelPage(organizationScope, organizationCode, keyword, pageRequest).uids();
     }
 
     long countProbationPersonnelWithCurrentPayroll(OrganizationScope organizationScope, String organizationCode, String keyword) {
         if (organizationScope.noneScope()) {
             return 0;
         }
-        Long count = jdbcTemplate.queryForObject("""
+        Long count = jdbcTemplate.queryForObject(probationPersonnelCandidateCteSql() + """
                 SELECT COUNT(*)
-                FROM dryjbxx p
-                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
-                  AND EXISTS (
-                      SELECT 1
-                      FROM hisbase h
-                      WHERE h.dwbm = p.dwbm
-                        AND h.grbm = p.grbm
-                        AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                        AND h.zwbm2 LIKE '%F%'
-                  )
-                  AND (:keyword IS NULL
-                       OR p.grbm LIKE :keywordLike
-                       OR p.xm LIKE :keywordLike
-                       OR EXISTS (
-                           SELECT 1
-                           FROM hisbase hk
-                           WHERE hk.dwbm = p.dwbm
-                             AND hk.grbm = p.grbm
-                             AND hk.zwgw2 LIKE :keywordLike
-                       ))
+                FROM candidates c
+                WHERE (:keyword IS NULL
+                       OR c.grbm LIKE :keywordLike
+                       OR c.xm LIKE :keywordLike
+                       OR COALESCE(c.zwgw2, '') LIKE :keywordLike)
                 """, payrollChangeParameters(organizationScope, organizationCode, keyword), Long.class);
         return count == null ? 0 : count;
     }
+
+    private static String probationPersonnelCandidateCteSql() {
+        return """
+                WITH tip_keys AS (
+                    SELECT DISTINCT h.dwbm, h.grbm
+                    FROM hisbase h
+                    WHERE h.sid = ''
+                      AND (:allOrganizations = TRUE OR h.dwbm IN (:organizationCodes))
+                      AND (:organizationCode IS NULL OR h.dwbm = :organizationCode)
+                      AND (
+                          INSTR(UPPER(COALESCE(h.zwbm2, '')), 'F') > 0
+                          OR h.zwgw2 LIKE '%见习%'
+                          OR h.zwgw2 LIKE '%试用%'
+                          OR h.jslb IN ('见习工资', '转正定级')
+                          OR EXISTS (
+                              SELECT 1
+                              FROM dryjbxx px
+                              WHERE px.dwbm = h.dwbm
+                                AND px.grbm = h.grbm
+                                AND TRIM(COALESCE(px.tc, '')) = '新增见习'
+                          )
+                      )
+                ),
+                tip_ranked AS (
+                    SELECT p.uid, p.dwbm, p.grbm, p.xm, p.tc,
+                           h.jslb, h.zwbm2, h.zwgw2,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY p.uid
+                               ORDER BY COALESCE(h.jsnf, '') DESC, COALESCE(h.jsyf, '') DESC, h.id DESC
+                           ) AS rn
+                    FROM tip_keys k
+                    INNER JOIN dryjbxx p ON p.dwbm = k.dwbm AND p.grbm = k.grbm
+                    INNER JOIN hisbase h
+                        ON h.dwbm = p.dwbm
+                       AND h.grbm = p.grbm
+                       AND h.sid = ''
+                ),
+                candidates AS (
+                    SELECT uid, dwbm, grbm, xm, zwgw2
+                    FROM tip_ranked
+                    WHERE rn = 1
+                      AND (
+                          INSTR(UPPER(COALESCE(zwbm2, '')), 'F') > 0
+                          OR zwgw2 LIKE '%见习%'
+                          OR zwgw2 LIKE '%试用%'
+                          OR jslb = '见习工资'
+                          OR jslb = '转正定级'
+                          OR TRIM(COALESCE(tc, '')) = '新增见习'
+                          OR (
+                              (tc IS NULL OR TRIM(tc) = '' OR tc <> '已定级人员')
+                              AND jslb = '见习工资'
+                              AND INSTR(UPPER(COALESCE(zwbm2, '')), 'F') = 0
+                              AND LEFT(COALESCE(zwbm2, ''), 2) NOT IN ('07', '08', '09', '10')
+                          )
+                      )
+                )
+                """;
+    }
+
+    Map<Integer, PersonnelRegularizationDates> findPersonnelRegularizationDatesByUids(List<Integer> uids) {
+        if (uids == null || uids.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, PersonnelRegularizationDates> dates = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT uid, cjgzny, jrny, zzny, tc
+                FROM dryjbxx
+                WHERE uid IN (:uids)
+                """, new MapSqlParameterSource("uids", uids.stream().distinct().toList()), (rs, rowNum) -> {
+            dates.put(rs.getInt("uid"), new PersonnelRegularizationDates(
+                    SqlText.trim(rs.getString("cjgzny")),
+                    SqlText.trim(rs.getString("jrny")),
+                    SqlText.trim(rs.getString("zzny")),
+                    SqlText.trim(rs.getString("tc"))));
+            return null;
+        });
+        return dates;
+    }
+
+    Map<String, List<EducationPromotionSource>> findEducationsByOrgPersons(List<OrgPersonKey> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return Map.of();
+        }
+        java.util.LinkedHashSet<String> organizationCodes = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<String> personCodes = new java.util.LinkedHashSet<>();
+        for (OrgPersonKey key : keys) {
+            if (emptyToNull(key.organizationCode()) != null) {
+                organizationCodes.add(key.organizationCode());
+            }
+            if (emptyToNull(key.personCode()) != null) {
+                personCodes.add(key.personCode());
+            }
+        }
+        if (organizationCodes.isEmpty() || personCodes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<EducationPromotionSource>> educations = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT dwbm, grbm, xlbm, xl, bysj
+                FROM dxl
+                WHERE dwbm IN (:organizationCodes)
+                  AND grbm IN (:personCodes)
+                  AND xllb <> '后取'
+                  AND bysj IS NOT NULL
+                  AND TRIM(REPLACE(bysj, '.', '')) <> ''
+                ORDER BY dwbm, grbm, xlbm ASC, bysj DESC, id DESC
+                """, new MapSqlParameterSource()
+                .addValue("organizationCodes", organizationCodes)
+                .addValue("personCodes", personCodes), (rs, rowNum) -> {
+            String key = SqlText.trim(rs.getString("dwbm")) + "|" + SqlText.trim(rs.getString("grbm"));
+            educations.computeIfAbsent(key, ignored -> new java.util.ArrayList<>()).add(new EducationPromotionSource(
+                    SqlText.trim(rs.getString("xlbm")),
+                    SqlText.trim(rs.getString("xl")),
+                    SqlText.trim(rs.getString("bysj"))));
+            return null;
+        });
+        return educations;
+    }
+
+    Map<String, List<PositionChangeCandidate>> findPositionsByOrgPersons(List<OrgPersonKey> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return Map.of();
+        }
+        java.util.LinkedHashSet<String> organizationCodes = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<String> personCodes = new java.util.LinkedHashSet<>();
+        for (OrgPersonKey key : keys) {
+            if (emptyToNull(key.organizationCode()) != null) {
+                organizationCodes.add(key.organizationCode());
+            }
+            if (emptyToNull(key.personCode()) != null) {
+                personCodes.add(key.personCode());
+            }
+        }
+        if (organizationCodes.isEmpty() || personCodes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<PositionChangeCandidate>> positions = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT dwbm, grbm, zwbm, xzzw, srny
+                FROM dryzwbh
+                WHERE dwbm IN (:organizationCodes)
+                  AND grbm IN (:personCodes)
+                ORDER BY dwbm, grbm, REPLACE(COALESCE(srny, ''), '.', '') DESC, id DESC
+                """, new MapSqlParameterSource()
+                .addValue("organizationCodes", organizationCodes)
+                .addValue("personCodes", personCodes), (rs, rowNum) -> {
+            String key = SqlText.trim(rs.getString("dwbm")) + "|" + SqlText.trim(rs.getString("grbm"));
+            positions.computeIfAbsent(key, ignored -> new java.util.ArrayList<>()).add(new PositionChangeCandidate(
+                    SqlText.trim(rs.getString("zwbm")),
+                    SqlText.trim(rs.getString("xzzw")),
+                    SqlText.trim(rs.getString("srny"))));
+            return null;
+        });
+        return positions;
+    }
+
+    List<EducationRegularizationStandard> findAllEducationRegularizationStandards() {
+        return jdbcTemplate.query("""
+                SELECT xlbm, xlmc, zzzwbm, zzzwmc, zzjb, zzdc
+                FROM bz06_zzdz
+                ORDER BY xlbm, zzzwbm
+                """, EDUCATION_REGULARIZATION_STANDARD_MAPPER);
+    }
+
+
 
     List<Integer> findPersonnelUidsWithCurrentPayroll(
             OrganizationScope organizationScope,
@@ -2749,7 +4814,7 @@ class PayrollRepository {
                       FROM hisbase h
                       WHERE h.dwbm = p.dwbm
                         AND h.grbm = p.grbm
-                        AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                        AND h.sid = ''
                   )
                   AND (:keyword IS NULL
                        OR p.grbm LIKE :keywordLike
@@ -2763,6 +4828,85 @@ class PayrollRepository {
                        ))
                 ORDER BY p.dwbm, p.grbm
                 """, payrollChangeParameters(organizationScope, organizationCode, keyword), Integer.class);
+    }
+
+    /**
+     * 正常档次/薪级晋升候选预筛（待办 + 已办）：
+     * ① tip 为当年「正常档次/正常薪级」的已处理人员；
+     * ② 按 tip 档次考核起算年跨度与合格年数缩小待办候选。
+     * 跨度条件用加法，避免 UNSIGNED 下溢；起算年空时保留（由 Java 侧用任职年月补算）。
+     */
+    List<Integer> findNormalPromotionCandidateUids(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            int promotionYear) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        if (promotionYear < 2007) {
+            return List.of();
+        }
+        return jdbcTemplate.queryForList("""
+                WITH tip AS (
+                    SELECT p.uid,
+                           p.dwbm,
+                           p.grbm,
+                           h.zwbm2,
+                           h.xckhndzw,
+                           h.srny,
+                           h.jslb,
+                           h.jsnf,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY p.uid
+                               ORDER BY COALESCE(h.jsnf, '') DESC, COALESCE(h.jsyf, '') DESC, h.id DESC
+                           ) AS rn
+                    FROM dryjbxx p
+                    INNER JOIN hisbase h
+                        ON p.dwbm = h.dwbm
+                       AND p.grbm = h.grbm
+                       AND h.sid = ''
+                    WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                      AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                      AND TRIM(COALESCE(p.tc, '')) = '已定工资'
+                      AND (:keyword IS NULL
+                           OR p.grbm LIKE :keywordLike
+                           OR p.xm LIKE :keywordLike
+                           OR h.zwgw2 LIKE :keywordLike)
+                ),
+                candidates AS (
+                    SELECT uid,
+                           dwbm,
+                           grbm,
+                           jslb,
+                           jsnf,
+                           CASE
+                               WHEN LEFT(COALESCE(zwbm2, ''), 2) IN ('01','02','03','04','21','22','23','24','25','26','27','28')
+                               THEN 2
+                               ELSE 1
+                           END AS required_years,
+                           CAST(COALESCE(
+                               NULLIF(TRIM(xckhndzw), ''),
+                               NULLIF(LEFT(REPLACE(TRIM(COALESCE(srny, '')), '.', ''), 4), ''),
+                               '2006'
+                           ) AS UNSIGNED) AS start_year
+                    FROM tip
+                    WHERE rn = 1
+                )
+                SELECT c.uid
+                FROM candidates c
+                WHERE (
+                        TRIM(COALESCE(c.jslb, '')) IN ('正常档次', '正常薪级')
+                        AND CAST(COALESCE(NULLIF(TRIM(c.jsnf), ''), '0') AS UNSIGNED)
+                            = CAST(:promotionYear AS UNSIGNED)
+                    )
+                    OR (
+                        -- 比照级别晋升：SQL 只按档次起算年跨度预筛，合格年数/缺考由 Java 试算判定
+                        CAST(:promotionYear AS UNSIGNED) >= c.start_year + c.required_years
+                    )
+                ORDER BY c.dwbm, c.grbm
+                """, payrollChangeParameters(organizationScope, organizationCode, keyword)
+                .addValue("promotionYear", String.valueOf(promotionYear)), Integer.class);
     }
 
     long countPersonnelWithCurrentPayroll(OrganizationScope organizationScope, String organizationCode, String keyword) {
@@ -2779,7 +4923,7 @@ class PayrollRepository {
                       FROM hisbase h
                       WHERE h.dwbm = p.dwbm
                         AND h.grbm = p.grbm
-                        AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                        AND h.sid = ''
                   )
                   AND (:keyword IS NULL
                        OR p.grbm LIKE :keywordLike
@@ -2837,41 +4981,142 @@ class PayrollRepository {
                 .collect(Collectors.toSet());
     }
 
-    Map<Integer, List<PersonnelAssessmentYear>> findAssessmentYearsByUids(List<Integer> uids, int startYear, int endYear) {
-        if (uids == null || uids.isEmpty() || endYear < startYear) {
-            return Map.of();
+    List<PersonnelAssessmentYear> assessmentResults(String organizationCode, String personCode, int startYear, int endYear) {
+        if (emptyToNull(organizationCode) == null || emptyToNull(personCode) == null || startYear <= 0 || endYear < startYear) {
+            return List.of();
         }
-        List<Integer> distinctUids = uids.stream().distinct().toList();
-        Map<Integer, List<PersonnelAssessmentYear>> assessments = new LinkedHashMap<>();
+        List<PersonnelAssessmentYear> results = new java.util.ArrayList<>();
         jdbcTemplate.query("""
-                SELECT p.uid, d.khnd, d.khjg
-                FROM dryjbxx p
-                INNER JOIN dndkh d
-                    ON d.dwbm = p.dwbm
-                   AND d.grbm = p.grbm
-                WHERE p.uid IN (:uids)
-                  AND d.khnd BETWEEN :startYear AND :endYear
-                ORDER BY p.uid, d.khnd
+                SELECT khnd, khjg
+                FROM dndkh
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND khnd BETWEEN :startYear AND :endYear
+                ORDER BY khnd
                 """, new MapSqlParameterSource()
-                .addValue("uids", distinctUids)
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
                 .addValue("startYear", String.valueOf(startYear))
                 .addValue("endYear", String.valueOf(endYear)), (rs, rowNum) -> {
-            int uid = rs.getInt("uid");
             int year = intValue(rs.getString("khnd"));
-            if (year <= 0) {
+            if (year > 0) {
+                results.add(new PersonnelAssessmentYear(year, SqlText.trim(rs.getString("khjg"))));
+            }
+            return null;
+        });
+        return results;
+    }
+
+    /**
+     * Batch-load assessment years for many people. Key = {@code dwbm + '\\u0001' + grbm}.
+     * May include extra (dwbm, grbm) pairs from the cartesian IN filters; callers should look up by exact key.
+     */
+    Map<String, List<PersonnelAssessmentYear>> findAssessmentResultsByPersons(
+            Collection<String> organizationCodes,
+            Collection<String> personCodes,
+            int startYear,
+            int endYear) {
+        if (organizationCodes == null || organizationCodes.isEmpty()
+                || personCodes == null || personCodes.isEmpty()
+                || startYear <= 0 || endYear < startYear) {
+            return Map.of();
+        }
+        List<String> orgs = organizationCodes.stream()
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        List<String> persons = personCodes.stream()
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (orgs.isEmpty() || persons.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<PersonnelAssessmentYear>> assessments = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT dwbm, grbm, khnd, khjg
+                FROM dndkh
+                WHERE dwbm IN (:organizationCodes)
+                  AND grbm IN (:personCodes)
+                  AND khnd BETWEEN :startYear AND :endYear
+                ORDER BY dwbm, grbm, khnd
+                """, new MapSqlParameterSource()
+                .addValue("organizationCodes", orgs)
+                .addValue("personCodes", persons)
+                .addValue("startYear", String.valueOf(startYear))
+                .addValue("endYear", String.valueOf(endYear)), (rs, rowNum) -> {
+            String organizationCode = SqlText.trim(rs.getString("dwbm"));
+            String personCode = SqlText.trim(rs.getString("grbm"));
+            int year = intValue(rs.getString("khnd"));
+            if (organizationCode == null || organizationCode.isBlank()
+                    || personCode == null || personCode.isBlank()
+                    || year <= 0) {
                 return null;
             }
-            assessments.computeIfAbsent(uid, ignored -> new java.util.ArrayList<>())
+            assessments.computeIfAbsent(personAssessmentKey(organizationCode, personCode), ignored -> new java.util.ArrayList<>())
                     .add(new PersonnelAssessmentYear(year, SqlText.trim(rs.getString("khjg"))));
             return null;
         });
         return assessments;
     }
 
+    static String personAssessmentKey(String organizationCode, String personCode) {
+        return String.valueOf(organizationCode == null ? "" : organizationCode.trim())
+                + '\u0001'
+                + String.valueOf(personCode == null ? "" : personCode.trim());
+    }
+
+    Map<Integer, List<PersonnelAssessmentYear>> findAssessmentYearsByUids(List<Integer> uids, int startYear, int endYear) {
+        if (uids == null || uids.isEmpty() || endYear < startYear) {
+            return Map.of();
+        }
+        List<Integer> distinctUids = uids.stream().distinct().toList();
+        Map<Integer, List<PersonnelAssessmentYear>> assessments = new ConcurrentHashMap<>();
+        int batchSize = 500;
+        ArrayList<List<Integer>> batches = new ArrayList<>();
+        for (int from = 0; from < distinctUids.size(); from += batchSize) {
+            batches.add(distinctUids.subList(from, Math.min(from + batchSize, distinctUids.size())));
+        }
+        batches.parallelStream().forEach(batch -> {
+            Map<Integer, List<PersonnelAssessmentYear>> local = new LinkedHashMap<>();
+            jdbcTemplate.query("""
+                    SELECT p.uid, d.khnd, d.khjg
+                    FROM dryjbxx p
+                    INNER JOIN dndkh d
+                        ON d.dwbm = p.dwbm
+                       AND d.grbm = p.grbm
+                    WHERE p.uid IN (:uids)
+                      AND d.khnd BETWEEN :startYear AND :endYear
+                    ORDER BY p.uid, d.khnd
+                    """, new MapSqlParameterSource()
+                    .addValue("uids", batch)
+                    .addValue("startYear", String.valueOf(startYear))
+                    .addValue("endYear", String.valueOf(endYear)), (rs, rowNum) -> {
+                int uid = rs.getInt("uid");
+                int year = intValue(rs.getString("khnd"));
+                if (year <= 0) {
+                    return null;
+                }
+                local.computeIfAbsent(uid, ignored -> new ArrayList<>())
+                        .add(new PersonnelAssessmentYear(year, SqlText.trim(rs.getString("khjg"))));
+                return null;
+            });
+            assessments.putAll(local);
+        });
+        return assessments;
+    }
+
     long countPersonnelWithPayrollHistory(OrganizationScope organizationScope) {
+        return countPersonnelWithPayrollHistory(organizationScope, null);
+    }
+
+    long countPersonnelWithPayrollHistory(OrganizationScope organizationScope, String keyword) {
         if (organizationScope.noneScope()) {
             return 0;
         }
+        String trimmedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM dryjbxx p
@@ -2881,9 +5126,14 @@ class PayrollRepository {
                       FROM hisbase h
                       WHERE h.dwbm = p.dwbm AND h.grbm = p.grbm
                   )
+                  AND (:keyword IS NULL
+                       OR p.grbm LIKE :keywordLike
+                       OR p.xm LIKE :keywordLike)
                 """, new MapSqlParameterSource()
                 .addValue("allOrganizations", organizationScope.all())
-                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes()), Long.class);
+                .addValue("organizationCodes", organizationScope.organizationCodes().isEmpty() ? List.of("__NO_ORG__") : organizationScope.organizationCodes())
+                .addValue("keyword", trimmedKeyword)
+                .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%"), Long.class);
         return count == null ? 0 : count;
     }
 
@@ -2920,6 +5170,7 @@ class PayrollRepository {
                 SELECT h.*,
                        dw.dwmc AS approval_dwmc,
                        dw.dwsx AS approval_dwsx,
+                       dw.xtlb AS approval_xtlb,
                        dw.jxbl AS approval_jxbl,
                        p.sfzh AS approval_sfzh,
                        p.xb AS approval_xb,
@@ -2928,17 +5179,76 @@ class PayrollRepository {
                        p.cjgzny AS approval_cjgzny,
                        p.gznx AS approval_gznx,
                        p.dah AS approval_dah,
-                       p.srny AS approval_rzny
+                       p.srny AS approval_rzny,
+                       p.zzny AS approval_zzny,
+                       edu.xl AS approval_xl,
+                       edu.byyx AS approval_byyx,
+                       edu.bysj AS approval_bysj,
+                       edu.xz AS approval_xz,
+                       edu.xllb AS approval_xllb
                 FROM hisbase h
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
                 LEFT JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
-                WHERE CAST(h.id AS CHAR) IN (:ids)
+                LEFT JOIN dxl edu ON edu.id = (
+                    SELECT e2.id
+                    FROM dxl e2
+                    WHERE e2.dwbm = h.dwbm
+                      AND e2.grbm = h.grbm
+                    ORDER BY REPLACE(COALESCE(NULLIF(TRIM(e2.bysj), ''), '000000'), '.', '') DESC, e2.id DESC
+                    LIMIT 1
+                )
+                WHERE h.id IN (:ids)
                 """, new MapSqlParameterSource("ids", normalizedIds));
         Map<String, Map<String, Object>> valuesById = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
             String id = SqlText.trim(String.valueOf(row.get("id")));
             if (id != null && !id.isBlank()) {
                 valuesById.putIfAbsent(id, new LinkedHashMap<>(row));
+            }
+        }
+        // Rare legacy rows with padded ids: fill any still-missing keys via TRIM match.
+        if (valuesById.size() < normalizedIds.size()) {
+            List<String> missing = normalizedIds.stream().filter(id -> !valuesById.containsKey(id)).toList();
+            if (!missing.isEmpty()) {
+                List<Map<String, Object>> paddedRows = jdbcTemplate.queryForList("""
+                        SELECT h.*,
+                               dw.dwmc AS approval_dwmc,
+                               dw.dwsx AS approval_dwsx,
+                               dw.xtlb AS approval_xtlb,
+                               dw.jxbl AS approval_jxbl,
+                               p.sfzh AS approval_sfzh,
+                               p.xb AS approval_xb,
+                               p.csny AS approval_csny,
+                               p.zgxl AS approval_zgxl,
+                               p.cjgzny AS approval_cjgzny,
+                               p.gznx AS approval_gznx,
+                               p.dah AS approval_dah,
+                               p.srny AS approval_rzny,
+                               p.zzny AS approval_zzny,
+                               edu.xl AS approval_xl,
+                               edu.byyx AS approval_byyx,
+                               edu.bysj AS approval_bysj,
+                               edu.xz AS approval_xz,
+                               edu.xllb AS approval_xllb
+                        FROM hisbase h
+                        LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                        LEFT JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                        LEFT JOIN dxl edu ON edu.id = (
+                            SELECT e2.id
+                            FROM dxl e2
+                            WHERE e2.dwbm = h.dwbm
+                              AND e2.grbm = h.grbm
+                            ORDER BY REPLACE(COALESCE(NULLIF(TRIM(e2.bysj), ''), '000000'), '.', '') DESC, e2.id DESC
+                            LIMIT 1
+                        )
+                        WHERE TRIM(h.id) IN (:ids)
+                        """, new MapSqlParameterSource("ids", missing));
+                for (Map<String, Object> row : paddedRows) {
+                    String id = SqlText.trim(String.valueOf(row.get("id")));
+                    if (id != null && !id.isBlank()) {
+                        valuesById.putIfAbsent(id, new LinkedHashMap<>(row));
+                    }
+                }
             }
         }
         return valuesById;
@@ -2955,6 +5265,7 @@ class PayrollRepository {
                     SELECT h.*,
                            dw.dwmc AS approval_dwmc,
                            dw.dwsx AS approval_dwsx,
+                           dw.xtlb AS approval_xtlb,
                            dw.jxbl AS approval_jxbl,
                            p.sfzh AS approval_sfzh,
                            p.xb AS approval_xb,
@@ -2963,13 +5274,63 @@ class PayrollRepository {
                            p.cjgzny AS approval_cjgzny,
                            p.gznx AS approval_gznx,
                            p.dah AS approval_dah,
-                           p.srny AS approval_rzny
+                           p.srny AS approval_rzny,
+                           p.zzny AS approval_zzny,
+                           edu.xl AS approval_xl,
+                           edu.byyx AS approval_byyx,
+                           edu.bysj AS approval_bysj,
+                           edu.xz AS approval_xz,
+                           edu.xllb AS approval_xllb
                     FROM hisbase h
                     LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
                     LEFT JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
-                    WHERE CAST(h.id AS CHAR) = CAST(:id AS CHAR)
+                    LEFT JOIN dxl edu ON edu.id = (
+                        SELECT e2.id
+                        FROM dxl e2
+                        WHERE e2.dwbm = h.dwbm
+                          AND e2.grbm = h.grbm
+                        ORDER BY REPLACE(COALESCE(NULLIF(TRIM(e2.bysj), ''), '000000'), '.', '') DESC, e2.id DESC
+                        LIMIT 1
+                    )
+                    WHERE h.id = :id
                     LIMIT 1
                     """, new MapSqlParameterSource("id", id.trim()));
+            if (rows.isEmpty()) {
+                rows = jdbcTemplate.queryForList("""
+                        SELECT h.*,
+                               dw.dwmc AS approval_dwmc,
+                               dw.dwsx AS approval_dwsx,
+                               dw.xtlb AS approval_xtlb,
+                               dw.jxbl AS approval_jxbl,
+                               p.sfzh AS approval_sfzh,
+                               p.xb AS approval_xb,
+                               p.csny AS approval_csny,
+                               p.zgxl AS approval_zgxl,
+                               p.cjgzny AS approval_cjgzny,
+                               p.gznx AS approval_gznx,
+                               p.dah AS approval_dah,
+                               p.srny AS approval_rzny,
+                               p.zzny AS approval_zzny,
+                               edu.xl AS approval_xl,
+                               edu.byyx AS approval_byyx,
+                               edu.bysj AS approval_bysj,
+                               edu.xz AS approval_xz,
+                               edu.xllb AS approval_xllb
+                        FROM hisbase h
+                        LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                        LEFT JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                        LEFT JOIN dxl edu ON edu.id = (
+                            SELECT e2.id
+                            FROM dxl e2
+                            WHERE e2.dwbm = h.dwbm
+                              AND e2.grbm = h.grbm
+                            ORDER BY REPLACE(COALESCE(NULLIF(TRIM(e2.bysj), ''), '000000'), '.', '') DESC, e2.id DESC
+                            LIMIT 1
+                        )
+                        WHERE TRIM(h.id) = :id
+                        LIMIT 1
+                        """, new MapSqlParameterSource("id", id.trim()));
+            }
             if (!rows.isEmpty()) {
                 return Optional.of(new LinkedHashMap<>(rows.getFirst()));
             }
@@ -3007,6 +5368,70 @@ class PayrollRepository {
                 SqlText.trim(rs.getString("xm")))).stream().findFirst();
     }
 
+    Optional<Map<String, Object>> findPayrollSalaryAmountValuesById(String id) {
+        if (id == null || id.isBlank()) {
+            return Optional.empty();
+        }
+        String normalizedId = id.trim();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT id, zwgzse2, jbgzse2, jsdjgz2, jxgz, jsfszwtg2, jhljt, fdgz2, sdbt, dfbt2,
+                       pgbc, jxjt, zwjt, jzmcbt, tgblbf, nzgwsf, blfb2, jjjy2, gwjt2, qtbt, njbt, hj2, sidbt
+                FROM hisbase
+                WHERE id = :id
+                LIMIT 1
+                """, new MapSqlParameterSource("id", normalizedId));
+        if (rows.isEmpty()) {
+            rows = jdbcTemplate.queryForList("""
+                    SELECT id, zwgzse2, jbgzse2, jsdjgz2, jxgz, jsfszwtg2, jhljt, fdgz2, sdbt, dfbt2,
+                           pgbc, jxjt, zwjt, jzmcbt, tgblbf, nzgwsf, blfb2, jjjy2, gwjt2, qtbt, njbt, hj2, sidbt
+                    FROM hisbase
+                    WHERE TRIM(id) = :id
+                    LIMIT 1
+                    """, new MapSqlParameterSource("id", normalizedId));
+        }
+        return rows.isEmpty() ? Optional.empty() : Optional.of(new LinkedHashMap<>(rows.getFirst()));
+    }
+
+    Optional<Map<String, Object>> findPredecessorPayrollSalaryAmountValues(String id) {
+        if (id == null || id.isBlank()) {
+            return Optional.empty();
+        }
+        String normalizedId = id.trim();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT id, zwgzse2, jbgzse2, jsdjgz2, jxgz, jsfszwtg2, jhljt, fdgz2, sdbt, dfbt2,
+                       pgbc, jxjt, zwjt, jzmcbt, tgblbf, nzgwsf, blfb2, jjjy2, gwjt2, qtbt, njbt, hj2, sidbt
+                FROM hisbase
+                WHERE sid IS NOT NULL
+                  AND TRIM(sid) <> ''
+                  AND (
+                      sid = :id
+                      OR TRIM(sid) = :id
+                  )
+                ORDER BY jsnf DESC, jsyf DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource("id", normalizedId));
+        if (!rows.isEmpty()) {
+            return Optional.of(new LinkedHashMap<>(rows.getFirst()));
+        }
+        return findPredecessorHistoryValues(normalizedId)
+                .map(values -> {
+                    Map<String, Object> amounts = new LinkedHashMap<>();
+                    for (String field : List.of(
+                            "id", "zwgzse2", "jbgzse2", "jsdjgz2", "jxgz", "jsfszwtg2", "jhljt", "fdgz2", "sdbt",
+                            "dfbt2", "pgbc", "jxjt", "zwjt", "jzmcbt", "tgblbf", "nzgwsf", "blfb2", "jjjy2",
+                            "gwjt2", "qtbt", "njbt", "hj2", "sidbt")) {
+                        Object value = values.get(field);
+                        if (value == null) {
+                            value = values.get(field.toUpperCase());
+                        }
+                        if (value != null) {
+                            amounts.put(field, value);
+                        }
+                    }
+                    return amounts;
+                });
+    }
+
     Optional<Map<String, Object>> findPredecessorHistoryValues(String id) {
         return jdbcTemplate.queryForList("""
                 SELECT previous.*
@@ -3039,33 +5464,18 @@ class PayrollRepository {
         if (normalizedIds.isEmpty()) {
             return Map.of();
         }
+        // Prefer indexed sid = tip.id (avoid TRIM/CAST that force full scans).
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT ranked.*
                 FROM (
-                    SELECT CAST(current.id AS CHAR) AS current_history_id,
+                    SELECT previous.sid AS current_history_id,
                            previous.*,
                            ROW_NUMBER() OVER (
-                               PARTITION BY current.id
-                               ORDER BY CASE
-                                            WHEN CAST(TRIM(previous.sid) AS CHAR) = CAST(TRIM(current.id) AS CHAR) THEN 0
-                                            ELSE 1
-                                        END,
-                                        previous.jsnf DESC,
-                                        previous.jsyf DESC,
-                                        previous.id DESC
+                               PARTITION BY previous.sid
+                               ORDER BY previous.jsnf DESC, previous.jsyf DESC, previous.id DESC
                            ) AS predecessor_rank
-                    FROM hisbase current
-                    JOIN hisbase previous ON previous.dwbm = current.dwbm
-                                          AND previous.grbm = current.grbm
-                                          AND CAST(previous.id AS CHAR) <> CAST(current.id AS CHAR)
-                    WHERE CAST(current.id AS CHAR) IN (:ids)
-                      AND (
-                          CAST(TRIM(previous.sid) AS CHAR) = CAST(TRIM(current.id) AS CHAR)
-                          OR (
-                              CONCAT(previous.jsnf, previous.jsyf) < CONCAT(current.jsnf, current.jsyf)
-                              AND (previous.sid IS NULL OR TRIM(previous.sid) = '')
-                          )
-                      )
+                    FROM hisbase previous
+                    WHERE previous.sid IN (:ids)
                 ) ranked
                 WHERE ranked.predecessor_rank = 1
                 """, new MapSqlParameterSource("ids", normalizedIds));
@@ -3080,6 +5490,41 @@ class PayrollRepository {
             values.remove("predecessor_rank");
             predecessors.putIfAbsent(currentId, values);
         }
+        List<String> missingIds = normalizedIds.stream().filter(id -> !predecessors.containsKey(id)).toList();
+        if (missingIds.isEmpty()) {
+            return predecessors;
+        }
+        // Fallback: same person, earlier empty-sid tip by period (scoped by dwbm/grbm index).
+        List<Map<String, Object>> fallbackRows = jdbcTemplate.queryForList("""
+                SELECT ranked.*
+                FROM (
+                    SELECT current.id AS current_history_id,
+                           previous.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY current.id
+                               ORDER BY previous.jsnf DESC, previous.jsyf DESC, previous.id DESC
+                           ) AS predecessor_rank
+                    FROM hisbase current
+                    JOIN hisbase previous
+                      ON previous.dwbm = current.dwbm
+                     AND previous.grbm = current.grbm
+                     AND previous.id <> current.id
+                     AND (previous.sid IS NULL OR previous.sid = '')
+                     AND CONCAT(previous.jsnf, previous.jsyf) < CONCAT(current.jsnf, current.jsyf)
+                    WHERE current.id IN (:ids)
+                ) ranked
+                WHERE ranked.predecessor_rank = 1
+                """, new MapSqlParameterSource("ids", missingIds));
+        for (Map<String, Object> row : fallbackRows) {
+            String currentId = SqlText.trim(String.valueOf(row.get("current_history_id")));
+            if (currentId == null || currentId.isBlank() || predecessors.containsKey(currentId)) {
+                continue;
+            }
+            Map<String, Object> values = new LinkedHashMap<>(row);
+            values.remove("current_history_id");
+            values.remove("predecessor_rank");
+            predecessors.put(currentId, values);
+        }
         return predecessors;
     }
 
@@ -3087,21 +5532,47 @@ class PayrollRepository {
         return jdbcTemplate.queryForList("""
                 SELECT dwbm
                 FROM hisbase
-                WHERE id = :id
-                """, new MapSqlParameterSource("id", id), String.class).stream().findFirst().map(SqlText::trim);
+                WHERE TRIM(id) = :id
+                """, new MapSqlParameterSource("id", id == null ? "" : id.trim()), String.class)
+                .stream().findFirst().map(SqlText::trim);
     }
 
     Optional<Integer> findPersonnelUidByCurrentHistoryId(String id) {
+        String normalizedId = id == null ? "" : id.trim();
+        if (normalizedId.isEmpty()) {
+            return Optional.empty();
+        }
         return jdbcTemplate.queryForList("""
                 SELECT p.uid
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
-                WHERE h.id = :id
+                WHERE TRIM(h.id) = :id
                   AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                """, new MapSqlParameterSource("id", id), Integer.class).stream().findFirst();
+                """, new MapSqlParameterSource("id", normalizedId), Integer.class).stream().findFirst();
+    }
+
+    Optional<Integer> findPersonnelUidByOrgPerson(String organizationCode, String personCode) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        if (org.isEmpty() || person.isEmpty()) {
+            return Optional.empty();
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT uid
+                FROM dryjbxx
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person), Integer.class).stream().findFirst();
     }
 
     Optional<PayrollHistorySnapshot> findCurrentHistoryById(String id) {
+        String normalizedId = id == null ? "" : id.trim();
+        if (normalizedId.isEmpty()) {
+            return Optional.empty();
+        }
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
                        h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
@@ -3114,10 +5585,105 @@ class PayrollRepository {
                 FROM hisbase h
                 JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
-                WHERE h.id = :id
+                WHERE TRIM(h.id) = :id
                   AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 LIMIT 1
-                """, new MapSqlParameterSource("id", id), HISTORY_MAPPER).stream().findFirst();
+                """, new MapSqlParameterSource("id", normalizedId), HISTORY_MAPPER).stream().findFirst();
+    }
+
+    /**
+     * 按单位+人员编码批量加载当前工资（走 dwbm/grbm，避免 TRIM(id) 全表扫描）。
+     * key 为 trim 后的 payrollHistoryId。
+     */
+    Map<String, PayrollHistorySnapshot> findCurrentHistoriesByOrgPersons(List<OrgPersonKey> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return Map.of();
+        }
+        List<OrgPersonKey> normalized = keys.stream()
+                .filter(Objects::nonNull)
+                .map(key -> new OrgPersonKey(
+                        key.organizationCode() == null ? "" : key.organizationCode().trim(),
+                        key.personCode() == null ? "" : key.personCode().trim()))
+                .filter(key -> !key.organizationCode().isEmpty() && !key.personCode().isEmpty())
+                .distinct()
+                .toList();
+        if (normalized.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, PayrollHistorySnapshot> histories = new LinkedHashMap<>();
+        // NamedParameterJdbcTemplate 对 tuple IN 支持不稳定，逐对查询但走 dwbm+grbm 索引。
+        for (OrgPersonKey key : normalized) {
+            findCurrentHistoryByOrgPerson(key.organizationCode(), key.personCode()).ifPresent(history -> {
+                if (history.id() != null) {
+                    histories.put(history.id().trim(), history);
+                }
+            });
+        }
+        return histories;
+    }
+
+    Optional<PayrollHistorySnapshot> findCurrentHistoryByOrgPerson(String organizationCode, String personCode) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        if (org.isEmpty() || person.isEmpty()) {
+            return Optional.empty();
+        }
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                       h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.gwjtbz, h.gwjtlb,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf,
+                       h.pgbc, h.njbt, h.hj2
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE h.dwbm = :organizationCode
+                  AND h.grbm = :personCode
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
+                ORDER BY h.jsnf DESC, h.jsyf DESC, h.id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person), HISTORY_MAPPER).stream().findFirst();
+    }
+
+    record OrgPersonKey(String organizationCode, String personCode) {
+    }
+
+    Map<String, String> findHistorySuccessorLinks(String organizationCode, String personCode) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        if (org.isEmpty() || person.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> links = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT TRIM(id) AS history_id, TRIM(COALESCE(sid, '')) AS successor_id
+                FROM hisbase
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person), (rs, rowNum) -> {
+            links.put(SqlText.trim(rs.getString("history_id")), SqlText.trim(rs.getString("successor_id")));
+            return null;
+        });
+        return links;
+    }
+
+    Optional<String> findSuccessorHistoryId(String organizationCode, String personCode, String historyId) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        String normalizedId = historyId == null ? "" : historyId.trim();
+        if (org.isEmpty() || person.isEmpty() || normalizedId.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(findHistorySuccessorLinks(org, person).get(normalizedId))
+                .map(String::trim)
+                .filter(id -> !id.isBlank());
     }
 
     Optional<String> findPredecessorHistoryId(String id) {
@@ -3133,6 +5699,115 @@ class PayrollRepository {
                   )
                 LIMIT 1
                 """, new MapSqlParameterSource("id", id), String.class).stream().findFirst().map(SqlText::trim);
+    }
+
+    /**
+     * 按单位+人员定位前驱（sid 指向当前链头），避免全表扫 TRIM(sid)。
+     */
+    Optional<String> findPredecessorHistoryId(String organizationCode, String personCode, String currentId) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        String normalizedId = currentId == null ? "" : currentId.trim();
+        if (org.isEmpty() || person.isEmpty() || normalizedId.isEmpty()) {
+            return Optional.empty();
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT id
+                FROM hisbase
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND sid IS NOT NULL
+                  AND TRIM(sid) <> ''
+                  AND TRIM(sid) = :currentId
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person)
+                .addValue("currentId", normalizedId), String.class).stream().findFirst().map(SqlText::trim);
+    }
+
+    /** 一次查出前驱工资快照，减少明细已办路径的往返。 */
+    Optional<PayrollHistorySnapshot> findPredecessorHistory(String organizationCode, String personCode, String currentId) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        String normalizedId = currentId == null ? "" : currentId.trim();
+        if (org.isEmpty() || person.isEmpty() || normalizedId.isEmpty()) {
+            return Optional.empty();
+        }
+        return jdbcTemplate.query("""
+                SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                       h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                       h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                       h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                       h.gwjtbz, h.gwjtlb,
+                       h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                       h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf,
+                       h.pgbc, h.njbt, h.hj2
+                FROM hisbase h
+                JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
+                WHERE h.dwbm = :organizationCode
+                  AND h.grbm = :personCode
+                  AND h.sid IS NOT NULL
+                  AND TRIM(h.sid) <> ''
+                  AND TRIM(h.sid) = :currentId
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person)
+                .addValue("currentId", normalizedId), HISTORY_MAPPER).stream().findFirst();
+    }
+
+    /**
+     * 批量按 tip id 取前驱快照。Key = tip（当前链头）id（trim 后）。
+     * 优先等值关联 sid=id，避免 TRIM 全表扫描。
+     */
+    Map<String, PayrollHistorySnapshot> findPredecessorHistoriesByCurrentIds(Collection<String> currentIds) {
+        if (currentIds == null || currentIds.isEmpty()) {
+            return Map.of();
+        }
+        List<String> ids = currentIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, PayrollHistorySnapshot> byCurrentId = new LinkedHashMap<>();
+        int batchSize = 200;
+        for (int from = 0; from < ids.size(); from += batchSize) {
+            List<String> batch = ids.subList(from, Math.min(from + batchSize, ids.size()));
+            jdbcTemplate.query("""
+                    SELECT current.id AS tip_id,
+                           h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
+                           h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
+                           h.xckhndjb, h.xckhndzw, h.jhlqsny, h.zdjhlnx, h.tgbl, h.jxjtbz, h.jx,
+                           h.zwbm2, h.zwgw2, h.zwgzdc2, h.fddc, h.jbgzjb2, h.djc2, h.tbnd, h.jbtbz,
+                           h.gwjtbz, h.gwjtlb,
+                           h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.dfbt2, h.sdbt, h.blfb2,
+                           h.jhljt, h.jsfszwtg2, h.jxjt, h.fdgz2, h.jjjy2, h.gwjt2, h.tgblbf,
+                           h.pgbc, h.njbt, h.hj2
+                    FROM hisbase current
+                    INNER JOIN hisbase h
+                        ON h.dwbm = current.dwbm
+                       AND h.grbm = current.grbm
+                       AND h.sid = current.id
+                    INNER JOIN dryjbxx p
+                        ON p.dwbm = h.dwbm
+                       AND p.grbm = h.grbm
+                    LEFT JOIN dwbm dw
+                        ON dw.dwbm = h.dwbm
+                    WHERE current.id IN (:ids)
+                    """, new MapSqlParameterSource("ids", batch), (rs, rowNum) -> {
+                String tipId = SqlText.trim(rs.getString("tip_id"));
+                if (tipId != null && !tipId.isBlank()) {
+                    byCurrentId.putIfAbsent(tipId, HISTORY_MAPPER.mapRow(rs, rowNum));
+                }
+                return null;
+            });
+        }
+        return byCurrentId;
     }
 
     Optional<PositionChangeDisplayPair> findProcessedPositionChangeDisplay(
@@ -3274,26 +5949,26 @@ class PayrollRepository {
                 SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
                        h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
                        h.tc, h.xckhndzw, h.xckhndjb, h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
-                       h.jx, h.tgbl, h.jtbl, h.fddc, h.fdgd, h.fdsj,
+                       :rankName, :teachingIncreaseRatio, h.jtbl, :floatingStep, h.fdgd, h.fdsj,
                        :calculationYear, :calculationMonth, :changeType,
                        h.khqk, h.dynkh, h.denkh, h.bbz, :totalAmount,
-                       :positionCode, :positionName, h.zwgzdc2, :positionSalary, h.jbgzjb2, h.djc2, :gradeSalary,
-                       h.jcgz2, h.glgz2, :technicalGradeSalary, h.grjj2, :retainedAllowance, h.jsfszwtg2,
-                       h.jt2, h.fdgz2, h.jjjy2, :performanceAllowance, h.gwjt2, h.bh, h.jxgz, h.zzbc,
-                       h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt, h.sdbt, h.grsds, h.zfgjj,
-                       h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, h.qtbt, h.jxjt,
-                       h.gryhzh, h.tfnf, h.tfyf, h.spdw, h.tbnd, h.jxjtbz, h.jbtbz, h.jhljt,
-                       h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
+                       :positionCode, :positionName, :positionSalaryGrade, :positionSalary, :gradeSalaryLevel, h.djc2, :gradeSalary,
+                       h.jcgz2, h.glgz2, :technicalGradeSalary, h.grjj2, :retainedAllowance, :salaryIncrease,
+                       h.jt2, :floatingSalary, :bonusBalance, :performanceAllowance, :specialPostAllowance, h.bh, :internSalary, h.zzbc,
+                       :retainedReformAllowance, h.zfbt, h.dsznf, :hygieneAllowance, :overtimeAllowance, :subsidyAllowance, h.grsds, h.zfgjj,
+                       h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, :otherAllowance, :rankAllowance,
+                       h.gryhzh, h.tfnf, h.tfyf, h.spdw, :salaryStandardYearMonth, :rankAllowanceStandardYearMonth, :allowanceStandardYearMonth, :teachingAllowance,
+                       :payGradeRetention, h.sidbt, h.jzgb, h.nrjxgzbf, :retainedSpecialPostAllowance, h.jcjtbz, h.spjtbz, :yearAllowance,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE CAST(TRIM(h.id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, payrollHistoryRequestParameters(request)
                 .addValue("id", id)
                 .addValue("sourceId", latest.id()));
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
                 .addValue("sourceId", latest.id()));
@@ -3301,7 +5976,10 @@ class PayrollRepository {
         return id;
     }
 
-    String createPromotionHistoryFromLatest(int uid, PromotionHistoryMutation mutation) {
+    /**
+     * 其它情况工资变动：仅覆盖变动结构与自动计算工资项，其余字段沿用当前记录。
+     */
+    String createOtherPayrollChangeFromLatest(int uid, OtherPayrollChangeMutation mutation) {
         PayrollHistorySnapshot latest = findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
         String id = java.util.UUID.randomUUID().toString().toUpperCase();
@@ -3309,12 +5987,76 @@ class PayrollRepository {
                 INSERT INTO hisbase
                 SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
                        h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
-                       h.tc, :nextStepAssessmentStartYear, :nextLevelAssessmentStartYear, h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
+                       h.tc, h.xckhndzw, h.xckhndjb, h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
                        h.jx, h.tgbl, h.jtbl, h.fddc, h.fdgd, h.fdsj,
                        :calculationYear, :calculationMonth, :changeType,
                        h.khqk, h.dynkh, h.denkh, h.bbz, :totalAmount,
-                       h.zwbm2, h.zwgw2, :positionSalaryGrade, h.zwgzse2, :gradeSalaryLevel, :gradeSalaryStep, :gradeSalary,
-                       h.jcgz2, h.glgz2, h.jsdjgz2, h.grjj2, h.blfb2, h.jsfszwtg2,
+                       :positionCode, :positionName, :positionSalaryGrade, :positionSalary, :gradeSalaryLevel, h.djc2, :gradeSalary,
+                       h.jcgz2, h.glgz2, :technicalGradeSalary, h.grjj2, :retainedAllowance, COALESCE(:salaryIncrease, h.jsfszwtg2),
+                       h.jt2, h.fdgz2, h.jjjy2, :performanceAllowance, h.gwjt2, h.bh, h.jxgz, h.zzbc,
+                       h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt, :subsidyAllowance, h.grsds, h.zfgjj,
+                       h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, h.qtbt, h.jxjt,
+                       h.gryhzh, h.tfnf, h.tfyf, h.spdw, :salaryStandardYearMonth, h.jxjtbz, :allowanceStandardYearMonth, :teachingAllowance,
+                       h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
+                       h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
+                FROM hisbase h
+                WHERE CAST(TRIM(h.id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
+                """, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("sourceId", latest.id())
+                .addValue("calculationYear", valueOrBlank(mutation.calculationYear()))
+                .addValue("calculationMonth", valueOrBlank(mutation.calculationMonth()))
+                .addValue("changeType", valueOrBlank(mutation.changeType()))
+                .addValue("positionCode", valueOrBlank(mutation.positionCode()))
+                .addValue("positionName", valueOrBlank(mutation.positionName()))
+                .addValue("positionSalaryGrade", valueOrBlank(mutation.positionSalaryGrade()))
+                .addValue("gradeSalaryLevel", valueOrBlank(mutation.gradeSalaryLevel()))
+                .addValue("salaryStandardYearMonth", valueOrBlank(mutation.salaryStandardYearMonth()))
+                .addValue("allowanceStandardYearMonth", valueOrBlank(mutation.allowanceStandardYearMonth()))
+                .addValue("positionSalary", intOrZero(mutation.positionSalary()))
+                .addValue("gradeSalary", intOrZero(mutation.gradeSalary()))
+                .addValue("technicalGradeSalary", intOrZero(mutation.technicalGradeSalary()))
+                .addValue("performanceAllowance", intOrZero(mutation.performanceAllowance()))
+                .addValue("subsidyAllowance", intOrZero(mutation.subsidyAllowance()))
+                .addValue("retainedAllowance", intOrZero(mutation.retainedAllowance()))
+                .addValue("teachingAllowance", intOrZero(mutation.teachingAllowance()))
+                .addValue("salaryIncrease", mutation.salaryIncrease())
+                .addValue("totalAmount", intOrZero(mutation.totalAmount())));
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET sid = :newId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
+                """, new MapSqlParameterSource()
+                .addValue("newId", id)
+                .addValue("sourceId", latest.id()));
+        markAppCreated("hisbase", id);
+        return id;
+    }
+
+    /**
+     * 按已知当前记录复制改写：用 dwbm+grbm 定位（可走索引），再按 id 校验，避免 TRIM(id) 全表扫描。
+     */
+    String createPromotionHistoryFromSource(PayrollHistorySnapshot source, PromotionHistoryMutation mutation) {
+        if (source == null) {
+            throw new IllegalArgumentException("缺少源工资记录。");
+        }
+        String sourceId = source.id() == null ? "" : source.id().trim();
+        String organizationCode = source.organizationCode() == null ? "" : source.organizationCode().trim();
+        String personCode = source.personCode() == null ? "" : source.personCode().trim();
+        if (sourceId.isEmpty() || organizationCode.isEmpty() || personCode.isEmpty()) {
+            throw new IllegalArgumentException("缺少源工资记录标识。");
+        }
+        String id = java.util.UUID.randomUUID().toString().toUpperCase();
+        int inserted = jdbcTemplate.update("""
+                INSERT INTO hisbase
+                SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
+                       h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
+                       h.tc, COALESCE(NULLIF(:nextStepAssessmentStartYear, ''), h.xckhndzw), COALESCE(NULLIF(:nextLevelAssessmentStartYear, ''), h.xckhndjb), h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
+                       h.jx, h.tgbl, h.jtbl, h.fddc, h.fdgd, h.fdsj,
+                       :calculationYear, :calculationMonth, :changeType,
+                       h.khqk, h.dynkh, h.denkh, h.bbz, :totalAmount,
+                       h.zwbm2, h.zwgw2, :positionSalaryGrade, COALESCE(:positionSalary, h.zwgzse2), :gradeSalaryLevel, :gradeSalaryStep, :gradeSalary,
+                       h.jcgz2, h.glgz2, h.jsdjgz2, h.grjj2, h.blfb2, COALESCE(:salaryIncrease, h.jsfszwtg2),
                        h.jt2, h.fdgz2, h.jjjy2, h.dfbt2, h.gwjt2, h.bh, h.jxgz, h.zzbc,
                        h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt, h.sdbt, h.grsds, h.zfgjj,
                        h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, h.qtbt, h.jxjt,
@@ -3322,10 +6064,15 @@ class PayrollRepository {
                        h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE h.dwbm = :organizationCode
+                  AND h.grbm = :personCode
+                  AND TRIM(h.id) = :sourceId
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
-                .addValue("sourceId", latest.id())
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("sourceId", sourceId)
                 .addValue("calculationYear", mutation.calculationYear())
                 .addValue("calculationMonth", mutation.calculationMonth())
                 .addValue("changeType", mutation.changeType())
@@ -3335,46 +6082,154 @@ class PayrollRepository {
                 .addValue("gradeSalaryLevel", valueOrBlank(mutation.gradeSalaryLevel()))
                 .addValue("gradeSalaryStep", valueOrBlank(mutation.gradeSalaryStep()))
                 .addValue("gradeSalary", mutation.gradeSalary() == null ? 0 : mutation.gradeSalary())
+                .addValue("positionSalary", mutation.positionSalary())
+                .addValue("salaryIncrease", mutation.salaryIncrease())
                 .addValue("totalAmount", mutation.totalAmount() == null ? 0 : mutation.totalAmount()));
+        if (inserted != 1) {
+            throw new IllegalArgumentException("工资记录已变化，请重新查询后再办理。");
+        }
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :sourceId
+                  AND (sid IS NULL OR TRIM(sid) = '')
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
-                .addValue("sourceId", latest.id()));
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("sourceId", sourceId));
         markAppCreated("hisbase", id);
         return id;
     }
 
-    String createPositionChangeHistoryFromLatest(int uid, PositionChangeHistoryMutation mutation) {
-        PayrollHistorySnapshot latest = findLatestHistory(uid)
-                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+    /**
+     * 中段插入晋升记录：从锚点复制插入，新记录 sid 指向原后继，锚点 sid 指向新记录。
+     */
+    String insertPromotionMidChain(
+            PayrollHistorySnapshot anchor,
+            String nextSuccessorId,
+            PromotionHistoryMutation mutation) {
+        if (anchor == null) {
+            throw new IllegalArgumentException("缺少锚点工资记录。");
+        }
+        String anchorId = anchor.id() == null ? "" : anchor.id().trim();
+        String organizationCode = anchor.organizationCode() == null ? "" : anchor.organizationCode().trim();
+        String personCode = anchor.personCode() == null ? "" : anchor.personCode().trim();
+        if (anchorId.isEmpty() || organizationCode.isEmpty() || personCode.isEmpty()) {
+            throw new IllegalArgumentException("缺少锚点工资记录标识。");
+        }
         String id = java.util.UUID.randomUUID().toString().toUpperCase();
-        jdbcTemplate.update("""
+        String successorId = nextSuccessorId == null ? "" : nextSuccessorId.trim();
+        int inserted = jdbcTemplate.update("""
                 INSERT INTO hisbase
                 SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
                        h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
-                       h.tc, :nextStepAssessmentStartYear, :nextLevelAssessmentStartYear, h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
+                       h.tc, COALESCE(NULLIF(:nextStepAssessmentStartYear, ''), h.xckhndzw), COALESCE(NULLIF(:nextLevelAssessmentStartYear, ''), h.xckhndjb), h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
                        h.jx, h.tgbl, h.jtbl, h.fddc, h.fdgd, h.fdsj,
                        :calculationYear, :calculationMonth, :changeType,
                        h.khqk, h.dynkh, h.denkh, h.bbz, :totalAmount,
+                       h.zwbm2, h.zwgw2, :positionSalaryGrade, COALESCE(:positionSalary, h.zwgzse2), :gradeSalaryLevel, :gradeSalaryStep, :gradeSalary,
+                       h.jcgz2, h.glgz2, h.jsdjgz2, h.grjj2, h.blfb2, COALESCE(:salaryIncrease, h.jsfszwtg2),
+                       h.jt2, h.fdgz2, h.jjjy2, h.dfbt2, h.gwjt2, h.bh, h.jxgz, h.zzbc,
+                       h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt, h.sdbt, h.grsds, h.zfgjj,
+                       h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, h.qtbt, h.jxjt,
+                       h.gryhzh, h.tfnf, h.tfyf, h.spdw, h.tbnd, h.jxjtbz, h.jbtbz, h.jhljt,
+                       h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
+                       h.gwjtbz, h.gwjtlb, h.sfjzgb, :successorId
+                FROM hisbase h
+                WHERE h.dwbm = :organizationCode
+                  AND h.grbm = :personCode
+                  AND TRIM(h.id) = :anchorId
+                """, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("anchorId", anchorId)
+                .addValue("successorId", successorId)
+                .addValue("calculationYear", mutation.calculationYear())
+                .addValue("calculationMonth", mutation.calculationMonth())
+                .addValue("changeType", mutation.changeType())
+                .addValue("nextStepAssessmentStartYear", valueOrBlank(mutation.nextStepAssessmentStartYear()))
+                .addValue("nextLevelAssessmentStartYear", valueOrBlank(mutation.nextLevelAssessmentStartYear()))
+                .addValue("positionSalaryGrade", valueOrBlank(mutation.positionSalaryGrade()))
+                .addValue("gradeSalaryLevel", valueOrBlank(mutation.gradeSalaryLevel()))
+                .addValue("gradeSalaryStep", valueOrBlank(mutation.gradeSalaryStep()))
+                .addValue("gradeSalary", mutation.gradeSalary() == null ? 0 : mutation.gradeSalary())
+                .addValue("positionSalary", mutation.positionSalary())
+                .addValue("salaryIncrease", mutation.salaryIncrease())
+                .addValue("totalAmount", mutation.totalAmount() == null ? 0 : mutation.totalAmount()));
+        if (inserted != 1) {
+            throw new IllegalArgumentException("锚点工资记录已变化，请重新查询后再办理。");
+        }
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET sid = :newId
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :anchorId
+                """, new MapSqlParameterSource()
+                .addValue("newId", id)
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("anchorId", anchorId));
+        markAppCreated("hisbase", id);
+        return id;
+    }
+
+    String createPromotionHistoryFromLatest(int uid, PromotionHistoryMutation mutation) {
+        PayrollHistorySnapshot latest = findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        return createPromotionHistoryFromSource(latest, mutation);
+    }
+
+    /**
+     * 按已知当前记录复制改写：用 dwbm+grbm 定位（可走索引），再按 id 校验，避免 TRIM(id) 全表扫描。
+     */
+    String createPositionChangeHistoryFromSource(PayrollHistorySnapshot source, PositionChangeHistoryMutation mutation) {
+        if (source == null) {
+            throw new IllegalArgumentException("缺少源工资记录。");
+        }
+        String sourceId = source.id() == null ? "" : source.id().trim();
+        String organizationCode = source.organizationCode() == null ? "" : source.organizationCode().trim();
+        String personCode = source.personCode() == null ? "" : source.personCode().trim();
+        if (sourceId.isEmpty() || organizationCode.isEmpty() || personCode.isEmpty()) {
+            throw new IllegalArgumentException("缺少源工资记录标识。");
+        }
+        String id = java.util.UUID.randomUUID().toString().toUpperCase();
+        int inserted = jdbcTemplate.update("""
+                INSERT INTO hisbase
+                SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
+                       h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
+                       h.tc, COALESCE(NULLIF(:nextStepAssessmentStartYear, ''), h.xckhndzw), COALESCE(NULLIF(:nextLevelAssessmentStartYear, ''), h.xckhndjb), h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
+                       h.jx, h.tgbl, h.jtbl, h.fddc, h.fdgd, h.fdsj,
+                       :calculationYear, :calculationMonth, :changeType,
+                       h.khqk, h.dynkh, h.denkh, COALESCE(:remark, h.bbz), :totalAmount,
                        :positionCode, :positionName, :positionSalaryGrade, :positionSalary, :gradeSalaryLevel, :gradeSalaryStep, :gradeSalary,
                        h.jcgz2, h.glgz2, COALESCE(:technicalGradeSalary, h.jsdjgz2), h.grjj2, COALESCE(:retainedAllowance, h.blfb2), COALESCE(:salaryIncrease, h.jsfszwtg2),
                        h.jt2, h.fdgz2, h.jjjy2, COALESCE(:performanceAllowance, h.dfbt2), h.gwjt2, h.bh, h.jxgz, h.zzbc,
-                       h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt, COALESCE(:subsidyAllowance, h.sdbt), h.grsds, h.zfgjj,
+                       h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt,
+                       CASE WHEN :subsidyAllowance IS NULL THEN h.sdbt ELSE :subsidyAllowance END,
+                       h.grsds, h.zfgjj,
                        h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, h.qtbt, h.jxjt,
                        h.gryhzh, h.tfnf, h.tfyf, h.spdw, h.tbnd, h.jxjtbz, h.jbtbz, h.jhljt,
                        :pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE h.dwbm = :organizationCode
+                  AND h.grbm = :personCode
+                  AND TRIM(h.id) = :sourceId
+                  AND (h.sid IS NULL OR TRIM(h.sid) = '')
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
-                .addValue("sourceId", latest.id())
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("sourceId", sourceId)
                 .addValue("calculationYear", mutation.calculationYear())
                 .addValue("calculationMonth", mutation.calculationMonth())
                 .addValue("changeType", valueOrBlank(mutation.changeType()))
+                .addValue("remark", emptyToNull(mutation.remark()))
                 .addValue("nextStepAssessmentStartYear", valueOrBlank(mutation.nextStepAssessmentStartYear()))
                 .addValue("nextLevelAssessmentStartYear", valueOrBlank(mutation.nextLevelAssessmentStartYear()))
                 .addValue("positionCode", valueOrBlank(mutation.positionCode()))
@@ -3391,15 +6246,81 @@ class PayrollRepository {
                 .addValue("salaryIncrease", mutation.salaryIncrease())
                 .addValue("pgbc", mutation.pgbc() == null ? 0 : mutation.pgbc())
                 .addValue("totalAmount", mutation.totalAmount() == null ? 0 : mutation.totalAmount()));
+        if (inserted != 1) {
+            throw new IllegalArgumentException("工资记录已变化，请重新查询后再办理。");
+        }
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :sourceId
+                  AND (sid IS NULL OR TRIM(sid) = '')
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
-                .addValue("sourceId", latest.id()));
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("sourceId", sourceId));
         markAppCreated("hisbase", id);
         return id;
+    }
+
+    String createPositionChangeHistoryFromLatest(int uid, PositionChangeHistoryMutation mutation) {
+        PayrollHistorySnapshot latest = findLatestHistory(uid)
+                .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+        return createPositionChangeHistoryFromSource(latest, mutation);
+    }
+
+    void updateHistorySalaryAllowanceStandards(
+            String historyId,
+            String salaryStandardYearMonth,
+            String allowanceStandardYearMonth,
+            java.math.BigDecimal yearAllowance) {
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET tbnd = :salaryStandardYearMonth,
+                    jbtbz = :allowanceStandardYearMonth,
+                    njbt = :yearAllowance
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:historyId) AS CHAR)
+                """, new MapSqlParameterSource()
+                .addValue("historyId", historyId)
+                .addValue("salaryStandardYearMonth", valueOrBlank(salaryStandardYearMonth))
+                .addValue("allowanceStandardYearMonth", valueOrBlank(allowanceStandardYearMonth))
+                .addValue("yearAllowance", yearAllowance == null ? java.math.BigDecimal.ZERO : yearAllowance));
+    }
+
+    /**
+     * 按单位+人员+id 更新标准年月，避免 CAST(TRIM(id)) 全表扫描。
+     */
+    void updateHistorySalaryAllowanceStandards(
+            String organizationCode,
+            String personCode,
+            String historyId,
+            String salaryStandardYearMonth,
+            String allowanceStandardYearMonth,
+            java.math.BigDecimal yearAllowance) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        String normalizedId = historyId == null ? "" : historyId.trim();
+        if (org.isEmpty() || person.isEmpty() || normalizedId.isEmpty()) {
+            updateHistorySalaryAllowanceStandards(historyId, salaryStandardYearMonth, allowanceStandardYearMonth, yearAllowance);
+            return;
+        }
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET tbnd = :salaryStandardYearMonth,
+                    jbtbz = :allowanceStandardYearMonth,
+                    njbt = :yearAllowance
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :historyId
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person)
+                .addValue("historyId", normalizedId)
+                .addValue("salaryStandardYearMonth", valueOrBlank(salaryStandardYearMonth))
+                .addValue("allowanceStandardYearMonth", valueOrBlank(allowanceStandardYearMonth))
+                .addValue("yearAllowance", yearAllowance == null ? java.math.BigDecimal.ZERO : yearAllowance));
     }
 
     void syncPositionChangeMetadata(
@@ -3441,7 +6362,7 @@ class PayrollRepository {
                        h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, h.jcjtbz, h.spjtbz, h.njbt,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE CAST(TRIM(h.id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("sourceId", latest.id())
@@ -3453,7 +6374,7 @@ class PayrollRepository {
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
                 .addValue("sourceId", latest.id()));
@@ -4044,13 +6965,56 @@ class PayrollRepository {
     }
 
     void rollbackCurrentHistory(String currentId, String previousId) {
-        jdbcTemplate.update("DELETE FROM hisbase WHERE id = :currentId", new MapSqlParameterSource("currentId", currentId));
+        jdbcTemplate.update(
+                "DELETE FROM hisbase WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:currentId) AS CHAR)",
+                new MapSqlParameterSource("currentId", currentId));
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = ''
-                WHERE id = :previousId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:previousId) AS CHAR)
                 """, new MapSqlParameterSource("previousId", previousId));
         unmarkAppCreated("hisbase", currentId);
+    }
+
+    /**
+     * 按单位+人员还原链头：删除当前记录、清空前驱 sid，避免 CAST(TRIM(id)) 全表扫描。
+     */
+    void rollbackCurrentHistory(
+            String organizationCode,
+            String personCode,
+            String currentId,
+            String previousId) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        String normalizedCurrentId = currentId == null ? "" : currentId.trim();
+        String normalizedPreviousId = previousId == null ? "" : previousId.trim();
+        if (org.isEmpty() || person.isEmpty() || normalizedCurrentId.isEmpty() || normalizedPreviousId.isEmpty()) {
+            throw new IllegalArgumentException("缺少还原所需的单位、人员或工资记录标识。");
+        }
+        int deleted = jdbcTemplate.update("""
+                DELETE FROM hisbase
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :currentId
+                  AND (sid IS NULL OR TRIM(sid) = '')
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person)
+                .addValue("currentId", normalizedCurrentId));
+        if (deleted != 1) {
+            throw new IllegalArgumentException("工资记录已变化，请重新查询后再还原。");
+        }
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET sid = ''
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :previousId
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person)
+                .addValue("previousId", normalizedPreviousId));
+        unmarkAppCreated("hisbase", normalizedCurrentId);
     }
 
     void updatePayrollHistory(String id, PayrollHistoryMaintenanceRequest request) {
@@ -4061,11 +7025,34 @@ class PayrollRepository {
                     jslb = :changeType,
                     zwbm2 = :positionCode,
                     zwgw2 = :positionName,
+                    jbgzjb2 = :gradeSalaryLevel,
+                    zwgzdc2 = :positionSalaryGrade,
+                    tbnd = :salaryStandardYearMonth,
+                    jbtbz = :allowanceStandardYearMonth,
+                    tgbl = :teachingIncreaseRatio,
+                    jx = :rankName,
+                    jxjtbz = :rankAllowanceStandardYearMonth,
+                    fddc = :floatingStep,
                     zwgzse2 = :positionSalary,
                     jbgzse2 = :gradeSalary,
                     jsdjgz2 = :technicalGradeSalary,
+                    jxgz = :internSalary,
+                    jsfszwtg2 = :salaryIncrease,
+                    jhljt = :teachingAllowance,
+                    fdgz2 = :floatingSalary,
+                    sdbt = :subsidyAllowance,
                     dfbt2 = :performanceAllowance,
+                    pgbc = :payGradeRetention,
+                    jxjt = :rankAllowance,
+                    zwjt = :retainedReformAllowance,
+                    jzmcbt = :overtimeAllowance,
+                    tgblbf = :retainedSpecialPostAllowance,
+                    nzgwsf = :hygieneAllowance,
                     blfb2 = :retainedAllowance,
+                    jjjy2 = :bonusBalance,
+                    gwjt2 = :specialPostAllowance,
+                    qtbt = :otherAllowance,
+                    njbt = :yearAllowance,
                     hj2 = :totalAmount
                 WHERE id = :id
                 """, payrollHistoryRequestParameters(request).addValue("id", id));
@@ -4074,6 +7061,201 @@ class PayrollRepository {
     void deletePayrollHistory(String id) {
         jdbcTemplate.update("DELETE FROM hisbase WHERE id = :id", new MapSqlParameterSource("id", id));
         unmarkAppCreated("hisbase", id);
+    }
+
+    void deletePayrollHistoriesByOrgPerson(String organizationCode, String personCode) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        if (org.isEmpty() || person.isEmpty()) {
+            return;
+        }
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person);
+        jdbcTemplate.update("""
+                DELETE FROM app_record_marker
+                WHERE table_name = 'hisbase'
+                  AND marker = 'APP_CREATED'
+                  AND record_id IN (
+                      SELECT CAST(id AS CHAR)
+                      FROM (
+                          SELECT id
+                          FROM hisbase
+                          WHERE dwbm = :organizationCode
+                            AND grbm = :personCode
+                      ) marked
+                  )
+                """, parameters);
+        jdbcTemplate.update("""
+                DELETE FROM hisbase
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                """, parameters);
+    }
+
+    void updateSimulatedSalaryRemarksByOrgPerson(String organizationCode, String personCode, Collection<String> determinationChangeTypes, String simulatedRemark) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        if (org.isEmpty() || person.isEmpty() || determinationChangeTypes == null || determinationChangeTypes.isEmpty()) {
+            return;
+        }
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET bbz = :simulatedRemark
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(COALESCE(jslb, '')) NOT IN (:determinationChangeTypes)
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person)
+                .addValue("simulatedRemark", valueOrBlank(simulatedRemark))
+                .addValue("determinationChangeTypes", determinationChangeTypes.stream().toList()));
+    }
+
+    void replaceTransferProjectionAudit(String organizationCode, String personCode, String tipId, List<TransferProjectionAuditStep> steps) {
+        deleteTransferProjectionAuditByTipId(tipId);
+        if (steps == null || steps.isEmpty()) {
+            return;
+        }
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        String tip = tipId == null ? "" : tipId.trim();
+        if (org.isEmpty() || person.isEmpty() || tip.isEmpty()) {
+            return;
+        }
+        int stepNo = 1;
+        for (TransferProjectionAuditStep step : steps) {
+            if (step == null) {
+                continue;
+            }
+            jdbcTemplate.update("""
+                    INSERT INTO gz_ts_projection_audit
+                    (dwbm, grbm, tip_id, step_no, change_period, change_type, position_code, position_name,
+                     grade_level, grade_step, level_start_year, step_start_year, description)
+                    VALUES
+                    (:organizationCode, :personCode, :tipId, :stepNo, :changePeriod, :changeType, :positionCode, :positionName,
+                     :gradeLevel, :gradeStep, :levelStartYear, :stepStartYear, :description)
+                    """, new MapSqlParameterSource()
+                    .addValue("organizationCode", org)
+                    .addValue("personCode", person)
+                    .addValue("tipId", tip)
+                    .addValue("stepNo", stepNo++)
+                    .addValue("changePeriod", valueOrBlank(step.changePeriod()))
+                    .addValue("changeType", valueOrBlank(step.changeType()))
+                    .addValue("positionCode", valueOrBlank(step.positionCode()))
+                    .addValue("positionName", valueOrBlank(step.positionName()))
+                    .addValue("gradeLevel", valueOrBlank(step.gradeLevel()))
+                    .addValue("gradeStep", valueOrBlank(step.gradeStep()))
+                    .addValue("levelStartYear", valueOrBlank(step.levelStartYear()))
+                    .addValue("stepStartYear", valueOrBlank(step.stepStartYear()))
+                    .addValue("description", valueOrBlank(step.description())));
+        }
+    }
+
+    List<TransferProjectionAuditStep> findTransferProjectionAuditByTipId(String tipId) {
+        String tip = tipId == null ? "" : tipId.trim();
+        if (tip.isEmpty()) {
+            return List.of();
+        }
+        return jdbcTemplate.query("""
+                SELECT change_period, change_type, position_code, position_name,
+                       grade_level, grade_step, level_start_year, step_start_year, description
+                FROM gz_ts_projection_audit
+                WHERE tip_id = :tipId
+                ORDER BY step_no, id
+                """, new MapSqlParameterSource("tipId", tip), (rs, rowNum) -> new TransferProjectionAuditStep(
+                SqlText.trim(rs.getString("change_period")),
+                SqlText.trim(rs.getString("change_type")),
+                SqlText.trim(rs.getString("position_code")),
+                SqlText.trim(rs.getString("position_name")),
+                SqlText.trim(rs.getString("grade_level")),
+                SqlText.trim(rs.getString("grade_step")),
+                SqlText.trim(rs.getString("level_start_year")),
+                SqlText.trim(rs.getString("step_start_year")),
+                SqlText.trim(rs.getString("description"))));
+    }
+
+    void deleteTransferProjectionAuditByTipId(String tipId) {
+        String tip = tipId == null ? "" : tipId.trim();
+        if (tip.isEmpty()) {
+            return;
+        }
+        jdbcTemplate.update("DELETE FROM gz_ts_projection_audit WHERE tip_id = :tipId",
+                new MapSqlParameterSource("tipId", tip));
+    }
+
+    void deleteTransferProjectionAuditByOrgPerson(String organizationCode, String personCode) {
+        String org = organizationCode == null ? "" : organizationCode.trim();
+        String person = personCode == null ? "" : personCode.trim();
+        if (org.isEmpty() || person.isEmpty()) {
+            return;
+        }
+        jdbcTemplate.update("""
+                DELETE FROM gz_ts_projection_audit
+                WHERE dwbm = :organizationCode AND grbm = :personCode
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", org)
+                .addValue("personCode", person));
+    }
+
+    Optional<PersonnelJoinSnapshot> findPersonnelJoinSnapshot(int uid) {
+        List<PersonnelJoinSnapshot> rows = jdbcTemplate.query("""
+                SELECT p.uid, p.dwbm, p.grbm, p.xm, p.jrfs, p.jrny, p.cjgzny, p.tc, p.xlbm, p.zgxl,
+                       COALESCE(NULLIF(TRIM(h.zwbm2), ''), NULLIF(TRIM(z.zwbm), ''), NULLIF(TRIM(p.zjbm), '')) AS position_code,
+                       COALESCE(NULLIF(TRIM(h.zwgw2), ''), NULLIF(TRIM(z.xzzw), ''), NULLIF(TRIM(p.xrzw), '')) AS position_name,
+                       h.id AS tip_id
+                FROM dryjbxx p
+                LEFT JOIN dryzwbh z ON z.id = (
+                    SELECT z2.id FROM dryzwbh z2
+                    WHERE z2.dwbm = p.dwbm AND z2.grbm = p.grbm
+                    ORDER BY CASE WHEN TRIM(COALESCE(z2.xrzwbz, '')) = '1' THEN 0 ELSE 1 END,
+                             REPLACE(COALESCE(NULLIF(TRIM(z2.srny), ''), '000000'), '.', '') DESC, z2.id DESC
+                    LIMIT 1
+                )
+                LEFT JOIN hisbase h ON h.id = (
+                    SELECT h2.id FROM hisbase h2
+                    WHERE h2.dwbm = p.dwbm AND h2.grbm = p.grbm
+                      AND (h2.sid IS NULL OR h2.sid = '' OR TRIM(h2.sid) = '')
+                    ORDER BY COALESCE(h2.jsnf, '') DESC, COALESCE(h2.jsyf, '') DESC, h2.id DESC
+                    LIMIT 1
+                )
+                WHERE p.uid = :uid
+                LIMIT 1
+                """, new MapSqlParameterSource("uid", uid), (rs, rowNum) -> new PersonnelJoinSnapshot(
+                rs.getInt("uid"),
+                SqlText.trim(rs.getString("dwbm")),
+                SqlText.trim(rs.getString("grbm")),
+                SqlText.trim(rs.getString("xm")),
+                SqlText.trim(rs.getString("jrfs")),
+                SqlText.trim(rs.getString("jrny")),
+                SqlText.trim(rs.getString("cjgzny")),
+                SqlText.trim(rs.getString("tc")),
+                SqlText.trim(rs.getString("xlbm")),
+                SqlText.trim(rs.getString("zgxl")),
+                SqlText.trim(rs.getString("position_code")),
+                SqlText.trim(rs.getString("position_name")),
+                SqlText.trim(rs.getString("tip_id"))));
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
+    }
+
+    public record PersonnelJoinSnapshot(
+            int uid,
+            String organizationCode,
+            String personCode,
+            String name,
+            String joinType,
+            String joinYearMonth,
+            String workStartYearMonth,
+            String classificationTag,
+            String educationCode,
+            String educationName,
+            String positionCode,
+            String positionName,
+            String tipId
+    ) {
+        boolean hasCurrentTip() {
+            return tipId != null && !tipId.isBlank();
+        }
     }
 
     List<PayrollFieldMetadata> findCalculationFields() {
@@ -4085,6 +7267,44 @@ class PayrollRepository {
                 WHERE sfsy06 = '√' AND field_type = 'N'
                 ORDER BY sequence, id
                 """, FIELD_MAPPER);
+    }
+
+    List<PayrollFieldMetadata> findNumericFields() {
+        return jdbcTemplate.query("""
+                SELECT id, sequence, field_cate, tblname, field_name, field_type, field_len, field_dec,
+                       field_cap, field_caps, field_capj, sfsy06, sfsy, lrfs, category, jbt, gld,
+                       jxryff, jbtbz, qsff, gdz, `readonly`, isgroup, iscount
+                FROM fldgz
+                WHERE field_type = 'N'
+                ORDER BY sequence, id
+                """, FIELD_MAPPER);
+    }
+
+    int updateNumericFieldEnabledFlags(Collection<Integer> enabledIds) {
+        List<Integer> ids = enabledIds == null
+                ? List.of()
+                : enabledIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return jdbcTemplate.update("""
+                    UPDATE fldgz
+                    SET sfsy06 = ''
+                    WHERE field_type = 'N'
+                    """, new MapSqlParameterSource());
+        }
+        MapSqlParameterSource parameters = new MapSqlParameterSource("enabledIds", ids);
+        int disabled = jdbcTemplate.update("""
+                UPDATE fldgz
+                SET sfsy06 = ''
+                WHERE field_type = 'N'
+                  AND id NOT IN (:enabledIds)
+                """, parameters);
+        int enabled = jdbcTemplate.update("""
+                UPDATE fldgz
+                SET sfsy06 = '√'
+                WHERE field_type = 'N'
+                  AND id IN (:enabledIds)
+                """, parameters);
+        return disabled + enabled;
     }
 
     List<PositionSalaryStandard> findMatchedPositionStandards(PayrollHistorySnapshot history) {
@@ -4111,7 +7331,7 @@ class PayrollRepository {
                 .addValue("positionCode", history.positionCode()), ALLOWANCE_STANDARD_MAPPER);
     }
 
-    int positionSalary(String positionCode, String standardYearMonth) {
+    public int positionSalary(String positionCode, String standardYearMonth) {
         return queryInteger("""
                 SELECT bz
                 FROM bz06_zwgz
@@ -4125,26 +7345,38 @@ class PayrollRepository {
     Optional<PositionChangeCandidate> findCurrentPositionChangeCandidate(String organizationCode, String personCode) {
         return jdbcTemplate.query("""
                 SELECT b.zwbm, b.xzzw, b.srny
-                FROM dryzwbh b
-                INNER JOIN hisbase h
-                    ON h.dwbm = b.dwbm
-                   AND h.grbm = b.grbm
-                   AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                WHERE b.dwbm = :organizationCode
-                  AND b.grbm = :personCode
-                  AND b.xrzwbz = '1'
-                  AND b.srny >= '2006.07'
-                  AND b.srny >= h.srny
-                  AND (
-                       COALESCE(h.zwbm2, '') <> COALESCE(b.zwbm, '')
-                       OR COALESCE(h.zjbm, '') <> COALESCE(b.zjbm, '')
-                  )
+                FROM dryjbxx p
+                """ + latestPayrollTipJoin("p", "h") + """
+                INNER JOIN dryzwbh b ON b.id = (
+                    SELECT b3.id
+                    FROM dryzwbh b3
+                    WHERE b3.dwbm = p.dwbm
+                      AND b3.grbm = p.grbm
+                      AND REPLACE(b3.srny, '.', '') > REPLACE(
+                          COALESCE(
+                              (SELECT b2.srny
+                               FROM dryzwbh b2
+                               WHERE b2.dwbm = p.dwbm
+                                 AND b2.grbm = p.grbm
+                                 AND COALESCE(b2.zwbm, '') = COALESCE(h.zwbm2, '')
+                               ORDER BY REPLACE(b2.srny, '.', '') DESC, b2.id DESC
+                               LIMIT 1),
+                              h.srny,
+                              '2006.07'
+                          ), '.', '')
+                      AND b3.srny >= '2006.07'
+                    ORDER BY REPLACE(b3.srny, '.', '') ASC, b3.id ASC
+                    LIMIT 1
+                )
+                WHERE p.dwbm = :organizationCode
+                  AND p.grbm = :personCode
+                  AND b.srny >= CONCAT(COALESCE(h.jsnf, ''), '.', LPAD(COALESCE(h.jsyf, ''), 2, '0'))
+                  AND COALESCE(h.zwbm2, '') <> COALESCE(b.zwbm, '')
                   AND (
                        CASE WHEN LEFT(COALESCE(h.zwbm2, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
                        =
                        CASE WHEN LEFT(COALESCE(b.zwbm, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
                   )
-                ORDER BY b.srny DESC, b.id DESC
                 LIMIT 1
                 """, new MapSqlParameterSource()
                 .addValue("organizationCode", organizationCode)
@@ -4171,11 +7403,14 @@ class PayrollRepository {
         if (organizationScope.noneScope()) {
             return new PositionChangePromotionPage(List.of(), 0);
         }
+        long total = countPositionChangePromotionPersonnel(organizationScope, organizationCode, keyword);
+        if (total == 0 || pageRequest.offset() >= total) {
+            return new PositionChangePromotionPage(List.of(), total);
+        }
         MapSqlParameterSource parameters = payrollChangeParameters(organizationScope, organizationCode, keyword)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         List<PositionChangePromotionCandidateRow> rows = new java.util.ArrayList<>();
-        final long[] total = {0};
         jdbcTemplate.query(positionChangePromotionPersonnelSql() + """
                 SELECT p.uid,
                        r.px,
@@ -4183,8 +7418,10 @@ class PayrollRepository {
                        r.zwgw2 AS before_position_name,
                        r.zwbm AS after_position_code,
                        r.zwgw AS after_position_name,
+                       r.zjbm AS before_rank_code,
+                       r.zjbma AS after_rank_code,
                        r.jslb AS payroll_change_type,
-                       COUNT(*) OVER() AS total_count
+                       r.pxny AS appointment_year_month
                 FROM ranked r
                 INNER JOIN dryjbxx p ON p.dwbm = r.dwbm AND p.grbm = r.grbm
                 WHERE r.rn = 1
@@ -4200,12 +7437,9 @@ class PayrollRepository {
                        OR p.xm LIKE :keywordLike
                        OR r.zwgw2 LIKE :keywordLike
                        OR r.zwgw LIKE :keywordLike)
-                ORDER BY p.dwbm, p.grbm
+                ORDER BY CASE WHEN r.px = 1 THEN 0 ELSE 1 END, p.dwbm, p.grbm
                 LIMIT :limit OFFSET :offset
                 """, parameters, (rs, rowNum) -> {
-            if (total[0] == 0) {
-                total[0] = rs.getLong("total_count");
-            }
             rows.add(new PositionChangePromotionCandidateRow(
                     rs.getInt("uid"),
                     rs.getInt("px"),
@@ -4213,10 +7447,204 @@ class PayrollRepository {
                     SqlText.trim(rs.getString("before_position_name")),
                     SqlText.trim(rs.getString("after_position_code")),
                     SqlText.trim(rs.getString("after_position_name")),
-                    SqlText.trim(rs.getString("payroll_change_type"))));
+                    SqlText.trim(rs.getString("before_rank_code")),
+                    SqlText.trim(rs.getString("after_rank_code")),
+                    SqlText.trim(rs.getString("payroll_change_type")),
+                    SqlText.trim(rs.getString("appointment_year_month"))));
             return null;
         });
-        return new PositionChangePromotionPage(rows, total[0]);
+        return new PositionChangePromotionPage(rows, total);
+    }
+
+    List<PositionChangePromotionCandidateRow> findPositionChangePromotionCandidateRows(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource parameters = payrollChangeParameters(organizationScope, organizationCode, keyword);
+        ArrayList<PositionChangePromotionCandidateRow> pending = new ArrayList<>();
+        ArrayList<PositionChangePromotionCandidateRow> processed = new ArrayList<>();
+        long startedAt = System.nanoTime();
+        long[] pendingMs = {0L};
+        long[] processedMs = {0L};
+        Runnable loadPending = () -> {
+            long t0 = System.nanoTime();
+            jdbcTemplate.query(positionChangePromotionPendingSql(), parameters, (rs, rowNum) -> {
+                synchronized (pending) {
+                    pending.add(POSITION_CHANGE_CANDIDATE_ROW_MAPPER.mapRow(rs, rowNum));
+                }
+                return null;
+            });
+            pendingMs[0] = (System.nanoTime() - t0) / 1_000_000L;
+        };
+        Runnable loadProcessed = () -> {
+            long t0 = System.nanoTime();
+            jdbcTemplate.query(positionChangePromotionProcessedSql(), parameters, (rs, rowNum) -> {
+                synchronized (processed) {
+                    processed.add(POSITION_CHANGE_CANDIDATE_ROW_MAPPER.mapRow(rs, rowNum));
+                }
+                return null;
+            });
+            processedMs[0] = (System.nanoTime() - t0) / 1_000_000L;
+        };
+        java.util.stream.Stream.of(loadPending, loadProcessed).parallel().forEach(Runnable::run);
+        LinkedHashMap<Integer, PositionChangePromotionCandidateRow> byUid = new LinkedHashMap<>();
+        for (PositionChangePromotionCandidateRow row : pending) {
+            byUid.merge(row.uid(), row, PayrollRepository::preferPositionChangeCandidateRow);
+        }
+        for (PositionChangePromotionCandidateRow row : processed) {
+            byUid.putIfAbsent(row.uid(), row);
+        }
+        log.info(
+                "position-change candidates sql: pending={}ms/{}rows processed={}ms/{}rows merged={} wall={}ms",
+                pendingMs[0],
+                pending.size(),
+                processedMs[0],
+                processed.size(),
+                byUid.size(),
+                (System.nanoTime() - startedAt) / 1_000_000L);
+        return new ArrayList<>(byUid.values());
+    }
+
+    private static String latestPayrollTipJoin(String personnelAlias, String historyAlias) {
+        // 部分库 hisbase.sid 链未维护，多条 sid=''；与 findLatestHistory 一致，只取每人最新一条。
+        return """
+                INNER JOIN hisbase %2$s ON %2$s.id = (
+                    SELECT h2.id
+                    FROM hisbase h2
+                    WHERE h2.dwbm = %1$s.dwbm
+                      AND h2.grbm = %1$s.grbm
+                    ORDER BY CASE WHEN h2.sid IS NULL OR TRIM(h2.sid) = '' THEN 0 ELSE 1 END,
+                             COALESCE(h2.jsnf, '') DESC,
+                             COALESCE(h2.jsyf, '') DESC,
+                             h2.id DESC
+                    LIMIT 1
+                )
+                """.formatted(personnelAlias, historyAlias);
+    }
+
+    private static String nextAppointmentAfterPayrollPositionJoin(String personnelAlias) {
+        // 不依赖 xrzwbz：锚点为任职表中与 tip 职务相同、任职年月最新的一条；候选为锚点之后最早的一条。
+        return """
+                INNER JOIN dryzwbh b ON b.id = (
+                    SELECT b3.id
+                    FROM dryzwbh b3
+                    WHERE b3.dwbm = %1$s.dwbm
+                      AND b3.grbm = %1$s.grbm
+                      AND REPLACE(b3.srny, '.', '') > REPLACE(
+                          COALESCE(
+                              (SELECT b2.srny
+                               FROM dryzwbh b2
+                               WHERE b2.dwbm = %1$s.dwbm
+                                 AND b2.grbm = %1$s.grbm
+                                 AND COALESCE(b2.zwbm, '') = COALESCE(h.zwbm2, '')
+                               ORDER BY REPLACE(b2.srny, '.', '') DESC, b2.id DESC
+                               LIMIT 1),
+                              h.srny,
+                              '2006.07'
+                          ), '.', '')
+                      AND b3.srny >= '2006.07'
+                    ORDER BY REPLACE(b3.srny, '.', '') ASC, b3.id ASC
+                    LIMIT 1
+                )
+                """.formatted(personnelAlias);
+    }
+
+    private static PositionChangePromotionCandidateRow preferPositionChangeCandidateRow(
+            PositionChangePromotionCandidateRow existing,
+            PositionChangePromotionCandidateRow incoming) {
+        if (existing.processed() && !incoming.processed()) {
+            return incoming;
+        }
+        if (!existing.processed() && incoming.processed()) {
+            return existing;
+        }
+        String existingPeriod = normalizeYearMonthPeriod(existing.appointmentYearMonth());
+        String incomingPeriod = normalizeYearMonthPeriod(incoming.appointmentYearMonth());
+        return incomingPeriod.compareTo(existingPeriod) >= 0 ? incoming : existing;
+    }
+
+    private static String normalizeYearMonthPeriod(String yearMonth) {
+        if (yearMonth == null || yearMonth.isBlank()) {
+            return "";
+        }
+        return yearMonth.replace(".", "").trim();
+    }
+
+    private static String positionChangePromotionPendingSql() {
+        // tip 实际为 sid=''；避免 (IS NULL OR '') 导致无法走 tip 索引。
+        return """
+                SELECT p.uid,
+                       1 AS px,
+                       h.zwbm2 AS before_position_code,
+                       h.zwgw2 AS before_position_name,
+                       b.zwbm AS after_position_code,
+                       b.xzzw AS after_position_name,
+                       h.zjbm AS before_rank_code,
+                       b.zjbm AS after_rank_code,
+                       h.jslb AS payroll_change_type,
+                       b.srny AS appointment_year_month
+                FROM dryjbxx p
+                """ + latestPayrollTipJoin("p", "h") + """
+                """ + nextAppointmentAfterPayrollPositionJoin("p") + """
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND h.jslb NOT IN (
+                        '职务变化','职级晋升','法检套改','警员套改','警务套改','职级套改',
+                        '同序列职务变化','事业岗位变动','事业岗位','转换序列'
+                  )
+                  AND b.srny >= CONCAT(COALESCE(h.jsnf, ''), '.', LPAD(COALESCE(h.jsyf, ''), 2, '0'))
+                  AND COALESCE(h.zwbm2, '') <> COALESCE(b.zwbm, '')
+                  AND (
+                        CASE WHEN LEFT(COALESCE(h.zwbm2, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
+                        =
+                        CASE WHEN LEFT(COALESCE(b.zwbm, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
+                  )
+                  AND (:keyword IS NULL
+                       OR p.grbm LIKE :keywordLike
+                       OR p.xm LIKE :keywordLike
+                       OR h.zwgw2 LIKE :keywordLike
+                       OR b.xzzw LIKE :keywordLike)
+                """;
+    }
+
+    private static String positionChangePromotionProcessedSql() {
+        return """
+                SELECT p.uid,
+                       2 AS px,
+                       h1.zwbm2 AS before_position_code,
+                       h1.zwgw2 AS before_position_name,
+                       h.zwbm2 AS after_position_code,
+                       h.zwgw2 AS after_position_name,
+                       h1.zjbm AS before_rank_code,
+                       h.zjbm AS after_rank_code,
+                       h.jslb AS payroll_change_type,
+                       CONCAT(h.jsnf, LPAD(COALESCE(h.jsyf, ''), 2, '0')) AS appointment_year_month
+                FROM dryjbxx p
+                """ + latestPayrollTipJoin("p", "h") + """
+                   AND h.jslb IN (
+                        '职务变化','职级晋升','法检套改','警员套改','警务套改','职级套改',
+                        '同序列职务变化','事业岗位变动','事业岗位','转换序列'
+                   )
+                LEFT JOIN hisbase h1
+                    ON h1.dwbm = h.dwbm
+                   AND h1.grbm = h.grbm
+                   AND h1.sid = h.id
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                  AND (:keyword IS NULL
+                       OR p.grbm LIKE :keywordLike
+                       OR p.xm LIKE :keywordLike
+                       OR h1.zwgw2 LIKE :keywordLike
+                       OR h.zwgw2 LIKE :keywordLike)
+                  AND NOT (
+                      LEFT(COALESCE(h1.zwbm2, ''), 2) IN ('07','08','09','10')
+                      AND COALESCE(h1.zjbm, '') <> COALESCE(h.zjbm, '')
+                      AND COALESCE(h1.zwbm2, '') = COALESCE(h.zwbm2, '')
+                  )
+                """;
     }
 
     List<LevelPromotionCandidateRow> findLevelPromotionCandidateRows(
@@ -4231,17 +7659,9 @@ class PayrollRepository {
                 .addValue("promotionYear", String.valueOf(promotionYear));
         List<LevelPromotionCandidateRow> rows = new java.util.ArrayList<>();
         jdbcTemplate.query(levelPromotionCandidateSql() + """
-                SELECT p.uid, r.px
+                SELECT r.uid, r.px
                 FROM ranked r
-                INNER JOIN dryjbxx p ON p.dwbm = r.dwbm AND p.grbm = r.grbm
-                WHERE r.rn = 1
-                  AND (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
-                  AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
-                  AND (:keyword IS NULL
-                       OR p.grbm LIKE :keywordLike
-                       OR p.xm LIKE :keywordLike
-                       OR r.zwgw2 LIKE :keywordLike)
-                ORDER BY p.dwbm, p.grbm
+                ORDER BY r.dwbm, r.grbm
                 """, parameters, (rs, rowNum) -> {
             rows.add(new LevelPromotionCandidateRow(rs.getInt("uid"), rs.getInt("px")));
             return null;
@@ -4295,26 +7715,19 @@ class PayrollRepository {
                         h.jsnf,
                         h.jsyf
                     FROM dryjbxx a
-                    INNER JOIN hisbase h
-                        ON a.dwbm = h.dwbm
-                       AND a.grbm = h.grbm
-                       AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                    INNER JOIN dryzwbh b
-                        ON a.dwbm = b.dwbm
-                       AND a.grbm = b.grbm
-                       AND b.xrzwbz = '1'
-                       AND b.srny >= '2006.07'
-                       AND b.srny >= h.srny
-                       AND (
-                            COALESCE(h.zwbm2, '') <> COALESCE(b.zwbm, '')
-                            OR COALESCE(h.zjbm, '') <> COALESCE(b.zjbm, '')
-                       )
+                    """ + latestPayrollTipJoin("a", "h") + """
+                    """ + nextAppointmentAfterPayrollPositionJoin("a") + """
+                       AND b.srny >= CONCAT(COALESCE(h.jsnf, ''), '.', LPAD(COALESCE(h.jsyf, ''), 2, '0'))
+                       AND COALESCE(h.zwbm2, '') <> COALESCE(b.zwbm, '')
                        AND (
                             CASE WHEN LEFT(COALESCE(h.zwbm2, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
                             =
                             CASE WHEN LEFT(COALESCE(b.zwbm, ''), 2) IN ('07','08','09','10','11') THEN 1 ELSE 0 END
                        )
-                       AND h.jslb NOT IN ('职务变化','职级晋升','法检套改','警员套改','警务套改','职级套改')
+                       AND h.jslb NOT IN (
+                            '职务变化','职级晋升','法检套改','警员套改','警务套改','职级套改',
+                            '同序列职务变化','事业岗位变动','事业岗位','转换序列'
+                       )
                     WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
                       AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
                     UNION ALL
@@ -4333,11 +7746,11 @@ class PayrollRepository {
                         h.jsnf,
                         h.jsyf
                     FROM dryjbxx a
-                    INNER JOIN hisbase h
-                        ON a.dwbm = h.dwbm
-                       AND a.grbm = h.grbm
-                       AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                       AND h.jslb IN ('职务变化','职级晋升','法检套改','警员套改','警务套改','职级套改')
+                    """ + latestPayrollTipJoin("a", "h") + """
+                       AND h.jslb IN (
+                            '职务变化','职级晋升','法检套改','警员套改','警务套改','职级套改',
+                            '同序列职务变化','事业岗位变动','事业岗位','转换序列'
+                       )
                     LEFT JOIN hisbase h1
                         ON a.dwbm = h1.dwbm
                        AND h1.grbm = h.grbm
@@ -4358,54 +7771,62 @@ class PayrollRepository {
     }
 
     private static String levelPromotionCandidateSql() {
+        // 轻量 tip 预筛：避免 TRIM(sid) 阻碍索引；跨度条件用加法避免 UNSIGNED 下溢。
         return """
-                WITH all_data AS (
-                    SELECT
-                        1 AS px,
-                        a.dwbm,
-                        a.grbm,
-                        h.zwgw2,
-                        h.jslb,
-                        h.jsnf
-                    FROM dryjbxx a
+                WITH tip AS (
+                    SELECT p.uid,
+                           p.dwbm,
+                           p.grbm,
+                           p.xm,
+                           h.zwgw2,
+                           h.zwbm2,
+                           h.jslb,
+                           h.jsnf,
+                           h.jbgzjb2,
+                           h.xckhndjb,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY p.uid
+                               ORDER BY COALESCE(h.jsnf, '') DESC, COALESCE(h.jsyf, '') DESC, h.id DESC
+                           ) AS rn
+                    FROM dryjbxx p
                     INNER JOIN hisbase h
-                        ON a.dwbm = h.dwbm
-                       AND a.grbm = h.grbm
-                       AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                    WHERE LEFT(COALESCE(h.zwbm2, ''), 2) IN ('01','02','04','21','22','23','24','25','26','27','28')
-                      AND CAST(COALESCE(NULLIF(TRIM(h.jbgzjb2), ''), '0') AS UNSIGNED) > 1
-                      AND (
-                           h.jslb <> '正常级别'
-                           OR CAST(COALESCE(NULLIF(TRIM(h.jsnf), ''), '0') AS UNSIGNED) <> CAST(:promotionYear AS UNSIGNED)
-                      )
-                      AND (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                      AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
-                    UNION ALL
-                    SELECT
-                        2 AS px,
-                        a.dwbm,
-                        a.grbm,
-                        h.zwgw2,
-                        h.jslb,
-                        h.jsnf
-                    FROM dryjbxx a
-                    INNER JOIN hisbase h
-                        ON a.dwbm = h.dwbm
-                       AND a.grbm = h.grbm
-                       AND (h.sid IS NULL OR TRIM(h.sid) = '')
-                       AND h.jslb = '正常级别'
-                       AND CAST(COALESCE(NULLIF(TRIM(h.jsnf), ''), '0') AS UNSIGNED) = CAST(:promotionYear AS UNSIGNED)
-                    WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
-                      AND (:organizationCode IS NULL OR a.dwbm = :organizationCode)
+                        ON p.dwbm = h.dwbm
+                       AND p.grbm = h.grbm
+                       AND h.sid = ''
+                    WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                      AND (:organizationCode IS NULL OR p.dwbm = :organizationCode)
+                      AND TRIM(COALESCE(p.tc, '')) = '已定工资'
+                      AND (:keyword IS NULL
+                           OR p.grbm LIKE :keywordLike
+                           OR p.xm LIKE :keywordLike
+                           OR h.zwgw2 LIKE :keywordLike)
                 ),
                 ranked AS (
-                    SELECT
-                        *,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY dwbm, grbm
-                            ORDER BY px ASC, jsnf DESC
-                        ) AS rn
-                    FROM all_data
+                    SELECT uid,
+                           dwbm,
+                           grbm,
+                           xm,
+                           zwgw2,
+                           CASE
+                               WHEN TRIM(COALESCE(jslb, '')) IN ('正常级别', '级别滚动')
+                                AND CAST(COALESCE(NULLIF(TRIM(jsnf), ''), '0') AS UNSIGNED) = CAST(:promotionYear AS UNSIGNED)
+                               THEN 2
+                               ELSE 1
+                           END AS px
+                    FROM tip
+                    WHERE rn = 1
+                      AND LEFT(COALESCE(zwbm2, ''), 2) IN ('01','02','04','21','22','23','24','25','26','27','28')
+                      AND CAST(COALESCE(NULLIF(TRIM(jbgzjb2), ''), '0') AS UNSIGNED) > 1
+                      AND (
+                            TRIM(COALESCE(jslb, '')) IN ('正常级别', '级别滚动')
+                            AND CAST(COALESCE(NULLIF(TRIM(jsnf), ''), '0') AS UNSIGNED) = CAST(:promotionYear AS UNSIGNED)
+                         OR (
+                              -- 含「调入定资」等 tip：级别起算满 5 年即可进入试算（是否可办由 Java 考核年数判定）
+                                    TRIM(COALESCE(xckhndjb, '')) = ''
+                                 OR CAST(:promotionYear AS UNSIGNED)
+                                      >= CAST(COALESCE(NULLIF(TRIM(xckhndjb), ''), '0') AS UNSIGNED) + 5
+                         )
+                      )
                 )
                 """;
     }
@@ -4451,14 +7872,38 @@ class PayrollRepository {
                   AND grbm = :personCode
                   AND xllb <> '后取'
                   AND bysj IS NOT NULL
-                  AND TRIM(REPLACE(bysj, '.', '')) <> ''
-                  AND REPLACE(bysj, '.', '') <= :currentPeriod
+                  AND CHAR_LENGTH(REPLACE(TRIM(bysj), '.', '')) >= 6
+                  AND REPLACE(TRIM(bysj), '.', '') <= :currentPeriod
                 ORDER BY xlbm ASC, bysj DESC, id DESC
                 LIMIT 1
                 """, new MapSqlParameterSource()
                 .addValue("organizationCode", organizationCode)
                 .addValue("personCode", personCode)
                 .addValue("currentPeriod", currentPeriod), EDUCATION_PROMOTION_SOURCE_MAPPER).stream().findFirst();
+    }
+
+    /**
+     * 学历晋升用：仅取现行 tip 工资年月之后取得的学历（对齐旧系统 crtbd：bysj &gt; tip 年月）。
+     */
+    Optional<EducationPromotionSource> findEducationAfterPeriodForPromotion(
+            String organizationCode,
+            String personCode,
+            String tipPeriod) {
+        return jdbcTemplate.query("""
+                SELECT xlbm, xl, bysj
+                FROM dxl
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND xllb <> '后取'
+                  AND bysj IS NOT NULL
+                  AND CHAR_LENGTH(REPLACE(TRIM(bysj), '.', '')) >= 6
+                  AND REPLACE(TRIM(bysj), '.', '') > :tipPeriod
+                ORDER BY xlbm ASC, bysj DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("tipPeriod", tipPeriod), EDUCATION_PROMOTION_SOURCE_MAPPER).stream().findFirst();
     }
 
     List<EducationPromotionSource> findEducationRecordsBetween(
@@ -4527,10 +7972,13 @@ class PayrollRepository {
                 .addValue("educationName", emptyToNull(educationName)), INTERN_SALARY_STANDARD_MAPPER).stream().findFirst();
     }
 
-    int positionGradeSalary(String positionCode, String positionSalaryGrade, String invertedStep, String standardYearMonth) {
+    public int positionGradeSalary(String positionCode, String positionSalaryGrade, String invertedStep, String standardYearMonth) {
         int grade = intValue(positionSalaryGrade);
         if (emptyToNull(positionCode) == null || emptyToNull(standardYearMonth) == null || grade <= 0 || grade > 20) {
             return 0;
+        }
+        if (positionCode.trim().startsWith("03")) {
+            return judicialPositionGradeSalary(positionCode, grade, standardYearMonth);
         }
         Integer amount = queryInteger("""
                 SELECT dc%s
@@ -4554,6 +8002,36 @@ class PayrollRepository {
         return amount + amount - previous;
     }
 
+    /**
+     * 法检职务（03）：档次工资在 bz06_zwgz_fj；tip 职务码如 0318 对应标准码 0308。
+     */
+    public int judicialPositionGradeSalary(String positionCode, int grade, String standardYearMonth) {
+        if (grade <= 0 || grade > 17 || emptyToNull(standardYearMonth) == null) {
+            return 0;
+        }
+        String standardCode = mapJudicialPositionSalaryCode(positionCode);
+        if (standardCode == null) {
+            return 0;
+        }
+        return queryInteger("""
+                SELECT dc%s
+                FROM bz06_zwgz_fj
+                WHERE tbnd = :standardYearMonth AND zwbm = :positionCode
+                LIMIT 1
+                """.formatted(grade), new MapSqlParameterSource()
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("positionCode", standardCode));
+    }
+
+    /** tip 0318/0317… → 标准 0308/0307…（第三位规范为 0）。 */
+    public String mapJudicialPositionSalaryCode(String positionCode) {
+        String trimmed = emptyToNull(positionCode);
+        if (trimmed == null || trimmed.length() < 4 || !trimmed.startsWith("03")) {
+            return trimmed;
+        }
+        return "030" + trimmed.substring(3);
+    }
+
     int highestGradeStepForLevel(String gradeLevel) {
         return highestGradeStep(gradeLevel);
     }
@@ -4569,11 +8047,13 @@ class PayrollRepository {
             return 0;
         }
         int highestStep = highestGradeStep(gradeLevel);
-        int effectiveStep = step >= highestStep ? highestStep + Math.max(0, extra) : step;
+        // 已达/超过本级别最高档时：档次字段可能已含超档差（zwgzdc2>最高档），
+        // 也可能用 djc2 记超档差；二者叠加为有效档次后再按档差外推。
+        int effectiveStep = step >= highestStep ? step + Math.max(0, extra) : step;
         return gradeSalary(gradeLevel, String.valueOf(effectiveStep), standardYearMonth);
     }
 
-    int gradeSalary(String gradeLevel, String gradeStep, String standardYearMonth) {
+    public int gradeSalary(String gradeLevel, String gradeStep, String standardYearMonth) {
         int step = intValue(gradeStep);
         if (step <= 0 || emptyToNull(gradeLevel) == null) {
             return 0;
@@ -4625,7 +8105,20 @@ class PayrollRepository {
                 """.formatted(targetRank, level), new MapSqlParameterSource("currentStep", String.valueOf(step)));
     }
 
-    int salaryLevelSalary(String salaryLevel, String inversionStep, String standardYearMonth, String positionCode) {
+    boolean isCompulsoryEducationOrganization(String organizationCode) {
+        if (emptyToNull(organizationCode) == null) {
+            return false;
+        }
+        Integer category = queryInteger("""
+                SELECT jxlb
+                FROM dwbm
+                WHERE dwbm = :organizationCode
+                LIMIT 1
+                """, new MapSqlParameterSource("organizationCode", organizationCode.trim()));
+        return category != null && category == 2;
+    }
+
+    public int salaryLevelSalary(String salaryLevel, String inversionStep, String standardYearMonth, String positionCode) {
         String normalizedLevel = leftPadTwo(salaryLevel);
         if (normalizedLevel == null || emptyToNull(positionCode) == null) {
             return 0;
@@ -4663,7 +8156,7 @@ class PayrollRepository {
         return inversion * (topAmounts.get(0) - topAmounts.get(1)) + base;
     }
 
-    int technicalGradeSalary(String positionCode, String standardYearMonth) {
+    public int technicalGradeSalary(String positionCode, String standardYearMonth) {
         return queryInteger("""
                 SELECT jsdjgz
                 FROM bz06_zwgz_gr
@@ -4841,6 +8334,171 @@ class PayrollRepository {
                 .findFirst();
     }
 
+    Optional<RankAllowanceChange> findExecutingRankAllowanceChange(
+            String organizationCode,
+            String personCode,
+            String category,
+            String currentRankName) {
+        if (emptyToNull(currentRankName) == null) {
+            return Optional.empty();
+        }
+        return jdbcTemplate.query("""
+                SELECT jx, sysj, lb
+                FROM jx
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(jx) = TRIM(:currentRankName)
+                  AND (
+                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%警%')))
+                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%检察%' OR jx LIKE '%检察官%') AND jx NOT LIKE '%监察%')))
+                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%法%' OR jx LIKE '%审判%' OR jx LIKE '%法官%'))))
+                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%监察%')))
+                  )
+                ORDER BY REPLACE(sysj, '.', '') DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("category", category)
+                .addValue("currentRankName", currentRankName.trim()), RANK_ALLOWANCE_CHANGE_MAPPER)
+                .stream()
+                .findFirst();
+    }
+
+    Optional<RankAllowanceChange> findRankAllowanceChangeAfterForCategory(
+            String organizationCode,
+            String personCode,
+            String category,
+            String afterYearMonth) {
+        String normalizedAfter = afterYearMonth == null ? "" : afterYearMonth.replace(".", "").trim();
+        return jdbcTemplate.query("""
+                SELECT jx, sysj, lb
+                FROM jx
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND REPLACE(sysj, '.', '') > :afterPeriod
+                  AND (
+                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%警%')))
+                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%检察%' OR jx LIKE '%检察官%') AND jx NOT LIKE '%监察%')))
+                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%法%' OR jx LIKE '%审判%' OR jx LIKE '%法官%'))))
+                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%监察%')))
+                  )
+                ORDER BY REPLACE(sysj, '.', '') DESC, id DESC
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("category", category)
+                .addValue("afterPeriod", normalizedAfter), RANK_ALLOWANCE_CHANGE_MAPPER)
+                .stream()
+                .findFirst();
+    }
+
+    String insertRankAllowanceChangeMidChain(
+            PayrollHistorySnapshot anchor,
+            String nextSuccessorId,
+            RankAllowanceChangeHistoryMutation mutation) {
+        if (anchor == null) {
+            throw new IllegalArgumentException("缺少锚点工资记录。");
+        }
+        String anchorId = anchor.id() == null ? "" : anchor.id().trim();
+        String organizationCode = anchor.organizationCode() == null ? "" : anchor.organizationCode().trim();
+        String personCode = anchor.personCode() == null ? "" : anchor.personCode().trim();
+        if (anchorId.isEmpty() || organizationCode.isEmpty() || personCode.isEmpty()) {
+            throw new IllegalArgumentException("缺少锚点工资记录标识。");
+        }
+        String id = java.util.UUID.randomUUID().toString().toUpperCase();
+        String successorId = nextSuccessorId == null ? "" : nextSuccessorId.trim();
+        int inserted = jdbcTemplate.update("""
+                INSERT INTO hisbase
+                SELECT :id, h.dwbm, h.grbm, h.xm, h.ryfl, h.dwsx, h.gwfl, h.jrny, h.jrfs,
+                       h.zdgznx, h.gznx, h.jhlqsny, h.zdjhlnx, h.xlbm, h.zgxl, h.bjglxlnx,
+                       h.tc, h.xckhndzw, h.xckhndjb, h.bgdwjc, h.zwjb, h.zjbm, h.xrzw, h.srny,
+                       :rankName, h.tgbl, h.jtbl, h.fddc, h.fdgd, h.fdsj,
+                       :calculationYear, :calculationMonth, :changeType,
+                       h.khqk, h.dynkh, h.denkh, h.bbz, :totalAmount,
+                       h.zwbm2, h.zwgw2, h.zwgzse2, h.zwgzse2, h.jbgzse2, h.jbgzse2, h.jbgzse2,
+                       h.jcgz2, h.glgz2, h.jsdjgz2, h.grjj2, h.blfb2, h.jsfszwtg2,
+                       h.jt2, h.fdgz2, h.jjjy2, h.dfbt2, h.gwjt2, h.bh, h.jxgz, h.zzbc,
+                       h.zwjt, h.zfbt, h.dsznf, h.nzgwsf, h.jzmcbt, h.sdbt, h.grsds, h.zfgjj,
+                       h.ylbxf, h.ylf, h.qtdk, h.bfyqgz, h.kjyqgz, h.sfgz, h.qtbt, :rankAllowance,
+                       h.gryhzh, h.tfnf, h.tfyf, h.spdw, h.tbnd, :policeStandardYearMonth, h.jbtbz, h.jhljt,
+                       h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, :prosecutionStandardYearMonth, :judicialStandardYearMonth, h.njbt,
+                       h.gwjtbz, h.gwjtlb, h.sfjzgb, :successorId
+                FROM hisbase h
+                WHERE h.dwbm = :organizationCode
+                  AND h.grbm = :personCode
+                  AND TRIM(h.id) = :anchorId
+                """, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("anchorId", anchorId)
+                .addValue("successorId", successorId)
+                .addValue("rankName", valueOrBlank(mutation.rankName()))
+                .addValue("calculationYear", mutation.calculationYear())
+                .addValue("calculationMonth", mutation.calculationMonth())
+                .addValue("changeType", mutation.changeType())
+                .addValue("policeStandardYearMonth", valueOrBlank(mutation.policeStandardYearMonth()))
+                .addValue("prosecutionStandardYearMonth", valueOrBlank(mutation.prosecutionStandardYearMonth()))
+                .addValue("judicialStandardYearMonth", valueOrBlank(mutation.judicialStandardYearMonth()))
+                .addValue("rankAllowance", mutation.rankAllowance() == null ? 0 : mutation.rankAllowance())
+                .addValue("totalAmount", mutation.totalAmount() == null ? 0 : mutation.totalAmount()));
+        if (inserted != 1) {
+            throw new IllegalArgumentException("锚点工资记录已变化，请重新查询后再办理。");
+        }
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET sid = :newId
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :anchorId
+                """, new MapSqlParameterSource()
+                .addValue("newId", id)
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("anchorId", anchorId));
+        markAppCreated("hisbase", id);
+        return id;
+    }
+
+    void updateHistoryRankAllowanceAmounts(
+            String organizationCode,
+            String personCode,
+            String historyId,
+            String rankName,
+            String policeStandardYearMonth,
+            String prosecutionStandardYearMonth,
+            String judicialStandardYearMonth,
+            Integer rankAllowance,
+            Integer totalAmount) {
+        String normalizedId = historyId == null ? "" : historyId.trim();
+        if (normalizedId.isEmpty()) {
+            throw new IllegalArgumentException("缺少工资记录标识。");
+        }
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET jx = :rankName,
+                    jxjt = :rankAllowance,
+                    jxjtbz = :policeStandardYearMonth,
+                    jcjtbz = :prosecutionStandardYearMonth,
+                    spjtbz = :judicialStandardYearMonth,
+                    hj2 = :totalAmount
+                WHERE dwbm = :organizationCode
+                  AND grbm = :personCode
+                  AND TRIM(id) = :historyId
+                """, new MapSqlParameterSource()
+                .addValue("organizationCode", organizationCode)
+                .addValue("personCode", personCode)
+                .addValue("historyId", normalizedId)
+                .addValue("rankName", valueOrBlank(rankName))
+                .addValue("policeStandardYearMonth", valueOrBlank(policeStandardYearMonth))
+                .addValue("prosecutionStandardYearMonth", valueOrBlank(prosecutionStandardYearMonth))
+                .addValue("judicialStandardYearMonth", valueOrBlank(judicialStandardYearMonth))
+                .addValue("rankAllowance", rankAllowance == null ? 0 : rankAllowance)
+                .addValue("totalAmount", totalAmount == null ? 0 : totalAmount));
+    }
+
     String createRankAllowanceChangeHistoryFromLatest(int uid, RankAllowanceChangeHistoryMutation mutation) {
         PayrollHistorySnapshot latest = findLatestHistory(uid)
                 .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
@@ -4862,7 +8520,7 @@ class PayrollRepository {
                        h.pgbc, h.sidbt, h.jzgb, h.nrjxgzbf, h.tgblbf, :prosecutionStandardYearMonth, :judicialStandardYearMonth, h.njbt,
                        h.gwjtbz, h.gwjtlb, h.sfjzgb, ''
                 FROM hisbase h
-                WHERE h.id = :sourceId
+                WHERE CAST(TRIM(h.id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("id", id)
                 .addValue("sourceId", latest.id())
@@ -4878,7 +8536,7 @@ class PayrollRepository {
         jdbcTemplate.update("""
                 UPDATE hisbase
                 SET sid = :newId
-                WHERE id = :sourceId
+                WHERE CAST(TRIM(id) AS CHAR) = CAST(TRIM(:sourceId) AS CHAR)
                 """, new MapSqlParameterSource()
                 .addValue("newId", id)
                 .addValue("sourceId", latest.id()));
@@ -4981,6 +8639,10 @@ class PayrollRepository {
                     SELECT tbnd FROM bz06_xjgz WHERE tbnd <= :period
                     UNION
                     SELECT tbnd FROM bz06_zwgz WHERE tbnd <= :period
+                    UNION
+                    SELECT tbnd FROM bz06_zwgz_gr WHERE tbnd <= :period
+                    UNION
+                    SELECT tbnd FROM bz06_zwgz_fj WHERE tbnd <= :period
                 ) standards
                 ORDER BY tbnd DESC
                 LIMIT 1
@@ -5011,6 +8673,10 @@ class PayrollRepository {
                     SELECT tbnd FROM bz06_xjgz
                     UNION
                     SELECT tbnd FROM bz06_zwgz
+                    UNION
+                    SELECT tbnd FROM bz06_zwgz_gr
+                    UNION
+                    SELECT tbnd FROM bz06_zwgz_fj
                 ) standards
                 WHERE tbnd > :startPeriod
                   AND tbnd <= :targetPeriod
@@ -5020,19 +8686,44 @@ class PayrollRepository {
                 .addValue("targetPeriod", normalizedTarget), String.class);
     }
 
+    List<String> findAllBasicSalaryStandardPeriods() {
+        return jdbcTemplate.queryForList("""
+                SELECT DISTINCT TRIM(tbnd) AS tbnd
+                FROM (
+                    SELECT tbnd FROM bz06_jbgz
+                    UNION
+                    SELECT tbnd FROM bz06_djgz
+                    UNION
+                    SELECT tbnd FROM bz06_xjgz
+                    UNION
+                    SELECT tbnd FROM bz06_zwgz
+                    UNION
+                    SELECT tbnd FROM bz06_zwgz_gr
+                    UNION
+                    SELECT tbnd FROM bz06_zwgz_fj
+                ) standards
+                WHERE tbnd IS NOT NULL AND TRIM(tbnd) <> ''
+                ORDER BY tbnd DESC
+                """, Map.of(), String.class);
+    }
+
     List<String> findAllowanceStandardPeriodsBetween(String organizationCode, String startPeriod, String targetPeriod) {
         String normalizedStart = startPeriod == null ? "" : startPeriod.replace(".", "");
         String normalizedTarget = targetPeriod == null ? "" : targetPeriod.replace(".", "");
+        // 只生成单位 jxlb 下确有 DFBT2/SDBT 标准的调标年月
+        int category = allowanceStandardPeriodCategory(organizationCode);
         return jdbcTemplate.queryForList("""
                 SELECT DISTINCT tbnd
                 FROM bz06_jbt
                 WHERE tbnd > :startPeriod
                   AND tbnd <= :targetPeriod
                   AND UPPER(item) IN ('DFBT2', 'SDBT')
+                  AND jxlb = :category
                 ORDER BY tbnd
                 """, new MapSqlParameterSource()
                 .addValue("startPeriod", normalizedStart)
-                .addValue("targetPeriod", normalizedTarget), String.class);
+                .addValue("targetPeriod", normalizedTarget)
+                .addValue("category", category), String.class);
     }
 
     boolean hasAllowanceStandard(String standardYearMonth, String organizationCode, String positionCode) {
@@ -5145,19 +8836,16 @@ class PayrollRepository {
         return "";
     }
 
-    /** 对齐 jbtbz.prg：按单位 jxlb 取 DFBT2 最近标准年月（参公 jxlb=2 时查 jxlb=5）。 */
+    /** 按单位 jxlb 取津补贴标准类别（无类别时默认 1）。 */
     int allowanceStandardPeriodCategory(String organizationCode) {
         return mapOrganizationAllowanceCategory(organizationPerformanceCategory(organizationCode));
     }
 
-    /** 对齐 dfbt2.prg / dfbtbz.prg：金额查询用单位 jxlb，事业岗位 07–19 按 jxlb 过滤。 */
+    /**
+     * 金额查询用单位 jxlb；事业岗位 07–19 按 jxlb 过滤。
+     * 201607/201807 已补义务(2)/公卫(3) 标准后，不再对 ≥201410 强制查 jxlb=5。
+     */
     int allowanceAmountLookupCategory(String organizationCode, String positionCode, String standardYearMonth) {
-        if (requiresAllowanceCategoryFilter(positionCode)) {
-            if (emptyToNull(standardYearMonth) != null && standardYearMonth.compareTo("201410") >= 0) {
-                return 5;
-            }
-            return mapOrganizationAllowanceCategory(organizationPerformanceCategory(organizationCode));
-        }
         return mapOrganizationAllowanceCategory(organizationPerformanceCategory(organizationCode));
     }
 
@@ -5175,9 +8863,6 @@ class PayrollRepository {
     }
 
     private int mapOrganizationAllowanceCategory(int organizationCategory) {
-        if (organizationCategory == 2) {
-            return 5;
-        }
         return organizationCategory > 0 ? organizationCategory : 1;
     }
 
@@ -5185,29 +8870,28 @@ class PayrollRepository {
         if (emptyToNull(standardYearMonth) == null || emptyToNull(baseSalarySource) == null) {
             return false;
         }
-        String tableName = switch (baseSalarySource) {
-            case "GRADE" -> "bz06_jbgz";
-            case "POLICE_GRADE" -> "bz06_djgz";
-            case "SALARY_LEVEL" -> "bz06_xjgz";
-            default -> null;
+        return switch (baseSalarySource) {
+            case "GRADE" -> hasBasicSalaryStandardInTable("bz06_jbgz", standardYearMonth)
+                    || hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
+            case "POLICE_GRADE" -> hasBasicSalaryStandardInTable("bz06_djgz", standardYearMonth)
+                    || hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
+            case "SALARY_LEVEL" -> hasBasicSalaryStandardInTable("bz06_xjgz", standardYearMonth)
+                    || hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
+            case "JUDICIAL_GRADE" -> hasBasicSalaryStandardInTable("bz06_zwgz_fj", standardYearMonth)
+                    || hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
+            case "WORKER_GRADE" -> hasBasicSalaryStandardInTable("bz06_zwgz_gr", standardYearMonth)
+                    || hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
+            default -> hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
         };
-        if (tableName == null) {
-            return false;
-        }
+    }
+
+    private boolean hasBasicSalaryStandardInTable(String tableName, String standardYearMonth) {
         Integer count = queryInteger("""
                 SELECT COUNT(*)
                 FROM %s
                 WHERE tbnd = :standardYearMonth
                 """.formatted(tableName), new MapSqlParameterSource("standardYearMonth", emptyToNull(standardYearMonth)));
-        if (count != null && count > 0) {
-            return true;
-        }
-        Integer positionCount = queryInteger("""
-                SELECT COUNT(*)
-                FROM bz06_zwgz
-                WHERE tbnd = :standardYearMonth
-                """, new MapSqlParameterSource("standardYearMonth", emptyToNull(standardYearMonth)));
-        return positionCount != null && positionCount > 0;
+        return count != null && count > 0;
     }
 
     int floatingSalary(String standardYearMonth, String positionCode, String salaryLevel, String floatingStep) {
@@ -5591,9 +9275,14 @@ class PayrollRepository {
     }
 
     private MapSqlParameterSource otherAllowanceParameters(String standardYearMonth, String code) {
+        return otherAllowanceParameters(standardYearMonth, code, null);
+    }
+
+    private MapSqlParameterSource otherAllowanceParameters(String standardYearMonth, String code, String positionPrefix) {
         return new MapSqlParameterSource()
                 .addValue("standardYearMonth", emptyToNull(standardYearMonth))
-                .addValue("code", emptyToNull(code));
+                .addValue("code", emptyToNull(code))
+                .addValue("positionPrefix", emptyToNull(positionPrefix));
     }
 
     private MapSqlParameterSource internSalaryStandardParameters(InternSalaryStandardRequest request) {
@@ -5672,12 +9361,44 @@ class PayrollRepository {
                 .addValue("changeType", valueOrBlank(request.changeType()))
                 .addValue("positionCode", valueOrBlank(request.positionCode()))
                 .addValue("positionName", valueOrBlank(request.positionName()))
-                .addValue("positionSalary", request.positionSalary() == null ? 0 : request.positionSalary())
-                .addValue("gradeSalary", request.gradeSalary() == null ? 0 : request.gradeSalary())
-                .addValue("technicalGradeSalary", request.technicalGradeSalary() == null ? 0 : request.technicalGradeSalary())
-                .addValue("performanceAllowance", request.performanceAllowance() == null ? 0 : request.performanceAllowance())
-                .addValue("retainedAllowance", request.retainedAllowance() == null ? 0 : request.retainedAllowance())
-                .addValue("totalAmount", request.totalAmount() == null ? 0 : request.totalAmount());
+                .addValue("gradeSalaryLevel", valueOrBlank(request.gradeSalaryLevel()))
+                .addValue("positionSalaryGrade", valueOrBlank(request.positionSalaryGrade()))
+                .addValue("salaryStandardYearMonth", valueOrBlank(request.salaryStandardYearMonth()))
+                .addValue("allowanceStandardYearMonth", valueOrBlank(request.allowanceStandardYearMonth()))
+                .addValue("teachingIncreaseRatio", blankToZeroText(request.teachingIncreaseRatio()))
+                .addValue("rankName", valueOrBlank(request.rankName()))
+                .addValue("rankAllowanceStandardYearMonth", valueOrBlank(request.rankAllowanceStandardYearMonth()))
+                .addValue("floatingStep", valueOrBlank(request.floatingStep()))
+                .addValue("positionSalary", intOrZero(request.positionSalary()))
+                .addValue("gradeSalary", intOrZero(request.gradeSalary()))
+                .addValue("technicalGradeSalary", intOrZero(request.technicalGradeSalary()))
+                .addValue("internSalary", intOrZero(request.internSalary()))
+                .addValue("salaryIncrease", intOrZero(request.salaryIncrease()))
+                .addValue("teachingAllowance", intOrZero(request.teachingAllowance()))
+                .addValue("floatingSalary", intOrZero(request.floatingSalary()))
+                .addValue("subsidyAllowance", intOrZero(request.subsidyAllowance()))
+                .addValue("performanceAllowance", intOrZero(request.performanceAllowance()))
+                .addValue("payGradeRetention", intOrZero(request.payGradeRetention()))
+                .addValue("rankAllowance", intOrZero(request.rankAllowance()))
+                .addValue("retainedReformAllowance", intOrZero(request.retainedReformAllowance()))
+                .addValue("overtimeAllowance", intOrZero(request.overtimeAllowance()))
+                .addValue("retainedSpecialPostAllowance", intOrZero(request.retainedSpecialPostAllowance()))
+                .addValue("hygieneAllowance", intOrZero(request.hygieneAllowance()))
+                .addValue("retainedAllowance", intOrZero(request.retainedAllowance()))
+                .addValue("bonusBalance", intOrZero(request.bonusBalance()))
+                .addValue("specialPostAllowance", intOrZero(request.specialPostAllowance()))
+                .addValue("otherAllowance", intOrZero(request.otherAllowance()))
+                .addValue("yearAllowance", request.yearAllowance() == null ? BigDecimal.ZERO : request.yearAllowance())
+                .addValue("totalAmount", intOrZero(request.totalAmount()));
+    }
+
+    private int intOrZero(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    private String blankToZeroText(String value) {
+        String trimmed = emptyToNull(value);
+        return trimmed == null ? "0" : trimmed;
     }
 
     private void markAppCreated(String tableName, Object recordId) {
@@ -5706,12 +9427,6 @@ class PayrollRepository {
     private static boolean isCurrentPayroll(String successorId) {
         String trimmedSuccessorId = SqlText.trim(successorId);
         return trimmedSuccessorId == null || trimmedSuccessorId.isEmpty();
-    }
-
-    private MapSqlParameterSource basicStandardParameters(String standardYearMonth, String code) {
-        return new MapSqlParameterSource()
-                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
-                .addValue("code", emptyToNull(code));
     }
 
     private MapSqlParameterSource rankAllowanceStandardParameters(RankAllowanceStandardRequest request) {
@@ -5837,13 +9552,17 @@ class PayrollRepository {
                     "property",
                     "bz_wybt",
                     "tbnd, zwbm AS code, NULL AS name, bz AS amount, NULL AS average_amount, NULL AS multiplier",
-                    "(:standardYearMonth IS NULL OR tbnd = :standardYearMonth) AND (:code IS NULL OR zwbm = :code)",
+                    "(:standardYearMonth IS NULL OR tbnd = :standardYearMonth)"
+                            + " AND (:code IS NULL OR zwbm = :code)"
+                            + " AND (:positionPrefix IS NULL OR TRIM(zwbm) LIKE CONCAT(:positionPrefix, '%'))",
                     "tbnd DESC, zwbm");
             case "communication" -> new OtherAllowanceStandardQuery(
                     "communication",
                     "bz_txbt",
                     "tbnd, zwbm AS code, NULL AS name, bz AS amount, NULL AS average_amount, NULL AS multiplier",
-                    "(:standardYearMonth IS NULL OR tbnd = :standardYearMonth) AND (:code IS NULL OR zwbm = :code)",
+                    "(:standardYearMonth IS NULL OR tbnd = :standardYearMonth)"
+                            + " AND (:code IS NULL OR zwbm = :code)"
+                            + " AND (:positionPrefix IS NULL OR TRIM(zwbm) LIKE CONCAT(:positionPrefix, '%'))",
                     "tbnd DESC, zwbm");
             case "civilized" -> new OtherAllowanceStandardQuery(
                     "civilized",
@@ -5948,7 +9667,8 @@ class PayrollRepository {
     }
 
     private boolean isProbationPosition(String positionCode) {
-        return emptyToNull(positionCode) != null && positionCode.contains("F");
+        return emptyToNull(positionCode) != null
+                && positionCode.toUpperCase(java.util.Locale.ROOT).indexOf('F') >= 0;
     }
 
     private boolean isCivilServantPosition(String positionCode) {
@@ -5957,6 +9677,10 @@ class PayrollRepository {
         }
         return List.of("01", "02", "03", "04", "05", "06", "21", "22", "23", "24", "25", "26", "27", "28", "29")
                 .contains(positionCode.substring(0, 2));
+    }
+
+    boolean isRankAllowanceEligiblePosition(String positionCode) {
+        return isRankAllowanceEligible(positionCode);
     }
 
     private boolean isRankAllowanceEligible(String positionCode) {

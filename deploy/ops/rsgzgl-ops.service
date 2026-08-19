@@ -1,0 +1,23 @@
+[Unit]
+Description=rsgzgl ops console and server monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rsgzgl
+Group=rsgzgl
+WorkingDirectory=/opt/rsgzgl-ops
+EnvironmentFile=/opt/rsgzgl-ops/app.env
+ExecStart=__JAVA_BIN__ -Xms128m -Xmx256m -jar /opt/rsgzgl-ops/app.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/opt/rsgzgl-ops/logs/stdout.log
+StandardError=append:/opt/rsgzgl-ops/logs/stderr.log
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
