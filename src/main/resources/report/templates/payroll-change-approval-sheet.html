@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="sheet(sheet)" class="approval-sheet">
+    <div class="approval-topline">
+        <span>单位编码：<strong th:text="${sheet.organizationCode}">000</strong></span>
+        <span>个人编码：<strong th:text="${sheet.personCode}">000</strong></span>
+        <span>档案号：<strong th:text="${sheet.archiveNumber}">000</strong></span>
+    </div>
+    <div class="approval-sheet-header"><h3 th:text="${sheet.reportTitle}">工资变动审批表</h3></div>
+    <table class="approval-frame-table">
+        <colgroup>
+            <col class="approval-col-label"/>
+            <col class="approval-col-value"/>
+            <col class="approval-col-label"/>
+            <col class="approval-col-value"/>
+            <col class="approval-col-label"/>
+            <col class="approval-col-value"/>
+            <col class="approval-col-edu-label"/>
+            <col class="approval-col-edu-value"/>
+        </colgroup>
+        <tbody>
+        <tr class="approval-meta-row">
+            <th>姓名</th><td th:text="${sheet.name}">姓名</td>
+            <th>性别</th><td th:text="${sheet.gender}">性别</td>
+            <th>出生日期</th><td th:text="${sheet.birthDate}">出生日期</td>
+            <th>学历</th><td class="approval-edu-value" th:text="${sheet.education}">学历</td>
+        </tr>
+        <tr class="approval-meta-row">
+            <th>工作单位</th><td colspan="3" th:text="${sheet.organizationName}">工作单位</td>
+            <th>参加工作时间</th><td th:text="${sheet.workStartDate}">参加工作时间</td>
+            <th>工作年限</th><td th:text="${sheet.workYears}">工作年限</td>
+        </tr>
+        <tr class="approval-meta-row">
+            <th>现任职务</th><td colspan="3" th:text="${sheet.currentPositionName}">现任职务</td>
+            <th>任职时间</th><td th:text="${sheet.positionStartDate}">任职时间</td>
+            <th>前次变动</th><td th:text="${sheet.previousChangeText}">前次变动</td>
+        </tr>
+        <tr class="approval-body-row">
+            <td colspan="6" class="approval-body-main approval-frame-cell">
+                <table class="approval-component-table">
+                    <colgroup>
+                        <col class="approval-col-item"/>
+                        <col class="approval-col-amount"/>
+                        <col class="approval-col-amount"/>
+                        <col class="approval-col-diff"/>
+                    </colgroup>
+                    <thead>
+                    <tr>
+                        <th class="approval-item-header">项目</th>
+                        <th>变动前</th>
+                        <th>变动后</th>
+                        <th>增资额</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="row : ${sheet.rows}"
+                        th:classappend="${row.highlight} ? 'highlight-row' : ''">
+                        <td th:text="${row.label}">项目</td>
+                        <td th:text="${row.beforeText}">变动前</td>
+                        <td th:text="${row.afterText}">变动后</td>
+                        <td th:text="${row.differenceText}">增资额</td>
+                    </tr>
+                    </tbody>
+                    <tfoot>
+                    <tr>
+                        <th>月工资合计</th>
+                        <th th:text="${sheet.totals.beforeText}">0</th>
+                        <th th:text="${sheet.totals.afterText}">0</th>
+                        <th th:text="${sheet.totals.differenceText}">0</th>
+                    </tr>
+                    <tr th:if="${sheet.institution}">
+                        <th colspan="2">基础性绩效工资与奖励性绩效工资比例</th>
+                        <th colspan="2" th:text="${#strings.isEmpty(sheet.performanceRatio) ? '7:3' : sheet.performanceRatio}">7:3</th>
+                    </tr>
+                    </tfoot>
+                </table>
+            </td>
+            <td colspan="2" class="approval-body-side approval-frame-cell">
+                <div class="approval-basis-panel">
+                    <table><tbody>
+                    <tr th:if="${sheet.institution}">
+                        <th>下次薪级晋升<br/>起始考核年度</th>
+                        <td th:text="${sheet.stepYear}">2025</td>
+                    </tr>
+                    <th:block th:unless="${sheet.institution}">
+                        <tr>
+                            <th>下次档次晋升<br/>起始考核年度</th>
+                            <td th:text="${sheet.stepYear}">2025</td>
+                        </tr>
+                        <tr>
+                            <th>下次级别晋升<br/>起始考核年度</th>
+                            <td th:text="${sheet.levelYear}">2025</td>
+                        </tr>
+                    </th:block>
+                    </tbody></table>
+                    <div class="approval-basis-text">
+                        <p>工资变动原因及依据</p>
+                        <strong th:text="${sheet.basisTitle}">依据</strong>
+                        <p>执行时间：</p>
+                        <strong th:text="${sheet.executionPeriod}">执行时间</strong>
+                        <p th:each="line : ${sheet.basisDetailLines}" th:text="${line}">明细</p>
+                    </div>
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="8" class="approval-frame-cell approval-signature-cell">
+                <table class="approval-signature-table">
+                    <colgroup>
+                        <col class="approval-sig-label-col"/>
+                        <col class="approval-sig-box-col"/>
+                        <col class="approval-sig-label-col"/>
+                        <col class="approval-sig-box-col"/>
+                        <col class="approval-sig-label-col"/>
+                        <col class="approval-sig-box-col-wide"/>
+                    </colgroup>
+                    <tbody><tr>
+                        <th class="approval-signature-label">单位意见</th>
+                        <td class="approval-signature-box"><strong>同 意</strong><span>年&#160;&#160;&#160;&#160;月&#160;&#160;&#160;&#160;日</span></td>
+                        <th class="approval-signature-label">主管部门意见</th>
+                        <td class="approval-signature-box"><strong>同意单位意见</strong><span>年&#160;&#160;&#160;&#160;月&#160;&#160;&#160;&#160;日</span></td>
+                        <th class="approval-signature-label">批准机关意见</th>
+                        <td class="approval-signature-box">
+                            <strong>同意主管部门意见</strong>
+                            <p th:text="|从 ${sheet.executionYear} 年 ${sheet.executionMonth} 月执行|">从 2025 年 1 月执行</p>
+                            <span>年&#160;&#160;&#160;&#160;月&#160;&#160;&#160;&#160;日</span>
+                        </td>
+                    </tr></tbody>
+                </table>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

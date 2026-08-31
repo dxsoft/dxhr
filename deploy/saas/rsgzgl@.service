@@ -1,0 +1,22 @@
+[Unit]
+Description=rsgzgl HR SaaS tenant (%i)
+After=network-online.target mysql.service mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rsgzgl
+Group=rsgzgl
+WorkingDirectory=__APP_ROOT__/tenants/%i
+EnvironmentFile=__APP_ROOT__/tenants/%i/app.env
+ExecStart=__JAVA_BIN__ -Xms512m -Xmx1024m -jar __APP_ROOT__/app.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:__APP_ROOT__/tenants/%i/logs/stdout.log
+StandardError=append:__APP_ROOT__/tenants/%i/logs/stderr.log
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

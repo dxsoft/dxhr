@@ -1,0 +1,134 @@
+@page {
+    size: A4 landscape;
+    margin: 12mm 8mm 8mm 8mm;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #111827;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+}
+
+.register-sheet {
+    margin: 0;
+    padding: 0;
+    page-break-after: always;
+    break-after: page;
+}
+
+.register-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+}
+
+.approval-sheet-header {
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.approval-sheet-header h3 {
+    margin: 4px 0 10px;
+    font-family: "SimHei", "Microsoft YaHei", sans-serif;
+    font-size: 20px;
+}
+
+.register-topline {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 0 10px;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+    font-size: 11px;
+}
+
+.register-table {
+    width: 100%;
+    border: 1px solid #111827;
+    border-collapse: collapse;
+    font-family: "SimSun", "SimHei", "Microsoft YaHei", serif;
+    font-size: 9px;
+    table-layout: fixed;
+}
+
+.register-table col.c-name { width: 4.2%; }
+.register-table col.c-id { width: 7.5%; }
+.register-table col.c-ba { width: 2.2%; }
+.register-table col.c-position { width: 9.2%; }
+.register-table col.c-level { width: 3.2%; }
+.register-table col.c-money { width: 2.55%; }
+.register-table col.c-diff { width: 2.8%; }
+.register-table col.c-period { width: 3.6%; }
+
+.register-sheet-agency {
+    padding-left: 10mm;
+    padding-right: 10mm;
+    box-sizing: border-box;
+}
+
+.register-table-judicial col.cj-name { width: 4.5%; }
+.register-table-judicial col.cj-id { width: 7.5%; }
+.register-table-judicial col.cj-ba { width: 3%; }
+.register-table-judicial col.cj-position { width: 8.5%; }
+.register-table-judicial col.cj-level { width: 2.8%; }
+.register-table-judicial col.cj-step { width: 2.8%; }
+.register-table-judicial col.cj-money { width: 2.7%; }
+.register-table-judicial col.cj-diff { width: 3%; }
+.register-table-judicial col.cj-period { width: 3.5%; }
+
+.register-sheet-judicial {
+    padding-left: 12mm;
+    padding-right: 12mm;
+    box-sizing: border-box;
+}
+
+.register-table th,
+.register-table td {
+    padding: 3px 1px;
+    border: 1px solid #111827;
+    text-align: center;
+    white-space: normal;
+    word-break: break-all;
+    line-height: 1.2;
+}
+
+.register-table td:nth-child(2),
+.register-table th:nth-child(2) {
+    word-break: break-all;
+    letter-spacing: -0.02em;
+}
+
+.register-table td:nth-child(5) {
+    word-break: break-word;
+}
+
+.register-table th {
+    background: #fff;
+    font-weight: 400;
+}
+
+.register-total-row td {
+    font-weight: 700;
+}
+
+.print-auth-watermark-wrap {
+    position: relative;
+}
+
+.print-auth-watermark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 30;
+    font-family: "SimHei", "Microsoft YaHei", sans-serif;
+    font-size: 96px;
+    font-weight: 700;
+    letter-spacing: 0.35em;
+    color: rgba(185, 28, 28, 0.16);
+    transform: rotate(-28deg);
+    user-select: none;
+}

@@ -1,0 +1,52 @@
+# 示例：单客户一容器（可复制改 project name / 端口 / 库名）
+# 用法：
+#   export TENANT=acme PORT=18081
+#   docker compose -f docker-compose.tenant.example.yml -p rsgzgl-acme up -d
+#
+# 将镜像/jar 挂载按实际环境调整。
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: gzjsgl_acme
+      MYSQL_USER: rsgzgl_acme
+      MYSQL_PASSWORD: change-me-db
+      MYSQL_ROOT_PASSWORD: change-me-root
+    volumes:
+      - acme_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pchange-me-root"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    image: eclipse-temurin:21-jre
+    depends_on:
+      db:
+        condition: service_healthy
+    working_dir: /app
+    volumes:
+      - ./app.jar:/app/app.jar:ro
+    environment:
+      PORT: "8080"
+      RSGZGL_DB_URL: jdbc:mysql://db:3306/gzjsgl_acme?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      RSGZGL_DB_USERNAME: rsgzgl_acme
+      RSGZGL_DB_PASSWORD: change-me-db
+      RSGZGL_ADMIN_USERNAME: admin
+      RSGZGL_ADMIN_PASSWORD: change-me-admin
+      RSGZGL_ADMIN_RESET_PASSWORD: "false"
+      RSGZGL_SECURITY_INITIALIZE_SCHEMA: "true"
+      RSGZGL_LICENSE_ISSUE_ENABLED: "false"
+      RSGZGL_LICENSE_HMAC_SECRET: change-me-hmac
+      RSGZGL_FORWARD_HEADERS_STRATEGY: framework
+      RSGZGL_SESSION_COOKIE_SECURE: "true"
+      RSGZGL_SESSION_COOKIE_SAME_SITE: lax
+      RSGZGL_UKEY_ENABLED: "true"
+    command: ["java", "-Xms512m", "-Xmx1024m", "-jar", "/app/app.jar"]
+    ports:
+      - "18081:8080"
+
+volumes:
+  acme_db:

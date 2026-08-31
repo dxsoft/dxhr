@@ -1,0 +1,31 @@
+package com.dxsoft.rsgzgl.payroll;
+
+public record WageReform2006Preview(
+        Integer uid,
+        String payrollHistoryId,
+        String organizationCode,
+        String organizationName,
+        String personCode,
+        String name,
+        String workStartYearMonth,
+        String regularizationPeriod,
+        String calculationPeriod,
+        String positionCode,
+        String positionName,
+        String level,
+        String step,
+        Integer wageReformYears,
+        Integer positionSalary,
+        Integer gradeSalary,
+        Integer totalAmount,
+        String note,
+        Boolean applyEligible,
+        Boolean rollbackEligible,
+        Boolean hasDtgxxRecord,
+        Boolean backfillDtgxxEligible,
+        Boolean rollbackDtgxxEligible,
+        Integer fixedStep,
+        Integer pendingStep,
+        Integer fixedLevel,
+        Integer pendingLevel) {
+}

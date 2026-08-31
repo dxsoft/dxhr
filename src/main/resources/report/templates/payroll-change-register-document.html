@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8"/>
+    <title>工资变动花名册</title>
+    <style th:utext="${stylesheet}"></style>
+</head>
+<body>
+<th:block th:each="page : ${pages}">
+    <th:block th:replace="~{payroll-change-register-page :: page(${page})}"></th:block>
+</th:block>
+</body>
+</html>

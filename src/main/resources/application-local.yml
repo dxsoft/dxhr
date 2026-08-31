@@ -1,0 +1,56 @@
+# Local MySQL development configuration (default port 8081)
+# Usage:
+#   mvn spring-boot:run "-Dspring-boot.run.profiles=local"
+# DevTools: after saving Java/static changes, run `mvn compile` (or enable IDE build-on-save)
+# and the app on 8081 restarts automatically within a few seconds.
+
+spring:
+  application:
+    name: rsgzgl
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+  datasource:
+    url: jdbc:mysql://localhost:3306/gzjsgl?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: root
+    password: ${LOCAL_MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: never
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-cache: true
+          no-store: true
+          must-revalidate: true
+
+server:
+  port: ${SERVER_PORT:8081}
+  address: 0.0.0.0
+  servlet:
+    session:
+      timeout: 8h
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+rsgzgl:
+  security:
+    initialize-schema: true
+    admin:
+      username: admin
+      password: ${LOCAL_ADMIN_PASSWORD:admin123}
+      reset-password: ${LOCAL_RESET_ADMIN_PASSWORD:true}
+      display-name: 系统管理员
+
+logging:
+  level:
+    com.dxsoft.rsgzgl: INFO
+    org.springframework.jdbc: INFO

@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>登录 - 人事工资管理系统</title>
+    <link rel="stylesheet" href="/auth.css?v=20260803-login-unified">
+    <script src="/vendor/Syunew6.js"></script>
+</head>
+<body class="login-page">
+<div class="login-shell">
+    <aside class="login-hero" aria-hidden="true">
+        <div class="login-hero-inner">
+            <div class="brand-line">
+                <div class="brand-mark">薪</div>
+                <div>
+                    <strong>人事工资管理系统</strong>
+                    <span>VFP 迁移版 · Spring Boot</span>
+                </div>
+            </div>
+            <h2 class="login-hero-title">统一人事与工资业务入口</h2>
+            <p class="login-hero-desc">支持人员维护、工资试算、推算对账、标准查询与权限管理，逐步替换原桌面系统。</p>
+            <ul class="login-feature-list">
+                <li><span class="login-feature-icon">人</span>人员、任职、学历与考核</li>
+                <li><span class="login-feature-icon">薪</span>工资试算与历次调资对账</li>
+                <li><span class="login-feature-icon">标</span>工资与津补贴标准查询</li>
+                <li><span class="login-feature-icon">权</span>按单位范围的数据权限</li>
+            </ul>
+        </div>
+    </aside>
+
+    <main class="login-card">
+        <div class="login-card-header">
+            <h1 id="login-title">登录系统</h1>
+            <p id="login-subtitle">使用账号密码登录；如已绑定 SoftKey UKey，可在下一步完成认证，或直接用 UKey 登录。</p>
+        </div>
+        <div id="message" class="message" role="status"></div>
+
+        <form method="post" action="/login" class="login-form" id="login-form">
+            <div id="password-fields">
+                <label>
+                    用户名
+                    <input name="username" id="login-username" autocomplete="username" placeholder="请输入用户名" required autofocus>
+                </label>
+                <label>
+                    密码
+                    <input name="password" id="login-password" type="password" autocomplete="current-password" placeholder="请输入密码" required>
+                </label>
+            </div>
+
+            <div id="ukey-fields" class="ukey-fields">
+                <label>
+                    UKey PIN<span class="field-optional">（可选，仅 SM2）</span>
+                    <input id="ukey-pin" type="password" autocomplete="off" placeholder="未填则默认 123" value="">
+                </label>
+            </div>
+
+            <button type="submit" id="login-submit">登录</button>
+            <button type="button" id="ukey-login-button" class="login-alt-action">使用 UKey 登录</button>
+            <p class="login-ukey-hint" id="ukey-hint">密码登录为主路径；已插锁时可点下方改用 UKey。扩展版本≥33 优先 SM2，否则走增强算法。</p>
+        </form>
+
+        <p class="login-footnote" id="login-footnote">登录后按角色权限显示菜单与单位数据范围。</p>
+    </main>
+</div>
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const ukeyStepParam = params.get("ukey-step") === "1";
+    let ukeyStep = false;
+    const message = document.getElementById("message");
+    const loginForm = document.getElementById("login-form");
+    const passwordFields = document.getElementById("password-fields");
+    const ukeyFields = document.getElementById("ukey-fields");
+    const submitButton = document.getElementById("login-submit");
+    const ukeyButton = document.getElementById("ukey-login-button");
+    const usernameInput = document.getElementById("login-username");
+    const passwordInput = document.getElementById("login-password");
+    let bConnect = 0;
+    let ukeyBusy = false;
+    let ukeyEnabled = true;
+    let verifyEndpoint = "/api/auth/ukey/login";
+
+    function setMessage(type, text) {
+        message.className = "message " + type;
+        message.textContent = text;
+    }
+
+    function setBusy(on) {
+        ukeyBusy = on;
+        submitButton.disabled = on;
+        ukeyButton.disabled = on;
+    }
+
+    function showPasswordLoginUi(hintText) {
+        ukeyStep = false;
+        verifyEndpoint = "/api/auth/ukey/login";
+        document.getElementById("login-title").textContent = "登录系统";
+        document.getElementById("login-subtitle").textContent =
+            "使用账号密码登录；如已绑定 SoftKey UKey，可在下一步完成认证，或直接用 UKey 登录。";
+        passwordFields.style.display = "";
+        usernameInput.required = true;
+        passwordInput.required = true;
+        usernameInput.removeAttribute("readonly");
+        passwordInput.removeAttribute("readonly");
+        submitButton.style.display = "";
+        submitButton.textContent = "登录";
+        submitButton.type = "submit";
+        ukeyButton.style.display = ukeyEnabled ? "" : "none";
+        ukeyButton.textContent = "使用 UKey 登录";
+        ukeyFields.style.display = ukeyEnabled ? "" : "none";
+        document.getElementById("ukey-hint").style.display = ukeyEnabled ? "" : "none";
+        document.getElementById("ukey-hint").textContent =
+            "密码登录为主路径；已插锁时可点下方改用 UKey。扩展版本≥33 优先 SM2，否则走增强算法。";
+        document.getElementById("login-footnote").textContent = "登录后按角色权限显示菜单与单位数据范围。";
+        if (hintText) {
+            setMessage("hint", hintText);
+        }
+    }
+
+    function applyUkeyStepUi(username) {
+        ukeyStep = true;
+        verifyEndpoint = "/api/auth/ukey/verify-step";
+        document.getElementById("login-title").textContent = "第二步：UKey 认证";
+        document.getElementById("login-subtitle").textContent =
+            "账号「" + (username || "") + "」密码已通过，请插入本账号绑定的 UKey 完成登录。";
+        passwordFields.style.display = "none";
+        usernameInput.required = false;
+        passwordInput.required = false;
+        ukeyFields.style.display = "";
+        submitButton.style.display = "";
+        submitButton.type = "button";
+        submitButton.textContent = "完成认证";
+        ukeyButton.style.display = "none";
+        document.getElementById("ukey-hint").style.display = "";
+        document.getElementById("ukey-hint").textContent =
+            "芯片 ID 须与账号绑定一致。完成后进入工作台。";
+        document.getElementById("login-footnote").innerHTML =
+            '<a href="#" id="cancel-ukey-step">重新用账号密码登录</a>';
+        document.getElementById("cancel-ukey-step").addEventListener("click", async (event) => {
+            event.preventDefault();
+            try {
+                await fetch("/api/auth/ukey/cancel-preauth", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Accept": "application/json" }
+                });
+            } catch (e) {
+                // still return to password UI
+            }
+            window.location.href = "/login.html";
+        });
+        setMessage("hint", "请插入绑定的 UKey 后点击「完成认证」。若要改账号，请点下方链接。");
+    }
+
+    async function resolveInitialUi() {
+        if (params.has("error")) {
+            setMessage("error", "用户名或密码错误，请重试。");
+            return;
+        }
+        if (params.has("logout")) {
+            setMessage("success", "已安全退出，欢迎再次使用。");
+            return;
+        }
+        if (params.has("ukey-missing")) {
+            setMessage("error", "该账号已要求 UKey 认证，但尚未绑定加密锁。请联系管理员绑定后再登录。");
+            return;
+        }
+
+        let pending = false;
+        let username = "";
+        try {
+            const response = await fetch("/api/auth/ukey/preauth-status", {
+                method: "GET",
+                credentials: "same-origin",
+                headers: { "Accept": "application/json" }
+            });
+            const payload = await response.json().catch(() => null);
+            if (response.ok && payload && payload.pending) {
+                pending = true;
+                username = payload.username || "";
+            }
+        } catch (e) {
+            pending = false;
+        }
+
+        if (pending) {
+            applyUkeyStepUi(username);
+            return;
+        }
+
+        if (ukeyStepParam) {
+            history.replaceState({}, "", "/login.html");
+            showPasswordLoginUi("上一步认证已过期，请重新输入账号密码。");
+            return;
+        }
+
+        setMessage("hint", "请输入账号密码登录。");
+    }
+
+    async function loadUkeyOptions() {
+        try {
+            const response = await fetch("/api/auth/ukey/options", {
+                method: "GET",
+                credentials: "same-origin",
+                headers: { "Accept": "application/json" }
+            });
+            const payload = await response.json().catch(() => null);
+            if (response.ok && payload) {
+                ukeyEnabled = !!payload.enabled;
+            }
+        } catch (e) {
+            ukeyEnabled = true;
+        }
+        if (!ukeyEnabled && !ukeyStep) {
+            ukeyFields.style.display = "none";
+            ukeyButton.style.display = "none";
+            document.getElementById("ukey-hint").style.display = "none";
+            document.getElementById("login-subtitle").textContent = "请使用账号密码登录。";
+            if (!params.has("error") && !params.has("logout") && !params.has("ukey-missing")) {
+                setMessage("hint", "请输入账号密码登录。");
+            }
+        } else if (ukeyEnabled && !ukeyStep) {
+            ukeyFields.style.display = "";
+            ukeyButton.style.display = "";
+            document.getElementById("ukey-hint").style.display = "";
+        }
+    }
+
+    resolveInitialUi().then(loadUkeyOptions);
+
+    function initUkeyServiceProbe() {
+        if (navigator.userAgent.indexOf("MSIE") > 0 && !(navigator.userAgent.indexOf("opera") > -1)) {
+            return;
+        }
+        try {
+            const probe = new SoftKey6W();
+            probe.Socket_UK.onopen = function () {
+                bConnect = 1;
+            };
+            probe.Socket_UK.onmessage = function () {};
+            probe.Socket_UK.onclose = function () {};
+        } catch (e) {
+        }
+    }
+
+    initUkeyServiceProbe();
+
+    function readProblemMessage(payload, fallback) {
+        if (!payload) return fallback;
+        return payload.detail || payload.message || payload.title || fallback;
+    }
+
+    async function fetchChallenge() {
+        const response = await fetch("/api/auth/ukey/challenge", {
+            method: "GET",
+            credentials: "same-origin",
+            headers: { "Accept": "application/json" }
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(readProblemMessage(payload, "获取登录挑战失败"));
+        }
+        return payload;
+    }
+
+    async function submitUkeyVerify(body) {
+        const response = await fetch(verifyEndpoint, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(readProblemMessage(payload, ukeyStep ? "UKey 第二步认证失败" : "UKey 登录失败"));
+        }
+        return payload;
+    }
+
+    function finishBusy(okMessage) {
+        setBusy(false);
+        if (okMessage) setMessage("success", okMessage);
+    }
+
+    function failBusy(text) {
+        setBusy(false);
+        setMessage("error", text);
+    }
+
+    function isSm2UnsupportedError(code) {
+        return code === -21 || code === -50 || code === -22;
+    }
+
+    async function completeLogin(body) {
+        setMessage("hint", ukeyStep ? "正在完成第二步认证…" : "正在校验登录…");
+        await submitUkeyVerify(body);
+        finishBusy(ukeyStep ? "UKey 认证成功，正在进入工作台…" : "UKey 登录成功，正在进入工作台…");
+        window.location.href = "/";
+    }
+
+    async function loginWithUkey() {
+        if (ukeyBusy) return;
+        setBusy(true);
+        setMessage("hint", "正在连接 UKey…");
+
+        if (navigator.userAgent.indexOf("MSIE") > 0 && !(navigator.userAgent.indexOf("opera") > -1)) {
+            failBusy("请使用支持 SoftKey 本地服务的现代浏览器。");
+            return;
+        }
+        if (bConnect === 0) {
+            failBusy("未能连接 SoftKey 服务程序，请确认已安装并启动本地服务。");
+            return;
+        }
+
+        let challenge;
+        try {
+            challenge = await fetchChallenge();
+        } catch (e) {
+            failBusy(e.message || "获取登录挑战失败");
+            return;
+        }
+
+        const pin = (document.getElementById("ukey-pin").value || "").trim() || "123";
+        let DevicePath = "";
+        let keyId = "";
+        let sm2UserId = "";
+        let preferSm2 = false;
+        let phase = "probe"; // probe | sm2 | enc
+
+        try {
+            const s = new SoftKey6W();
+            s.Socket_UK.onopen = function () {
+                s.ResetOrder();
+            };
+            s.Socket_UK.onmessage = async function (Msg) {
+                const UK_Data = JSON.parse(Msg.data);
+                if (UK_Data.type !== "Process") return;
+                const fail = (text) => {
+                    s.Socket_UK.close();
+                    failBusy(text);
+                };
+                switch (UK_Data.order) {
+                    case 0:
+                        s.FindPort(0);
+                        break;
+                    case 1:
+                        if (UK_Data.LastError !== 0) return fail("未发现加密锁，请插入加密锁。");
+                        DevicePath = UK_Data.return_value;
+                        s.GetChipID(DevicePath);
+                        break;
+                    case 2:
+                        if (UK_Data.LastError !== 0) return fail("读取芯片 ID 失败，错误码：" + UK_Data.LastError);
+                        keyId = UK_Data.return_value;
+                        s.GetVersionEx(DevicePath);
+                        break;
+                    case 3: {
+                        let ver = 0;
+                        if (UK_Data.LastError === 0) {
+                            ver = Number(UK_Data.return_value) || 0;
+                        }
+                        preferSm2 = ver >= 33;
+                        if (preferSm2) {
+                            phase = "sm2";
+                            setMessage("hint", "检测到支持 SM2，正在签名…");
+                            s.GetSm2UserName(DevicePath);
+                        } else {
+                            phase = "enc";
+                            setMessage("hint", "使用增强算法登录…");
+                            s.EncString(challenge.rnd, DevicePath);
+                        }
+                        break;
+                    }
+                    case 4:
+                        if (phase === "sm2") {
+                            if (UK_Data.LastError !== 0) {
+                                if (isSm2UnsupportedError(UK_Data.LastError)) {
+                                    phase = "enc";
+                                    setMessage("hint", "SM2 不可用，改用增强算法…");
+                                    s.EncString(challenge.rnd, DevicePath);
+                                    break;
+                                }
+                                return fail("读取 SM2 身份失败，错误码：" + UK_Data.LastError);
+                            }
+                            sm2UserId = UK_Data.return_value;
+                            s.YtSign(challenge.rnd, pin, DevicePath);
+                        } else {
+                            if (UK_Data.LastError !== 0) {
+                                return fail("增强算法加密失败，错误码：" + UK_Data.LastError);
+                            }
+                            s.Socket_UK.close();
+                            try {
+                                await completeLogin({
+                                    challengeId: challenge.challengeId,
+                                    keyId: keyId,
+                                    mode: "enc",
+                                    encData: UK_Data.return_value
+                                });
+                            } catch (e) {
+                                failBusy(e.message || "UKey 登录失败");
+                            }
+                        }
+                        break;
+                    case 5:
+                        if (phase === "sm2") {
+                            if (UK_Data.LastError !== 0) {
+                                if (isSm2UnsupportedError(UK_Data.LastError)) {
+                                    phase = "enc";
+                                    setMessage("hint", "SM2 签名失败，改用增强算法…");
+                                    s.EncString(challenge.rnd, DevicePath);
+                                    break;
+                                }
+                                return fail("SM2 签名失败，错误码：" + UK_Data.LastError + "（请检查 PIN）");
+                            }
+                            s.Socket_UK.close();
+                            try {
+                                await completeLogin({
+                                    challengeId: challenge.challengeId,
+                                    keyId: keyId,
+                                    mode: "sm2",
+                                    sm2UserId: sm2UserId,
+                                    signature: UK_Data.return_value
+                                });
+                            } catch (e) {
+                                failBusy(e.message || "UKey 登录失败");
+                            }
+                        } else {
+                            if (UK_Data.LastError !== 0) {
+                                return fail("增强算法加密失败，错误码：" + UK_Data.LastError);
+                            }
+                            s.Socket_UK.close();
+                            try {
+                                await completeLogin({
+                                    challengeId: challenge.challengeId,
+                                    keyId: keyId,
+                                    mode: "enc",
+                                    encData: UK_Data.return_value
+                                });
+                            } catch (e) {
+                                failBusy(e.message || "UKey 登录失败");
+                            }
+                        }
+                        break;
+                    case 6:
+                        if (UK_Data.LastError !== 0) {
+                            return fail("增强算法加密失败，错误码：" + UK_Data.LastError);
+                        }
+                        s.Socket_UK.close();
+                        try {
+                            await completeLogin({
+                                challengeId: challenge.challengeId,
+                                keyId: keyId,
+                                mode: "enc",
+                                encData: UK_Data.return_value
+                            });
+                        } catch (e) {
+                            failBusy(e.message || "UKey 登录失败");
+                        }
+                        break;
+                }
+            };
+            s.Socket_UK.onclose = function () {};
+        } catch (e) {
+            failBusy((e && e.message) ? e.message : "无法启动 SoftKey 客户端");
+        }
+    }
+
+    submitButton.addEventListener("click", (event) => {
+        if (!ukeyStep) {
+            return;
+        }
+        event.preventDefault();
+        loginWithUkey();
+    });
+    ukeyButton.addEventListener("click", loginWithUkey);
+</script>
+</body>
+</html>

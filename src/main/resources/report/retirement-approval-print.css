@@ -1,0 +1,462 @@
+@page {
+    size: A4 portrait;
+    margin: 0;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #111;
+    font-family: "SimSun", "SimHei", serif;
+}
+
+.ret-sheet {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    padding: 11mm 10mm 9mm;
+    box-sizing: border-box;
+    page-break-after: always;
+    break-after: page;
+}
+
+.ret-sheet.ret-y2025 {
+    padding: 12mm 14mm 4mm;
+}
+
+.ret-sheet.ret-y2021 {
+    padding: 16mm 16mm 4mm;
+}
+
+.ret-sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+}
+
+.ret-topline {
+    width: 100%;
+    margin-bottom: 3px;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.ret-topline td {
+    width: 33.33%;
+    padding: 0;
+    border: 0;
+}
+
+.ret-topline td:nth-child(2) { text-align: center; }
+.ret-topline td:nth-child(3) { text-align: right; }
+
+.ret-header {
+    text-align: center;
+    margin-bottom: 6px;
+}
+
+.ret-header h3 {
+    margin: 0;
+    font-family: "SimHei", "SimSun", sans-serif;
+    font-size: 20px;
+    letter-spacing: 0.08em;
+}
+
+.ret-frame-2006 th,
+.ret-frame-2006 td {
+    padding: 5px 4px;
+    font-size: 12px;
+}
+
+.ret-frame-2006 .ret-wage-head td,
+.ret-frame-2006 .ret-wage-value td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.ret-frame-2006 .ret-wage-head td {
+    font-family: "SimHei", "SimSun", sans-serif;
+    background: #f7f7f7;
+}
+
+.ret-frame-2006 .ret-wage-value td {
+    font-weight: 600;
+    min-height: 9mm;
+}
+
+.ret-calc-body {
+    text-align: left !important;
+    vertical-align: top !important;
+    line-height: 1.55;
+    min-height: 42mm;
+    padding: 8px 10px !important;
+}
+
+.ret-calc-formula {
+    margin: 8px 0;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.ret-calc-exec {
+    margin-top: 10px;
+}
+
+.ret-sheet.ret-y2006 .ret-header h3 {
+    font-size: 22px;
+    letter-spacing: 0.16em;
+    font-weight: 700;
+}
+
+.ret-sheet.ret-y2021 .ret-header h3,
+.ret-sheet.ret-y2025 .ret-header h3 {
+    font-size: 22px;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+}
+
+.ret-unit-line {
+    margin: 8px 0 6px;
+    font-size: 13px;
+}
+
+.ret-sub {
+    margin-top: 3px;
+    font-size: 11px;
+}
+
+.ret-policy {
+    margin-top: 4px;
+    font-size: 10px;
+    line-height: 1.35;
+    text-align: left;
+    color: #222;
+}
+
+.ret-frame {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 11.5px;
+}
+
+.ret-sheet.ret-y2021 .ret-frame,
+.ret-sheet.ret-y2025 .ret-frame {
+    font-size: 12px;
+}
+
+.ret-frame th,
+.ret-frame td {
+    border: 1px solid #111;
+    padding: 3px 4px;
+    vertical-align: middle;
+    word-break: break-word;
+}
+
+.ret-frame-2021 th,
+.ret-frame-2021 td,
+.ret-frame-2025 th,
+.ret-frame-2025 td {
+    padding: 5px 6px;
+}
+
+.ret-sheet.ret-y2021 .ret-frame-2021 th,
+.ret-sheet.ret-y2021 .ret-frame-2021 td {
+    padding: 9px 6px;
+    height: 13mm;
+}
+
+.ret-sheet.ret-y2021 .ret-frame-2021 td.ret-opinion-wrap {
+    height: 58mm;
+    padding: 0 !important;
+}
+
+.ret-sheet.ret-y2021 .ret-kv {
+    height: 18mm;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+}
+
+.ret-sheet.ret-y2021 .ret-kv-center {
+    height: 22mm;
+}
+
+.ret-sheet.ret-y2021 .ret-side-label {
+    padding: 10px 5px !important;
+    line-height: 1.5;
+}
+
+.ret-sheet.ret-y2021 .ret-header {
+    margin-bottom: 8px;
+}
+
+.ret-sheet.ret-y2021 .ret-unit-line {
+    margin: 6px 0 8px;
+    font-size: 13.5px;
+}
+
+.ret-frame-2025 .ret-row-info th,
+.ret-frame-2025 .ret-row-info td {
+    height: 12.5mm;
+    padding: 3px 8px;
+    line-height: 1.3;
+}
+
+.ret-frame-2025 .ret-row-promise th,
+.ret-frame-2025 .ret-row-promise td {
+    height: 16mm;
+    padding: 4px 8px;
+}
+
+.ret-frame-2025 .ret-row-reasons th,
+.ret-frame-2025 .ret-row-reasons td,
+.ret-frame-2025 .ret-row-opinion th,
+.ret-frame-2025 .ret-row-opinion td {
+    height: auto;
+}
+
+.ret-frame-2025 .ret-row-opinion th.ret-opinion-label {
+    width: 16%;
+    line-height: 1.55;
+    letter-spacing: 0.18em;
+    padding: 8px 4px;
+    font-size: 13px;
+}
+
+.ret-frame th {
+    font-weight: normal;
+    background: #f7f7f7;
+    text-align: center;
+    width: 12%;
+}
+
+.ret-frame-2021 th,
+.ret-frame-2025 th {
+    background: #fff;
+    font-family: "SimHei", "SimSun", sans-serif;
+    width: auto;
+}
+
+.ret-side-label {
+    writing-mode: horizontal-tb;
+    text-align: center !important;
+    font-family: "SimHei", "SimSun", sans-serif;
+    line-height: 1.35;
+    padding: 6px 4px !important;
+}
+
+.ret-kv {
+    text-align: center;
+    vertical-align: middle !important;
+}
+
+.ret-kv .k {
+    font-size: 11px;
+    color: #222;
+}
+
+.ret-kv .v {
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ret-kv-center {
+    text-align: center;
+    vertical-align: middle !important;
+    min-height: 14mm;
+}
+
+.ret-kv-center .v {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.ret-opinion-row > td {
+    vertical-align: top !important;
+    height: 42mm;
+}
+
+.ret-sheet.ret-y2021 .ret-opinion-row > td {
+    height: 58mm;
+}
+
+.ret-opinion-wrap {
+    padding: 0 !important;
+    border: 1px solid #111 !important;
+}
+
+.ret-opinion-3col {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.ret-opinion-3col > tbody > tr > td,
+.ret-opinion-3col td.ret-opinion-cell {
+    width: 33.33%;
+    border: 0 !important;
+    border-right: 1px solid #111 !important;
+    vertical-align: top !important;
+    height: 58mm;
+}
+
+.ret-opinion-3col td.ret-opinion-cell:last-child {
+    border-right: 0 !important;
+}
+
+.ret-opinion-cell {
+    padding: 6px 8px !important;
+}
+
+.ret-opinion-title {
+    text-align: center;
+    font-family: "SimHei", "SimSun", sans-serif;
+    margin-bottom: 8px;
+    line-height: 1.45;
+    letter-spacing: 0.12em;
+}
+
+.ret-opinion-body {
+    min-height: 18mm;
+    line-height: 1.5;
+}
+
+.ret-sheet.ret-y2021 .ret-opinion-body {
+    min-height: 24mm;
+}
+
+.ret-opinion-center {
+    text-align: center;
+    padding-top: 8mm;
+}
+
+.ret-sheet.ret-y2021 .ret-opinion-center {
+    padding-top: 10mm;
+}
+
+.ret-sheet.ret-y2021 .ret-sign {
+    margin-top: 16px;
+}
+
+.ret-frame td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.ret-section {
+    text-align: center !important;
+    font-family: "SimHei", "SimSun", sans-serif;
+    background: #efefef !important;
+    letter-spacing: 0.04em;
+}
+
+.ret-reasons,
+.ret-opinion {
+    text-align: left;
+    min-height: 22mm;
+    vertical-align: top !important;
+    line-height: 1.4;
+}
+
+.ret-sheet.ret-y2025 .ret-reasons-2025 {
+    min-height: 0;
+    height: auto;
+    padding: 6px 10px 5px;
+}
+
+.ret-sheet.ret-y2025 .ret-opinion {
+    min-height: 36mm;
+    height: 40mm;
+    padding: 10px 12px;
+}
+
+.ret-sheet.ret-y2025 .ret-promise {
+    height: 16mm;
+    padding: 4px 8px;
+}
+
+.ret-promise {
+    text-align: left;
+    vertical-align: middle !important;
+    line-height: 1.55;
+}
+
+.ret-sign-inline {
+    margin-top: 4px;
+    text-align: right;
+    padding-right: 4mm;
+}
+
+.ret-sheet.ret-y2006 .ret-opinion {
+    min-height: 20mm;
+}
+
+.ret-reason-list {
+    margin: 3px 0 0 1.1em;
+    padding: 0;
+}
+
+.ret-reason-list-2025 {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+.ret-reason-list-2025 li {
+    margin: 2px 0;
+    line-height: 1.45;
+    font-size: 12.5px;
+}
+
+.ret-sheet.ret-y2025 .ret-sign {
+    margin-top: 18px;
+}
+
+.ret-sheet.ret-y2025 .ret-header {
+    margin-bottom: 6px;
+}
+
+.ret-sheet.ret-y2025 .ret-unit-line {
+    margin: 4px 0 6px;
+    font-size: 13.5px;
+}
+
+.ret-sheet.ret-y2025 .ret-footer-note,
+.ret-sheet.ret-y2025 .ret-meta-line {
+    display: none;
+}
+
+.ret-reason-list li {
+    margin: 1px 0;
+    break-inside: avoid;
+}
+
+.ret-treatment {
+    margin-top: 8px;
+}
+
+.ret-sign {
+    margin-top: 14px;
+    text-align: right;
+    padding-right: 8mm;
+}
+
+.ret-footer-note {
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+.ret-meta-line {
+    margin-top: 6px;
+    font-size: 10px;
+    color: #666;
+}
+
+.ret-sheet.ret-xz .ret-header h3 {
+    letter-spacing: 0.1em;
+}
+
+.ret-sheet.ret-sy .ret-section {
+    background: #f2f2f2 !important;
+}

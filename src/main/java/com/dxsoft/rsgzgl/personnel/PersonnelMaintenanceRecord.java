@@ -1,0 +1,41 @@
+package com.dxsoft.rsgzgl.personnel;
+
+import java.time.LocalDateTime;
+
+public record PersonnelMaintenanceRecord(
+        Integer uid,
+        String organizationCode,
+        String organizationName,
+        String organizationCategory,
+        String organizationPayrollCategory,
+        String personCode,
+        String name,
+        String idCard,
+        String gender,
+        String birthYearMonth,
+        String personnelCategory,
+        String organizationType,
+        String postCategory,
+        String workStartYearMonth,
+        String regularizationYearMonth,
+        Integer salaryYears,
+        String educationCode,
+        String highestEducation,
+        String currentPositionLevel,
+        String currentRankCode,
+        String currentPosition,
+        String currentPositionStartYearMonth,
+        String ethnicity,
+        String politicalStatus,
+        String archiveNumber,
+        String joinYearMonth,
+        String joinType,
+        String approvalStatus,
+        String salaryStatus,
+        String organizationProperty,
+        boolean organizationLibraryComplete,
+        String submittedBy,
+        LocalDateTime submittedAt,
+        String approvedBy,
+        LocalDateTime approvedAt) {
+}

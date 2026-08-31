@@ -1,0 +1,42 @@
+package com.dxsoft.rsgzgl.personnel;
+
+import java.util.List;
+
+public record PersonnelInformationCollectionReport(
+        Integer uid,
+        String organizationCode,
+        String organizationName,
+        String organizationCategory,
+        String personCode,
+        String name,
+        String idCard,
+        String gender,
+        String birthYearMonth,
+        String ethnicity,
+        String politicalStatus,
+        String personnelCategory,
+        String organizationType,
+        String postCategory,
+        String workStartYearMonth,
+        String regularizationYearMonth,
+        String entryYearMonth,
+        String entryMethod,
+        Integer salaryYears,
+        String educationCode,
+        String highestEducation,
+        String currentPositionLevel,
+        String currentRankCode,
+        String currentPosition,
+        String currentPositionStartYearMonth,
+        String archiveNumber,
+        String formerUnitPosition,
+        String formerUnitAppointmentPeriod,
+        String reportOrganizationAbbr,
+        String retirementMonth,
+        String teachingAllowanceStartMonth,
+        Integer teachingAllowanceYears,
+        List<EducationRecord> educations,
+        List<PositionRecord> positions,
+        List<AssessmentRecord> assessments,
+        PersonnelInformationCollectionPayrollSnapshot currentPayroll) {
+}

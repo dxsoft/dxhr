@@ -1,1 +1,141 @@
 # dxhr
+
+## VFP 迁移资料
+
+- [VFP 到 Spring Boot 迁移分析](docs/vfp-to-springboot-migration.md)
+
+## 托管式 SaaS（每客户独立实例）
+
+云上按客户开通独立 Spring Boot + MySQL，浏览器访问，开通材料见 [deploy/saas/README.md](deploy/saas/README.md)。
+
+## Spring Boot 后端
+
+当前仓库已包含第一版 Spring Boot + MySQL 后端骨架，使用 `gzjsgl` 数据库结构中的核心表提供只读查询接口。
+
+### 本地运行
+
+```bash
+export RSGZGL_DB_URL="jdbc:mysql://localhost:3306/gzjsgl?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
+export RSGZGL_DB_USERNAME="root"
+export RSGZGL_DB_PASSWORD="你的密码"
+mvn spring-boot:run
+```
+
+首次启动会自动创建 Spring Boot 权限表，详见 `docs/security-rbac-schema.sql`。
+
+如需初始化管理员账号，请设置环境变量；系统只会在账号不存在时创建，不会覆盖已有密码：
+
+```bash
+export RSGZGL_ADMIN_USERNAME="admin"
+export RSGZGL_ADMIN_PASSWORD="请使用强密码"
+export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
+```
+
+当前权限模型采用用户、角色、功能权限、角色单位数据范围。人员和工资接口会按用户可访问单位限制数据范围。
+登录后拥有 `SECURITY_ADMIN` 权限的用户可在首页“权限管理”区域维护用户、角色、功能权限绑定和角色单位范围。
+登录成功、登录失败、退出登录、修改密码和权限管理操作都会写入安全审计日志。
+前端导航由 `app_menu` 和 `/api/auth/menus` 动态生成，只显示当前用户具备权限的菜单。
+“人员信息维护”页面提供 `dryjbxx` 核心人员基本信息新增、修改和删除，按用户单位数据范围限制可维护单位。
+信息维护相关列表的单位筛选支持输入单位名称或单位编码，并始终限制在当前用户可见单位范围内。
+人员维护中的单位字段通过单位树弹窗选择，树节点以单位名称为主显示并支持搜索，按用户单位数据范围限制可选单位；录入框显示单位名称，后台保存单位编码。
+人员维护列表支持通过“变动”按钮旁的类别菜单办理退休、调动、调出、辞职、辞退、开除和死亡等人员变动；其中“调动”按旧系统“调往本地其他单位”处理，“调出”按旧系统“调往外地”处理，变动时间默认使用当前年月。在册人员转入 `dryjbxxb/hisbaseb`，学历、职务、年度考核、套改情况、套改前工资、警衔/法检/监察等级（`jx`）、养老缴费基数（`jfjs` 人员年度平均工资）等成对备份表也随人员一起迁移，并可在“变动人员信息”页面恢复到在册。
+人员维护中配置了 `fldjbxx.dmlb` 的字段会按 `dmlb` 前缀从 `dmb` 弹出可折叠树形选项，录入框和选择按钮合并显示，且只能选择叶子节点；普通代码项不显示搜索框，单位选择保留搜索框。
+`fldjbxx.field_type = D` 的人员维护字段使用月份选择控件，保存时转换为旧系统使用的 `yyyy.MM` 格式。
+人员维护弹窗中的学历信息、职务变化、历次调资和年度考核支持增删改；并提供当前执行工资、获奖信息、警衔/检察官等级/法官等级/监察官等级（均来自 `jx`，按名称内容分类）、套改情况、套改前工资和养老缴费基数等只读页签；学历信息录入时通过学历字典选择“学历”，自动关联回填“学历编码”，编码字段不可手工录入；本系统新增的附属记录会写入 `app_record_marker` 并在前端显示“新”标记。
+“年度考核结果”页面提供 `dndkh` 只读查询，按用户单位数据范围限制可见人员。
+“年度考核统计”页面提供 `dndkh` 按年度、单位、考核结果的汇总查询。
+“变动人员信息”页面提供 `dryjbxxb` 只读查询，并关联 `hisbaseb` 中 `sid` 为空的当前变动工资，按用户单位数据范围限制可见人员。
+“任职岗位信息”页面提供 `dryzwbh` 只读查询，按用户单位数据范围限制可见人员。
+“学历信息”页面提供 `dxl` 只读查询，按用户单位数据范围限制可见人员。
+“工资变动历史”页面提供 `hisbase` 只读查询，按用户单位数据范围限制可见人员；同一 `dwbm + grbm` 为同一人的工资变动链，`sid` 指向下一次工资变动，`sid` 为空表示当前执行工资；“变动情况”弹窗按 `fldgz` 工资项目展示当前变动记录与上一条记录的变动前、变动后和差额。
+“调整教护龄津贴”页面提供当前工资记录的教护龄津贴只读试算，按 `jhljt.prg` 档位规则比较旧值和应发值。
+“正常档次/薪级晋升”页面提供当前工资记录档次/薪级加 1 后的基础工资试算，并支持按旧系统 `pushhis` 链式方式处理生成新 `hisbase` 当前记录、按 `poppre` 思路还原当前晋升记录。
+“级别晋升”页面提供当前工资记录级别/档次晋升试算和处理/还原操作，按 `xckhndjb`、`xckhndzw` 和年度考核结果判断符合晋升条件的人员；累计 5 年考核称职及以上晋升级别，累计 2 年考核称职及以上晋升档次；2006 年 7 月前已转正的人员从 2006 年开始考核，同年同时满足时先晋升级别再晋升档次。
+级别晋升发生时，下次晋升级别起算年 `xckhndjb` 应更新为本次晋升年度；无论级别晋升来自年度考核还是职务晋升，如级别工资增资额超过下一级别一个工资档差，`xckhndzw` 也应从本次晋升年度重新计算。
+“职务变化晋升”页面提供公务员职务变化后的职务工资和级别工资只读试算，并给出 `xckhndjb`、`xckhndzw` 更新建议；职务晋升带动多级级别晋升时，会逐级比较增资额是否超过下一级别一个工资档差。职务编码前缀在 `01/02/03/04/21/22/23/24/25/26/27/28` 中且新旧前缀不一致时识别为“转换序列”；其中由 `01/02/23/24/25/26/27/28` 转换到 `21/22` 时识别为“警员套改”，转换到 `03` 时识别为“法检套改”。警员套改按 `jytg.prg` 迁移，未达套改后职务最低等级时进最低，高套职务时先按同级职务平套、再按职务晋升政策晋升到套改后职务。
+法检套改按 `fjtg.prg` 迁移，依据当前执行的职务、级别、档次和目标法检等级，从 `bz06_fjtgb` 套改表确定套改后档次。
+职级套改识别为 `01` 前缀职务变动到 `02/03/21/22` 之外的职务序列，按警员套改同类规则处理；套改导致职务工资减少时，减少额保留到 `pgbc`，后续普通职务晋升时从职务工资增资额中冲减。
+警员回到综合管理类（`21/22` 前缀职务变动到 `01` 前缀职务）时，2006.07 前已转正人员按基本信息匹配 2006 套改标准确定起点工资，2006.07 及以后转正人员按学历转正定级标准确定起点工资，再回放正常级别晋升、正常档次晋升、学历变化和 `01` 前缀职务变化，推算回到综合管理类时的级别、档次、`xckhndjb` 和 `xckhndzw`。
+“学历晋升”页面提供当前工资记录和最高学历对照 `bz06_zzdz` 转正定级标准的岗位、级别、档次和工资差额只读试算。
+公务员在职取得国家承认的较高学历后，仅当当前基本工资低于相同学历新录用公务员转正定级工资待遇时，才执行相同学历新录用公务员转正定级工资待遇。
+事业人员取得国家承认的新学历后，仅当现薪级低于新学历转正定级标准时，执行新学历转正定级薪级，并将 `xckhndzw` 调整到下一年；否则薪级不变。
+“转正定级”页面提供当前见习工资记录和学历对照 `bz06_zzdz` 转正定级标准的只读试算。
+事业人员（职务岗位编码前缀为 `07/08/09/10/11`）转正时，学历转正定级标准只用于确定薪级，职务岗位取转正年月时职务变化信息中的聘任岗位。
+事业人员岗位变动按 `07/08/10/11` 序列单独试算：同序列变动时已达新岗位最低薪级则薪级不变，未达最低薪级则进最低薪级并将 `xckhndzw` 调整到下一年；`08` 转 `07/10/11` 时按转正时间、历史岗位序列、学历和套改/转正规则回放确定转岗后薪级。
+“单位信息维护”页面提供 `dwbm` 只读查询，按用户单位数据范围限制可见单位。
+“设置常用值”页面提供 `dmb` 字典表只读查询，支持编码前缀和关键词筛选。
+“本地工资政策”页面提供 `cyxx` 和 `xtcs` 只读查询，用于核对影响工资计算的全局参数。
+“工资变动花名册”报表提供 `hisbase` 工资变动记录的浏览器预览和打印入口，支持按单位、变动年月和关键词筛选。
+“基本工资标准”页面提供 `bz06_zwgz`、`bz06_zwgz_gr`、`bz06_jbgz`、`bz06_xjgz` 四类标准表只读查询。
+“见习工资标准”页面提供 `bz06_zzdz` 只读查询，支持标准年月和学历/职务关键词筛选。
+“津贴补贴标准”页面提供 `bz06_jbt` 只读查询，支持标准年月、项目和职务编码筛选。
+“警衔津贴标准”页面提供 `jxjtbz` 只读查询，支持标准年月、警衔名称/编码和类别筛选。
+“保留福补标准”页面提供 `bz06_blfb` 只读查询，支持职务编码/名称筛选。
+“年补贴标准”页面提供 `njbt` 只读查询，支持标准年月筛选。
+“2006套改标准”页面提供 `bz06_tgb`（2006 年 7 月工资制度改革套改标准）只读查询，支持职务编码筛选。
+“其他补贴标准”页面提供 `bz_wybt`、`bz_txbt`、`bz_wmj`、`bz_pskhj` 只读查询。
+
+### 首批接口
+
+- `GET /api/organizations`
+- `GET /api/personnel`
+- `POST /api/personnel`
+- `GET /api/personnel/{uid}`
+- `PUT /api/personnel/{uid}`
+- `DELETE /api/personnel/{uid}`
+- `GET /api/personnel/{uid}/maintenance`
+- `GET /api/personnel/{uid}/positions`
+- `GET /api/personnel/positions`
+- `GET /api/personnel/{uid}/education`
+- `GET /api/personnel/education`
+- `GET /api/personnel/{uid}/assessments`
+- `GET /api/personnel/assessments`
+- `GET /api/personnel/assessment-summary`
+- `GET /api/personnel/changed`
+- `GET /api/organizations/maintenance`
+- `GET /api/organizations/tree`
+- `GET /api/dictionaries`
+- `GET /api/dictionaries/field-configs`
+- `GET /api/dictionaries/tree`
+- `GET /api/system-config/local-policies`
+- `GET /api/system-config/options`
+- `GET /api/payroll/fields`
+- `GET /api/payroll/histories`
+- `GET /api/payroll/teaching-allowance-adjustments`
+- `GET /api/payroll/normal-promotions`
+- `GET /api/payroll/level-promotions`
+- `GET /api/payroll/position-change-promotions`
+- `GET /api/payroll/education-promotions`
+- `GET /api/payroll/regularizations`
+- `GET /api/payroll/position-standards`
+- `GET /api/payroll/basic-standards`
+- `GET /api/payroll/intern-salary-standards`
+- `GET /api/payroll/allowance-standards`
+- `GET /api/payroll/rank-allowance-standards`
+- `GET /api/payroll/retained-allowance-standards`
+- `GET /api/payroll/year-allowance-standards`
+- `GET /api/payroll/wage-reform-standards`
+- `GET /api/payroll/other-allowance-standards`
+- `GET /api/payroll/personnel/{uid}/calculation-context`
+- `GET /api/payroll/personnel/{uid}/calculation-preview`
+- `GET /api/payroll/calculation-audits`
+- `GET /api/payroll/calculation-audit-summary`
+
+人员接口默认会对身份证号做脱敏处理，避免直接暴露完整证件号码。
+
+`calculation-context` 接口用于工资计算迁移的第一步：读取单人最新工资历史、已保存的工资项金额和匹配到的标准表数据，暂不写入数据库。
+该接口已经包含基础标准表计算值：职务工资、级别工资、薪级工资和技术等级工资，用于和 `hisbase` 存量金额对账。
+职务工资 `ZWGZSE2` 已按 `zwgz06_gr + zwgz06` 组合计算，覆盖机关技师/工人等岗位档次工资。
+同时包含部分津补贴计算值：基础绩效、工作性/生活性补贴、保留福补和年补贴，用于继续对齐 `gzjs06.prg` 的津补贴段。
+基础绩效/生活性补贴会按 `dwbm.dfbt` 和个人 `jzgb` 发放审批状态置零。
+`totalComparison` 会进一步计算教护龄津贴、提高工资，并替换当前已迁移项目后给出合计差额。
+当前也会对比警衔/警务津贴和浮动工资，对应 `JXJT`、`FDGZ2`。
+奖金结余 `JJJY2` 按旧系统主链口径处理：试算/对账时默认保留 hisbase 旧值；仅当旧值为 0 且 `cyxx.jjjy=1` 时，按 jjjy06 规则查 `bz06_jjjy` 试算；其它模式旧值为 0 时不自动计算。
+岗位津贴 `GWJT2` 已确认不考虑迁移，列入 `excludedComponents`，只保留旧值。
+套改/特岗保留 `TGBLBF` 按主链规则处理：机关人员清零，事业单位人员保留旧值。
+`QTBT/SIDBT/ZWJT/ZFBT/JZMCBT/GWJT2` 已作为手工或暂不考虑字段列入 `excludedComponents`，只保留旧值。
+`PGBC` 已作为特殊工资变动保留项列入 `pgbcComparison`，当前只读对账保留旧值。
+`calculation-preview` 会把已迁移工资项、排除字段、PGBC 和合计整理成更适合界面展示的只读试算结果。
+批量对账接口会分页执行同一套只读计算，返回每个人的合计差额和差异汇总。
+远程数据库对账建议先使用较小分页，例如 `size=5` 或 `size=10`，再逐步扩大范围。
+对账结果中的 `componentDifferences` 会标明具体差异字段；`DFBT2` 会按人员性质显示为机关人员“生活性补贴”或事业单位人员“基础性绩效工资”。

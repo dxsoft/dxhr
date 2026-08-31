@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: rsgzgl-ops
+  datasource:
+    url: ${RSGZGL_OPS_DB_URL:jdbc:h2:file:./data/rsgzgl-ops;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=TRUE}
+    username: ${RSGZGL_OPS_DB_USERNAME:sa}
+    password: ${RSGZGL_OPS_DB_PASSWORD:}
+    driver-class-name: org.h2.Driver
+  h2:
+    console:
+      enabled: false
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+server:
+  port: ${PORT:18090}
+  tomcat:
+    max-http-form-post-size: 50MB
+    max-swallow-size: 50MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+rsgzgl:
+  ops:
+    admin:
+      username: ${RSGZGL_OPS_ADMIN_USERNAME:ops}
+      password: ${RSGZGL_OPS_ADMIN_PASSWORD:ops123}
+      reset-password: ${RSGZGL_OPS_ADMIN_RESET_PASSWORD:true}
+    monitor:
+      interval-ms: ${RSGZGL_OPS_MONITOR_INTERVAL_MS:30000}
+      history-hours: ${RSGZGL_OPS_MONITOR_HISTORY_HOURS:72}
+      cpu-warn: ${RSGZGL_OPS_MONITOR_CPU_WARN:80}
+      cpu-crit: ${RSGZGL_OPS_MONITOR_CPU_CRIT:95}
+      memory-warn: ${RSGZGL_OPS_MONITOR_MEMORY_WARN:85}
+      memory-crit: ${RSGZGL_OPS_MONITOR_MEMORY_CRIT:95}
+      disk-warn: ${RSGZGL_OPS_MONITOR_DISK_WARN:85}
+      disk-crit: ${RSGZGL_OPS_MONITOR_DISK_CRIT:95}
+      swap-warn: ${RSGZGL_OPS_MONITOR_SWAP_WARN:50}
+      swap-crit: ${RSGZGL_OPS_MONITOR_SWAP_CRIT:80}
+      inode-warn: ${RSGZGL_OPS_MONITOR_INODE_WARN:85}
+      inode-crit: ${RSGZGL_OPS_MONITOR_INODE_CRIT:95}
+      cert-warn-days: ${RSGZGL_OPS_MONITOR_CERT_WARN_DAYS:21}
+      cert-crit-days: ${RSGZGL_OPS_MONITOR_CERT_CRIT_DAYS:7}
+      systemd-units: ${RSGZGL_OPS_MONITOR_UNITS:rsgzgl,rsgzgl@demo,rsgzgl@pq,rsgzgl@xyzzb}
+      cert-hosts: ${RSGZGL_OPS_MONITOR_CERT_HOSTS:renshi.dxsoft.cn,pq.dxsoft.cn,shpr.dxsoft.cn,xyzzb.dxsoft.cn}
+      heap-warn: ${RSGZGL_OPS_MONITOR_HEAP_WARN:85}
+      heap-crit: ${RSGZGL_OPS_MONITOR_HEAP_CRIT:95}
+      webhook-url: ${RSGZGL_OPS_MONITOR_WEBHOOK:}
+      default-health-url: ${RSGZGL_OPS_MONITOR_DEFAULT_HEALTH_URL:http://127.0.0.1:8080/actuator/health}
+  license:
+    hmac-secret: ${RSGZGL_LICENSE_HMAC_SECRET:dxsoft-rsgzgl-license-dev-secret}
+    default-issuer: ${RSGZGL_OPS_LICENSE_ISSUER:鼎星软件}
+
+logging:
+  level:
+    root: INFO

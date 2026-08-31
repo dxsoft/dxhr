@@ -1,0 +1,104 @@
+spring:
+  application:
+    name: rsgzgl
+  datasource:
+    url: ${RSGZGL_DB_URL:jdbc:mysql://localhost:3306/gzjsgl?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true}
+    username: ${RSGZGL_DB_USERNAME:root}
+    password: ${RSGZGL_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # Long backup/restore holds a connection; keep pool healthy and avoid silent drops.
+      connection-timeout: ${RSGZGL_DB_CONNECTION_TIMEOUT:60000}
+      validation-timeout: 5000
+      max-lifetime: ${RSGZGL_DB_MAX_LIFETIME:1800000}
+      keepalive-time: ${RSGZGL_DB_KEEPALIVE:60000}
+      maximum-pool-size: ${RSGZGL_DB_POOL_SIZE:15}
+  sql:
+    init:
+      mode: never
+  servlet:
+    multipart:
+      max-file-size: ${RSGZGL_BACKUP_MAX_UPLOAD:512MB}
+      max-request-size: ${RSGZGL_BACKUP_MAX_UPLOAD:512MB}
+
+server:
+  port: ${PORT:8080}
+  # 托管 SaaS 经 Nginx HTTPS 反代时设为 framework，并配合 RSGZGL_SESSION_COOKIE_SECURE=true
+  forward-headers-strategy: ${RSGZGL_FORWARD_HEADERS_STRATEGY:none}
+  servlet:
+    session:
+      cookie:
+        secure: ${RSGZGL_SESSION_COOKIE_SECURE:false}
+        same-site: ${RSGZGL_SESSION_COOKIE_SAME_SITE:lax}
+  tomcat:
+    connection-timeout: ${RSGZGL_EXPORT_CONNECTION_TIMEOUT:3600000}
+    max-http-form-post-size: ${RSGZGL_MAX_HTTP_POST_SIZE:256MB}
+    max-swallow-size: ${RSGZGL_MAX_HTTP_POST_SIZE:256MB}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+rsgzgl:
+  security:
+    initialize-schema: ${RSGZGL_SECURITY_INITIALIZE_SCHEMA:true}
+    admin:
+      username: ${RSGZGL_ADMIN_USERNAME:admin}
+      password: ${RSGZGL_ADMIN_PASSWORD:}
+      reset-password: ${RSGZGL_ADMIN_RESET_PASSWORD:${RSGZGL_SECURITY_ADMIN_RESET_PASSWORD:true}}
+      display-name: ${RSGZGL_ADMIN_DISPLAY_NAME:系统管理员}
+  payroll:
+    # 双轨兼容：义务教育单位(jxlb=2)仍将 10xx 映射为 11xx 查标准；存量改录 11xx 后可设 false 关闭
+    map-compulsory-education-10-to-11: ${RSGZGL_MAP_COMPULSORY_EDUCATION_10_TO_11:true}
+  ukey:
+    enabled: ${RSGZGL_UKEY_ENABLED:true}
+    required: ${RSGZGL_UKEY_REQUIRED:false}
+    challenge-ttl-seconds: ${RSGZGL_UKEY_CHALLENGE_TTL_SECONDS:120}
+    preauth-ttl-seconds: ${RSGZGL_UKEY_PREAUTH_TTL_SECONDS:300}
+  license:
+    hmac-secret: ${RSGZGL_LICENSE_HMAC_SECRET:dxsoft-rsgzgl-license-dev-secret}
+    issue-enabled: ${RSGZGL_LICENSE_ISSUE_ENABLED:false}
+  print-auth:
+    # 对标 VFP dxvalid：花名册/审批表打印授权年校验
+    url: ${RSGZGL_PRINT_AUTH_URL:http://www.dxsoft.cn:7099/dxmanage/customer/selectCus.dx}
+    connect-timeout-ms: ${RSGZGL_PRINT_AUTH_CONNECT_TIMEOUT_MS:5000}
+    request-timeout-ms: ${RSGZGL_PRINT_AUTH_REQUEST_TIMEOUT_MS:8000}
+  attachments:
+    storage-dir: ${RSGZGL_ATTACHMENT_DIR:./data/attachments}
+    max-file-size-bytes: ${RSGZGL_ATTACHMENT_MAX_SIZE_BYTES:20971520}
+    # 生产环境手机扫码上传公网地址，如 https://pq.dxsoft.cn；留空则使用浏览器当前域名
+    mobile-upload-public-base-url: ${RSGZGL_MOBILE_UPLOAD_PUBLIC_BASE_URL:}
+  backup:
+    restore:
+      # Conservative defaults for small-memory hosts; override via RSGZGL_RESTORE_* env vars.
+      batch-size: ${RSGZGL_RESTORE_BATCH_SIZE:200}
+      commit-every-batches: ${RSGZGL_RESTORE_COMMIT_EVERY_BATCHES:1}
+      truncate-before-insert: ${RSGZGL_RESTORE_TRUNCATE:false}
+      repair-hisbase-chain: ${RSGZGL_RESTORE_REPAIR_HISBASE_CHAIN:true}
+  exchange:
+    # SHARED: same database for units and approval dept; STANDALONE: separate deployments (default)
+    deployment-mode: ${RSGZGL_EXCHANGE_DEPLOYMENT_MODE:STANDALONE}
+  workflow:
+    enabled: ${RSGZGL_WORKFLOW_ENABLED:false}
+    hide-data-exchange: ${RSGZGL_WORKFLOW_HIDE_DATA_EXCHANGE:false}
+    auto-queue-on-approve: ${RSGZGL_WORKFLOW_AUTO_QUEUE:true}
+  maintenance:
+    hisbase-sid-chain:
+      # Weekly rebuild + NULL→'' normalize; off by default, enable on SaaS tenants if desired.
+      enabled: ${RSGZGL_HISBASE_SID_MAINTENANCE:false}
+      cron: ${RSGZGL_HISBASE_SID_MAINTENANCE_CRON:0 0 3 * * 0}
+  report:
+    # 审批表 PDF 引擎：openpdf（默认，更快）| html（OpenHTMLToPDF 回退）
+    approval-pdf-engine: ${RSGZGL_APPROVAL_PDF_ENGINE:openpdf}
+    approval-title:
+      agency-grade-step: ${RSGZGL_APPROVAL_TITLE_AGENCY_GRADE_STEP:河南省机关工作人员正常档次晋升工资变动审批表}
+      agency-grade-level: ${RSGZGL_APPROVAL_TITLE_AGENCY_GRADE_LEVEL:河南省机关工作人员正常级别晋升工资变动审批表}
+      institution-salary-level: ${RSGZGL_APPROVAL_TITLE_INSTITUTION_SALARY_LEVEL:河南省事业单位工作人员正常晋升薪级工资审批表}
+      agency-intern: ${RSGZGL_APPROVAL_TITLE_AGENCY_INTERN:河南省机关见习人员见习期工资审批表}
+      institution-intern: ${RSGZGL_APPROVAL_TITLE_INSTITUTION_INTERN:河南省事业单位见习人员见习期工资审批表}
+      institution-regularization: ${RSGZGL_APPROVAL_TITLE_INSTITUTION_REGULARIZATION:河南省事业单位转正人员确定工资审批表}

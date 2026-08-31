@@ -1,0 +1,30 @@
+package com.dxsoft.rsgzgl.payroll;
+
+public record NewPersonnelSalaryCandidate(
+        Integer uid,
+        String organizationCode,
+        String organizationName,
+        String personCode,
+        String name,
+        String joinYearMonth,
+        String joinType,
+        String positionCode,
+        String positionName,
+        String positionStartYearMonth,
+        String workStartYearMonth,
+        String regularizationYearMonth,
+        String educationCode,
+        String educationName,
+        Integer salaryYears,
+        String classificationTag,
+        String payrollHistoryId,
+        String currentChangeType,
+        Integer storedTotal,
+        String tipGradeSalaryLevel,
+        String tipPositionSalaryGrade,
+        String tipLevelAssessmentStartYear,
+        String tipStepAssessmentStartYear,
+        String tipCalculationYear,
+        String tipCalculationMonth
+) {
+}

@@ -1,0 +1,51 @@
+# Desktop / Electron bundled profile.
+# Started by the desktop shell with --spring.profiles.active=desktop
+
+spring:
+  datasource:
+    url: ${RSGZGL_DB_URL:jdbc:mysql://127.0.0.1:3306/gzjsgl?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true}
+    username: ${RSGZGL_DB_USERNAME:root}
+    password: ${RSGZGL_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: ${RSGZGL_DB_CONNECTION_TIMEOUT:60000}
+      validation-timeout: 5000
+      max-lifetime: ${RSGZGL_DB_MAX_LIFETIME:1800000}
+      keepalive-time: ${RSGZGL_DB_KEEPALIVE:60000}
+      maximum-pool-size: ${RSGZGL_DB_POOL_SIZE:15}
+  sql:
+    init:
+      mode: never
+
+server:
+  port: ${PORT:18080}
+  tomcat:
+    connection-timeout: ${RSGZGL_EXPORT_CONNECTION_TIMEOUT:3600000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+rsgzgl:
+  security:
+    initialize-schema: ${RSGZGL_SECURITY_INITIALIZE_SCHEMA:true}
+    admin:
+      username: ${RSGZGL_ADMIN_USERNAME:admin}
+      password: ${RSGZGL_ADMIN_PASSWORD:admin123}
+      reset-password: ${RSGZGL_ADMIN_RESET_PASSWORD:false}
+      display-name: ${RSGZGL_ADMIN_DISPLAY_NAME:系统管理员}
+  license:
+    hmac-secret: ${RSGZGL_LICENSE_HMAC_SECRET:dxsoft-rsgzgl-license-dev-secret}
+    issue-enabled: ${RSGZGL_LICENSE_ISSUE_ENABLED:false}
+  print-auth:
+    url: ${RSGZGL_PRINT_AUTH_URL:http://www.dxsoft.cn:7099/dxmanage/customer/selectCus.dx}
+    connect-timeout-ms: ${RSGZGL_PRINT_AUTH_CONNECT_TIMEOUT_MS:5000}
+    request-timeout-ms: ${RSGZGL_PRINT_AUTH_REQUEST_TIMEOUT_MS:8000}
+
+logging:
+  file:
+    name: ${RSGZGL_LOG_FILE:}
+  level:
+    com.dxsoft.rsgzgl: INFO
