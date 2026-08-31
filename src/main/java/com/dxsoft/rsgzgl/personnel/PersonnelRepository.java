@@ -4,9 +4,12 @@ import com.dxsoft.rsgzgl.common.PageRequest;
 import com.dxsoft.rsgzgl.common.SensitiveData;
 import com.dxsoft.rsgzgl.common.SqlText;
 import com.dxsoft.rsgzgl.security.OrganizationScope;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -132,7 +135,12 @@ public class PersonnelRepository {
             SqlText.trim(rs.getString("gwfl")),
             SqlText.trim(rs.getString("xrzw")),
             SqlText.trim(rs.getString("zjbm")),
-            SqlText.trim(rs.getString("zwgw2"))
+            SqlText.trim(rs.getString("zwbm2")),
+            SqlText.trim(rs.getString("zwgw2")),
+            SqlText.trim(rs.getString("bbz")),
+            false,
+            false,
+            null
     );
 
     private static final RowMapper<PersonnelDetail> DETAIL_MAPPER = (rs, rowNum) -> new PersonnelDetail(
@@ -158,11 +166,21 @@ public class PersonnelRepository {
             SqlText.trim(rs.getString("txsj"))
     );
 
+
+    private static int attachmentCount(java.sql.ResultSet rs) throws java.sql.SQLException {
+        try {
+            return rs.getInt("attachment_count");
+        } catch (java.sql.SQLException ignored) {
+            return 0;
+        }
+    }
+
     private static final RowMapper<PersonnelMaintenanceRecord> MAINTENANCE_MAPPER = (rs, rowNum) -> new PersonnelMaintenanceRecord(
             rs.getInt("uid"),
             SqlText.trim(rs.getString("dwbm")),
             SqlText.trim(rs.getString("dwmc")),
             SqlText.trim(rs.getString("dwbz")),
+            SqlText.trim(rs.getString("org_gzczbz")),
             SqlText.trim(rs.getString("grbm")),
             SqlText.trim(rs.getString("xm")),
             SqlText.trim(rs.getString("sfzh")),
@@ -184,7 +202,15 @@ public class PersonnelRepository {
             SqlText.trim(rs.getString("zzmm")),
             SqlText.trim(rs.getString("dah")),
             SqlText.trim(rs.getString("jrny")),
-            SqlText.trim(rs.getString("jrfs")));
+            SqlText.trim(rs.getString("jrfs")),
+            SqlText.trim(rs.getString("bbz")),
+            SqlText.trim(rs.getString("tc")),
+            SqlText.trim(rs.getString("org_dwsx")),
+            rs.getBoolean("jkjs"),
+            readApprovalActorFields(rs).submittedBy(),
+            readApprovalActorFields(rs).submittedAt(),
+            readApprovalActorFields(rs).approvedBy(),
+            readApprovalActorFields(rs).approvedAt());
 
     private static final RowMapper<PositionRecord> POSITION_MAPPER = (rs, rowNum) -> new PositionRecord(
             rs.getInt("id"),
@@ -200,7 +226,15 @@ public class PersonnelRepository {
             rs.getInt("kjnx"),
             SqlText.trim(rs.getString("xrzwbz")),
             SqlText.trim(rs.getString("jsbz")),
-            rs.getBoolean("app_created")
+            SqlText.trim(rs.getString("zwlb")),
+            readOptionalInteger(rs, "linked_award_id"),
+            normalizeSubrecordApproval(rs.getString("bbz")),
+            rs.getBoolean("app_created"),
+            readApprovalActorFields(rs).submittedBy(),
+            readApprovalActorFields(rs).submittedAt(),
+            readApprovalActorFields(rs).approvedBy(),
+            readApprovalActorFields(rs).approvedAt(),
+            rs.getInt("attachment_count")
     );
 
     private static final RowMapper<PersonnelPositionHistoryRecord> POSITION_HISTORY_MAPPER = (rs, rowNum) -> new PersonnelPositionHistoryRecord(
@@ -233,7 +267,13 @@ public class PersonnelRepository {
             rs.getInt("xz"),
             SqlText.trim(rs.getString("xllb")),
             SqlText.trim(rs.getString("bz")),
-            rs.getBoolean("app_created")
+            normalizeSubrecordApproval(rs.getString("bbz")),
+            rs.getBoolean("app_created"),
+            readApprovalActorFields(rs).submittedBy(),
+            readApprovalActorFields(rs).submittedAt(),
+            readApprovalActorFields(rs).approvedBy(),
+            readApprovalActorFields(rs).approvedAt(),
+            attachmentCount(rs)
     );
 
     private static final RowMapper<PersonnelEducationHistoryRecord> EDUCATION_HISTORY_MAPPER = (rs, rowNum) -> new PersonnelEducationHistoryRecord(
@@ -258,7 +298,51 @@ public class PersonnelRepository {
             SqlText.trim(rs.getString("grbm")),
             SqlText.trim(rs.getString("khnd")),
             SqlText.trim(rs.getString("khjg")),
-            rs.getBoolean("app_created")
+            normalizeSubrecordApproval(rs.getString("bbz")),
+            rs.getBoolean("app_created"),
+            readApprovalActorFields(rs).submittedBy(),
+            readApprovalActorFields(rs).submittedAt(),
+            readApprovalActorFields(rs).approvedBy(),
+            readApprovalActorFields(rs).approvedAt(),
+            attachmentCount(rs)
+    );
+
+    private static final RowMapper<AwardRecord> AWARD_MAPPER = (rs, rowNum) -> new AwardRecord(
+            rs.getInt("id"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("hjmc")),
+            SqlText.trim(rs.getString("sjdw")),
+            SqlText.trim(rs.getString("jllx")),
+            SqlText.trim(rs.getString("hjsj")),
+            SqlText.trim(rs.getString("tqyjjssj")),
+            SqlText.trim(rs.getString("qtqk")),
+            rs.getInt("jldc"),
+            rs.getInt("jljb"),
+            normalizeSubrecordApproval(rs.getString("bbz")),
+            readApprovalActorFields(rs).submittedBy(),
+            readApprovalActorFields(rs).submittedAt(),
+            readApprovalActorFields(rs).approvedBy(),
+            readApprovalActorFields(rs).approvedAt(),
+            attachmentCount(rs)
+    );
+
+    private static final RowMapper<RankRecord> RANK_MAPPER = (rs, rowNum) -> new RankRecord(
+            rs.getInt("id"),
+            SqlText.trim(rs.getString("dwbm")),
+            SqlText.trim(rs.getString("grbm")),
+            SqlText.trim(rs.getString("jx")),
+            SqlText.trim(rs.getString("sysj")),
+            SqlText.trim(rs.getString("syyy")),
+            SqlText.trim(rs.getString("rmwh")),
+            rs.getInt("xrjxbz"),
+            SqlText.trim(rs.getString("lb")),
+            normalizeSubrecordApproval(rs.getString("bbz")),
+            readApprovalActorFields(rs).submittedBy(),
+            readApprovalActorFields(rs).submittedAt(),
+            readApprovalActorFields(rs).approvedBy(),
+            readApprovalActorFields(rs).approvedAt(),
+            attachmentCount(rs)
     );
 
     private static final RowMapper<AnnualAssessmentRecord> ANNUAL_ASSESSMENT_MAPPER = (rs, rowNum) -> new AnnualAssessmentRecord(
@@ -291,6 +375,7 @@ public class PersonnelRepository {
             SqlText.trim(rs.getString("khnd")),
             rs.getObject("assessment_id") == null ? null : rs.getInt("assessment_id"),
             SqlText.trim(rs.getString("assessment_result")),
+            SqlText.trim(rs.getString("assessment_approval_status")),
             null
     );
 
@@ -336,7 +421,7 @@ public class PersonnelRepository {
                 .addValue("offset", pageRequest.offset());
         return jdbcTemplate.query("""
                 SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.sfzh, p.xb, p.csny,
-                       p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm, h.zwgw2
+                       p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm, h.zwbm2, h.zwgw2, p.bbz
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 LEFT JOIN hisbase h ON h.id = (
@@ -720,9 +805,9 @@ public class PersonnelRepository {
                 findCurrentPayrollSnapshot(key).orElse(null)));
     }
 
-    Optional<PersonnelMaintenanceRecord> findMaintenanceByUid(int uid) {
+    public Optional<PersonnelMaintenanceRecord> findMaintenanceByUid(int uid) {
         return jdbcTemplate.query("""
-                SELECT p.*, dw.dwmc, dw.dwbz
+                SELECT p.*, dw.dwmc, dw.dwbz, dw.dwsx AS org_dwsx, dw.gzczbz AS org_gzczbz, COALESCE(dw.jkjs, 0) AS jkjs
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 WHERE p.uid = :uid
@@ -740,7 +825,7 @@ public class PersonnelRepository {
                 ) VALUES (
                     :organizationCode, :personCode, :name, :idCard, :gender, :birthYearMonth, :personnelCategory, :organizationType, :postCategory,
                     :workStartYearMonth, :regularizationYearMonth, :joinYearMonth, :joinType, 0, :salaryYears, '', 0, :educationCode, :highestEducation, 0, '', '',
-                    '', :currentPositionLevel, :currentRankCode, :currentPosition, :currentPositionStartYearMonth, 0, '', '', '', '', '', '', '',
+                    '', :currentPositionLevel, :currentRankCode, :currentPosition, :currentPositionStartYearMonth, 0, '', '', '', '', '', '', '草稿',
                     '', '', :ethnicity, :politicalStatus, '', '', '', '', '', :archiveNumber, '', 0
                 )
                 """, params);
@@ -777,6 +862,58 @@ public class PersonnelRepository {
                     dah = :archiveNumber
                 WHERE uid = :uid
                 """, params);
+    }
+
+    void updateApprovalStatus(int uid, String approvalStatus) {
+        jdbcTemplate.update("""
+                UPDATE dryjbxx
+                SET bbz = :approvalStatus
+                WHERE uid = :uid
+                """, new MapSqlParameterSource("uid", uid).addValue("approvalStatus", approvalStatus));
+    }
+
+    void updateMainApprovalSubmit(int uid, String actor, LocalDateTime submittedAt) {
+        jdbcTemplate.update("""
+                UPDATE dryjbxx
+                SET bbz = :approvalStatus,
+                    tjr = :actor,
+                    tjsj = :submittedAt,
+                    shr = NULL,
+                    shsj = NULL
+                WHERE uid = :uid
+                """, new MapSqlParameterSource()
+                .addValue("uid", uid)
+                .addValue("approvalStatus", PersonnelApprovalStatuses.SUBMITTED)
+                .addValue("actor", actor)
+                .addValue("submittedAt", Timestamp.valueOf(submittedAt)));
+    }
+
+    void updateMainApprovalApprove(int uid, String actor, LocalDateTime approvedAt) {
+        jdbcTemplate.update("""
+                UPDATE dryjbxx
+                SET bbz = :approvalStatus,
+                    shr = :actor,
+                    shsj = :approvedAt
+                WHERE uid = :uid
+                """, new MapSqlParameterSource()
+                .addValue("uid", uid)
+                .addValue("approvalStatus", PersonnelApprovalStatuses.APPROVED)
+                .addValue("actor", actor)
+                .addValue("approvedAt", Timestamp.valueOf(approvedAt)));
+    }
+
+    void updateMainApprovalDraft(int uid) {
+        jdbcTemplate.update("""
+                UPDATE dryjbxx
+                SET bbz = :approvalStatus,
+                    tjr = NULL,
+                    tjsj = NULL,
+                    shr = NULL,
+                    shsj = NULL
+                WHERE uid = :uid
+                """, new MapSqlParameterSource()
+                .addValue("uid", uid)
+                .addValue("approvalStatus", PersonnelApprovalStatuses.DRAFT));
     }
 
     void deletePersonnel(int uid) {
@@ -959,6 +1096,36 @@ public class PersonnelRepository {
                 .addValue("remark", truncateText(valueOrBlank(remark), 500)));
     }
 
+
+    Optional<PersonnelTransferRecord> findTransferById(int id) {
+        return jdbcTemplate.query("""
+                SELECT id, person_uid, id_card, person_name,
+                       source_organization_code, source_organization_name, source_person_code,
+                       target_organization_code, target_organization_name, target_person_code,
+                       transfer_period, change_type, remark,
+                       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'app_personnel_transfer' AND att.record_id = id AND att.record_key = '') AS attachment_count
+                FROM app_personnel_transfer
+                WHERE id = :id
+                """, new MapSqlParameterSource("id", id), (rs, rowNum) -> new PersonnelTransferRecord(
+                rs.getLong("id"),
+                rs.getInt("person_uid"),
+                SqlText.trim(rs.getString("id_card")),
+                SqlText.trim(rs.getString("person_name")),
+                SqlText.trim(rs.getString("source_organization_code")),
+                SqlText.trim(rs.getString("source_organization_name")),
+                SqlText.trim(rs.getString("source_person_code")),
+                SqlText.trim(rs.getString("target_organization_code")),
+                SqlText.trim(rs.getString("target_organization_name")),
+                SqlText.trim(rs.getString("target_person_code")),
+                SqlText.trim(rs.getString("transfer_period")),
+                SqlText.trim(rs.getString("change_type")),
+                SqlText.trim(rs.getString("remark")),
+                SqlText.trim(rs.getString("created_at")),
+                attachmentCount(rs)
+        )).stream().findFirst();
+    }
+
     List<PersonnelTransferRecord> findTransferHistories(int personUid, String idCard, PersonKey key) {
         String normalizedIdCard = valueOrBlank(idCard);
         return jdbcTemplate.query("""
@@ -966,7 +1133,8 @@ public class PersonnelRepository {
                        source_organization_code, source_organization_name, source_person_code,
                        target_organization_code, target_organization_name, target_person_code,
                        transfer_period, change_type, remark,
-                       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+                       DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'app_personnel_transfer' AND att.record_id = id AND att.record_key = '') AS attachment_count
                 FROM app_personnel_transfer
                 WHERE person_uid = :personUid
                    OR (:idCard <> '' AND id_card = :idCard)
@@ -989,7 +1157,8 @@ public class PersonnelRepository {
                 SqlText.trim(rs.getString("transfer_period")),
                 SqlText.trim(rs.getString("change_type")),
                 SqlText.trim(rs.getString("remark")),
-                SqlText.trim(rs.getString("created_at"))
+                SqlText.trim(rs.getString("created_at")),
+                attachmentCount(rs)
         ));
     }
 
@@ -1111,6 +1280,23 @@ public class PersonnelRepository {
         )).stream().findFirst();
     }
 
+    public Optional<Integer> findUidByOrgPerson(String organizationCode, String personCode) {
+        if (organizationCode == null || organizationCode.isBlank() || personCode == null || personCode.isBlank()) {
+            return Optional.empty();
+        }
+        List<Integer> rows = jdbcTemplate.query("""
+                SELECT uid
+                FROM dryjbxx
+                WHERE dwbm = :organizationCode AND grbm = :personCode
+                LIMIT 1
+                """,
+                new MapSqlParameterSource()
+                        .addValue("organizationCode", organizationCode.trim())
+                        .addValue("personCode", personCode.trim()),
+                (rs, rowNum) -> rs.getInt("uid"));
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
+    }
+
     Optional<PersonKey> findEducationKeyById(int id) {
         return findSubrecordKeyById("dxl", id);
     }
@@ -1123,10 +1309,157 @@ public class PersonnelRepository {
         return findSubrecordKeyById("dndkh", id);
     }
 
+    Optional<PersonKey> findAwardKeyById(int id) {
+        return findSubrecordKeyById("hjxx", id);
+    }
+
+    Optional<PersonKey> findRankKeyById(int id) {
+        return findSubrecordKeyById("jx", id);
+    }
+
+    Optional<EducationRecord> findEducationById(int id) {
+        return jdbcTemplate.query("""
+                SELECT e.id, e.dwbm, e.grbm, e.xlbm, e.xl, e.byyx, e.rxsj, e.bysj, e.xz, e.xllb, e.bz, e.bbz, e.tjr, e.tjsj, e.shr, e.shsj,
+                       marker.record_id IS NOT NULL AS app_created,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'dxl' AND att.record_id = e.id AND att.record_key = '') AS attachment_count
+                FROM dxl e
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'dxl'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
+                    AND marker.marker = 'APP_CREATED'
+                WHERE e.id = :id
+                """, new MapSqlParameterSource("id", id), EDUCATION_MAPPER).stream().findFirst();
+    }
+
+    Optional<PositionRecord> findPositionById(int id) {
+        return jdbcTemplate.query("""
+                SELECT z.id, z.dwbm, z.grbm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm, z.zwbm, z.xzzw,
+                       z.srny, z.kjnx, z.xrzwbz, z.jsbz, z.zwlb, z.linked_award_id, z.bbz, z.tjr, z.tjsj, z.shr, z.shsj,
+                       marker.record_id IS NOT NULL AS app_created,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'dryzwbh' AND att.record_id = z.id AND att.record_key = '') AS attachment_count
+                FROM dryzwbh z
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'dryzwbh'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(z.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
+                    AND marker.marker = 'APP_CREATED'
+                WHERE z.id = :id
+                """, new MapSqlParameterSource("id", id), POSITION_MAPPER).stream().findFirst();
+    }
+
+    Optional<AssessmentRecord> findAssessmentById(int id) {
+        return jdbcTemplate.query("""
+                SELECT a.id, a.dwbm, a.grbm, a.khnd, a.khjg, a.bbz, a.tjr, a.tjsj, a.shr, a.shsj,
+                       marker.record_id IS NOT NULL AS app_created,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'dndkh' AND att.record_id = a.id AND att.record_key = '') AS attachment_count
+                FROM dndkh a
+                LEFT JOIN app_record_marker marker ON marker.table_name = 'dndkh'
+                    AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(a.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
+                    AND marker.marker = 'APP_CREATED'
+                WHERE a.id = :id
+                """, new MapSqlParameterSource("id", id), ASSESSMENT_MAPPER).stream().findFirst();
+    }
+
+    public Optional<AwardRecord> findAwardById(int id) {
+        return jdbcTemplate.query("""
+                SELECT a.id, a.dwbm, a.grbm, a.hjmc, a.sjdw, a.jllx, a.hjsj, a.tqyjjssj, a.qtqk, a.jldc, a.jljb, a.bbz, a.tjr, a.tjsj, a.shr, a.shsj,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'hjxx' AND att.record_id = a.id AND att.record_key = '') AS attachment_count
+                FROM hjxx a
+                WHERE a.id = :id
+                """, new MapSqlParameterSource("id", id), AWARD_MAPPER).stream().findFirst();
+    }
+
+    public Optional<RankRecord> findRankById(int id) {
+        return jdbcTemplate.query("""
+                SELECT r.id, r.dwbm, r.grbm, r.jx, r.sysj, r.syyy, r.rmwh, r.xrjxbz, r.lb, r.bbz, r.tjr, r.tjsj, r.shr, r.shsj,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'jx' AND att.record_id = r.id AND att.record_key = '') AS attachment_count
+                FROM jx r
+                WHERE r.id = :id
+                """, new MapSqlParameterSource("id", id), RANK_MAPPER).stream().findFirst();
+    }
+
+    List<AwardRecord> findAwards(PersonKey key) {
+        return jdbcTemplate.query("""
+                SELECT a.id, a.dwbm, a.grbm, a.hjmc, a.sjdw, a.jllx, a.hjsj, a.tqyjjssj, a.qtqk, a.jldc, a.jljb, a.bbz, a.tjr, a.tjsj, a.shr, a.shsj,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'hjxx' AND att.record_id = a.id AND att.record_key = '') AS attachment_count
+                FROM hjxx a
+                WHERE a.dwbm = :dwbm AND a.grbm = :grbm
+                ORDER BY a.hjsj DESC, a.id DESC
+                """, keyParameters(key), AWARD_MAPPER);
+    }
+
+    List<RankRecord> findRanks(PersonKey key) {
+        return jdbcTemplate.query("""
+                SELECT r.id, r.dwbm, r.grbm, r.jx, r.sysj, r.syyy, r.rmwh, r.xrjxbz, r.lb, r.bbz, r.tjr, r.tjsj, r.shr, r.shsj,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'jx' AND att.record_id = r.id AND att.record_key = '') AS attachment_count
+                FROM jx r
+                WHERE r.dwbm = :dwbm AND r.grbm = :grbm
+                ORDER BY r.sysj DESC, r.id DESC
+                """, keyParameters(key), RANK_MAPPER);
+    }
+
+    void updateSubrecordApprovalStatus(PersonnelSubrecordType type, int id, String approvalStatus) {
+        jdbcTemplate.update("""
+                UPDATE `%s`
+                SET bbz = :approvalStatus
+                WHERE id = :id
+                """.formatted(type.tableName()),
+                new MapSqlParameterSource("id", id).addValue("approvalStatus", approvalStatus));
+    }
+
+    void updateSubrecordApprovalSubmit(PersonnelSubrecordType type, int id, String actor, LocalDateTime submittedAt) {
+        jdbcTemplate.update("""
+                UPDATE `%s`
+                SET bbz = :approvalStatus,
+                    tjr = :actor,
+                    tjsj = :submittedAt,
+                    shr = NULL,
+                    shsj = NULL
+                WHERE id = :id
+                """.formatted(type.tableName()),
+                new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("approvalStatus", PersonnelApprovalStatuses.SUBMITTED)
+                .addValue("actor", actor)
+                .addValue("submittedAt", Timestamp.valueOf(submittedAt)));
+    }
+
+    void updateSubrecordApprovalApprove(PersonnelSubrecordType type, int id, String actor, LocalDateTime approvedAt) {
+        jdbcTemplate.update("""
+                UPDATE `%s`
+                SET bbz = :approvalStatus,
+                    shr = :actor,
+                    shsj = :approvedAt
+                WHERE id = :id
+                """.formatted(type.tableName()),
+                new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("approvalStatus", PersonnelApprovalStatuses.APPROVED)
+                .addValue("actor", actor)
+                .addValue("approvedAt", Timestamp.valueOf(approvedAt)));
+    }
+
+    void updateSubrecordApprovalDraft(PersonnelSubrecordType type, int id) {
+        jdbcTemplate.update("""
+                UPDATE `%s`
+                SET bbz = :approvalStatus,
+                    tjr = NULL,
+                    tjsj = NULL,
+                    shr = NULL,
+                    shsj = NULL
+                WHERE id = :id
+                """.formatted(type.tableName()),
+                new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("approvalStatus", PersonnelApprovalStatuses.DRAFT));
+    }
+
     List<PositionRecord> findPositions(PersonKey key) {
         return jdbcTemplate.query("""
                 SELECT z.id, z.dwbm, z.grbm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm, z.zwbm, z.xzzw,
-                       z.srny, z.kjnx, z.xrzwbz, z.jsbz, marker.record_id IS NOT NULL AS app_created
+                       z.srny, z.kjnx, z.xrzwbz, z.jsbz, z.zwlb, z.linked_award_id, z.bbz, z.tjr, z.tjsj, z.shr, z.shsj,
+                       marker.record_id IS NOT NULL AS app_created,
+                       (SELECT COUNT(*)
+                        FROM app_subrecord_attachment att
+                        WHERE att.table_name = 'dryzwbh'
+                          AND att.record_id = z.id) AS attachment_count
                 FROM dryzwbh z
                 LEFT JOIN app_record_marker marker ON marker.table_name = 'dryzwbh'
                     AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(z.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
@@ -1188,8 +1521,9 @@ public class PersonnelRepository {
 
     List<EducationRecord> findEducation(PersonKey key) {
         return jdbcTemplate.query("""
-                SELECT e.id, e.dwbm, e.grbm, e.xlbm, e.xl, e.byyx, e.rxsj, e.bysj, e.xz, e.xllb, e.bz,
-                       marker.record_id IS NOT NULL AS app_created
+                SELECT e.id, e.dwbm, e.grbm, e.xlbm, e.xl, e.byyx, e.rxsj, e.bysj, e.xz, e.xllb, e.bz, e.bbz, e.tjr, e.tjsj, e.shr, e.shsj,
+                       marker.record_id IS NOT NULL AS app_created,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'dxl' AND att.record_id = e.id AND att.record_key = '') AS attachment_count
                 FROM dxl e
                 LEFT JOIN app_record_marker marker ON marker.table_name = 'dxl'
                     AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
@@ -1299,7 +1633,7 @@ public class PersonnelRepository {
 
     Optional<PersonnelMaintenanceRecord> findChangedMaintenanceByUid(int uid) {
         return jdbcTemplate.query("""
-                SELECT p.*, dw.dwmc, dw.dwbz
+                SELECT p.*, dw.dwmc, dw.dwbz, dw.dwsx AS org_dwsx, dw.gzczbz AS org_gzczbz, COALESCE(dw.jkjs, 0) AS jkjs
                 FROM dryjbxxb p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 WHERE p.uid = :uid
@@ -1336,7 +1670,7 @@ public class PersonnelRepository {
         }
         return jdbcTemplate.query("""
                 SELECT z.id, z.dwbm, z.grbm, z.xrzwbm, z.xrzw, z.zwjb, z.zjbm, z.zwbm, z.xzzw,
-                       z.srny, z.kjnx, z.xrzwbz, z.jsbz, FALSE AS app_created
+                       z.srny, z.kjnx, z.xrzwbz, z.jsbz, FALSE AS app_created, 0 AS attachment_count
                 FROM dryzwbhb z
                 WHERE z.dwbm = :dwbm AND z.grbm = :grbm
                 ORDER BY CASE WHEN z.xrzwbz = '1' THEN 0 ELSE 1 END, z.srny DESC, z.id DESC
@@ -1416,7 +1750,9 @@ public class PersonnelRepository {
 
     List<AssessmentRecord> findAssessments(PersonKey key) {
         return jdbcTemplate.query("""
-                SELECT a.id, a.dwbm, a.grbm, a.khnd, a.khjg, marker.record_id IS NOT NULL AS app_created
+                SELECT a.id, a.dwbm, a.grbm, a.khnd, a.khjg, a.bbz, a.tjr, a.tjsj, a.shr, a.shsj,
+                       marker.record_id IS NOT NULL AS app_created,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'dndkh' AND att.record_id = a.id AND att.record_key = '') AS attachment_count
                 FROM dndkh a
                 LEFT JOIN app_record_marker marker ON marker.table_name = 'dndkh'
                     AND marker.record_id COLLATE utf8mb4_0900_ai_ci = CAST(a.id AS CHAR) COLLATE utf8mb4_0900_ai_ci
@@ -1467,8 +1803,8 @@ public class PersonnelRepository {
     Map<String, Object> findPersonnelRelatedRecords(PersonKey key) {
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("currentPayroll", firstTableRow("hisbase", key, "CASE WHEN sid IS NULL OR TRIM(sid) = '' THEN 0 ELSE 1 END, jsnf DESC, jsyf DESC"));
-        result.put("awards", tableRows("hjxx", key, "hjsj DESC, id DESC"));
-        result.put("rankRecords", tableRows("jx", key, "sysj DESC, id DESC"));
+        result.put("awards", findAwards(key));
+        result.put("rankRecords", findRanks(key));
         result.put("wageReform", tableRows("dtgxx", key, "id DESC"));
         result.put("preReformSalary", tableRows("tgqgz2006", key, "id DESC"));
         result.put("pensionBase", tableRows("jfjs", key, "nd DESC, id DESC"));
@@ -1501,8 +1837,8 @@ public class PersonnelRepository {
 
     int createEducation(PersonKey key, EducationMaintenanceRequest request) {
         jdbcTemplate.update("""
-                INSERT INTO dxl (dwbm, grbm, xlbm, xl, byyx, rxsj, bysj, xz, xllb, bz)
-                VALUES (:dwbm, :grbm, :educationCode, :educationName, :school, :enrollmentDate, :graduationDate, :studyYears, :educationType, :remark)
+                INSERT INTO dxl (dwbm, grbm, xlbm, xl, byyx, rxsj, bysj, xz, xllb, bz, bbz)
+                VALUES (:dwbm, :grbm, :educationCode, :educationName, :school, :enrollmentDate, :graduationDate, :studyYears, :educationType, :remark, :approvalStatus)
                 """, educationParameters(key, request));
         int id = lastInsertId();
         markAppCreated("dxl", id);
@@ -1525,8 +1861,8 @@ public class PersonnelRepository {
 
     int createPosition(PersonKey key, PositionMaintenanceRequest request) {
         jdbcTemplate.update("""
-                INSERT INTO dryzwbh (dwbm, grbm, xrzwbm, xrzw, zwjb, zjbm, zwbm, xzzw, zwlb, srny, kjnx, xrzwbz, jsbz)
-                VALUES (:dwbm, :grbm, :currentPositionCode, :currentPosition, :positionLevel, :rankCode, :positionCode, :positionName, '', :startYearMonth, :intervalYears, :activeFlag, :promotionFlag)
+                INSERT INTO dryzwbh (dwbm, grbm, xrzwbm, xrzw, zwjb, zjbm, zwbm, xzzw, zwlb, srny, kjnx, xrzwbz, jsbz, linked_award_id, bbz)
+                VALUES (:dwbm, :grbm, :currentPositionCode, :currentPosition, :positionLevel, :rankCode, :positionCode, :positionName, :positionChangeReason, :startYearMonth, :intervalYears, :activeFlag, :promotionFlag, :linkedAwardId, :approvalStatus)
                 """, positionParameters(key, request));
         int id = lastInsertId();
         markAppCreated("dryzwbh", id);
@@ -1537,8 +1873,9 @@ public class PersonnelRepository {
         jdbcTemplate.update("""
                 UPDATE dryzwbh
                 SET xrzwbm = :currentPositionCode, xrzw = :currentPosition, zwjb = :positionLevel, zjbm = :rankCode,
-                    zwbm = :positionCode, xzzw = :positionName, srny = :startYearMonth,
-                    kjnx = :intervalYears, xrzwbz = :activeFlag, jsbz = :promotionFlag
+                    zwbm = :positionCode, xzzw = :positionName, zwlb = :positionChangeReason,
+                    srny = :startYearMonth, kjnx = :intervalYears, xrzwbz = :activeFlag, jsbz = :promotionFlag,
+                    linked_award_id = :linkedAwardId
                 WHERE id = :id
                 """, positionParameters(new PersonKey("", ""), request).addValue("id", id));
     }
@@ -1561,8 +1898,8 @@ public class PersonnelRepository {
 
     int createAssessment(PersonKey key, AssessmentMaintenanceRequest request) {
         jdbcTemplate.update("""
-                INSERT INTO dndkh (dwbm, grbm, khnd, khjg)
-                VALUES (:dwbm, :grbm, :year, :result)
+                INSERT INTO dndkh (dwbm, grbm, khnd, khjg, bbz)
+                VALUES (:dwbm, :grbm, :year, :result, :approvalStatus)
                 """, assessmentParameters(key, request));
         int id = lastInsertId();
         markAppCreated("dndkh", id);
@@ -1582,6 +1919,53 @@ public class PersonnelRepository {
         unmarkAppCreated("dndkh", id);
     }
 
+    int createAward(PersonKey key, AwardMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                INSERT INTO hjxx (dwbm, grbm, hjmc, sjdw, jllx, hjsj, tqyjjssj, qtqk, jldc, jljb, bbz)
+                VALUES (:dwbm, :grbm, :hjmc, :sjdw, :jllx, :hjsj, :tqyjjssj, :qtqk, :jldc, :jljb, :approvalStatus)
+                """, awardParameters(key, request));
+        int id = lastInsertId();
+        markAppCreated("hjxx", id);
+        return id;
+    }
+
+    void updateAward(int id, AwardMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                UPDATE hjxx
+                SET hjmc = :hjmc, sjdw = :sjdw, jllx = :jllx, hjsj = :hjsj,
+                    tqyjjssj = :tqyjjssj, qtqk = :qtqk, jldc = :jldc, jljb = :jljb
+                WHERE id = :id
+                """, awardParameters(new PersonKey("", ""), request).addValue("id", id));
+    }
+
+    void deleteAward(int id) {
+        jdbcTemplate.update("DELETE FROM hjxx WHERE id = :id", new MapSqlParameterSource("id", id));
+        unmarkAppCreated("hjxx", id);
+    }
+
+    int createRank(PersonKey key, RankMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                INSERT INTO jx (dwbm, grbm, jx, sysj, syyy, rmwh, xrjxbz, lb, bbz)
+                VALUES (:dwbm, :grbm, :jx, :sysj, :syyy, :rmwh, :xrjxbz, :lb, :approvalStatus)
+                """, rankParameters(key, request));
+        int id = lastInsertId();
+        markAppCreated("jx", id);
+        return id;
+    }
+
+    void updateRank(int id, RankMaintenanceRequest request) {
+        jdbcTemplate.update("""
+                UPDATE jx
+                SET jx = :jx, sysj = :sysj, syyy = :syyy, rmwh = :rmwh, xrjxbz = :xrjxbz, lb = :lb
+                WHERE id = :id
+                """, rankParameters(new PersonKey("", ""), request).addValue("id", id));
+    }
+
+    void deleteRank(int id) {
+        jdbcTemplate.update("DELETE FROM jx WHERE id = :id", new MapSqlParameterSource("id", id));
+        unmarkAppCreated("jx", id);
+    }
+
     List<BatchAssessmentEntryRow> findBatchAssessmentEntries(
             OrganizationScope organizationScope,
             String organizationCode,
@@ -1594,7 +1978,8 @@ public class PersonnelRepository {
         MapSqlParameterSource params = batchAssessmentParameters(organizationScope, organizationCode, year, keyword, includeDescendants);
         List<BatchAssessmentEntryRow> rows = jdbcTemplate.query("""
                 SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.ryfl, p.dwsx, p.xrzw,
-                       :year AS khnd, a.id AS assessment_id, a.khjg AS assessment_result
+                       dw.dwbz AS org_dwbz, dw.gzczbz AS org_gzczbz,
+                       :year AS khnd, a.id AS assessment_id, a.khjg AS assessment_result, a.bbz AS assessment_approval_status
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 LEFT JOIN dndkh a ON a.dwbm = p.dwbm AND a.grbm = p.grbm AND a.khnd = :year
@@ -1603,28 +1988,35 @@ public class PersonnelRepository {
                   AND (%s)
                   AND (:keyword IS NULL OR p.xm LIKE :keywordLike OR p.grbm LIKE :keywordLike OR p.sfzh LIKE :keywordLike)
                 ORDER BY p.dwbm, p.grbm
-                """.formatted(batchOrganizationFilterSql(includeDescendants), batchAssessmentWorkStartedFilterSql()), params, BATCH_ASSESSMENT_ENTRY_MAPPER);
-        return rows.stream()
-                .map(row -> new BatchAssessmentEntryRow(
-                        row.uid(),
-                        row.organizationCode(),
-                        row.organizationName(),
-                        row.personCode(),
-                        row.name(),
-                        row.personnelCategory(),
-                        row.organizationType(),
-                        row.currentPosition(),
-                        row.year(),
-                        row.assessmentId(),
-                        row.result(),
-                        defaultAssessmentResultText(row.personnelCategory(), row.organizationType())))
-                .toList();
+                """.formatted(batchOrganizationFilterSql(includeDescendants), batchAssessmentWorkStartedFilterSql()), params, (rs, rowNum) -> {
+            BatchAssessmentEntryRow row = BATCH_ASSESSMENT_ENTRY_MAPPER.mapRow(rs, rowNum);
+            String defaultResult = defaultAssessmentResultText(
+                    row.personnelCategory(),
+                    row.organizationType(),
+                    SqlText.trim(rs.getString("org_dwbz")),
+                    SqlText.trim(rs.getString("org_gzczbz")));
+            return new BatchAssessmentEntryRow(
+                    row.uid(),
+                    row.organizationCode(),
+                    row.organizationName(),
+                    row.personCode(),
+                    row.name(),
+                    row.personnelCategory(),
+                    row.organizationType(),
+                    row.currentPosition(),
+                    row.year(),
+                    row.assessmentId(),
+                    row.result(),
+                    row.approvalStatus(),
+                    defaultResult);
+        });
+        return rows;
     }
 
     Optional<PersonnelSummary> findPersonnelSummary(PersonKey key) {
         return jdbcTemplate.query("""
                 SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.sfzh, p.xb, p.csny,
-                       p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm, h.zwgw2
+                       p.ryfl, p.dwsx, p.gwfl, p.xrzw, p.zjbm, h.zwbm2, h.zwgw2, p.bbz
                 FROM dryjbxx p
                 LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
                 LEFT JOIN hisbase h ON h.id = (
@@ -1811,7 +2203,8 @@ public class PersonnelRepository {
                 .addValue("graduationDate", valueOrBlank(request.graduationDate()))
                 .addValue("studyYears", request.studyYears() == null ? 0 : request.studyYears())
                 .addValue("educationType", valueOrBlank(request.educationType()))
-                .addValue("remark", valueOrBlank(request.remark()));
+                .addValue("remark", valueOrBlank(request.remark()))
+                .addValue("approvalStatus", PersonnelSubrecordEditPolicy.defaultApprovalStatus());
     }
 
     private MapSqlParameterSource positionParameters(PersonKey key, PositionMaintenanceRequest request) {
@@ -1827,7 +2220,10 @@ public class PersonnelRepository {
                 .addValue("startYearMonth", valueOrBlank(request.startYearMonth()))
                 .addValue("intervalYears", request.intervalYears() == null ? 0 : request.intervalYears())
                 .addValue("activeFlag", valueOrBlank(request.activeFlag()))
-                .addValue("promotionFlag", valueOrBlank(request.promotionFlag()));
+                .addValue("promotionFlag", valueOrBlank(request.promotionFlag()))
+                .addValue("positionChangeReason", valueOrBlank(request.positionChangeReason()))
+                .addValue("linkedAwardId", request.linkedAwardId())
+                .addValue("approvalStatus", PersonnelSubrecordEditPolicy.defaultApprovalStatus());
     }
 
     private MapSqlParameterSource assessmentParameters(PersonKey key, AssessmentMaintenanceRequest request) {
@@ -1835,7 +2231,36 @@ public class PersonnelRepository {
                 .addValue("dwbm", key.organizationCode())
                 .addValue("grbm", key.personCode())
                 .addValue("year", valueOrBlank(request.year()))
-                .addValue("result", valueOrBlank(request.result()));
+                .addValue("result", valueOrBlank(request.result()))
+                .addValue("approvalStatus", PersonnelSubrecordEditPolicy.defaultApprovalStatus());
+    }
+
+    private MapSqlParameterSource awardParameters(PersonKey key, AwardMaintenanceRequest request) {
+        return new MapSqlParameterSource()
+                .addValue("dwbm", key.organizationCode())
+                .addValue("grbm", key.personCode())
+                .addValue("hjmc", valueOrBlank(request.hjmc()))
+                .addValue("sjdw", valueOrBlank(request.sjdw()))
+                .addValue("jllx", valueOrBlank(request.jllx()))
+                .addValue("hjsj", valueOrBlank(request.hjsj()))
+                .addValue("tqyjjssj", valueOrBlank(request.tqyjjssj()))
+                .addValue("qtqk", valueOrBlank(request.qtqk()))
+                .addValue("jldc", request.jldc() == null ? 0 : request.jldc())
+                .addValue("jljb", request.jljb() == null ? 0 : request.jljb())
+                .addValue("approvalStatus", PersonnelSubrecordEditPolicy.defaultApprovalStatus());
+    }
+
+    private MapSqlParameterSource rankParameters(PersonKey key, RankMaintenanceRequest request) {
+        return new MapSqlParameterSource()
+                .addValue("dwbm", key.organizationCode())
+                .addValue("grbm", key.personCode())
+                .addValue("jx", valueOrBlank(request.jx()))
+                .addValue("sysj", valueOrBlank(request.sysj()))
+                .addValue("syyy", valueOrBlank(request.syyy()))
+                .addValue("rmwh", valueOrBlank(request.rmwh()))
+                .addValue("xrjxbz", request.xrjxbz() == null ? 0 : request.xrjxbz())
+                .addValue("lb", valueOrBlank(request.lb()))
+                .addValue("approvalStatus", PersonnelSubrecordEditPolicy.defaultApprovalStatus());
     }
 
     private int lastInsertId() {
@@ -1855,6 +2280,25 @@ public class PersonnelRepository {
             }
         }
         return 0;
+    }
+
+    private static Integer readOptionalInteger(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+        Object value = rs.getObject(column);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        String text = value.toString().trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private void markAppCreated(String tableName, Object recordId) {
@@ -1961,8 +2405,17 @@ public class PersonnelRepository {
                 """;
     }
 
+    private String defaultAssessmentResultText(
+            String personnelCategory,
+            String organizationType,
+            String organizationCategory,
+            String organizationPayrollCategory) {
+        return PersonnelService.defaultAssessmentResultText(
+                personnelCategory, organizationType, organizationCategory, organizationPayrollCategory);
+    }
+
     private String defaultAssessmentResultText(String personnelCategory, String organizationType) {
-        return PersonnelService.defaultAssessmentResultText(personnelCategory, organizationType);
+        return defaultAssessmentResultText(personnelCategory, organizationType, null, null);
     }
 
     private MapSqlParameterSource assessmentSummaryParameters(
@@ -2054,13 +2507,16 @@ public class PersonnelRepository {
         List<TableColumn> sourceColumns = tableColumns(sourceTable);
         List<TableColumn> targetColumns = tableColumns(targetTable);
         Map<String, TableColumn> sourceByName = sourceColumns.stream()
-                .collect(java.util.stream.Collectors.toMap(TableColumn::name, column -> column));
+                .collect(java.util.stream.Collectors.toMap(
+                        column -> column.name().toLowerCase(Locale.ROOT),
+                        column -> column,
+                        (left, right) -> left));
         List<TableColumn> commonColumns = new ArrayList<>();
         for (TableColumn targetColumn : targetColumns) {
             if (excludedColumn != null && targetColumn.name().equalsIgnoreCase(excludedColumn)) {
                 continue;
             }
-            if (sourceByName.containsKey(targetColumn.name())) {
+            if (sourceByName.containsKey(targetColumn.name().toLowerCase(Locale.ROOT))) {
                 commonColumns.add(targetColumn);
             }
         }
@@ -2071,7 +2527,9 @@ public class PersonnelRepository {
                 .map(column -> quote(column.name()))
                 .collect(java.util.stream.Collectors.joining(", "));
         String sourceColumnSql = commonColumns.stream()
-                .map(column -> sourceExpression(sourceAlias, column))
+                .map(column -> sourceExpression(
+                        sourceAlias,
+                        sourceByName.get(column.name().toLowerCase(Locale.ROOT))))
                 .collect(java.util.stream.Collectors.joining(", "));
         jdbcTemplate.update("""
                 INSERT INTO %s (%s)
@@ -2136,7 +2594,8 @@ public class PersonnelRepository {
         Integer count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                 FROM information_schema.tables
-                WHERE table_schema = DATABASE() AND table_name = :tableName
+                WHERE LOWER(table_schema) = LOWER(COALESCE(SCHEMA(), DATABASE()))
+                  AND LOWER(table_name) = LOWER(:tableName)
                 """, new MapSqlParameterSource("tableName", tableName), Integer.class);
         return count != null && count > 0;
     }
@@ -2145,7 +2604,8 @@ public class PersonnelRepository {
         return jdbcTemplate.query("""
                 SELECT column_name, data_type
                 FROM information_schema.columns
-                WHERE table_schema = DATABASE() AND table_name = :tableName
+                WHERE LOWER(table_schema) = LOWER(COALESCE(SCHEMA(), DATABASE()))
+                  AND LOWER(table_name) = LOWER(:tableName)
                 ORDER BY ordinal_position
                 """, new MapSqlParameterSource("tableName", tableName), (rs, rowNum) -> new TableColumn(
                 rs.getString("column_name"),
@@ -2157,7 +2617,16 @@ public class PersonnelRepository {
         if (numericType(column.dataType())) {
             return "COALESCE(" + source + ", 0)";
         }
+        if (temporalType(column.dataType())) {
+            return "CASE WHEN " + source + " IS NULL OR TRIM(CAST(" + source + " AS CHAR)) = '' THEN NULL ELSE "
+                    + source + " END";
+        }
         return "COALESCE(" + source + ", '')";
+    }
+
+    private boolean temporalType(String dataType) {
+        String type = String.valueOf(dataType).toLowerCase(Locale.ROOT);
+        return type.contains("timestamp") || type.contains("datetime") || "date".equals(type) || "time".equals(type);
     }
 
     private boolean numericType(String dataType) {
@@ -2197,5 +2666,643 @@ public class PersonnelRepository {
 
     private String emptyToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String normalizeSubrecordApproval(String value) {
+        String normalized = SqlText.trim(value);
+        return normalized == null || normalized.isBlank()
+                ? PersonnelSubrecordEditPolicy.defaultApprovalStatus()
+                : normalized;
+    }
+
+    private static LocalDateTime readTimestamp(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+        java.sql.Timestamp timestamp = rs.getTimestamp(column);
+        return timestamp == null ? null : timestamp.toLocalDateTime();
+    }
+
+    private static ApprovalActorFields readApprovalActorFields(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new ApprovalActorFields(
+                SqlText.trim(rs.getString("tjr")),
+                readTimestamp(rs, "tjsj"),
+                SqlText.trim(rs.getString("shr")),
+                readTimestamp(rs, "shsj"));
+    }
+
+    private static final List<String> AUDIT_SUBMIT_ACTIONS = List.of(
+            "PERSONNEL_APPROVAL_SUBMIT",
+            "PERSONNEL_SUBRECORD_SUBMIT");
+    private static final List<String> AUDIT_APPROVE_ACTIONS = List.of(
+            "PERSONNEL_APPROVE",
+            "PERSONNEL_SUBRECORD_APPROVE");
+
+    private static final RowMapper<PersonnelApprovalTrackingRecord> APPROVAL_TRACKING_BASE_MAPPER = (rs, rowNum) -> {
+        ApprovalActorFields actors = readApprovalActorFields(rs);
+        return new PersonnelApprovalTrackingRecord(
+                rs.getInt("uid"),
+                SqlText.trim(rs.getString("record_type")),
+                rs.getInt("record_id"),
+                SqlText.trim(rs.getString("dwbm")),
+                SqlText.trim(rs.getString("dwmc")),
+                SqlText.trim(rs.getString("grbm")),
+                SqlText.trim(rs.getString("xm")),
+                SqlText.trim(rs.getString("summary")),
+                SqlText.trim(rs.getString("position_name")),
+                SqlText.trim(rs.getString("effective_year_month")),
+                rs.getInt("attachment_count"),
+                SqlText.trim(rs.getString("approval_status")),
+                SqlText.trim(rs.getString("audit_target_type")),
+                SqlText.trim(rs.getString("audit_target_id")),
+                actors.submittedBy(),
+                actors.submittedAt(),
+                actors.approvedBy(),
+                actors.approvedAt());
+    };
+
+    private static RowMapper<PersonnelApprovalTrackingRecord> approvalTrackingAuditMapper(boolean approvedFields) {
+        return (rs, rowNum) -> {
+            java.sql.Timestamp auditMoment = rs.getTimestamp("audit_moment");
+            LocalDateTime moment = auditMoment == null ? null : auditMoment.toLocalDateTime();
+            String actor = SqlText.trim(rs.getString("audit_actor"));
+            return new PersonnelApprovalTrackingRecord(
+                    rs.getInt("uid"),
+                    SqlText.trim(rs.getString("record_type")),
+                    rs.getInt("record_id"),
+                    SqlText.trim(rs.getString("dwbm")),
+                    SqlText.trim(rs.getString("dwmc")),
+                    SqlText.trim(rs.getString("grbm")),
+                    SqlText.trim(rs.getString("xm")),
+                    SqlText.trim(rs.getString("summary")),
+                    SqlText.trim(rs.getString("position_name")),
+                    SqlText.trim(rs.getString("effective_year_month")),
+                    rs.getInt("attachment_count"),
+                    SqlText.trim(rs.getString("approval_status")),
+                    SqlText.trim(rs.getString("audit_target_type")),
+                    SqlText.trim(rs.getString("audit_target_id")),
+                    approvedFields ? null : actor,
+                    approvedFields ? null : moment,
+                    approvedFields ? actor : null,
+                    approvedFields ? moment : null);
+        };
+    }
+
+    List<PersonnelApprovalTrackingRecord> findApprovalTracking(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String approvalStatus,
+            boolean submittedByMe,
+            String submittedByUsername,
+            Integer approvedWithinDays,
+            String recordType,
+            String assessmentYear,
+            PageRequest pageRequest) {
+        if (organizationScope.noneScope()) {
+            return List.of();
+        }
+        MapSqlParameterSource params = approvalTrackingParameters(
+                organizationScope,
+                organizationCode,
+                keyword,
+                approvalStatus,
+                submittedByMe,
+                submittedByUsername,
+                approvedWithinDays,
+                recordType,
+                assessmentYear)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                SELECT uid, record_type, record_id, dwbm, dwmc, grbm, xm, summary,
+                       position_name, effective_year_month, attachment_count,
+                       approval_status, audit_target_type, audit_target_id,
+                       tjr, tjsj, shr, shsj
+                FROM (%s) tracking
+                WHERE %s
+                %s
+                LIMIT :limit OFFSET :offset
+                """.formatted(
+                approvalTrackingUnionSql(),
+                approvalTrackingOuterFilterSql(),
+                approvalTrackingStatusUnionOrderBySql(approvalStatus)),
+                params,
+                APPROVAL_TRACKING_BASE_MAPPER);
+    }
+
+    long countApprovalTracking(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String approvalStatus,
+            boolean submittedByMe,
+            String submittedByUsername,
+            Integer approvedWithinDays,
+            String recordType,
+            String assessmentYear) {
+        if (organizationScope.noneScope()) {
+            return 0;
+        }
+        MapSqlParameterSource params = approvalTrackingParameters(
+                organizationScope,
+                organizationCode,
+                keyword,
+                approvalStatus,
+                submittedByMe,
+                submittedByUsername,
+                approvedWithinDays,
+                recordType,
+                assessmentYear);
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM (%s) tracking
+                WHERE %s
+                """.formatted(approvalTrackingUnionSql(), approvalTrackingOuterFilterSql()), params, Long.class);
+        return count == null ? 0 : count;
+    }
+
+    Optional<AssessmentApprovalStats> findAssessmentApprovalStats(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String year,
+            boolean includeDescendants) {
+        if (organizationScope.noneScope() || emptyToNull(year) == null) {
+            return Optional.empty();
+        }
+        MapSqlParameterSource params = assessmentSummaryParameters(
+                organizationScope, organizationCode, year, null, includeDescendants);
+        List<AssessmentResultAggregateRow> rows = jdbcTemplate.query("""
+                SELECT TRIM(a.khjg) AS khjg, TRIM(COALESCE(a.bbz, '')) AS bbz, COUNT(*) AS cnt
+                FROM dndkh a
+                WHERE (:allOrganizations = TRUE OR a.dwbm IN (:organizationCodes))
+                  AND (%s)
+                  AND a.khnd = :year
+                  AND TRIM(COALESCE(a.khjg, '')) <> ''
+                GROUP BY TRIM(a.khjg), TRIM(COALESCE(a.bbz, ''))
+                """.formatted(summaryOrganizationFilterSql(includeDescendants)),
+                params,
+                (rs, rowNum) -> new AssessmentResultAggregateRow(
+                        SqlText.trim(rs.getString("khjg")),
+                        SqlText.trim(rs.getString("bbz")),
+                        rs.getInt("cnt")));
+        if (rows.isEmpty()) {
+            String orgCode = SqlText.trim(organizationCode);
+            String orgName = orgCode == null || orgCode.isBlank()
+                    ? ""
+                    : jdbcTemplate.query("""
+                            SELECT dwmc FROM dwbm WHERE dwbm = :code LIMIT 1
+                            """,
+                            new MapSqlParameterSource("code", orgCode),
+                            (rs, rowNum) -> SqlText.trim(rs.getString("dwmc"))).stream().findFirst().orElse("");
+            return Optional.of(new AssessmentApprovalStats(
+                    orgCode == null ? "" : orgCode,
+                    orgName,
+                    year,
+                    0,
+                    0,
+                    java.math.BigDecimal.ZERO,
+                    0,
+                    0,
+                    0,
+                    0,
+                    List.of()));
+        }
+        java.util.Map<String, Integer> resultCounts = new java.util.LinkedHashMap<>();
+        int participantCount = 0;
+        int excellentCount = 0;
+        int pendingCount = 0;
+        int pendingExcellentCount = 0;
+        int approvedCount = 0;
+        int approvedExcellentCount = 0;
+        for (AssessmentResultAggregateRow row : rows) {
+            resultCounts.merge(row.result(), row.count(), Integer::sum);
+            participantCount += row.count();
+            if ("优秀".equals(row.result())) {
+                excellentCount += row.count();
+            }
+            if (PersonnelApprovalStatuses.SUBMITTED.equals(row.approvalStatus())) {
+                pendingCount += row.count();
+                if ("优秀".equals(row.result())) {
+                    pendingExcellentCount += row.count();
+                }
+            }
+            if (PersonnelApprovalStatuses.APPROVED.equals(row.approvalStatus())) {
+                approvedCount += row.count();
+                if ("优秀".equals(row.result())) {
+                    approvedExcellentCount += row.count();
+                }
+            }
+        }
+        java.math.BigDecimal excellentRatio = participantCount == 0
+                ? java.math.BigDecimal.ZERO
+                : java.math.BigDecimal.valueOf(excellentCount)
+                        .multiply(java.math.BigDecimal.valueOf(100))
+                        .divide(java.math.BigDecimal.valueOf(participantCount), 1, java.math.RoundingMode.HALF_UP);
+        String orgCode = SqlText.trim(organizationCode);
+        String orgName = "";
+        if (orgCode != null && !orgCode.isBlank()) {
+            orgName = jdbcTemplate.query("""
+                    SELECT dwmc FROM dwbm WHERE dwbm = :code LIMIT 1
+                    """,
+                    new MapSqlParameterSource("code", orgCode),
+                    (rs, rowNum) -> SqlText.trim(rs.getString("dwmc"))).stream().findFirst().orElse("");
+        }
+        List<AssessmentResultCountItem> counts = resultCounts.entrySet().stream()
+                .map(entry -> new AssessmentResultCountItem(entry.getKey(), entry.getValue()))
+                .sorted(java.util.Comparator.comparing(AssessmentResultCountItem::result))
+                .toList();
+        return Optional.of(new AssessmentApprovalStats(
+                orgCode == null ? "" : orgCode,
+                orgName,
+                year,
+                participantCount,
+                excellentCount,
+                excellentRatio,
+                pendingCount,
+                pendingExcellentCount,
+                approvedCount,
+                approvedExcellentCount,
+                counts));
+    }
+
+    private record AssessmentResultAggregateRow(String result, String approvalStatus, int count) {
+    }
+
+    private boolean shouldUseAuditDrivenApprovalTracking(
+            String approvalStatus,
+            boolean submittedByMe,
+            Integer approvedWithinDays) {
+        if (submittedByMe) {
+            return true;
+        }
+        return PersonnelApprovalStatuses.APPROVED.equals(approvalStatus)
+                && approvedWithinDays != null
+                && approvedWithinDays > 0;
+    }
+
+    private List<PersonnelApprovalTrackingRecord> findApprovalTrackingAuditDriven(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String approvalStatus,
+            boolean submittedByMe,
+            String submittedByUsername,
+            Integer approvedWithinDays,
+            PageRequest pageRequest) {
+        boolean approvedFields = !submittedByMe;
+        MapSqlParameterSource params = approvalTrackingAuditParameters(
+                organizationScope,
+                organizationCode,
+                keyword,
+                approvalStatus,
+                submittedByMe,
+                submittedByUsername,
+                approvedWithinDays)
+                .addValue("limit", pageRequest.size())
+                .addValue("offset", pageRequest.offset());
+        return jdbcTemplate.query("""
+                %s
+                SELECT uid, record_type, record_id, dwbm, dwmc, grbm, xm, summary,
+                       approval_status, audit_target_type, audit_target_id,
+                       audit_actor, audit_moment
+                FROM (%s) tracking
+                WHERE %s
+                ORDER BY audit_moment DESC, dwbm, grbm, record_type, record_id
+                LIMIT :limit OFFSET :offset
+                """.formatted(
+                approvalTrackingAuditLatestCteSql(),
+                approvalTrackingAuditDrivenUnionSql(),
+                approvalTrackingAuditDrivenFilterSql()),
+                params,
+                approvalTrackingAuditMapper(approvedFields));
+    }
+
+    private long countApprovalTrackingAuditDriven(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String approvalStatus,
+            boolean submittedByMe,
+            String submittedByUsername,
+            Integer approvedWithinDays) {
+        MapSqlParameterSource params = approvalTrackingAuditParameters(
+                organizationScope,
+                organizationCode,
+                keyword,
+                approvalStatus,
+                submittedByMe,
+                submittedByUsername,
+                approvedWithinDays);
+        Long count = jdbcTemplate.queryForObject("""
+                %s
+                SELECT COUNT(*)
+                FROM (%s) tracking
+                WHERE %s
+                """.formatted(
+                approvalTrackingAuditLatestCteSql(),
+                approvalTrackingAuditDrivenUnionSql(),
+                approvalTrackingAuditDrivenFilterSql()),
+                params,
+                Long.class);
+        return count == null ? 0 : count;
+    }
+
+    private String approvalTrackingAuditLatestCteSql() {
+        return """
+                WITH audit_latest AS (
+                    SELECT al.target_type, al.target_id, al.actor_username, al.created_at
+                    FROM app_security_audit_log al
+                    INNER JOIN (
+                        SELECT target_type, target_id, MAX(id) AS max_id
+                        FROM app_security_audit_log
+                        WHERE action IN (:auditActions)
+                          AND (:auditActor IS NULL OR actor_username = :auditActor)
+                          AND (:approvedSince IS NULL OR created_at >= :approvedSince)
+                        GROUP BY target_type, target_id
+                    ) pick ON al.id = pick.max_id
+                )
+                """;
+    }
+
+    private String approvalTrackingAuditDrivenUnionSql() {
+        String orgFilter = organizationDescendantFilter("p");
+        String statusFilter = "%s.bbz = :approvalStatus";
+        return """
+                SELECT p.uid AS uid, 'main' AS record_type, p.uid AS record_id,
+                       p.dwbm, dw.dwmc, p.grbm, p.xm, '主表基本信息' AS summary,
+                       TRIM(COALESCE(p.bbz, '')) AS approval_status,
+                       al.target_type AS audit_target_type, al.target_id AS audit_target_id,
+                       al.actor_username AS audit_actor, al.created_at AS audit_moment
+                FROM audit_latest al
+                JOIN dryjbxx p ON al.target_type = 'personnel' AND al.target_id = CAST(p.uid AS CHAR)
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE %s AND (%s)
+                UNION ALL
+                SELECT p.uid, 'education', e.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(CONCAT(COALESCE(e.xl, ''), CASE WHEN TRIM(COALESCE(e.byyx, '')) <> ''
+                            THEN CONCAT(' / ', e.byyx) ELSE '' END)) AS summary,
+                       TRIM(COALESCE(e.bbz, '')) AS approval_status,
+                       al.target_type, al.target_id, al.actor_username, al.created_at
+                FROM audit_latest al
+                JOIN dxl e ON al.target_type = 'dxl' AND al.target_id = CAST(e.id AS CHAR)
+                JOIN dryjbxx p ON p.dwbm = e.dwbm AND p.grbm = e.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE %s AND (%s)
+                UNION ALL
+                SELECT p.uid, 'position', z.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(COALESCE(NULLIF(TRIM(z.xzzw), ''), z.xrzw, '')) AS summary,
+                       TRIM(COALESCE(z.bbz, '')) AS approval_status,
+                       al.target_type, al.target_id, al.actor_username, al.created_at
+                FROM audit_latest al
+                JOIN dryzwbh z ON al.target_type = 'dryzwbh' AND al.target_id = CAST(z.id AS CHAR)
+                JOIN dryjbxx p ON p.dwbm = z.dwbm AND p.grbm = z.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE %s AND (%s)
+                UNION ALL
+                SELECT p.uid, 'assessment', a.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(CONCAT(COALESCE(a.khnd, ''), CASE WHEN TRIM(COALESCE(a.khjg, '')) <> ''
+                            THEN CONCAT(' - ', a.khjg) ELSE '' END)) AS summary,
+                       TRIM(COALESCE(a.bbz, a.tjr, a.tjsj, a.shr, a.shsj, '')) AS approval_status,
+                       al.target_type, al.target_id, al.actor_username, al.created_at
+                FROM audit_latest al
+                JOIN dndkh a ON al.target_type = 'dndkh' AND al.target_id = CAST(a.id AS CHAR)
+                JOIN dryjbxx p ON p.dwbm = a.dwbm AND p.grbm = a.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE %s AND (%s)
+                UNION ALL
+                SELECT p.uid, 'award', aw.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(COALESCE(aw.hjmc, '')) AS summary,
+                       TRIM(COALESCE(aw.bbz, '')) AS approval_status,
+                       al.target_type, al.target_id, al.actor_username, al.created_at
+                FROM audit_latest al
+                JOIN hjxx aw ON al.target_type = 'hjxx' AND al.target_id = CAST(aw.id AS CHAR)
+                JOIN dryjbxx p ON p.dwbm = aw.dwbm AND p.grbm = aw.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE %s AND (%s)
+                UNION ALL
+                SELECT p.uid, 'rank', r.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(COALESCE(r.jx, '')) AS summary,
+                       TRIM(COALESCE(r.bbz, '')) AS approval_status,
+                       al.target_type, al.target_id, al.actor_username, al.created_at
+                FROM audit_latest al
+                JOIN jx r ON al.target_type = 'jx' AND al.target_id = CAST(r.id AS CHAR)
+                JOIN dryjbxx p ON p.dwbm = r.dwbm AND p.grbm = r.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE %s AND (%s)
+                """.formatted(
+                statusFilter.formatted("p"), orgFilter,
+                statusFilter.formatted("e"), orgFilter,
+                statusFilter.formatted("z"), orgFilter,
+                statusFilter.formatted("a"), orgFilter,
+                statusFilter.formatted("aw"), orgFilter,
+                statusFilter.formatted("r"), orgFilter);
+    }
+
+    private String approvalTrackingKeywordFilterSql() {
+        return """
+                (:keyword IS NULL OR grbm LIKE :keywordLike OR xm LIKE :keywordLike
+                       OR summary LIKE :keywordLike OR position_name LIKE :keywordLike
+                       OR dwmc LIKE :keywordLike OR dwbm LIKE :keywordLike
+                       OR CONCAT(dwbm, '-', grbm) LIKE :keywordLike
+                       OR CONCAT(dwbm, grbm) LIKE :keywordLike)
+                """;
+    }
+
+    private String approvalTrackingSubmittedByMeFilterSql() {
+        return """
+                  AND (:submittedByMe = FALSE OR EXISTS (
+                        SELECT 1 FROM app_security_audit_log sub
+                        WHERE sub.target_type = tracking.audit_target_type
+                          AND sub.target_id = tracking.audit_target_id
+                          AND sub.action IN ('PERSONNEL_APPROVAL_SUBMIT', 'PERSONNEL_SUBRECORD_SUBMIT')
+                          AND sub.actor_username = :submittedByUsername))
+                """;
+    }
+
+    private String approvalTrackingAuditDrivenFilterSql() {
+        return approvalTrackingKeywordFilterSql() + approvalTrackingSubmittedByMeFilterSql();
+    }
+
+    private String approvalTrackingOuterFilterSql() {
+        return approvalTrackingKeywordFilterSql() + """
+                  AND (:submittedByMe = FALSE OR tjr = :submittedByUsername)
+                  AND (:approvedSince IS NULL
+                       OR :approvalStatus <> '审批通过'
+                       OR shsj >= :approvedSince)
+                  AND (:recordType IS NULL OR record_type = :recordType)
+                  AND (:assessmentYear IS NULL
+                       OR record_type <> 'assessment'
+                       OR TRIM(effective_year_month) = :assessmentYear)
+                """;
+    }
+
+    private String approvalTrackingStatusUnionFilterSql() {
+        return approvalTrackingOuterFilterSql();
+    }
+
+    private String approvalTrackingStatusUnionOrderBySql(String approvalStatus) {
+        if (PersonnelApprovalStatuses.APPROVED.equals(approvalStatus)) {
+            return "ORDER BY COALESCE(shsj, '1970-01-01 00:00:00') DESC, dwbm, grbm, record_type, record_id";
+        }
+        return "ORDER BY COALESCE(tjsj, '1970-01-01 00:00:00') DESC, dwbm, grbm, record_type, record_id";
+    }
+
+    private MapSqlParameterSource approvalTrackingAuditParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String approvalStatus,
+            boolean submittedByMe,
+            String submittedByUsername,
+            Integer approvedWithinDays) {
+        MapSqlParameterSource base = approvalTrackingParameters(
+                organizationScope,
+                organizationCode,
+                keyword,
+                approvalStatus,
+                submittedByMe,
+                submittedByUsername,
+                approvedWithinDays,
+                null,
+                null);
+        List<String> auditActions = submittedByMe ? AUDIT_SUBMIT_ACTIONS : AUDIT_APPROVE_ACTIONS;
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", base.getValue("allOrganizations"))
+                .addValue("organizationCodes", base.getValue("organizationCodes"))
+                .addValue("organizationFilter", base.getValue("organizationFilter"))
+                .addValue("organizationCodePrefixLike", base.getValue("organizationCodePrefixLike"))
+                .addValue("keyword", base.getValue("keyword"))
+                .addValue("keywordLike", base.getValue("keywordLike"))
+                .addValue("approvalStatus", base.getValue("approvalStatus"))
+                .addValue("submittedByMe", submittedByMe)
+                .addValue("submittedByUsername", base.getValue("submittedByUsername"))
+                .addValue("auditActions", auditActions)
+                .addValue("auditActor", submittedByMe ? base.getValue("submittedByUsername") : null)
+                .addValue("approvedSince", submittedByMe ? null : base.getValue("approvedSince"));
+    }
+
+    private String approvalTrackingUnionSql() {
+        String orgFilter = organizationDescendantFilter("p");
+        String statusFilter = "%s.bbz = :approvalStatus";
+        String actorColumns = "%s.tjr, %s.tjsj, %s.shr, %s.shsj";
+        return """
+                SELECT p.uid AS uid, 'main' AS record_type, p.uid AS record_id,
+                       p.dwbm, dw.dwmc, p.grbm, p.xm, '主表基本信息' AS summary,
+                       '' AS position_name, '' AS effective_year_month, (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'dryjbxx' AND att.record_id = p.uid AND att.record_key = '') AS attachment_count,
+                       TRIM(COALESCE(p.bbz, '')) AS approval_status,
+                       'personnel' AS audit_target_type, CAST(p.uid AS CHAR) AS audit_target_id,
+                       p.tjr, p.tjsj, p.shr, p.shsj
+                FROM dryjbxx p
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (%s)
+                  AND %s
+                UNION ALL
+                SELECT p.uid, 'education', e.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(CONCAT(COALESCE(e.xl, ''), CASE WHEN TRIM(COALESCE(e.byyx, '')) <> ''
+                            THEN CONCAT(' / ', e.byyx) ELSE '' END)) AS summary,
+                       '' AS position_name, TRIM(COALESCE(e.bysj, '')) AS effective_year_month, (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'dxl' AND att.record_id = e.id AND att.record_key = '') AS attachment_count,
+                       TRIM(COALESCE(e.bbz, '')) AS approval_status,
+                       'dxl' AS audit_target_type, CAST(e.id AS CHAR) AS audit_target_id,
+                       e.tjr, e.tjsj, e.shr, e.shsj
+                FROM dxl e
+                JOIN dryjbxx p ON p.dwbm = e.dwbm AND p.grbm = e.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (%s)
+                  AND %s
+                UNION ALL
+                SELECT p.uid, 'position', z.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(COALESCE(NULLIF(TRIM(z.xzzw), ''), z.xrzw, '')) AS summary,
+                       TRIM(COALESCE(NULLIF(TRIM(z.xrzw), ''), z.xzzw, '')) AS position_name,
+                       TRIM(COALESCE(z.srny, '')) AS effective_year_month,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'dryzwbh' AND att.record_id = z.id AND att.record_key = '') AS attachment_count,
+                       TRIM(COALESCE(z.bbz, '')) AS approval_status,
+                       'dryzwbh' AS audit_target_type, CAST(z.id AS CHAR) AS audit_target_id,
+                       z.tjr, z.tjsj, z.shr, z.shsj
+                FROM dryzwbh z
+                JOIN dryjbxx p ON p.dwbm = z.dwbm AND p.grbm = z.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (%s)
+                  AND %s
+                UNION ALL
+                SELECT p.uid, 'assessment', a.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(CONCAT(COALESCE(a.khnd, ''), CASE WHEN TRIM(COALESCE(a.khjg, '')) <> ''
+                            THEN CONCAT(' - ', a.khjg) ELSE '' END)) AS summary,
+                       '' AS position_name, TRIM(COALESCE(a.khnd, '')) AS effective_year_month, (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'dndkh' AND att.record_id = a.id AND att.record_key = '') AS attachment_count,
+                       TRIM(COALESCE(a.bbz, '')) AS approval_status,
+                       'dndkh' AS audit_target_type, CAST(a.id AS CHAR) AS audit_target_id,
+                       a.tjr, a.tjsj, a.shr, a.shsj
+                FROM dndkh a
+                JOIN dryjbxx p ON p.dwbm = a.dwbm AND p.grbm = a.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (%s)
+                  AND %s
+                UNION ALL
+                SELECT p.uid, 'award', aw.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(COALESCE(aw.hjmc, '')) AS summary,
+                       '' AS position_name, TRIM(COALESCE(aw.hjsj, '')) AS effective_year_month, (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'hjxx' AND att.record_id = aw.id AND att.record_key = '') AS attachment_count,
+                       TRIM(COALESCE(aw.bbz, '')) AS approval_status,
+                       'hjxx' AS audit_target_type, CAST(aw.id AS CHAR) AS audit_target_id,
+                       aw.tjr, aw.tjsj, aw.shr, aw.shsj
+                FROM hjxx aw
+                JOIN dryjbxx p ON p.dwbm = aw.dwbm AND p.grbm = aw.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (%s)
+                  AND %s
+                UNION ALL
+                SELECT p.uid, 'rank', r.id, p.dwbm, dw.dwmc, p.grbm, p.xm,
+                       TRIM(COALESCE(r.jx, '')) AS summary,
+                       '' AS position_name, TRIM(COALESCE(r.sysj, '')) AS effective_year_month, (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'jx' AND att.record_id = r.id AND att.record_key = '') AS attachment_count,
+                       TRIM(COALESCE(r.bbz, '')) AS approval_status,
+                       'jx' AS audit_target_type, CAST(r.id AS CHAR) AS audit_target_id,
+                       r.tjr, r.tjsj, r.shr, r.shsj
+                FROM jx r
+                JOIN dryjbxx p ON p.dwbm = r.dwbm AND p.grbm = r.grbm
+                LEFT JOIN dwbm dw ON dw.dwbm = p.dwbm
+                WHERE (:allOrganizations = TRUE OR p.dwbm IN (:organizationCodes))
+                  AND (%s)
+                  AND %s
+                """.formatted(
+                orgFilter, statusFilter.formatted("p"),
+                orgFilter, statusFilter.formatted("e"),
+                orgFilter, statusFilter.formatted("z"),
+                orgFilter, statusFilter.formatted("a"),
+                orgFilter, statusFilter.formatted("aw"),
+                orgFilter, statusFilter.formatted("r"));
+    }
+
+    private MapSqlParameterSource approvalTrackingParameters(
+            OrganizationScope organizationScope,
+            String organizationCode,
+            String keyword,
+            String approvalStatus,
+            boolean submittedByMe,
+            String submittedByUsername,
+            Integer approvedWithinDays,
+            String recordType,
+            String assessmentYear) {
+        MapSqlParameterSource base = parameters(organizationScope, organizationCode, keyword);
+        return new MapSqlParameterSource()
+                .addValue("allOrganizations", base.getValue("allOrganizations"))
+                .addValue("organizationCodes", base.getValue("organizationCodes"))
+                .addValue("organizationFilter", base.getValue("organizationFilter"))
+                .addValue("organizationCodePrefixLike", base.getValue("organizationCodePrefixLike"))
+                .addValue("keyword", base.getValue("keyword"))
+                .addValue("keywordLike", base.getValue("keywordLike"))
+                .addValue("approvalStatus", approvalStatus)
+                .addValue("submittedByMe", submittedByMe)
+                .addValue("submittedByUsername", submittedByUsername == null ? "" : submittedByUsername.trim())
+                .addValue("approvedSince", resolveApprovedSince(approvedWithinDays))
+                .addValue("recordType", emptyToNull(recordType))
+                .addValue("assessmentYear", emptyToNull(assessmentYear));
+    }
+
+    private static Timestamp resolveApprovedSince(Integer approvedWithinDays) {
+        if (approvedWithinDays == null || approvedWithinDays <= 0) {
+            return null;
+        }
+        return Timestamp.valueOf(LocalDateTime.now().minusDays(approvedWithinDays));
     }
 }

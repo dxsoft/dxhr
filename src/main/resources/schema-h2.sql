@@ -80,6 +80,50 @@ CREATE TABLE IF NOT EXISTS app_record_marker (
     PRIMARY KEY (table_name, record_id, marker)
 );
 
+CREATE TABLE IF NOT EXISTS app_exchange_notification (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    notification_type VARCHAR(40) NOT NULL,
+    direction VARCHAR(20) NOT NULL,
+    audience_scope VARCHAR(20) NOT NULL,
+    source_org_code VARCHAR(9) NULL,
+    target_org_code VARCHAR(9) NULL,
+    organization_code VARCHAR(9) NULL,
+    organization_codes VARCHAR(500) NULL,
+    package_type VARCHAR(20) NULL,
+    batch_id VARCHAR(36) NULL,
+    person_count INT NOT NULL DEFAULT 0,
+    summary VARCHAR(500) NOT NULL,
+    action_tab VARCHAR(40) NULL,
+    status VARCHAR(10) NOT NULL DEFAULT 'UNREAD',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP NULL,
+    read_by VARCHAR(80) NULL,
+    workflow_id BIGINT NULL,
+    person_uid INT NULL,
+    source_id INT NULL,
+    source_type VARCHAR(20) NULL
+);
+
+CREATE TABLE IF NOT EXISTS app_payroll_workflow (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    workflow_no VARCHAR(36) NOT NULL,
+    uid INT NOT NULL,
+    organization_code VARCHAR(9) NOT NULL,
+    person_code VARCHAR(10) NOT NULL,
+    person_name VARCHAR(80) NULL,
+    source_type VARCHAR(20) NOT NULL,
+    source_id INT NULL,
+    payroll_module VARCHAR(40) NOT NULL,
+    expected_jslb VARCHAR(40) NULL,
+    status VARCHAR(20) NOT NULL,
+    personnel_approved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    payroll_completed_at TIMESTAMP NULL,
+    payroll_history_id VARCHAR(20) NULL,
+    created_by VARCHAR(80) NULL,
+    completed_by VARCHAR(80) NULL,
+    summary VARCHAR(500) NOT NULL
+);
+
 -- Core business tables
 CREATE TABLE IF NOT EXISTS dwbm (
     dwbm VARCHAR(9) PRIMARY KEY,
@@ -302,7 +346,8 @@ CREATE TABLE IF NOT EXISTS jx (
     syyy VARCHAR(20),
     rmwh VARCHAR(40),
     xrjxbz TINYINT DEFAULT 0,
-    lb VARCHAR(2)
+    lb VARCHAR(2),
+    bbz CHAR(8) DEFAULT '草稿'
 );
 
 CREATE TABLE IF NOT EXISTS jxjtbz (
@@ -363,7 +408,8 @@ CREATE TABLE IF NOT EXISTS hjxx (
     tqyjjssj VARCHAR(10),
     qtqk VARCHAR(200),
     jldc INTEGER DEFAULT 0,
-    jljb INTEGER DEFAULT 0
+    jljb INTEGER DEFAULT 0,
+    bbz CHAR(8) DEFAULT '草稿'
 );
 
 CREATE TABLE IF NOT EXISTS dmb (

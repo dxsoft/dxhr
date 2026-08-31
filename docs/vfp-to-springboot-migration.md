@@ -333,7 +333,7 @@ src/main/java/com/dxsoft/rsgzgl
 基础绩效/生活性补贴还按 `dwbm.dfbt` 和个人 `jzgb` 发放审批状态执行置零逻辑。
 随后加入 `jhljt.prg` 和 `jsfszwtg2` 提高工资的对账值，并在 `totalComparison` 中用已迁移项目替换旧值后计算合计差额。
 继续加入 `jxjt.prg` 和 `FDGZ06.PRG` 的对账值，覆盖警衔/警务津贴和浮动工资。
-`JJJY2` 奖金结余按旧系统主链口径加入：已有旧值时保留，旧值为 0 时再按 `jjjy06.prg` 规则试算，包含 `cyxx.jjjy` 模式、1993 年前职务和 `bz06_jjjy` 标准表。
+`JJJY2` 奖金结余按旧系统主链口径加入：试算/对账时默认保留 hisbase 旧值；仅当旧值为 0 且 `cyxx.jjjy=1` 时，按 `jjjy06.prg` 规则查 `bz06_jjjy` 试算（含 1993 年前职务）；其它模式旧值为 0 时不自动计算。
 `GWJT2` 岗位津贴已确认不考虑迁移，列入 `excludedComponents`，当前只读对账保留旧值。
 `TGBLBF` 套改/特岗保留按主链规则加入字段级对账：机关人员清零，事业单位人员保留旧值。
 `QTBT/SIDBT/ZWJT/ZFBT/JZMCBT/GWJT2` 作为手工或暂不考虑字段列入 `excludedComponents`，仅保留旧值。

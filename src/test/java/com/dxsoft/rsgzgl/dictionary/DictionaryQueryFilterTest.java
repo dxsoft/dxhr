@@ -8,7 +8,7 @@ class DictionaryQueryFilterTest {
 
     @Test
     void administrativeXrzwExcludesInstitutionPrefixes() {
-        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("xrzw", "行政", "");
+        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("xrzw", "行政", "", "");
         assertThat(spec.treePrefix()).isEqualTo("051");
         assertThat(spec.whereClause())
                 .contains("bm LIKE '051%'")
@@ -17,21 +17,21 @@ class DictionaryQueryFilterTest {
 
     @Test
     void institutionXrzwUsesTechnicalPostSeries() {
-        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("XRZW", "事业", "");
+        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("XRZW", "事业", "", "");
         assertThat(spec.treePrefix()).isEqualTo("001");
         assertThat(spec.whereClause()).contains("bm LIKE '001%'").contains("bm >= '00107'");
     }
 
     @Test
     void administrativeZwjbUsesTwentySixSeries() {
-        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("zwjb", "行政", "");
+        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("zwjb", "行政", "", "");
         assertThat(spec.treePrefix()).isEqualTo("026");
         assertThat(spec.whereClause()).contains("LEFT(bm, 5) <> '02604'");
     }
 
     @Test
     void institutionXzzwUsesInstitutionSalaryPostRange() {
-        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("xzzw", "机关", "");
+        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("xzzw", "机关", "", "");
         assertThat(spec.treePrefix()).isEqualTo("051");
         assertThat(spec.whereClause())
                 .contains("bm >= '05107'")
@@ -40,9 +40,16 @@ class DictionaryQueryFilterTest {
 
     @Test
     void zjdjUsesOrganizationPropertyWhenPresent() {
-        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("ZJDJ", "行政", "01");
+        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("ZJDJ", "行政", "01", "");
         assertThat(spec.treePrefix()).isEqualTo("05801");
         assertThat(spec.whereClause()).contains("bm LIKE '05801%'");
+    }
+
+    @Test
+    void referenceCivilServiceInstitutionUsesAdministrativePositionFilters() {
+        DictionaryFilterSpec spec = DictionaryQueryFilter.forField("xrzw", "事业", "", "参照公务员");
+        assertThat(spec.treePrefix()).isEqualTo("051");
+        assertThat(spec.whereClause()).contains("LEFT(bm, 5) <> '05107'");
     }
 
     @Test

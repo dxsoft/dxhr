@@ -100,6 +100,48 @@ class DictionaryRepository {
                 """, new MapSqlParameterSource("tableName", emptyToNull(tableName)), FIELD_CONFIG_MAPPER);
     }
 
+    List<DictionaryFieldConfig> findPayrollFieldDictionaryConfigs() {
+        return jdbcTemplate.query("""
+                SELECT tblname, field_name, field_cap, dmlb06 AS dmlb, field_type
+                FROM fldgz
+                WHERE TRIM(dmlb06) <> ''
+                ORDER BY sequence, field_name
+                """, Map.of(), FIELD_CONFIG_MAPPER);
+    }
+
+    String findPayrollFieldDictionaryPrefix(String fieldName) {
+        if (fieldName == null || fieldName.isBlank()) {
+            return "";
+        }
+        List<String> values = jdbcTemplate.query("""
+                SELECT TRIM(dmlb06) AS dmlb06
+                FROM fldgz
+                WHERE UPPER(field_name) = UPPER(:fieldName)
+                  AND TRIM(dmlb06) <> ''
+                ORDER BY sequence, id
+                LIMIT 1
+                """, new MapSqlParameterSource("fieldName", fieldName.trim()),
+                (rs, rowNum) -> SqlText.trim(rs.getString("dmlb06")));
+        return values.isEmpty() ? "" : values.getFirst();
+    }
+
+    String findDictionaryCodeByName(String name) {
+        if (name == null || name.isBlank()) {
+            return "";
+        }
+        List<String> values = jdbcTemplate.query("""
+                SELECT bm
+                FROM dmb
+                WHERE sfsy = 1
+                  AND %s = :name
+                ORDER BY bm
+                LIMIT 1
+                """.formatted(SqlText.collate("mc")),
+                new MapSqlParameterSource("name", name.trim()),
+                (rs, rowNum) -> SqlText.trim(rs.getString("bm")));
+        return values.isEmpty() ? "" : values.getFirst();
+    }
+
     List<DictionaryTreeNode> findTreeNodes(String prefix) {
         String trimmedPrefix = emptyToNull(prefix);
         return jdbcTemplate.query("""
@@ -135,6 +177,20 @@ class DictionaryRepository {
                 LIMIT 1
                 """, new MapSqlParameterSource("organizationCode", organizationCode.trim()),
                 (rs, rowNum) -> SqlText.trim(rs.getString("dwbz")));
+        return values.isEmpty() ? "" : values.getFirst();
+    }
+
+    String findOrganizationPayrollCategory(String organizationCode) {
+        if (organizationCode == null || organizationCode.isBlank()) {
+            return "";
+        }
+        List<String> values = jdbcTemplate.query("""
+                SELECT gzczbz
+                FROM dwbm
+                WHERE dwbm = :organizationCode
+                LIMIT 1
+                """, new MapSqlParameterSource("organizationCode", organizationCode.trim()),
+                (rs, rowNum) -> SqlText.trim(rs.getString("gzczbz")));
         return values.isEmpty() ? "" : values.getFirst();
     }
 

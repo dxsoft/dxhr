@@ -1,5 +1,7 @@
 package com.dxsoft.rsgzgl.retirement;
 
+import com.dxsoft.rsgzgl.payroll.PayrollRepository;
+import com.dxsoft.rsgzgl.payroll.PayrollRounding;
 import com.dxsoft.rsgzgl.report.export.ReportHtmlSupport;
 import com.dxsoft.rsgzgl.statistics.RetirementMonthCalculator;
 import java.util.List;
@@ -9,8 +11,10 @@ import org.springframework.stereotype.Component;
 class RetirementApprovalHtmlRenderer {
 
     private final String stylesheet;
+    private final PayrollRepository payrollRepository;
 
-    RetirementApprovalHtmlRenderer() {
+    RetirementApprovalHtmlRenderer(PayrollRepository payrollRepository) {
+        this.payrollRepository = payrollRepository;
         this.stylesheet = ReportHtmlSupport.loadClasspathText("/report/retirement-approval-print.css");
     }
 
@@ -66,7 +70,7 @@ class RetirementApprovalHtmlRenderer {
         int positionAmount = sheet.beforePositionSalary();
         int wageBase = positionAmount + gradeOrTechAmount;
         int ratio = Math.max(sheet.conversionRatio(), 0);
-        int converted = Math.round(wageBase * ratio / 100.0f);
+        int converted = PayrollRounding.zroundPercent(wageBase, ratio, payrollRepository.roundingPolicy());
         int retained = sheet.beforeRetainedAllowance();
         int bonus = sheet.beforeBonusBalance();
         int living = sheet.afterLocalAllowance() > 0 ? sheet.afterLocalAllowance() : sheet.livingAllowance();

@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>人事运维控制台</title>
+    <link rel="stylesheet" href="/css/ops.css">
+    <script src="/vendor/Syunew6.js"></script>
+</head>
+<body>
+<header class="topbar">
+    <div>
+        <strong>人事运维控制台</strong>
+        <span id="whoami" class="muted"></span>
+    </div>
+    <nav class="tabs">
+        <button type="button" data-tab="monitor" class="active">监控</button>
+        <button type="button" data-tab="provision">制锁</button>
+        <button type="button" data-tab="devices">UKey 台账</button>
+        <button type="button" data-tab="orgs">单位目录</button>
+        <button type="button" data-tab="issue">签发授权</button>
+    </nav>
+    <div class="topbar-actions">
+        <button type="button" class="topbar-link" data-tab="password">修改密码</button>
+        <a class="logout" href="/logout">退出</a>
+    </div>
+</header>
+
+<main>
+    <div id="status" class="message hint">就绪。</div>
+
+    <section id="tab-monitor" class="panel">
+        <h2>服务器监控</h2>
+        <p class="muted">采集本机 CPU / 内存 / 磁盘 / Swap / inode，检查 systemd 与证书到期，并探测人事实例 <code>/actuator/health</code>（302 登录页不算正常）。</p>
+        <div class="toolbar">
+            <button type="button" id="monitor-refresh">立即采集</button>
+            <span id="monitor-meta" class="muted"></span>
+        </div>
+        <div id="monitor-cards" class="metric-grid"></div>
+        <div class="chart-card">
+            <div class="chart-legend">
+                <span class="swatch cpu"></span>CPU
+                <span class="swatch mem"></span>内存
+                <span class="swatch disk"></span>磁盘
+                <span class="swatch swap"></span>Swap
+            </div>
+            <svg id="monitor-chart" class="chart" viewBox="0 0 720 140" preserveAspectRatio="none"></svg>
+        </div>
+        <h3>磁盘</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>挂载</th>
+                    <th>类型</th>
+                    <th>空间</th>
+                    <th>inode</th>
+                </tr>
+                </thead>
+                <tbody id="monitor-disk-rows"></tbody>
+            </table>
+        </div>
+        <h3>进程</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>单元</th>
+                    <th>状态</th>
+                    <th>重启次数</th>
+                    <th>说明</th>
+                </tr>
+                </thead>
+                <tbody id="monitor-service-rows"></tbody>
+            </table>
+        </div>
+        <h3>证书</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>主机</th>
+                    <th>剩余天数</th>
+                    <th>到期日</th>
+                    <th>说明</th>
+                </tr>
+                </thead>
+                <tbody id="monitor-cert-rows"></tbody>
+            </table>
+        </div>
+        <h3>实例运行时</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>实例</th>
+                    <th>堆</th>
+                    <th>GC</th>
+                    <th>线程</th>
+                    <th>连接池</th>
+                    <th>Tomcat</th>
+                    <th>数据库</th>
+                    <th>说明</th>
+                </tr>
+                </thead>
+                <tbody id="monitor-runtime-rows"></tbody>
+            </table>
+        </div>
+        <h3>探测目标</h3>
+        <form id="monitor-target-form" class="grid-form">
+            <label>名称<input id="monitor-target-name" placeholder="如 acme 租户" required></label>
+            <label>健康检查 URL<input id="monitor-target-url" placeholder="http://127.0.0.1:18081/actuator/health" required></label>
+            <label>超时毫秒<input id="monitor-target-timeout" type="number" min="500" max="30000" value="5000"></label>
+        </form>
+        <div class="actions">
+            <button type="button" id="monitor-target-add">添加探测</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>名称</th>
+                    <th>地址</th>
+                    <th>状态</th>
+                    <th>延迟</th>
+                    <th>说明</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="monitor-target-rows"></tbody>
+            </table>
+        </div>
+        <h3>最近告警</h3>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>级别</th>
+                    <th>标题</th>
+                    <th>内容</th>
+                </tr>
+                </thead>
+                <tbody id="monitor-alert-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="tab-provision" class="panel hidden">
+        <h2>SM2 / 增强算法制锁</h2>
+        <p class="muted">非 SM2 锁请用「写入增强算法密钥」。SM2 可用时再用演示/指定密钥。服务端只存芯片 ID、公钥或增强密钥副本。</p>
+        <div class="grid-form">
+            <label>SM2 用户身份（SM2 时）<input id="prov-sm2-id" placeholder="写入锁内的身份字符串"></label>
+            <label>PIN（SM2 时）<input id="prov-pin" type="password" placeholder="默认 123" value="123"></label>
+            <label>人事系统用户名（可选）<input id="prov-username" placeholder="导出绑定包时用于自动绑定"></label>
+            <label>单位编码（可选）<input id="prov-org" placeholder="如 110000001"></label>
+            <label class="full">备注<input id="prov-note" placeholder="批次/领用人等"></label>
+            <label class="full">私钥（指定 SM2 写入）<input id="prov-pri" placeholder="留空则用演示密钥" spellcheck="false"></label>
+            <label>公钥 X<input id="prov-pub-x" placeholder="留空则用演示公钥 X" spellcheck="false"></label>
+            <label>公钥 Y<input id="prov-pub-y" placeholder="留空则用演示公钥 Y" spellcheck="false"></label>
+        </div>
+        <div class="actions">
+            <button type="button" id="prov-run-enc">写入增强算法密钥</button>
+            <button type="button" id="prov-run-demo" class="secondary">写入演示 SM2 密钥对</button>
+            <button type="button" id="prov-run-custom" class="secondary">写入指定 SM2 密钥对</button>
+            <button type="button" id="prov-run" class="secondary">锁内生成 SM2 并写入</button>
+        </div>
+        <pre id="prov-log" class="log"></pre>
+    </section>
+
+    <section id="tab-devices" class="panel hidden">
+        <h2>UKey 台账</h2>
+        <div class="toolbar">
+            <input id="device-filter" placeholder="芯片ID / 身份 / 用户名">
+            <button type="button" id="device-refresh">刷新</button>
+            <button type="button" id="device-export">导出绑定包</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>芯片ID</th>
+                    <th>模式</th>
+                    <th>SM2身份</th>
+                    <th>用户名</th>
+                    <th>增强密钥</th>
+                    <th>公钥X</th>
+                    <th>备注</th>
+                    <th>时间</th>
+                </tr>
+                </thead>
+                <tbody id="device-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="tab-orgs" class="panel hidden">
+        <h2>单位目录</h2>
+        <form id="org-form" class="grid-form">
+            <label>单位编码<input id="org-code" required></label>
+            <label>单位名称<input id="org-name" required></label>
+            <label>简称<input id="org-short"></label>
+            <label>级别<input id="org-level"></label>
+            <label>城市<input id="org-city"></label>
+            <label>上级主管<input id="org-supervisor"></label>
+            <label>性质<input id="org-property"></label>
+            <label>类别<input id="org-category"></label>
+            <label>工资类别<input id="org-payroll"></label>
+            <label class="full">CSV 批量导入（编码,名称,...）
+                <textarea id="org-csv" rows="4" placeholder="organizationCode,name&#10;110000001,某某单位"></textarea>
+            </label>
+            <label class="full">从人事系统同步（导入 license-seed-v2.json，含单位与本地政策）
+                <input id="org-json-file" type="file" accept=".json,application/json">
+            </label>
+        </form>
+        <div id="local-policy-status-orgs" class="status hint"></div>
+        <div class="actions">
+            <button type="button" id="org-save">保存单位</button>
+            <button type="button" id="org-import-csv">导入 CSV</button>
+            <button type="button" id="org-import-json">导入人事签发种子</button>
+            <button type="button" id="org-refresh">刷新列表</button>
+            <button type="button" id="org-issue-selected">签发选中单位</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th style="width:2.5rem"><input id="org-check-all" type="checkbox" title="全选"></th>
+                    <th>编码</th>
+                    <th>名称</th>
+                    <th>级别</th>
+                    <th>城市</th>
+                    <th>签发状态</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="org-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="tab-issue" class="panel hidden">
+        <h2>签发单位授权</h2>
+        <div id="local-policy-status-issue" class="status hint"></div>
+        <div class="grid-form">
+            <label class="full">从单位目录选择主体（可选）
+                <select id="issue-subject-pick">
+                    <option value="">— 手填或不选 —</option>
+                </select>
+            </label>
+            <label>签约主体编码<input id="issue-code" required></label>
+            <label>签约主体名称<input id="issue-name" required></label>
+            <label>级别<input id="issue-level"></label>
+            <label>城市<input id="issue-city"></label>
+            <label>上级主管<input id="issue-supervisor"></label>
+            <label>签发方<input id="issue-issuer" value="鼎星软件"></label>
+            <label>有效期至<input id="issue-expires" type="date"></label>
+            <label class="full checkbox-row">
+                <input id="issue-ukey-enabled" type="checkbox" checked>
+                <span>启用 UKey 登录</span>
+            </label>
+            <label class="full checkbox-row">
+                <input id="issue-ukey-required" type="checkbox">
+                <span>默认要求双认证（密码 + UKey）</span>
+            </label>
+            <label class="full checkbox-row">
+                <input id="issue-include-subordinates" type="checkbox" checked>
+                <span>含下属单位（按编码前缀）</span>
+            </label>
+            <label class="full checkbox-row">
+                <input id="issue-include-all" type="checkbox">
+                <span>包含单位目录中的全部单位</span>
+            </label>
+            <label class="full">包含单位（不选则仅签约主体；勾选「含下属」时再带前缀下属）
+                <select id="issue-orgs" multiple size="8"></select>
+            </label>
+        </div>
+        <div class="actions">
+            <button type="button" id="issue-run">签发并下载</button>
+            <button type="button" id="issue-refresh-logs">刷新签发记录</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>时间</th>
+                    <th>操作者</th>
+                    <th>主体</th>
+                    <th>单位数</th>
+                    <th>指纹</th>
+                    <th>摘要</th>
+                </tr>
+                </thead>
+                <tbody id="issue-log-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="tab-password" class="panel hidden">
+        <h2>修改密码</h2>
+        <p class="muted">只更新控制台账号哈希，不会改服务器上的 <code>app.env</code>。请把 <code>RSGZGL_OPS_ADMIN_RESET_PASSWORD</code> 保持为 <code>false</code>，否则下次重启会按环境变量覆盖。</p>
+        <form id="password-form" class="grid-form" autocomplete="off">
+            <label>当前密码<input id="pwd-current" type="password" autocomplete="current-password" required></label>
+            <label>新密码（至少 8 位）<input id="pwd-new" type="password" autocomplete="new-password" required minlength="8"></label>
+            <label>确认新密码<input id="pwd-confirm" type="password" autocomplete="new-password" required minlength="8"></label>
+        </form>
+        <div class="actions">
+            <button type="button" id="pwd-save">保存新密码</button>
+        </div>
+    </section>
+</main>
+<script src="/js/ops.js"></script>
+</body>
+</html>

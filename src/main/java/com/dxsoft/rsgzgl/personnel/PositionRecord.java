@@ -1,5 +1,7 @@
 package com.dxsoft.rsgzgl.personnel;
 
+import java.time.LocalDateTime;
+
 public record PositionRecord(
         Integer id,
         String organizationCode,
@@ -14,6 +16,14 @@ public record PositionRecord(
         Integer intervalYears,
         String activeFlag,
         String promotionFlag,
-        Boolean appCreated
+        String positionChangeReason,
+        Integer linkedAwardId,
+        String approvalStatus,
+        Boolean appCreated,
+        String submittedBy,
+        LocalDateTime submittedAt,
+        String approvedBy,
+        LocalDateTime approvedAt,
+        int attachmentCount
 ) {
 }

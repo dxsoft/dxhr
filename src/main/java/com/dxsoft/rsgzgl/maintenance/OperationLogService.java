@@ -5,6 +5,7 @@ import com.dxsoft.rsgzgl.common.PageResponse;
 import com.dxsoft.rsgzgl.security.AccessControlService;
 import com.dxsoft.rsgzgl.security.SecurityAuditLog;
 import com.dxsoft.rsgzgl.security.SecurityAuditService;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -23,9 +24,26 @@ public class OperationLogService {
         securityAuditService.record(action, resource, targetId, summary);
     }
 
-    public PageResponse<SecurityAuditLog> search(String keyword, PageRequest pageRequest) {
+    public     PageResponse<SecurityAuditLog> search(String keyword, PageRequest pageRequest) {
+        return search(keyword, null, null, null, pageRequest);
+    }
+
+    PageResponse<SecurityAuditLog> search(
+            String keyword,
+            LocalDate fromDate,
+            LocalDate toDate,
+            PageRequest pageRequest) {
+        return search(keyword, fromDate, toDate, null, pageRequest);
+    }
+
+    PageResponse<SecurityAuditLog> search(
+            String keyword,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String actionPrefix,
+            PageRequest pageRequest) {
         requireOperationLogPermission();
-        return securityAuditService.search(keyword, pageRequest);
+        return securityAuditService.search(keyword, fromDate, toDate, actionPrefix, pageRequest);
     }
 
     public List<SecurityAuditLog> recent(int limit) {

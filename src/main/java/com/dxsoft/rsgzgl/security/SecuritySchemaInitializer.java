@@ -40,6 +40,7 @@ class SecuritySchemaInitializer {
             return;
         }
         createTables();
+        ensureAuditLogIndexes();
         ensureUkeyColumns();
         ensureHomeOrganizationColumn();
         ensureAllOrganizationsColumn();
@@ -52,6 +53,49 @@ class SecuritySchemaInitializer {
         seedAdmin();
         seedUnitAdminRole();
         migratePayrollFeaturePermissions();
+        migratePersonnelBasicPermissions();
+        migratePersonnelApprovalPermissions();
+    }
+
+    private void seedPersonnelBasicPermissions() {
+        upsertPermission(PersonnelFeaturePermissions.BASIC_READ, "关键基础信息查询", "PERSONNEL");
+        upsertPermission(PersonnelFeaturePermissions.BASIC_WRITE, "关键基础信息维护", "PERSONNEL");
+        upsertPermission(PersonnelFeaturePermissions.KEY_FIELD_WRITE, "关键工资字段维护", "PERSONNEL");
+        upsertPermission(PersonnelFeaturePermissions.APPROVAL_WRITE, "人员信息审核", "PERSONNEL");
+    }
+
+    private void migratePersonnelBasicPermissions() {
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                SELECT rp.role_id, p_new.id
+                FROM app_role_permission rp
+                JOIN app_permission p_old ON p_old.id = rp.permission_id AND p_old.code = 'PERSONNEL_READ'
+                JOIN app_permission p_new ON p_new.code = ?
+                """, PersonnelFeaturePermissions.BASIC_READ);
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                SELECT rp.role_id, p_new.id
+                FROM app_role_permission rp
+                JOIN app_permission p_old ON p_old.id = rp.permission_id AND p_old.code = 'PERSONNEL_WRITE'
+                JOIN app_permission p_new ON p_new.code = ?
+                """, PersonnelFeaturePermissions.BASIC_WRITE);
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                SELECT rp.role_id, p_new.id
+                FROM app_role_permission rp
+                JOIN app_permission p_old ON p_old.id = rp.permission_id AND p_old.code = 'PERSONNEL_WRITE'
+                JOIN app_permission p_new ON p_new.code = ?
+                """, PersonnelFeaturePermissions.KEY_FIELD_WRITE);
+    }
+
+    private void migratePersonnelApprovalPermissions() {
+        jdbcTemplate.update("""
+                INSERT IGNORE INTO app_role_permission (role_id, permission_id)
+                SELECT r.id, p.id
+                FROM app_role r
+                JOIN app_permission p ON p.code = ?
+                WHERE r.code = 'ADMIN'
+                """, PersonnelFeaturePermissions.APPROVAL_WRITE);
     }
 
     private void seedPayrollFeaturePermissions() {
@@ -171,6 +215,32 @@ class SecuritySchemaInitializer {
                 """).forEach(jdbcTemplate::execute);
     }
 
+    private void ensureAuditLogIndexes() {
+        ensureIndex("app_security_audit_log", "idx_audit_action_created", "action, created_at");
+        ensureIndex("app_security_audit_log", "idx_audit_target_action", "target_type, target_id, action");
+    }
+
+    private void ensureIndex(String table, String indexName, String columns) {
+        try {
+            Integer indexCount = jdbcTemplate.query(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = ?
+                      AND INDEX_NAME = ?
+                    """,
+                    rs -> rs.next() ? rs.getInt(1) : 0,
+                    table,
+                    indexName);
+            if (indexCount != null && indexCount == 0) {
+                jdbcTemplate.execute("CREATE INDEX `" + indexName + "` ON `" + table + "` (" + columns + ")");
+            }
+        } catch (Exception ignored) {
+            // H2 / non-MySQL / insufficient privilege — skip
+        }
+    }
+
     /** Add SoftKey SM2 binding columns on existing databases created before UKey login. */
     private void ensureUkeyColumns() {
         ensureColumn("app_user", "ukey_id", "VARCHAR(64) NULL");
@@ -249,7 +319,7 @@ class SecuritySchemaInitializer {
      * "Illegal mix of collations".
      */
     private void ensureAppTableCollations() {
-        for (String table : List.of("app_record_marker", "app_license")) {
+        for (String table : List.of("app_record_marker", "app_license", "app_subrecord_attachment")) {
             try {
                 String collation = jdbcTemplate.query(
                         """
@@ -274,6 +344,7 @@ class SecuritySchemaInitializer {
         upsertPermission("ORG_WRITE", "单位信息维护", "ORGANIZATION");
         upsertPermission("PERSONNEL_READ", "人员信息查询", "PERSONNEL");
         upsertPermission("PERSONNEL_WRITE", "人员信息维护", "PERSONNEL");
+        seedPersonnelBasicPermissions();
         upsertPermission("PAYROLL_READ", "工资试算查询", "PAYROLL");
         upsertPermission("PAYROLL_WRITE", "工资变动维护", "PAYROLL");
         seedPayrollFeaturePermissions();
@@ -294,6 +365,9 @@ class SecuritySchemaInitializer {
 
     private void seedMenus() {
         upsertMenu("PERSONNEL", "人员管理", "#personnel", "PERSONNEL_READ", 10);
+        upsertMenu("PERSONNEL_APPROVAL_TRACKING", "人员信息审核跟踪", "#personnel-approval-tracking", "PERSONNEL_APPROVAL_WRITE", 11);
+        upsertMenu("PAYROLL_WORKFLOW_CENTER", "待办工资变动", "#payroll-workflow-center", "PAYROLL_READ", 12);
+        upsertMenu("PAYROLL_WORKFLOW_STATUS", "工资变动进度", "#payroll-workflow-status", "PERSONNEL_BASIC_READ", 13);
         disableMenu("PERSONNEL_MAINTENANCE");
         upsertMenu("PERSONNEL_STATISTICS", "人员与工资统计", "#personnel-statistics", "PERSONNEL_READ", 12);
         upsertMenu("RETIREMENT_DUE_QUERY", "已达退休年龄人员", "#retirement-due-query", "PERSONNEL_READ", 13);
@@ -310,6 +384,7 @@ class SecuritySchemaInitializer {
         upsertMenu("LEVEL_PROMOTION", "级别晋升", "#level-promotion", "LEVEL_PROMOTION_READ", 25);
         upsertMenu("NORMAL_PROMOTION", "正常档次/薪级晋升", "#normal-promotion", "NORMAL_PROMOTION_READ", 26);
         upsertMenu("POSITION_CHANGE_PROMOTION", "职务变化晋升", "#position-change-promotion", "POSITION_CHANGE_PROMOTION_READ", 27);
+        upsertMenu("DISCIPLINARY_DEMOTION_PROMOTION", "处分降职办理", "#disciplinary-demotion-promotion", "DISCIPLINARY_DEMOTION_PROMOTION_READ", 271);
         upsertMenu("NEW_PERSONNEL_SALARY", "新进定资", "#new-personnel-salary", "NEW_PERSONNEL_SALARY_READ", 28);
         upsertMenu("REGULARIZATION", "转正定级", "#regularization", "REGULARIZATION_READ", 29);
         upsertMenu("EDUCATION_PROMOTION", "学历晋升", "#education-promotion", "EDUCATION_PROMOTION_READ", 30);

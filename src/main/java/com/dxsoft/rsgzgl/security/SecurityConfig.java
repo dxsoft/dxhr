@@ -48,19 +48,31 @@ class SecurityConfig {
                                 "/login.html",
                                 "/auth.css",
                                 "/favicon.ico",
+                                "/mobile-upload.html",
                                 "/vendor/**",
                                 "/actuator/health",
                                 "/internal/runtime").permitAll()
                         .requestMatchers("/api/auth/ukey/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reports/payroll-change-export-jobs/*/download").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reports/payroll-change-export-jobs/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/mobile-attachment-sessions/network-hints")
+                                .hasAuthority("PERSONNEL_WRITE")
+                        .requestMatchers(HttpMethod.GET, "/api/mobile-attachment-sessions/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/mobile-attachment-sessions/*/files/*/download").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile-attachment-sessions/*/files").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile-attachment-sessions").hasAuthority("PERSONNEL_WRITE")
+                        .requestMatchers(HttpMethod.POST, "/api/mobile-attachment-sessions/*/files/*/consume")
+                                .hasAuthority("PERSONNEL_WRITE")
                         .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers("/api/auth/**").authenticated()
                         .requestMatchers("/api/security/**").hasAuthority("SECURITY_ADMIN")
                         .requestMatchers("/api/operation-logs/**").hasAuthority("OPERATION_LOG_READ")
                         .requestMatchers(HttpMethod.POST, "/api/data-maintenance/**").hasAuthority("DATA_MAINTENANCE")
                         .requestMatchers("/api/data-maintenance/**").hasAuthority("DATA_MAINTENANCE")
-                        .requestMatchers("/api/dictionaries/field-configs", "/api/dictionaries/tree")
+                        .requestMatchers(
+                                "/api/dictionaries/field-configs",
+                                "/api/dictionaries/payroll-field-configs",
+                                "/api/dictionaries/tree")
                                 .hasAnyAuthority("PERSONNEL_WRITE", "RETIREMENT_WRITE", "RETIREMENT_READ", "SYSTEM_CONFIG")
                         .requestMatchers(HttpMethod.POST, "/api/dictionaries/**").hasAuthority("SYSTEM_CONFIG")
                         .requestMatchers(HttpMethod.PUT, "/api/dictionaries/**").hasAuthority("SYSTEM_CONFIG")
@@ -83,10 +95,10 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/standards/**").hasAuthority("STANDARD_WRITE")
                         .requestMatchers("/api/standards/**").hasAuthority("STANDARD_READ")
                         .requestMatchers("/api/statistics/**").hasAuthority("PERSONNEL_READ")
-                        .requestMatchers(HttpMethod.POST, "/api/personnel").hasAuthority("PERSONNEL_WRITE")
-                        .requestMatchers(HttpMethod.PUT, "/api/personnel/**").hasAuthority("PERSONNEL_WRITE")
+                        .requestMatchers(HttpMethod.POST, "/api/personnel").hasAuthority("PERSONNEL_WRITE");
+                PersonnelFeatureSecurityCustomizer.configurePersonnelBasicRules(authorize);
+                authorize
                         .requestMatchers(HttpMethod.DELETE, "/api/personnel/**").hasAuthority("PERSONNEL_WRITE")
-                        .requestMatchers("/api/personnel/*/maintenance").hasAuthority("PERSONNEL_WRITE")
                         .requestMatchers("/api/personnel/**").hasAuthority("PERSONNEL_READ");
                 PayrollFeatureSecurityCustomizer.configurePayrollFeaturePostRules(authorize);
                 authorize
@@ -127,6 +139,22 @@ class SecurityConfig {
                                 return;
                             }
                             response.sendRedirect("/login.html");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            String path = request.getRequestURI() == null ? "" : request.getRequestURI();
+                            if (path.contains("/api/")) {
+                                response.setStatus(HttpStatus.FORBIDDEN.value());
+                                response.setCharacterEncoding("UTF-8");
+                                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                                String message = accessDeniedException.getMessage();
+                                if (message == null || message.isBlank()) {
+                                    message = "当前账号无权执行此操作。";
+                                }
+                                String escaped = message.replace("\\", "\\\\").replace("\"", "\\\"");
+                                response.getWriter().write("{\"detail\":\"" + escaped + "\"}");
+                                return;
+                            }
+                            response.sendError(HttpStatus.FORBIDDEN.value());
                         }))
                 .formLogin(form -> form
                         .loginPage("/login.html")

@@ -1,5 +1,6 @@
 package com.dxsoft.rsgzgl.dictionary;
 
+import com.dxsoft.rsgzgl.organization.UnitPayrollClassification;
 import java.util.Locale;
 import java.util.Set;
 
@@ -15,9 +16,13 @@ final class DictionaryQueryFilter {
         return fieldName != null && FILTERED_FIELDS.contains(normalizeField(fieldName));
     }
 
-    static DictionaryFilterSpec forField(String fieldName, String unitCategory, String organizationProperty) {
+    static DictionaryFilterSpec forField(
+            String fieldName,
+            String unitCategory,
+            String organizationProperty,
+            String payrollCategory) {
         String field = normalizeField(fieldName);
-        boolean administrative = "行政".equals(trim(unitCategory));
+        boolean administrative = UnitPayrollClassification.usesAdministrativeTreatment(unitCategory, payrollCategory);
         String dwsx = trim(organizationProperty);
         return switch (field) {
             case "RYFL" -> administrative ? ryflAdministrative() : ryflInstitution();

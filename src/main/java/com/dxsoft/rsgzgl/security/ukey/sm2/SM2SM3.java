@@ -55,23 +55,37 @@ public class SM2SM3 {
 	
 	public  static boolean YtVerfiy(String id, String InString, String PubKeyX,String PubKeyY,String VerfiySign )
     {
-    		
-    		SM2SM3 digest = new SM2SM3();
-    		BigInteger affineX = new BigInteger(PubKeyX, 16);
-    		BigInteger affineY = new BigInteger(PubKeyY, 16);
+    	return YtVerfiy(id, InString, PubKeyX, PubKeyY, VerfiySign, java.nio.charset.Charset.defaultCharset());
+    }
 
-    		byte[] z =  digest.Sm2GetZ(affineX, affineY, id.getBytes());
-    		
-    		byte []MsgHash=GetMsgHash(InString);
-    		
-    		byte []E=GetE(z,MsgHash);
-    		
-    		BigInteger r = new BigInteger(VerfiySign.substring(0, 64), 16);
-    		BigInteger s = new BigInteger(VerfiySign.substring(64, 128), 16);
+	public static boolean YtVerfiy(
+			String id,
+			String InString,
+			String PubKeyX,
+			String PubKeyY,
+			String VerfiySign,
+			java.nio.charset.Charset idCharset) {
+		if (id == null || InString == null || PubKeyX == null || PubKeyY == null || VerfiySign == null) {
+			return false;
+		}
+		String normalizedSign = VerfiySign.trim();
+		if (normalizedSign.length() < 128) {
+			return false;
+		}
+		SM2SM3 digest = new SM2SM3();
+		BigInteger affineX = new BigInteger(PubKeyX, 16);
+		BigInteger affineY = new BigInteger(PubKeyY, 16);
+		java.nio.charset.Charset charset = idCharset == null ? java.nio.charset.Charset.defaultCharset() : idCharset;
+		byte[] z = digest.Sm2GetZ(affineX, affineY, id.getBytes(charset));
 
-            return digest.subSm2Verify(E,affineX,affineY, r, s );
-            
+		byte[] MsgHash = GetMsgHash(InString);
 
+		byte[] E = GetE(z, MsgHash);
+
+		BigInteger r = new BigInteger(normalizedSign.substring(0, 64), 16);
+		BigInteger s = new BigInteger(normalizedSign.substring(64, 128), 16);
+
+		return digest.subSm2Verify(E, affineX, affineY, r, s);
     }
 	
 	private static boolean subSm2Verify(byte[] md,  BigInteger PubKeyX, BigInteger PubKeyY,BigInteger r, BigInteger s)

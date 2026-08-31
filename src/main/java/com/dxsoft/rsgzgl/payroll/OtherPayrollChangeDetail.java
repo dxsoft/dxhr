@@ -25,6 +25,7 @@ public record OtherPayrollChangeDetail(
         Integer currentRetainedAllowance,
         Integer currentTeachingAllowance,
         Integer currentTotal,
+        String currentRankName,
         String performanceAllowanceCaption,
         String subsidyAllowanceCaption,
         Boolean showSubsidyAllowance,

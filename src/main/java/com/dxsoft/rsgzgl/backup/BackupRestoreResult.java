@@ -11,6 +11,8 @@ public record BackupRestoreResult(
         List<String> restoredTables,
         List<String> skippedTables,
         Map<String, Integer> rowCounts,
-        String message
+        long durationMs,
+        String message,
+        List<HisbaseSidChainRepairSummary> chainRepairs
 ) {
 }

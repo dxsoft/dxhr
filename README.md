@@ -130,7 +130,7 @@ export RSGZGL_ADMIN_DISPLAY_NAME="系统管理员"
 基础绩效/生活性补贴会按 `dwbm.dfbt` 和个人 `jzgb` 发放审批状态置零。
 `totalComparison` 会进一步计算教护龄津贴、提高工资，并替换当前已迁移项目后给出合计差额。
 当前也会对比警衔/警务津贴和浮动工资，对应 `JXJT`、`FDGZ2`。
-奖金结余 `JJJY2` 按旧系统主链口径处理：已有旧值时保留，旧值为 0 时再按 `cyxx.jjjy`、1993 年前职务和 `bz06_jjjy` 标准表试算。
+奖金结余 `JJJY2` 按旧系统主链口径处理：试算/对账时默认保留 hisbase 旧值；仅当旧值为 0 且 `cyxx.jjjy=1` 时，按 jjjy06 规则查 `bz06_jjjy` 试算；其它模式旧值为 0 时不自动计算。
 岗位津贴 `GWJT2` 已确认不考虑迁移，列入 `excludedComponents`，只保留旧值。
 套改/特岗保留 `TGBLBF` 按主链规则处理：机关人员清零，事业单位人员保留旧值。
 `QTBT/SIDBT/ZWJT/ZFBT/JZMCBT/GWJT2` 已作为手工或暂不考虑字段列入 `excludedComponents`，只保留旧值。

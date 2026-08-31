@@ -531,6 +531,33 @@ class PayrollController {
         return payrollService.rollbackPositionChangePromotion(payrollHistoryId);
     }
 
+    @GetMapping("/disciplinary-demotion-promotions")
+    PageResponse<DisciplinaryDemotionPromotionListItem> disciplinaryDemotionPromotions(
+            @RequestParam(required = false) String organizationCode,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean includeApply,
+            @RequestParam(required = false) Boolean includeProcessed,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return payrollService.disciplinaryDemotionPromotionPreviews(
+                organizationCode, keyword, includeApply, includeProcessed, PageRequest.of(page, size));
+    }
+
+    @GetMapping("/disciplinary-demotion-promotions/{payrollHistoryId}")
+    DisciplinaryDemotionPromotionPreview disciplinaryDemotionPromotionDetail(@PathVariable String payrollHistoryId) {
+        return payrollService.disciplinaryDemotionPromotionDetail(payrollHistoryId);
+    }
+
+    @PostMapping("/disciplinary-demotion-promotions/{payrollHistoryId}/apply")
+    PromotionActionResult applyDisciplinaryDemotionPromotion(@PathVariable String payrollHistoryId) {
+        return payrollService.applyDisciplinaryDemotionPromotion(payrollHistoryId);
+    }
+
+    @PostMapping("/disciplinary-demotion-promotions/{payrollHistoryId}/rollback")
+    PromotionActionResult rollbackDisciplinaryDemotionPromotion(@PathVariable String payrollHistoryId) {
+        return payrollService.rollbackDisciplinaryDemotionPromotion(payrollHistoryId);
+    }
+
     @GetMapping("/education-promotions")
     PageResponse<EducationPromotionPreview> educationPromotions(
             @RequestParam(required = false) String organizationCode,

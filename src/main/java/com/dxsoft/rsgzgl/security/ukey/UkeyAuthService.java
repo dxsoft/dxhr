@@ -209,7 +209,7 @@ class UkeyAuthService {
         }
         boolean verified;
         try {
-            verified = SM2SM3.YtVerfiy(storedSm2UserId, rnd, pubX, pubY, signature.trim());
+            verified = verifySm2Signature(storedSm2UserId, rnd, pubX, pubY, signature.trim());
         } catch (RuntimeException ex) {
             auditFailure(keyId, "验签异常：" + ex.getMessage());
             throw new IllegalArgumentException("SM2 验签失败");
@@ -218,6 +218,20 @@ class UkeyAuthService {
             auditFailure(keyId, "SM2 验签失败");
             throw new IllegalArgumentException("UKey 签名校验失败");
         }
+    }
+
+    private boolean verifySm2Signature(
+            String sm2UserId, String rnd, String pubX, String pubY, String signature) {
+        if (signature == null || signature.length() < 128) {
+            return false;
+        }
+        // SoftKey / 国密 UKey 对中文身份常用 GBK 参与 Z 值；Linux 服务端默认 UTF-8 会导致验签失败。
+        java.nio.charset.Charset gbk = java.nio.charset.Charset.forName("GBK");
+        if (SM2SM3.YtVerfiy(sm2UserId, rnd, pubX, pubY, signature, gbk)) {
+            return true;
+        }
+        return SM2SM3.YtVerfiy(sm2UserId, rnd, pubX, pubY, signature, java.nio.charset.StandardCharsets.UTF_8)
+                || SM2SM3.YtVerfiy(sm2UserId, rnd, pubX, pubY, signature);
     }
 
     private void verifyEnc(String keyId, String rnd, String encData, Map<String, Object> binding) {

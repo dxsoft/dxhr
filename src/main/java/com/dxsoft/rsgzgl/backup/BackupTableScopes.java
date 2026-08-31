@@ -54,6 +54,7 @@ public final class BackupTableScopes {
             "djxgz", "djxgzb",
             "ryjbxxb",
             "app_record_marker",
+            "app_subrecord_attachment",
             "app_personnel_transfer",
             "dwbm", "cyxx");
 

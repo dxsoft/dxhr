@@ -186,11 +186,14 @@ class RetirementRepository {
 
     String allocateRetireePersonCode(String organizationCode) {
         String maxCode = jdbcTemplate.query("""
-                SELECT MAX(grbm) AS max_code
+                SELECT COALESCE(MAX(grbm), '') AS max_code
                 FROM ryjbxxb
                 WHERE dwbm = :organizationCode
                 """, new MapSqlParameterSource("organizationCode", organizationCode),
-                (rs, rowNum) -> SqlText.trim(rs.getString("max_code"))).stream().findFirst().orElse("");
+                (rs, rowNum) -> SqlText.trim(rs.getString("max_code"))).stream()
+                .findFirst()
+                .map(code -> code == null ? "" : code)
+                .orElse("");
         int next = 1;
         if (maxCode != null && !maxCode.isBlank()) {
             try {

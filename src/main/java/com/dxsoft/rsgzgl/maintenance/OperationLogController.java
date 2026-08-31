@@ -27,8 +27,9 @@ public class OperationLogController {
     @GetMapping("/page")
     PageResponse<SecurityAuditLog> page(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String actionPrefix,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        return operationLogService.search(keyword, PageRequest.of(page, size));
+        return operationLogService.search(keyword, null, null, actionPrefix, PageRequest.of(page, size));
     }
 }

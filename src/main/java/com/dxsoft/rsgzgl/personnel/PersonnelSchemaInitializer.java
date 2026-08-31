@@ -1,5 +1,6 @@
 package com.dxsoft.rsgzgl.personnel;
 
+import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -8,12 +9,239 @@ import org.springframework.stereotype.Component;
 @Component
 class PersonnelSchemaInitializer {
 
-    PersonnelSchemaInitializer(JdbcTemplate jdbcTemplate) {
+    PersonnelSchemaInitializer(
+            JdbcTemplate jdbcTemplate,
+            MobileAttachmentUploadSessionRepository mobileAttachmentUploadSessionRepository) {
         NamedParameterJdbcTemplate named = new NamedParameterJdbcTemplate(jdbcTemplate);
         ensureDryjbxxRemarkColumn(named);
+        ensureSubrecordBbzColumns(named);
+        ensurePositionLinkedAwardColumn(named);
+        ensureSimplifiedApprovalStatuses(named);
         ensurePersonnelTransferTable(jdbcTemplate);
         ensureNewPersonnelSalaryQueryIndexes(jdbcTemplate);
+        ensureApprovalTrackingBbzIndexes(jdbcTemplate);
+        ensureApprovalActorColumns(named);
         ensureTransferProjectionAuditTable(jdbcTemplate);
+        ensureSubrecordAttachmentTable(jdbcTemplate);
+        mobileAttachmentUploadSessionRepository.ensureTables();
+    }
+
+    private void ensureSubrecordAttachmentTable(JdbcTemplate jdbcTemplate) {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS app_subrecord_attachment (
+                    id BIGINT NOT NULL AUTO_INCREMENT,
+                    table_name VARCHAR(80) NOT NULL,
+                    record_id INT NOT NULL,
+                    record_key VARCHAR(80) NOT NULL DEFAULT '',
+                    original_name VARCHAR(255) NOT NULL,
+                    stored_name VARCHAR(120) NOT NULL,
+                    content_type VARCHAR(128) NOT NULL DEFAULT '',
+                    file_size BIGINT NOT NULL DEFAULT 0,
+                    uploaded_by VARCHAR(80) NOT NULL DEFAULT '',
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    INDEX idx_subrecord_attachment_target (table_name, record_id, record_key)
+                )
+                """);
+        ensureSubrecordAttachmentRecordKeyColumn(jdbcTemplate);
+    }
+
+    private void ensureSubrecordAttachmentRecordKeyColumn(JdbcTemplate jdbcTemplate) {
+        try {
+            Integer count = jdbcTemplate.query(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                      AND table_name = 'app_subrecord_attachment'
+                      AND column_name = 'record_key'
+                    """,
+                    rs -> rs.next() ? rs.getInt(1) : 0);
+            if (count != null && count == 0) {
+                jdbcTemplate.execute("""
+                        ALTER TABLE app_subrecord_attachment
+                        ADD COLUMN record_key VARCHAR(80) NOT NULL DEFAULT '' AFTER record_id
+                        """);
+            }
+        } catch (Exception ignored) {
+            // H2 / non-MySQL / insufficient privilege — skip
+        }
+    }
+
+    private void ensureApprovalActorColumns(NamedParameterJdbcTemplate jdbcTemplate) {
+        ensureTableApprovalActorColumns(jdbcTemplate, "dryjbxx");
+        ensureTableApprovalActorColumns(jdbcTemplate, "dryjbxxb");
+        for (String tableName : List.of(
+                "dxl", "dryzwbh", "dndkh", "hjxx", "jx",
+                "dxlb", "dryzwbhb", "dndkhb", "hjxxb", "jxb")) {
+            ensureTableApprovalActorColumns(jdbcTemplate, tableName);
+        }
+        ensureIndex(jdbcTemplate.getJdbcTemplate(), "dryjbxx", "idx_dryjbxx_shsj", "shsj");
+        ensureIndex(jdbcTemplate.getJdbcTemplate(), "dndkh", "idx_dndkh_shsj", "shsj");
+    }
+
+    private void ensureTableApprovalActorColumns(NamedParameterJdbcTemplate jdbcTemplate, String tableName) {
+        Integer tableCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                  AND table_name = :tableName
+                """, new MapSqlParameterSource("tableName", tableName), Integer.class);
+        if (tableCount == null || tableCount == 0) {
+            return;
+        }
+        ensureColumnAfterBbz(jdbcTemplate, tableName, "tjr", "VARCHAR(80) NULL COMMENT '提交人'");
+        ensureColumnAfterBbz(jdbcTemplate, tableName, "tjsj", "TIMESTAMP NULL COMMENT '提交时间'");
+        ensureColumnAfterBbz(jdbcTemplate, tableName, "shr", "VARCHAR(80) NULL COMMENT '审核人'");
+        ensureColumnAfterBbz(jdbcTemplate, tableName, "shsj", "TIMESTAMP NULL COMMENT '审核时间'");
+    }
+
+    private void ensureColumnAfterBbz(
+            NamedParameterJdbcTemplate jdbcTemplate,
+            String tableName,
+            String columnName,
+            String columnDefinition) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = :tableName
+                  AND column_name = :columnName
+                """, new MapSqlParameterSource()
+                .addValue("tableName", tableName)
+                .addValue("columnName", columnName), Integer.class);
+        if (count != null && count > 0) {
+            return;
+        }
+        Integer bbzCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = :tableName
+                  AND column_name = 'bbz'
+                """, new MapSqlParameterSource("tableName", tableName), Integer.class);
+        String afterClause = bbzCount != null && bbzCount > 0 ? " AFTER bbz" : "";
+        jdbcTemplate.getJdbcTemplate().execute("""
+                ALTER TABLE `%s`
+                ADD COLUMN %s %s%s
+                """.formatted(tableName, columnName, columnDefinition, afterClause));
+    }
+
+    /** Speeds approval-tracking list when filtering by bbz without keyword. */
+    private void ensureApprovalTrackingBbzIndexes(JdbcTemplate jdbcTemplate) {
+        ensureIndex(jdbcTemplate, "dryjbxx", "idx_dryjbxx_bbz", "bbz");
+        ensureIndex(jdbcTemplate, "dxl", "idx_dxl_bbz", "bbz");
+        ensureIndex(jdbcTemplate, "dryzwbh", "idx_dryzwbh_bbz", "bbz");
+        ensureIndex(jdbcTemplate, "dndkh", "idx_dndkh_bbz", "bbz");
+        ensureIndex(jdbcTemplate, "hjxx", "idx_hjxx_bbz", "bbz");
+        ensureIndex(jdbcTemplate, "jx", "idx_jx_bbz", "bbz");
+    }
+
+    private void ensureSubrecordBbzColumns(NamedParameterJdbcTemplate jdbcTemplate) {
+        ensureTableBbzColumn(jdbcTemplate, "dxl", "bz");
+        ensureTableBbzColumn(jdbcTemplate, "dryzwbh", "jsbz");
+        ensureTableBbzColumn(jdbcTemplate, "dndkh", "khjg");
+        ensureTableBbzColumn(jdbcTemplate, "dxlb", "bz");
+        ensureTableBbzColumn(jdbcTemplate, "dryzwbhb", "jsbz");
+        ensureTableBbzColumn(jdbcTemplate, "dndkhb", "khjg");
+        ensureTableBbzColumn(jdbcTemplate, "hjxx", "jljb");
+        ensureTableBbzColumn(jdbcTemplate, "hjxxb", "jljb");
+        ensureTableBbzColumn(jdbcTemplate, "jx", "lb");
+        ensureTableBbzColumn(jdbcTemplate, "jxb", "lb");
+    }
+
+    private void ensureTableBbzColumn(NamedParameterJdbcTemplate jdbcTemplate, String tableName, String afterColumn) {
+        Integer tableCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                  AND table_name = :tableName
+                """, new MapSqlParameterSource("tableName", tableName), Integer.class);
+        if (tableCount == null || tableCount == 0) {
+            return;
+        }
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = :tableName
+                  AND column_name = 'bbz'
+                """, new MapSqlParameterSource("tableName", tableName), Integer.class);
+        if (count != null && count > 0) {
+            jdbcTemplate.getJdbcTemplate().update("""
+                    UPDATE `%s` SET bbz = '草稿' WHERE bbz IS NULL OR TRIM(bbz) = '' OR bbz = '初始建库'
+                    """.formatted(tableName));
+            return;
+        }
+        jdbcTemplate.getJdbcTemplate().execute("""
+                ALTER TABLE `%s`
+                ADD COLUMN bbz CHAR(8) NULL DEFAULT '草稿' COMMENT '审批状态'
+                AFTER `%s`
+                """.formatted(tableName, afterColumn));
+        jdbcTemplate.getJdbcTemplate().update("""
+                UPDATE `%s` SET bbz = '草稿' WHERE bbz IS NULL OR TRIM(bbz) = '' OR bbz = '初始建库'
+                """.formatted(tableName));
+    }
+
+    private void ensurePositionLinkedAwardColumn(NamedParameterJdbcTemplate jdbcTemplate) {
+        for (String tableName : List.of("dryzwbh", "dryzwbhb")) {
+            Integer tableCount = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_schema = DATABASE()
+                      AND table_name = :tableName
+                    """, new MapSqlParameterSource("tableName", tableName), Integer.class);
+            if (tableCount == null || tableCount == 0) {
+                continue;
+            }
+            Integer count = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                      AND table_name = :tableName
+                      AND column_name = 'linked_award_id'
+                    """, new MapSqlParameterSource("tableName", tableName), Integer.class);
+            if (count != null && count > 0) {
+                continue;
+            }
+            jdbcTemplate.getJdbcTemplate().execute("""
+                    ALTER TABLE `%s`
+                    ADD COLUMN linked_award_id INT NULL COMMENT '关联奖惩记录ID'
+                    AFTER jsbz
+                    """.formatted(tableName));
+        }
+    }
+
+    private void ensureSimplifiedApprovalStatuses(NamedParameterJdbcTemplate jdbcTemplate) {
+        Integer tableCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'dryjbxx'
+                """, new MapSqlParameterSource(), Integer.class);
+        if (tableCount == null || tableCount == 0) {
+            return;
+        }
+        jdbcTemplate.getJdbcTemplate().update("""
+                UPDATE dryjbxx
+                SET bbz = '草稿'
+                WHERE bbz IS NULL OR TRIM(bbz) = '' OR bbz = '初始建库'
+                """);
+        for (String tableName : List.of(
+                "dxl", "dryzwbh", "dndkh", "dxlb", "dryzwbhb", "dndkhb", "hjxx", "hjxxb", "jx", "jxb")) {
+            Integer exists = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*)
+                    FROM information_schema.tables
+                    WHERE table_schema = DATABASE()
+                      AND table_name = :tableName
+                    """, new MapSqlParameterSource("tableName", tableName), Integer.class);
+            if (exists == null || exists == 0) {
+                continue;
+            }
+            jdbcTemplate.getJdbcTemplate().update("""
+                    UPDATE `%s` SET bbz = '草稿' WHERE bbz IS NULL OR TRIM(bbz) = '' OR bbz = '初始建库'
+                    """.formatted(tableName));
+        }
     }
 
     private void ensureDryjbxxRemarkColumn(NamedParameterJdbcTemplate jdbcTemplate) {

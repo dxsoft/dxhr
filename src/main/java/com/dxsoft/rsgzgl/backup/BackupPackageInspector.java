@@ -19,7 +19,7 @@ import java.util.zip.ZipFile;
 import org.springframework.stereotype.Component;
 
 @Component
-class BackupPackageInspector {
+public class BackupPackageInspector {
 
     static final String NEW_MANIFEST = "rsgzgl-backup.json";
     static final String NEW_MARKER = "rsgzgl-backup.id";
@@ -36,7 +36,7 @@ class BackupPackageInspector {
         }
     }
 
-    BackupInspectResult inspectExtracted(Path extractDir) throws IOException {
+    public BackupInspectResult inspectExtracted(Path extractDir) throws IOException {
         Optional<Path> marker2026 = findFile(extractDir, "xxbak2026.id");
         Optional<Path> marker2025 = findFile(extractDir, "xxbak2025.id");
         Optional<Path> marker2016 = findFile(extractDir, "xxbak2016.id");
@@ -128,7 +128,7 @@ class BackupPackageInspector {
         return name;
     }
 
-    void unzip(Path archive, Path targetDir) throws IOException {
+    public void unzip(Path archive, Path targetDir) throws IOException {
         Files.createDirectories(targetDir);
         try (ZipFile zip = new ZipFile(archive.toFile())) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -180,7 +180,7 @@ class BackupPackageInspector {
         }
     }
 
-    static void deleteRecursively(Path root) {
+    public static void deleteRecursively(Path root) {
         if (root == null || !Files.exists(root)) {
             return;
         }

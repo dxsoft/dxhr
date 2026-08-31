@@ -40,6 +40,21 @@ class AccessControlServicePermissionTest {
         assertFalse(service.hasPermission("LEVEL_PROMOTION_WRITE"));
     }
 
+    @Test
+    void personnelWriteDoesNotGrantBasicWriteWithoutExplicitPermission() {
+        authenticate(Set.of("PERSONNEL_WRITE", "PERSONNEL_READ"));
+        AccessControlService service = new AccessControlService();
+        assertFalse(service.hasPermission("PERSONNEL_BASIC_WRITE"));
+        assertTrue(service.hasPermission("PERSONNEL_READ"));
+    }
+
+    @Test
+    void personnelBasicReadAllowsLegacyReadFallbackInFrontendPattern() {
+        authenticate(Set.of("PERSONNEL_READ"));
+        AccessControlService service = new AccessControlService();
+        assertTrue(service.hasAnyPermission("PERSONNEL_BASIC_READ", "PERSONNEL_READ"));
+    }
+
     private static void authenticate(Set<String> permissions) {
         AppUserPrincipal user = new AppUserPrincipal(
                 1L,

@@ -47,6 +47,11 @@ class DictionaryController {
         return dictionaryService.fieldConfigs(tableName);
     }
 
+    @GetMapping("/payroll-field-configs")
+    List<DictionaryFieldConfig> payrollFieldConfigs() {
+        return dictionaryService.payrollFieldConfigs();
+    }
+
     @GetMapping("/tree")
     List<DictionaryTreeNode> tree(
             @RequestParam(required = false) String prefix,

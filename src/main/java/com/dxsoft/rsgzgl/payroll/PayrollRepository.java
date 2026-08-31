@@ -287,7 +287,8 @@ public class PayrollRepository {
             rs.getInt("nzgwsf"),
             rs.getInt("gwjt2"),
             rs.getInt("qtbt"),
-            rs.getInt("hj2"));
+            rs.getInt("hj2"),
+            rs.getInt("attachment_count"));
 
     private static final RowMapper<TeachingAllowanceAdjustment> TEACHING_ALLOWANCE_ADJUSTMENT_MAPPER = (rs, rowNum) -> new TeachingAllowanceAdjustment(
             SqlText.trim(rs.getString("id")),
@@ -510,7 +511,9 @@ public class PayrollRepository {
     private static final RowMapper<PositionChangeCandidate> POSITION_CHANGE_CANDIDATE_MAPPER = (rs, rowNum) -> new PositionChangeCandidate(
             normalizeAppointmentPositionCode(SqlText.trim(rs.getString("zwbm"))),
             SqlText.trim(rs.getString("xzzw")),
-            SqlText.trim(rs.getString("srny")));
+            SqlText.trim(rs.getString("srny")),
+            SqlText.trim(rs.getString("zwlb")),
+            readOptionalInteger(rs, "linked_award_id"));
 
     private static final RowMapper<PositionChangeDisplayPair> POSITION_CHANGE_DISPLAY_PAIR_MAPPER = (rs, rowNum) -> new PositionChangeDisplayPair(
             SqlText.trim(rs.getString("before_position_code")),
@@ -1229,7 +1232,7 @@ public class PayrollRepository {
             return List.of();
         }
         String normalized = emptyToNull(standardType) == null ? "" : standardType.trim().toLowerCase();
-        if ("position".equals(normalized) || "position-grade".equals(normalized)) {
+        if ("position".equals(normalized) || "position-grade".equals(normalized) || "judicial-grade".equals(normalized)) {
             BasicStandardQuery query = basicStandardQuery(standardType);
             return applyBasicStandardCategoryNameOverrides(jdbcTemplate.query("""
                     SELECT LEFT(TRIM(s.zwbm), 2) AS zwbm,
@@ -1289,7 +1292,7 @@ public class PayrollRepository {
 
     private String basicStandardPrefixPredicate(String standardType) {
         String normalized = emptyToNull(standardType) == null ? "" : standardType.trim().toLowerCase();
-        if ("position".equals(normalized) || "position-grade".equals(normalized)) {
+        if ("position".equals(normalized) || "position-grade".equals(normalized) || "judicial-grade".equals(normalized)) {
             return "AND (:positionPrefix IS NULL OR LEFT(TRIM(zwbm), 2) = :positionPrefix)";
         }
         if ("salary-level".equals(normalized)) {
@@ -1305,7 +1308,7 @@ public class PayrollRepository {
         if ("salary-level".equals(normalized)) {
             return enrichBasicStandardJobCategoryNames(records);
         }
-        if (!"position".equals(normalized) && !"position-grade".equals(normalized)) {
+        if (!"position".equals(normalized) && !"position-grade".equals(normalized) && !"judicial-grade".equals(normalized)) {
             return records;
         }
         List<String> codes = records.stream()
@@ -1327,7 +1330,8 @@ public class PayrollRepository {
                         values.put(entry.getKey(), entry.getValue());
                         if ("zwbm".equalsIgnoreCase(entry.getKey())) {
                             String code = entry.getValue() == null ? "" : String.valueOf(entry.getValue()).trim();
-                            values.put("zwmc", names.getOrDefault(code, ""));
+                            String existingName = String.valueOf(values.getOrDefault("zwmc", values.getOrDefault("ZWMC", ""))).trim();
+                            values.put("zwmc", existingName.isBlank() ? names.getOrDefault(code, "") : existingName);
                         }
                     }
                     return new BasicStandardRecord(record.standardType(), values);
@@ -1620,7 +1624,9 @@ public class PayrollRepository {
                     SELECT t.personnel_uid,
                            b.zwbm,
                            b.xzzw,
-                           b.srny
+                           b.srny,
+                           b.zwlb,
+                           b.linked_award_id
                     FROM tip t
                     INNER JOIN dryjbxx p ON p.uid = t.personnel_uid
                     INNER JOIN dryzwbh b ON b.id = (
@@ -1645,7 +1651,7 @@ public class PayrollRepository {
                         LIMIT 1
                     )
                 )
-                SELECT na.personnel_uid, na.zwbm, na.xzzw, na.srny
+                SELECT na.personnel_uid, na.zwbm, na.xzzw, na.srny, na.zwlb, na.linked_award_id
                 FROM next_appointment na
                 INNER JOIN tip t ON t.personnel_uid = na.personnel_uid
                 WHERE na.srny >= CONCAT(COALESCE(t.jsnf, ''), '.', LPAD(COALESCE(t.jsyf, ''), 2, '0'))
@@ -1980,7 +1986,7 @@ public class PayrollRepository {
 
     Optional<PositionChangeCandidate> findAdministrativePositionBeforeReform(String organizationCode, String personCode) {
         return jdbcTemplate.query("""
-                SELECT zwbm, xzzw, srny
+                SELECT zwbm, xzzw, srny, zwlb, linked_award_id
                 FROM dryzwbh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
@@ -1996,7 +2002,7 @@ public class PayrollRepository {
     Optional<PositionChangeCandidate> findPositionAtPeriod(String organizationCode, String personCode, String period) {
         String normalizedPeriod = period == null ? "" : period.replace(".", "");
         return jdbcTemplate.query("""
-                SELECT zwbm, xzzw, srny
+                SELECT zwbm, xzzw, srny, zwlb, linked_award_id
                 FROM dryzwbh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
@@ -2012,7 +2018,7 @@ public class PayrollRepository {
     Optional<PositionChangeCandidate> findPositionAtOrBefore(String organizationCode, String personCode, String period) {
         String normalizedPeriod = period == null ? "" : period.replace(".", "");
         return jdbcTemplate.query("""
-                SELECT zwbm, xzzw, srny
+                SELECT zwbm, xzzw, srny, zwlb, linked_award_id
                 FROM dryzwbh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
@@ -2034,7 +2040,7 @@ public class PayrollRepository {
         String normalizedAfter = afterPeriod == null ? "" : afterPeriod.replace(".", "");
         String normalizedBeforeOrAt = beforeOrAtPeriod == null ? "" : beforeOrAtPeriod.replace(".", "");
         return jdbcTemplate.query("""
-                SELECT zwbm, xzzw, srny
+                SELECT zwbm, xzzw, srny, zwlb, linked_award_id
                 FROM dryzwbh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
@@ -2089,7 +2095,7 @@ public class PayrollRepository {
             Set<String> prefixes) {
         String normalizedPeriod = beforePeriod == null ? "" : beforePeriod.replace(".", "");
         return jdbcTemplate.query("""
-                SELECT zwbm, xzzw, srny
+                SELECT zwbm, xzzw, srny, zwlb, linked_award_id
                 FROM dryzwbh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
@@ -2111,7 +2117,7 @@ public class PayrollRepository {
             String beforePeriod) {
         String normalizedPeriod = beforePeriod == null ? "" : beforePeriod.replace(".", "");
         return jdbcTemplate.query("""
-                SELECT zwbm, xzzw, srny
+                SELECT zwbm, xzzw, srny, zwlb, linked_award_id
                 FROM dryzwbh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
@@ -2136,7 +2142,7 @@ public class PayrollRepository {
             Set<String> prefixes) {
         String normalizedPeriod = beforePeriod == null ? "" : beforePeriod.replace(".", "");
         return jdbcTemplate.query("""
-                SELECT zwbm, xzzw, srny, kjnx
+                SELECT zwbm, xzzw, srny, zwlb, linked_award_id, kjnx
                 FROM dryzwbh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
@@ -2333,7 +2339,8 @@ public class PayrollRepository {
                        h.zwgzse2, h.jbgzse2, h.jsdjgz2, h.jxgz, h.dfbt2, h.sdbt,
                        h.blfb2, h.jxjt, h.fdgz2, h.jjjy2, h.jhljt, h.jsfszwtg2,
                        h.njbt, h.pgbc, h.zwjt, h.jzmcbt, h.tgblbf, h.nzgwsf,
-                       h.gwjt2, h.qtbt, h.hj2
+                       h.gwjt2, h.qtbt, h.hj2,
+                       (SELECT COUNT(*) FROM app_subrecord_attachment att WHERE att.table_name = 'hisbase' AND att.record_key = h.id AND att.record_id = 0) AS attachment_count
                 FROM hisbase h
                 LEFT JOIN dwbm dw ON dw.dwbm = h.dwbm
                 LEFT JOIN dryjbxx p ON p.dwbm = h.dwbm AND p.grbm = h.grbm
@@ -2540,10 +2547,10 @@ public class PayrollRepository {
                           WHERE j.dwbm = h.dwbm
                             AND j.grbm = h.grbm
                             AND (
-                                (:category = 'jx' AND (j.lb = 'jx' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND j.jx LIKE '%\u8b66%')))
-                                OR (:category = 'jc' AND (j.lb = 'jc' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND (j.jx LIKE '%\u68c0\u5bdf%' OR j.jx LIKE '%\u68c0\u5bdf\u5b98%') AND j.jx NOT LIKE '%\u76d1\u5bdf%')))
-                                OR (:category = 'sp' AND (j.lb = 'sp' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND (j.jx LIKE '%\u6cd5%' OR j.jx LIKE '%\u5ba1\u5224%' OR j.jx LIKE '%\u6cd5\u5b98%'))))
-                                OR (:category = 'mt' AND (j.lb = 'mt' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND j.jx LIKE '%\u76d1\u5bdf%')))
+                                (:category = 'jx' AND (j.lb = 'jx' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND (j.jx LIKE '%\u8b66%' OR TRIM(j.jx) IN ('\u65e0', '\u65e0\u8b66\u8854')))))
+                                OR (:category = 'jc' AND (j.lb = 'jc' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND (((j.jx LIKE '%\u68c0\u5bdf%' OR j.jx LIKE '%\u68c0\u5bdf\u5b98%') AND j.jx NOT LIKE '%\u76d1\u5bdf%') OR TRIM(j.jx) IN ('\u65e0', '\u65e0\u7b49\u7ea7')))))
+                                OR (:category = 'sp' AND (j.lb = 'sp' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND (j.jx LIKE '%\u6cd5%' OR j.jx LIKE '%\u5ba1\u5224%' OR j.jx LIKE '%\u6cd5\u5b98%' OR TRIM(j.jx) IN ('\u65e0', '\u65e0\u7b49\u7ea7')))))
+                                OR (:category = 'mt' AND (j.lb = 'mt' OR ((j.lb IS NULL OR TRIM(j.lb) = '') AND (j.jx LIKE '%\u76d1\u5bdf%' OR TRIM(j.jx) IN ('\u65e0', '\u65e0\u7b49\u7ea7')))))
                             )
                       )
                   )
@@ -2577,10 +2584,10 @@ public class PayrollRepository {
                 WHERE dwbm IN (:organizationCodes)
                   AND grbm IN (:personCodes)
                   AND (
-                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%\u8b66%')))
-                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%\u68c0\u5bdf%' OR jx LIKE '%\u68c0\u5bdf\u5b98%') AND jx NOT LIKE '%\u76d1\u5bdf%')))
-                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%\u6cd5%' OR jx LIKE '%\u5ba1\u5224%' OR jx LIKE '%\u6cd5\u5b98%'))))
-                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%\u76d1\u5bdf%')))
+                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%\u8b66%' OR TRIM(jx) IN ('\u65e0', '\u65e0\u8b66\u8854')))))
+                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (((jx LIKE '%\u68c0\u5bdf%' OR jx LIKE '%\u68c0\u5bdf\u5b98%') AND jx NOT LIKE '%\u76d1\u5bdf%') OR TRIM(jx) IN ('\u65e0', '\u65e0\u7b49\u7ea7')))))
+                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%\u6cd5%' OR jx LIKE '%\u5ba1\u5224%' OR jx LIKE '%\u6cd5\u5b98%' OR TRIM(jx) IN ('\u65e0', '\u65e0\u7b49\u7ea7')))))
+                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%\u76d1\u5bdf%' OR TRIM(jx) IN ('\u65e0', '\u65e0\u7b49\u7ea7')))))
                   )
                 ORDER BY dwbm, grbm, REPLACE(COALESCE(sysj, ''), '.', '') DESC, id DESC
                 """, new MapSqlParameterSource()
@@ -4017,7 +4024,7 @@ public class PayrollRepository {
                 """;
     }
 
-    Optional<NewPersonnelSalaryCandidate> findNewPersonnelSalaryCandidate(int uid) {
+    public Optional<NewPersonnelSalaryCandidate> findNewPersonnelSalaryCandidate(int uid) {
         List<NewPersonnelSalaryCandidate> rows = jdbcTemplate.query("""
                 SELECT p.uid, p.dwbm, dw.dwmc, p.grbm, p.xm, p.jrny, p.jrfs,
                        COALESCE(NULLIF(TRIM(h.zwbm2), ''), NULLIF(TRIM(z.zwbm), ''), NULLIF(TRIM(p.zjbm), '')) AS position_code,
@@ -4490,7 +4497,7 @@ public class PayrollRepository {
      * 学历晋升候选：tip 为「学历变化」可还原，或 tip 工资年月之后取得过可用学历。
      * 拆成 UNION：还原侧从「学历变化」tip 反查是否仍为链头；办理侧先缩到有学历的人再取 tip。
      */
-    List<Integer> findEducationPromotionCandidateUids(
+    public List<Integer> findEducationPromotionCandidateUids(
             OrganizationScope organizationScope,
             String organizationCode,
             String keyword) {
@@ -4769,7 +4776,7 @@ public class PayrollRepository {
         }
         Map<String, List<PositionChangeCandidate>> positions = new LinkedHashMap<>();
         jdbcTemplate.query("""
-                SELECT dwbm, grbm, zwbm, xzzw, srny
+                SELECT dwbm, grbm, zwbm, xzzw, srny, zwlb, linked_award_id
                 FROM dryzwbh
                 WHERE dwbm IN (:organizationCodes)
                   AND grbm IN (:personCodes)
@@ -4778,10 +4785,7 @@ public class PayrollRepository {
                 .addValue("organizationCodes", organizationCodes)
                 .addValue("personCodes", personCodes), (rs, rowNum) -> {
             String key = SqlText.trim(rs.getString("dwbm")) + "|" + SqlText.trim(rs.getString("grbm"));
-            positions.computeIfAbsent(key, ignored -> new java.util.ArrayList<>()).add(new PositionChangeCandidate(
-                    SqlText.trim(rs.getString("zwbm")),
-                    SqlText.trim(rs.getString("xzzw")),
-                    SqlText.trim(rs.getString("srny"))));
+            positions.computeIfAbsent(key, ignored -> new java.util.ArrayList<>()).add(POSITION_CHANGE_CANDIDATE_MAPPER.mapRow(rs, rowNum));
             return null;
         });
         return positions;
@@ -4836,7 +4840,7 @@ public class PayrollRepository {
      * ② 按 tip 档次考核起算年跨度与合格年数缩小待办候选。
      * 跨度条件用加法，避免 UNSIGNED 下溢；起算年空时保留（由 Java 侧用任职年月补算）。
      */
-    List<Integer> findNormalPromotionCandidateUids(
+    public List<Integer> findNormalPromotionCandidateUids(
             OrganizationScope organizationScope,
             String organizationCode,
             String keyword,
@@ -5850,7 +5854,7 @@ public class PayrollRepository {
                 """, new MapSqlParameterSource("id", id), POSITION_CHANGE_DISPLAY_PAIR_MAPPER).stream().findFirst();
     }
 
-    Optional<PayrollHistorySnapshot> findPayrollHistoryById(String id) {
+    public Optional<PayrollHistorySnapshot> findPayrollHistoryById(String id) {
         return jdbcTemplate.query("""
                 SELECT h.id, h.dwbm, h.grbm, h.xm, h.jsnf, h.jsyf, h.jslb,
                        h.dwsx, dw.dfbt, h.jzgb, h.spdw, p.cjgzny, h.srny, p.gznx, p.zdgznx,
@@ -5925,7 +5929,7 @@ public class PayrollRepository {
             String beforeOrAtPeriod) {
         String normalizedPeriod = beforeOrAtPeriod == null ? "" : beforeOrAtPeriod.replace(".", "");
         return jdbcTemplate.query("""
-                SELECT zwbm, xzzw, srny
+                SELECT zwbm, xzzw, srny, zwlb, linked_award_id
                 FROM dryzwbh
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
@@ -6620,6 +6624,51 @@ public class PayrollRepository {
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
+    void insertPoliceGradeSalaryStandard(GradeSalaryStandardRequest request) {
+        jdbcTemplate.update("""
+                INSERT INTO bz06_djgz (tbnd, jb, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10,
+                    dc11, dc12, dc13, dc14)
+                VALUES (:standardYearMonth, :gradeLevel,
+                    :dc1, :dc2, :dc3, :dc4, :dc5, :dc6, :dc7, :dc8, :dc9, :dc10,
+                    :dc11, :dc12, :dc13, :dc14)
+                """, policeGradeSalaryStandardParameters(request.standardYearMonth(), request.gradeLevel(), request.gradeSteps()));
+    }
+
+    void updatePoliceGradeSalaryStandard(String standardYearMonth, String gradeLevel, GradeSalaryStandardRequest request) {
+        jdbcTemplate.update("""
+                UPDATE bz06_djgz
+                SET dc1 = :dc1, dc2 = :dc2, dc3 = :dc3, dc4 = :dc4, dc5 = :dc5,
+                    dc6 = :dc6, dc7 = :dc7, dc8 = :dc8, dc9 = :dc9, dc10 = :dc10,
+                    dc11 = :dc11, dc12 = :dc12, dc13 = :dc13, dc14 = :dc14
+                WHERE tbnd = :standardYearMonth AND jb = :gradeLevel
+                """, policeGradeSalaryStandardParameters(standardYearMonth, gradeLevel, request.gradeSteps()));
+    }
+
+    void deletePoliceGradeSalaryStandard(String standardYearMonth, String gradeLevel) {
+        jdbcTemplate.update("""
+                DELETE FROM bz06_djgz
+                WHERE tbnd = :standardYearMonth AND jb = :gradeLevel
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth)
+                .addValue("gradeLevel", gradeLevel));
+    }
+
+    GradeSalaryStandard findPoliceGradeSalaryStandard(String standardYearMonth, String gradeLevel) {
+        List<GradeSalaryStandard> rows = jdbcTemplate.query("""
+                SELECT tbnd, jb, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10,
+                       dc11, dc12, dc13, dc14
+                FROM bz06_djgz
+                WHERE tbnd = :standardYearMonth AND jb = :gradeLevel
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth)
+                .addValue("gradeLevel", gradeLevel), (rs, rowNum) -> new GradeSalaryStandard(
+                rs.getString("tbnd"),
+                rs.getString("jb"),
+                readPoliceGradeSteps(rs)));
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
     void insertPositionGradeSalaryStandard(PositionGradeSalaryStandardRequest request) {
         MapSqlParameterSource parameters = positionGradeSalaryStandardParameters(
                 request.standardYearMonth(),
@@ -6677,6 +6726,65 @@ public class PayrollRepository {
                 rs.getString("zwbm"),
                 rs.getInt("jsdjgz"),
                 readGradeSteps(rs)));
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    void insertJudicialPositionGradeSalaryStandard(JudicialPositionGradeSalaryStandardRequest request) {
+        jdbcTemplate.update("""
+                INSERT INTO bz06_zwgz_fj (tbnd, zwbm, zwmc, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10,
+                    dc11, dc12, dc13, dc14, dc15, dc16, dc17)
+                VALUES (:standardYearMonth, :positionCode, :positionName,
+                    :dc1, :dc2, :dc3, :dc4, :dc5, :dc6, :dc7, :dc8, :dc9, :dc10,
+                    :dc11, :dc12, :dc13, :dc14, :dc15, :dc16, :dc17)
+                """, judicialPositionGradeSalaryStandardParameters(
+                request.standardYearMonth(),
+                request.positionCode(),
+                request.positionName(),
+                request.gradeSteps()));
+    }
+
+    void updateJudicialPositionGradeSalaryStandard(
+            String standardYearMonth,
+            String positionCode,
+            JudicialPositionGradeSalaryStandardRequest request) {
+        jdbcTemplate.update("""
+                UPDATE bz06_zwgz_fj
+                SET zwmc = :positionName,
+                    dc1 = :dc1, dc2 = :dc2, dc3 = :dc3, dc4 = :dc4, dc5 = :dc5,
+                    dc6 = :dc6, dc7 = :dc7, dc8 = :dc8, dc9 = :dc9, dc10 = :dc10,
+                    dc11 = :dc11, dc12 = :dc12, dc13 = :dc13, dc14 = :dc14, dc15 = :dc15,
+                    dc16 = :dc16, dc17 = :dc17
+                WHERE tbnd = :standardYearMonth AND zwbm = :positionCode
+                """, judicialPositionGradeSalaryStandardParameters(
+                standardYearMonth,
+                positionCode,
+                request.positionName(),
+                request.gradeSteps()));
+    }
+
+    void deleteJudicialPositionGradeSalaryStandard(String standardYearMonth, String positionCode) {
+        jdbcTemplate.update("""
+                DELETE FROM bz06_zwgz_fj
+                WHERE tbnd = :standardYearMonth AND zwbm = :positionCode
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth)
+                .addValue("positionCode", positionCode));
+    }
+
+    JudicialPositionGradeSalaryStandard findJudicialPositionGradeSalaryStandard(String standardYearMonth, String positionCode) {
+        List<JudicialPositionGradeSalaryStandard> rows = jdbcTemplate.query("""
+                SELECT tbnd, zwbm, zwmc, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10,
+                       dc11, dc12, dc13, dc14, dc15, dc16, dc17
+                FROM bz06_zwgz_fj
+                WHERE tbnd = :standardYearMonth AND zwbm = :positionCode
+                LIMIT 1
+                """, new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth)
+                .addValue("positionCode", positionCode), (rs, rowNum) -> new JudicialPositionGradeSalaryStandard(
+                rs.getString("tbnd"),
+                rs.getString("zwbm"),
+                rs.getString("zwmc"),
+                readJudicialGradeSteps(rs)));
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
@@ -7027,6 +7135,8 @@ public class PayrollRepository {
                     zwgw2 = :positionName,
                     jbgzjb2 = :gradeSalaryLevel,
                     zwgzdc2 = :positionSalaryGrade,
+                    xckhndjb = :levelAssessmentStartYear,
+                    xckhndzw = :stepAssessmentStartYear,
                     tbnd = :salaryStandardYearMonth,
                     jbtbz = :allowanceStandardYearMonth,
                     tgbl = :teachingIncreaseRatio,
@@ -7344,7 +7454,7 @@ public class PayrollRepository {
 
     Optional<PositionChangeCandidate> findCurrentPositionChangeCandidate(String organizationCode, String personCode) {
         return jdbcTemplate.query("""
-                SELECT b.zwbm, b.xzzw, b.srny
+                SELECT b.zwbm, b.xzzw, b.srny, b.zwlb, b.linked_award_id
                 FROM dryjbxx p
                 """ + latestPayrollTipJoin("p", "h") + """
                 INNER JOIN dryzwbh b ON b.id = (
@@ -7456,7 +7566,7 @@ public class PayrollRepository {
         return new PositionChangePromotionPage(rows, total);
     }
 
-    List<PositionChangePromotionCandidateRow> findPositionChangePromotionCandidateRows(
+    public List<PositionChangePromotionCandidateRow> findPositionChangePromotionCandidateRows(
             OrganizationScope organizationScope,
             String organizationCode,
             String keyword) {
@@ -7647,7 +7757,7 @@ public class PayrollRepository {
                 """;
     }
 
-    List<LevelPromotionCandidateRow> findLevelPromotionCandidateRows(
+    public List<LevelPromotionCandidateRow> findLevelPromotionCandidateRows(
             OrganizationScope organizationScope,
             String organizationCode,
             String keyword,
@@ -8013,14 +8123,45 @@ public class PayrollRepository {
         if (standardCode == null) {
             return 0;
         }
+        String effectiveStandardYearMonth = resolveJudicialSalaryStandardYearMonth(standardYearMonth);
+        if (emptyToNull(effectiveStandardYearMonth) == null) {
+            return 0;
+        }
         return queryInteger("""
                 SELECT dc%s
                 FROM bz06_zwgz_fj
                 WHERE tbnd = :standardYearMonth AND zwbm = :positionCode
                 LIMIT 1
                 """.formatted(grade), new MapSqlParameterSource()
-                .addValue("standardYearMonth", emptyToNull(standardYearMonth))
+                .addValue("standardYearMonth", effectiveStandardYearMonth)
                 .addValue("positionCode", standardCode));
+    }
+
+    String latestJudicialPositionSalaryStandardAtOrBefore(String period) {
+        String normalizedPeriod = period == null ? "" : period.replace(".", "");
+        return queryString("""
+                SELECT tbnd
+                FROM bz06_zwgz_fj
+                WHERE tbnd <= :period
+                ORDER BY tbnd DESC
+                LIMIT 1
+                """, new MapSqlParameterSource("period", normalizedPeriod));
+    }
+
+    String resolveJudicialSalaryStandardYearMonth(String standardYearMonth) {
+        String normalized = emptyToNull(standardYearMonth);
+        if (normalized == null) {
+            return null;
+        }
+        Integer count = queryInteger("""
+                SELECT COUNT(*)
+                FROM bz06_zwgz_fj
+                WHERE tbnd = :standardYearMonth
+                """, new MapSqlParameterSource("standardYearMonth", normalized));
+        if (count != null && count > 0) {
+            return normalized;
+        }
+        return latestJudicialPositionSalaryStandardAtOrBefore(normalized);
     }
 
     /** tip 0318/0317… → 标准 0308/0307…（第三位规范为 0）。 */
@@ -8319,10 +8460,10 @@ public class PayrollRepository {
                 WHERE dwbm = :organizationCode
                   AND grbm = :personCode
                   AND (
-                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%警%')))
-                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%检察%' OR jx LIKE '%检察官%') AND jx NOT LIKE '%监察%')))
-                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%法%' OR jx LIKE '%审判%' OR jx LIKE '%法官%'))))
-                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%监察%')))
+                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%警%' OR TRIM(jx) IN ('无', '无警衔')))))
+                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (((jx LIKE '%检察%' OR jx LIKE '%检察官%') AND jx NOT LIKE '%监察%') OR TRIM(jx) IN ('无', '无等级')))))
+                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%法%' OR jx LIKE '%审判%' OR jx LIKE '%法官%' OR TRIM(jx) IN ('无', '无等级')))))
+                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%监察%' OR TRIM(jx) IN ('无', '无等级')))))
                   )
                 ORDER BY REPLACE(sysj, '.', '') DESC, xrjxbz DESC, id DESC
                 LIMIT 1
@@ -8349,10 +8490,10 @@ public class PayrollRepository {
                   AND grbm = :personCode
                   AND TRIM(jx) = TRIM(:currentRankName)
                   AND (
-                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%警%')))
-                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%检察%' OR jx LIKE '%检察官%') AND jx NOT LIKE '%监察%')))
-                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%法%' OR jx LIKE '%审判%' OR jx LIKE '%法官%'))))
-                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%监察%')))
+                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%警%' OR TRIM(jx) IN ('无', '无警衔')))))
+                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (((jx LIKE '%检察%' OR jx LIKE '%检察官%') AND jx NOT LIKE '%监察%') OR TRIM(jx) IN ('无', '无等级')))))
+                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%法%' OR jx LIKE '%审判%' OR jx LIKE '%法官%' OR TRIM(jx) IN ('无', '无等级')))))
+                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%监察%' OR TRIM(jx) IN ('无', '无等级')))))
                   )
                 ORDER BY REPLACE(sysj, '.', '') DESC, id DESC
                 LIMIT 1
@@ -8378,10 +8519,10 @@ public class PayrollRepository {
                   AND grbm = :personCode
                   AND REPLACE(sysj, '.', '') > :afterPeriod
                   AND (
-                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%警%')))
-                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%检察%' OR jx LIKE '%检察官%') AND jx NOT LIKE '%监察%')))
-                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%法%' OR jx LIKE '%审判%' OR jx LIKE '%法官%'))))
-                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND jx LIKE '%监察%')))
+                      (:category = 'jx' AND (lb = 'jx' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%警%' OR TRIM(jx) IN ('无', '无警衔')))))
+                      OR (:category = 'jc' AND (lb = 'jc' OR ((lb IS NULL OR TRIM(lb) = '') AND (((jx LIKE '%检察%' OR jx LIKE '%检察官%') AND jx NOT LIKE '%监察%') OR TRIM(jx) IN ('无', '无等级')))))
+                      OR (:category = 'sp' AND (lb = 'sp' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%法%' OR jx LIKE '%审判%' OR jx LIKE '%法官%' OR TRIM(jx) IN ('无', '无等级')))))
+                      OR (:category = 'mt' AND (lb = 'mt' OR ((lb IS NULL OR TRIM(lb) = '') AND (jx LIKE '%监察%' OR TRIM(jx) IN ('无', '无等级')))))
                   )
                 ORDER BY REPLACE(sysj, '.', '') DESC, id DESC
                 LIMIT 1
@@ -8877,8 +9018,7 @@ public class PayrollRepository {
                     || hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
             case "SALARY_LEVEL" -> hasBasicSalaryStandardInTable("bz06_xjgz", standardYearMonth)
                     || hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
-            case "JUDICIAL_GRADE" -> hasBasicSalaryStandardInTable("bz06_zwgz_fj", standardYearMonth)
-                    || hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
+            case "JUDICIAL_GRADE" -> hasBasicSalaryStandardInTable("bz06_zwgz_fj", standardYearMonth);
             case "WORKER_GRADE" -> hasBasicSalaryStandardInTable("bz06_zwgz_gr", standardYearMonth)
                     || hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
             default -> hasBasicSalaryStandardInTable("bz06_zwgz", standardYearMonth);
@@ -8923,7 +9063,7 @@ public class PayrollRepository {
                 .addValue("standardYearMonth", emptyToNull(standardYearMonth))
                 .addValue("jobCategory", jobCategory)
                 .addValue("salaryLevel", leftPadTwo(String.valueOf(targetLevel))));
-        return Math.max(target - base, 0);
+        return PayrollRounding.zroundToInt(BigDecimal.valueOf(Math.max(target - base, 0)), roundingPolicy());
     }
 
     int bonusBalance(PayrollHistorySnapshot history) {
@@ -8948,6 +9088,18 @@ public class PayrollRepository {
                 ORDER BY ID
                 LIMIT 1
                 """, new MapSqlParameterSource());
+    }
+
+    public PayrollRoundingPolicy roundingPolicy() {
+        List<PayrollRoundingPolicy> rows = jdbcTemplate.query("""
+                SELECT blxs, swyz
+                FROM cyxx
+                ORDER BY ID
+                LIMIT 1
+                """, new MapSqlParameterSource(), (rs, rowNum) -> PayrollRoundingPolicy.from(
+                SqlText.trim(rs.getString("blxs")),
+                SqlText.trim(rs.getString("swyz"))));
+        return rows.isEmpty() ? PayrollRoundingPolicy.defaults() : rows.getFirst();
     }
 
     int postAllowance(String standardYearMonth, String category) {
@@ -9056,14 +9208,14 @@ public class PayrollRepository {
         Integer amount = queryPerformanceAllowanceAmount(
                 normalizedPositionCode, standardYearMonth, category, requiresAllowanceCategoryFilter(positionCode));
         if (isProbationPosition(normalizedPositionCode) || isCivilServantPosition(normalizedPositionCode)) {
-            return BigDecimal.valueOf(nullToZero(amount));
+            return PayrollRounding.zround(BigDecimal.valueOf(nullToZero(amount)), roundingPolicy());
         }
 
         String ratio = emptyToNull(performanceRatioOverride);
         if (ratio == null) {
             ratio = organizationPerformanceRatio(organizationCode);
         }
-        return applyPerformanceRatio(nullToZero(amount), ratio);
+        return PayrollRounding.zround(applyPerformanceRatio(nullToZero(amount), ratio), roundingPolicy());
     }
 
     BigDecimal applyPerformanceRatio(int baseAmount, String ratioText) {
@@ -9103,16 +9255,18 @@ public class PayrollRepository {
                 .addValue("standardYearMonth", emptyToNull(standardYearMonth))
                 .addValue("category", category));
         if (nullToZero(amount) > 0 || requiresAllowanceCategoryFilter(positionCode)) {
-            return nullToZero(amount);
+            return PayrollRounding.zroundToInt(nullToZero(amount), roundingPolicy());
         }
-        return queryInteger("""
+        return PayrollRounding.zroundToInt(
+                nullToZero(queryInteger("""
                 SELECT bz
                 FROM bz06_jbt
                 WHERE UPPER(item) = 'SDBT' AND zwbm = :positionCode AND tbnd = :standardYearMonth
                 LIMIT 1
                 """, new MapSqlParameterSource()
                 .addValue("positionCode", normalizedPositionCode)
-                .addValue("standardYearMonth", emptyToNull(standardYearMonth)));
+                .addValue("standardYearMonth", emptyToNull(standardYearMonth)))),
+                roundingPolicy());
     }
 
     private Integer queryPerformanceAllowanceAmount(
@@ -9216,6 +9370,25 @@ public class PayrollRepository {
             return null;
         }
         return value.trim();
+    }
+
+    static Integer readOptionalInteger(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+        Object value = rs.getObject(column);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        String text = value.toString().trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     /**
@@ -9363,6 +9536,8 @@ public class PayrollRepository {
                 .addValue("positionName", valueOrBlank(request.positionName()))
                 .addValue("gradeSalaryLevel", valueOrBlank(request.gradeSalaryLevel()))
                 .addValue("positionSalaryGrade", valueOrBlank(request.positionSalaryGrade()))
+                .addValue("levelAssessmentStartYear", valueOrBlank(request.levelAssessmentStartYear()))
+                .addValue("stepAssessmentStartYear", valueOrBlank(request.stepAssessmentStartYear()))
                 .addValue("salaryStandardYearMonth", valueOrBlank(request.salaryStandardYearMonth()))
                 .addValue("allowanceStandardYearMonth", valueOrBlank(request.allowanceStandardYearMonth()))
                 .addValue("teachingIncreaseRatio", blankToZeroText(request.teachingIncreaseRatio()))
@@ -9501,6 +9676,58 @@ public class PayrollRepository {
         }
     }
 
+    private void appendJudicialGradeStepParameters(MapSqlParameterSource parameters, List<Integer> gradeSteps) {
+        for (int step = 1; step <= 17; step++) {
+            parameters.addValue("dc" + step, gradeStepAmount(gradeSteps, step));
+        }
+    }
+
+    private void appendPoliceGradeStepParameters(MapSqlParameterSource parameters, List<Integer> gradeSteps) {
+        for (int step = 1; step <= 14; step++) {
+            parameters.addValue("dc" + step, gradeStepAmount(gradeSteps, step));
+        }
+    }
+
+    private MapSqlParameterSource policeGradeSalaryStandardParameters(
+            String standardYearMonth,
+            String gradeLevel,
+            List<Integer> gradeSteps) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth)
+                .addValue("gradeLevel", gradeLevel);
+        appendPoliceGradeStepParameters(parameters, gradeSteps);
+        return parameters;
+    }
+
+    private MapSqlParameterSource judicialPositionGradeSalaryStandardParameters(
+            String standardYearMonth,
+            String positionCode,
+            String positionName,
+            List<Integer> gradeSteps) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("standardYearMonth", standardYearMonth)
+                .addValue("positionCode", positionCode)
+                .addValue("positionName", emptyToNull(positionName) == null ? "" : positionName.trim());
+        appendJudicialGradeStepParameters(parameters, gradeSteps);
+        return parameters;
+    }
+
+    private List<Integer> readJudicialGradeSteps(java.sql.ResultSet rs) throws java.sql.SQLException {
+        List<Integer> steps = new java.util.ArrayList<>(17);
+        for (int step = 1; step <= 17; step++) {
+            steps.add(rs.getInt("dc" + step));
+        }
+        return steps;
+    }
+
+    private List<Integer> readPoliceGradeSteps(java.sql.ResultSet rs) throws java.sql.SQLException {
+        List<Integer> steps = new java.util.ArrayList<>(14);
+        for (int step = 1; step <= 14; step++) {
+            steps.add(rs.getInt("dc" + step));
+        }
+        return steps;
+    }
+
     private int gradeStepAmount(List<Integer> gradeSteps, int step) {
         if (gradeSteps == null || gradeSteps.size() < step) {
             return 0;
@@ -9529,6 +9756,16 @@ public class PayrollRepository {
                     "tbnd, zwbm, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10, dc11, dc12, dc13, dc14, dc15, dc16, dc17, dc18, dc19, dc20, jsdjgz",
                     "zwbm = :code",
                     "tbnd DESC, zwbm");
+            case "judicial-grade" -> new BasicStandardQuery(
+                    "bz06_zwgz_fj",
+                    "tbnd, zwbm, zwmc, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10, dc11, dc12, dc13, dc14, dc15, dc16, dc17",
+                    "zwbm = :code",
+                    "tbnd DESC, zwbm");
+            case "police-grade" -> new BasicStandardQuery(
+                    "bz06_djgz",
+                    "tbnd, jb, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10, dc11, dc12, dc13, dc14",
+                    "jb = :code",
+                    "tbnd DESC, CAST(jb AS UNSIGNED)");
             case "grade" -> new BasicStandardQuery(
                     "bz06_jbgz",
                     "tbnd, jb, dc1, dc2, dc3, dc4, dc5, dc6, dc7, dc8, dc9, dc10, dc11, dc12, dc13, dc14, dc15, dc16, dc17, dc18, dc19, dc20",

@@ -2,6 +2,7 @@ package com.dxsoft.rsgzgl.license;
 
 import com.dxsoft.rsgzgl.common.SqlText;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -99,12 +100,47 @@ class LicenseRepository {
         return count == null ? 0 : count;
     }
 
-    void upsertCyxxSubject(LicenseSubject subject, String softsn, String licenseStamp) {
+    void upsertCyxx(LicenseSubject subject, LicenseLocalPolicy policy, String softsn, String licenseStamp) {
+        MapSqlParameterSource params = cyxxParams(subject, policy, softsn, licenseStamp);
         if (countCyxx() == 0) {
+            if (policy == null) {
+                jdbc.update("""
+                        INSERT INTO cyxx (ID, dwbm, dwmc, dwjc, zgry, szds, shrq, softsn, sp, bz)
+                        VALUES (1, :code, :name, :level, :supervisor, :city, :stamp, :softsn, 1, :title)
+                        """, params);
+            } else {
+                jdbc.update("""
+                        INSERT INTO cyxx (
+                            ID, dwbm, dwmc, dwjc, zgry, szds, shrq, softsn, sp, bz,
+                            zzrs, skbz, blxs, swyz, jzmcbtmc, sdbtmc, spfs, dwsplb, jqdm, ltjddc,
+                            jxgz, jjjy, fdgz, pgbc, path_bak, zwbhhjsdj, cdchjsdj, autobak, ask, chkupdate
+                        ) VALUES (
+                            1, :code, :name, :level, :supervisor, :city, :stamp, :softsn, 1, :payrollTitle,
+                            :activeStaffFlag, :approvalFlag, :roundingMode, :roundToInteger, :policeAllowanceCaption,
+                            :subsidyCaption, :approvalMode, :unitApprovalCategory, :policeRankStartLevel, :retiredGradeStep,
+                            :internSalaryMode, :bonusBalanceMode, :floatingSalaryMode, :payGradeRetentionMode,
+                            :backupPath, :positionChangeIncludeTechnicalGrade, :rankChangeIncludeTechnicalGrade,
+                            :autoBackup, :confirmBeforeAction, :checkUpdate
+                        )
+                        """, params);
+            }
+            return;
+        }
+        if (policy == null) {
+            // 旧授权包或未同步政策：仅更新签约主体，保留目标库已有政策字段
             jdbc.update("""
-                    INSERT INTO cyxx (ID, dwbm, dwmc, dwjc, zgry, szds, shrq, softsn, sp, bz)
-                    VALUES (1, :code, :name, :level, :supervisor, :city, :stamp, :softsn, 1, :title)
-                    """, params(subject, softsn, licenseStamp));
+                    UPDATE cyxx
+                    SET dwbm = :code,
+                        dwmc = :name,
+                        dwjc = :level,
+                        zgry = :supervisor,
+                        szds = :city,
+                        shrq = :stamp,
+                        softsn = :softsn,
+                        sp = 1,
+                        bz = COALESCE(NULLIF(TRIM(bz), ''), :title)
+                    WHERE ID = (SELECT id FROM (SELECT MIN(ID) AS id FROM cyxx) t)
+                    """, params);
             return;
         }
         jdbc.update("""
@@ -117,9 +153,76 @@ class LicenseRepository {
                     shrq = :stamp,
                     softsn = :softsn,
                     sp = 1,
-                    bz = COALESCE(NULLIF(TRIM(bz), ''), :title)
+                    bz = :payrollTitle,
+                    zzrs = :activeStaffFlag,
+                    skbz = :approvalFlag,
+                    blxs = :roundingMode,
+                    swyz = :roundToInteger,
+                    jzmcbtmc = :policeAllowanceCaption,
+                    sdbtmc = :subsidyCaption,
+                    spfs = :approvalMode,
+                    dwsplb = :unitApprovalCategory,
+                    jqdm = :policeRankStartLevel,
+                    ltjddc = :retiredGradeStep,
+                    jxgz = :internSalaryMode,
+                    jjjy = :bonusBalanceMode,
+                    fdgz = :floatingSalaryMode,
+                    pgbc = :payGradeRetentionMode,
+                    path_bak = :backupPath,
+                    zwbhhjsdj = :positionChangeIncludeTechnicalGrade,
+                    cdchjsdj = :rankChangeIncludeTechnicalGrade,
+                    autobak = :autoBackup,
+                    ask = :confirmBeforeAction,
+                    chkupdate = :checkUpdate
                 WHERE ID = (SELECT id FROM (SELECT MIN(ID) AS id FROM cyxx) t)
-                """, params(subject, softsn, licenseStamp));
+                """, params);
+    }
+
+    Optional<LicenseLocalPolicy> findLocalPolicyForIssue() {
+        List<LicenseLocalPolicy> rows = jdbc.query("""
+                SELECT zzrs, skbz, bz, blxs, swyz, jzmcbtmc, sdbtmc, spfs, dwsplb, jqdm, ltjddc,
+                       jxgz, jjjy, fdgz, pgbc, path_bak, zwbhhjsdj, cdchjsdj, autobak, ask, chkupdate
+                FROM cyxx
+                ORDER BY ID
+                LIMIT 1
+                """, new MapSqlParameterSource(), (rs, rowNum) -> new LicenseLocalPolicy(
+                rs.getObject("zzrs", Integer.class),
+                SqlText.trim(rs.getString("skbz")),
+                SqlText.trim(rs.getString("bz")),
+                SqlText.trim(rs.getString("blxs")),
+                SqlText.trim(rs.getString("swyz")),
+                SqlText.trim(rs.getString("jzmcbtmc")),
+                SqlText.trim(rs.getString("sdbtmc")),
+                SqlText.trim(rs.getString("spfs")),
+                SqlText.trim(rs.getString("dwsplb")),
+                rs.getBigDecimal("jqdm"),
+                SqlText.trim(rs.getString("ltjddc")),
+                rs.getBigDecimal("jxgz"),
+                rs.getBigDecimal("jjjy"),
+                rs.getBigDecimal("fdgz"),
+                rs.getBigDecimal("pgbc"),
+                SqlText.trim(rs.getString("path_bak")),
+                SqlText.trim(rs.getString("zwbhhjsdj")),
+                SqlText.trim(rs.getString("cdchjsdj")),
+                rs.getBigDecimal("autobak"),
+                rs.getBigDecimal("ask"),
+                rs.getBigDecimal("chkupdate")));
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
+    }
+
+    boolean hasExistingLocalPolicyFields() {
+        if (countCyxx() == 0) {
+            return false;
+        }
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM cyxx
+                WHERE jjjy IS NOT NULL
+                   OR blxs IS NOT NULL AND TRIM(blxs) <> ''
+                   OR jqdm IS NOT NULL
+                   OR jxgz IS NOT NULL
+                """, new MapSqlParameterSource(), Integer.class);
+        return count != null && count > 0;
     }
 
     boolean organizationExists(String code) {
@@ -146,11 +249,11 @@ class LicenseRepository {
                     nzj2010, nzj2011, nzj2012, nzj2013, gqbz
                 ) VALUES (
                     :code, :name, :shortName, :category, :property, :payrollCategory, :allowanceStandard,
-                    :personnelQuota, :establishmentCount, :actualCount, :organizationLevel,
+                    :personnelQuota, :establishmentCount, :actualCount, '',
                     0, 0, 0, '', '',
                     '', '', '', '', '', :housingFundWithheld, :pensionWithheld,
-                    0, 0, :financeSource, :performanceAllowanceEnabled, '', '', '', '',
-                    '', '', '', '', :performanceCategory, :yearAllowanceCategory, 0, '', 0, '',
+                    0, 0, :financeSource, :performanceAllowanceEnabled, :organizationLevel, :systemCategory, '', '',
+                    '', '', '', '', :performanceCategory, :yearAllowanceCategory, 0, '', 0, :performanceRatio,
                     0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0,
@@ -171,9 +274,11 @@ class LicenseRepository {
                     bzrs = :personnelQuota,
                     zbrs = :establishmentCount,
                     slrs = :actualCount,
-                    dwjc = :organizationLevel,
+                    jb = :organizationLevel,
+                    xtlb = :systemCategory,
                     dfbt = :performanceAllowanceEnabled,
                     jxlb = :performanceCategory,
+                    jxbl = :performanceRatio,
                     njbt = :yearAllowanceCategory,
                     jfly = :financeSource,
                     kzfgjj = :housingFundWithheld,
@@ -202,7 +307,7 @@ class LicenseRepository {
                 .addValue("includeSubordinates", includeSubordinates);
         return jdbc.query("""
                 SELECT dwbm, dwmc, dwmc1, dwbz, dwsx, gzczbz, jtbz,
-                       bzrs, zbrs, slrs, dwjc, dfbt, jxlb, njbt, jfly, kzfgjj, kylbxf
+                       bzrs, zbrs, slrs, jb, xtlb, dfbt, jxlb, jxbl, njbt, jfly, kzfgjj, kylbxf
                 FROM dwbm
                 WHERE TRIM(dwbm) = :code
                    OR (:includeSubordinates = TRUE
@@ -216,7 +321,7 @@ class LicenseRepository {
     List<LicenseOrganization> findAllOrganizationsForIssue() {
         return jdbc.query("""
                 SELECT dwbm, dwmc, dwmc1, dwbz, dwsx, gzczbz, jtbz,
-                       bzrs, zbrs, slrs, dwjc, dfbt, jxlb, njbt, jfly, kzfgjj, kylbxf
+                       bzrs, zbrs, slrs, jb, xtlb, dfbt, jxlb, jxbl, njbt, jfly, kzfgjj, kylbxf
                 FROM dwbm
                 ORDER BY TRIM(dwbm)
                 """, new MapSqlParameterSource(), LICENSE_ORG_MAPPER);
@@ -234,13 +339,57 @@ class LicenseRepository {
                     rs.getInt("bzrs"),
                     rs.getInt("zbrs"),
                     rs.getInt("slrs"),
-                    SqlText.trim(rs.getString("dwjc")),
+                    SqlText.trim(rs.getString("jb")),
+                    SqlText.trim(rs.getString("xtlb")),
                     rs.getInt("dfbt"),
                     rs.getInt("jxlb"),
+                    SqlText.trim(rs.getString("jxbl")),
                     rs.getInt("njbt"),
                     SqlText.trim(rs.getString("jfly")),
                     SqlText.trim(rs.getString("kzfgjj")),
                     SqlText.trim(rs.getString("kylbxf")));
+
+    private MapSqlParameterSource cyxxParams(
+            LicenseSubject subject,
+            LicenseLocalPolicy policy,
+            String softsn,
+            String stamp) {
+        MapSqlParameterSource params = params(subject, softsn, stamp);
+        String payrollTitle = resolvePayrollTitle(policy, subject);
+        params.addValue("payrollTitle", trimTo(payrollTitle, 12));
+        if (policy == null) {
+            return params;
+        }
+        return params
+                .addValue("activeStaffFlag", policy.activeStaffFlag())
+                .addValue("approvalFlag", trimTo(policy.approvalFlag(), 1))
+                .addValue("roundingMode", trimTo(policy.roundingMode(), 1))
+                .addValue("roundToInteger", trimTo(policy.roundToInteger(), 1))
+                .addValue("policeAllowanceCaption", trimTo(policy.policeAllowanceCaption(), 12))
+                .addValue("subsidyCaption", trimTo(policy.subsidyCaption(), 12))
+                .addValue("approvalMode", trimTo(policy.approvalMode(), 20))
+                .addValue("unitApprovalCategory", trimTo(policy.unitApprovalCategory(), 10))
+                .addValue("policeRankStartLevel", policy.policeRankStartLevel())
+                .addValue("retiredGradeStep", trimTo(policy.retiredGradeStep(), 6))
+                .addValue("internSalaryMode", policy.internSalaryMode())
+                .addValue("bonusBalanceMode", policy.bonusBalanceMode())
+                .addValue("floatingSalaryMode", policy.floatingSalaryMode())
+                .addValue("payGradeRetentionMode", policy.payGradeRetentionMode())
+                .addValue("backupPath", trimTo(policy.backupPath(), 50))
+                .addValue("positionChangeIncludeTechnicalGrade", trimTo(policy.positionChangeIncludeTechnicalGrade(), 2))
+                .addValue("rankChangeIncludeTechnicalGrade", trimTo(policy.rankChangeIncludeTechnicalGrade(), 2))
+                .addValue("autoBackup", policy.autoBackup())
+                .addValue("confirmBeforeAction", policy.confirmBeforeAction())
+                .addValue("checkUpdate", policy.checkUpdate());
+    }
+
+    private static String resolvePayrollTitle(LicenseLocalPolicy policy, LicenseSubject subject) {
+        if (policy != null && policy.payrollTitle() != null && !policy.payrollTitle().isBlank()) {
+            return policy.payrollTitle().trim();
+        }
+        String title = subject.organizationName() == null ? "" : subject.organizationName().trim();
+        return title.length() <= 12 ? title : title.substring(0, 12);
+    }
 
     private MapSqlParameterSource params(LicenseSubject subject, String softsn, String stamp) {
         String title = subject.organizationName() == null ? "" : subject.organizationName();
@@ -270,11 +419,13 @@ class LicenseRepository {
                 .addValue("personnelQuota", org.personnelQuota() == null ? 0 : org.personnelQuota())
                 .addValue("establishmentCount", org.establishmentCount() == null ? 0 : org.establishmentCount())
                 .addValue("actualCount", org.actualCount() == null ? 0 : org.actualCount())
-                .addValue("organizationLevel", trimTo(org.organizationLevel(), 1))
+                .addValue("organizationLevel", trimTo(org.organizationLevel(), 10))
+                .addValue("systemCategory", trimTo(org.systemCategory(), 30))
                 .addValue("performanceAllowanceEnabled",
                         org.performanceAllowanceEnabled() == null ? 0 : org.performanceAllowanceEnabled())
                 .addValue("performanceCategory",
                         org.performanceCategory() == null ? 0 : org.performanceCategory())
+                .addValue("performanceRatio", normalizePerformanceRatio(org.performanceRatio(), org.payrollCategory()))
                 .addValue("yearAllowanceCategory",
                         org.yearAllowanceCategory() == null ? 0 : org.yearAllowanceCategory())
                 .addValue("financeSource", trimTo(org.financeSource(), 8))
@@ -288,6 +439,19 @@ class LicenseRepository {
         }
         String trimmed = value.trim();
         return trimmed.length() <= max ? trimmed : trimmed.substring(0, max);
+    }
+
+    private static String normalizePerformanceRatio(String performanceRatio, String payrollCategory) {
+        if (payrollCategory == null || !"事业管理".equals(payrollCategory.trim())) {
+            return "";
+        }
+        if (performanceRatio == null) {
+            return "";
+        }
+        return performanceRatio.trim()
+                .replace('/', ':')
+                .replace('\\', ':')
+                .replace('：', ':');
     }
 
     record LicenseStatusRow(

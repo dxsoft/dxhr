@@ -12,6 +12,7 @@ public record BatchAssessmentEntryRow(
         String year,
         Integer assessmentId,
         String result,
+        String approvalStatus,
         String defaultResult
 ) {
 }

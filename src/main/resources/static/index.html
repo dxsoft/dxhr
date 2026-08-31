@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>人事工资管理系统</title>
-    <link rel="stylesheet" href="/app.css?v=20260818-personnel-org-width3">
+    <link rel="stylesheet" href="/app.css?v=20260831-approval-tracking-filters">
 </head>
 <body>
 <div class="app-shell">
@@ -182,7 +182,7 @@
         <div class="panel-title">
             <div>
                 <h2>人员管理</h2>
-                <p>查询在册人员；有维护权限时可新增、编辑及维护学历、任职、调资和考核等信息。</p>
+                <p>查询在册人员；有维护权限时可新增、编辑及维护学历、任职、调资和考核等信息。<span class="personnel-retirement-legend">橙色行表示已达退休年龄，黄色行表示 1 个月内即将退休（均含延迟退休试算）。</span></p>
             </div>
             <button id="personnel-maintenance-new" class="hidden" type="button">新增人员</button>
         </div>
@@ -243,12 +243,21 @@
                     <div>
                         <h3 id="personnel-maintenance-modal-title">人员信息维护</h3>
                         <p id="personnel-maintenance-modal-subtitle">维护基本信息，并查看学历、任职、调资和考核记录。</p>
+                        <p id="personnel-maintenance-block-reason" class="status warning hidden"></p>
                     </div>
                     <button id="personnel-maintenance-close" type="button">关闭</button>
                 </div>
+                <div id="personnel-approval-status-bar" class="toolbar compact-toolbar hidden">
+                    <span>主表审核状态：<strong id="personnel-approval-status-text">-</strong></span>
+                    <span class="approval-actor-meta">提交：<strong id="personnel-approval-submit-text">-</strong></span>
+                    <span class="approval-actor-meta">审核：<strong id="personnel-approval-approve-text">-</strong></span>
+                    <button id="personnel-approval-submit-button" type="button" class="hidden">提交申报</button>
+                    <button id="personnel-approval-approve-button" type="button" class="hidden">审核通过</button>
+                    <button id="personnel-approval-return-draft-button" type="button" class="hidden">退回草稿</button>
+                    <button id="personnel-approval-cancel-button" type="button" class="hidden">取消审核</button>
+                </div>
                 <div class="tab-bar">
                     <button class="tab-button active" type="button" data-personnel-tab="basic">基本信息</button>
-                    <button class="tab-button" type="button" data-personnel-tab="projection">工资推算</button>
                     <button class="tab-button" type="button" data-personnel-tab="education">学历信息</button>
                     <button class="tab-button" type="button" data-personnel-tab="position">职务变化</button>
                     <button class="tab-button" type="button" data-personnel-tab="transfer">调动履历</button>
@@ -259,6 +268,7 @@
                     <button class="tab-button" type="button" data-personnel-tab="rank-level">警衔</button>
                     <button class="tab-button" type="button" data-personnel-tab="wage-reform">套改情况</button>
                     <button class="tab-button" type="button" data-personnel-tab="pre-reform">套改前工资</button>
+                    <button class="tab-button" type="button" data-personnel-tab="projection">工资推算</button>
                 </div>
                 <div class="personnel-tab-body">
                 <div id="personnel-tab-basic" class="tab-panel">
@@ -293,6 +303,24 @@
                         <label>民族<input id="maint-ethnicity"></label>
                         <label>政治面貌<input id="maint-political-status"></label>
                         <label>档案号<input id="maint-archive-number"></label>
+                        <section id="personnel-basic-attachment-section" class="subrecord-form-section subrecord-attachment-section full-width hidden">
+                            <h4 class="subrecord-form-section-title">基本信息附件</h4>
+                            <p class="subrecord-hint">支持 PDF、Word、Excel、图片、压缩包等，单个不超过 20MB；可使用手机拍照或高拍仪拍照上传图片。</p>
+                            <ul class="subrecord-attachment-list" id="personnel-basic-attachment-list"></ul>
+                            <div class="subrecord-attachment-upload-actions" data-attachment-upload-actions="personnel-basic-attachment">
+                                <label class="subrecord-attachment-upload">
+                                    <input type="file" id="personnel-basic-attachment-input" multiple>
+                                    选择文件
+                                </label>
+                                <button type="button" class="subrecord-attachment-upload-button" data-attachment-mobile-camera="personnel-basic-attachment">
+                                    手机拍照
+                                </button>
+                                <input type="file" id="personnel-basic-attachment-mobile-camera" class="attachment-mobile-camera-input" accept="image/*" capture="environment">
+                                <button type="button" class="subrecord-attachment-upload-button" data-attachment-scanner="personnel-basic-attachment">
+                                    高拍仪拍照
+                                </button>
+                            </div>
+                        </section>
                         <div class="form-actions">
                             <button type="submit">保存人员</button>
                             <button id="personnel-maintenance-reset" type="button">清空表单</button>
@@ -331,27 +359,50 @@
                         <strong>学历信息</strong>
                         <button id="add-education-record" type="button">新增学历</button>
                     </div>
-                    <div class="table-wrap"><table><thead><tr><th>ID</th><th>学历编码</th><th>学历</th><th>学校</th><th>入学</th><th>毕业</th><th>类别</th><th>备注</th></tr></thead><tbody id="maint-education-rows"></tbody></table></div>
+                    <div class="table-wrap personnel-subrecord-table-wrap">
+                        <table class="personnel-subrecord-table personnel-subrecord-table-education">
+                            <thead>
+                            <tr>
+                                <th class="col-id">ID</th>
+                                <th class="col-code">学历编码</th>
+                                <th class="col-text">学历</th>
+                                <th class="col-text">学校</th>
+                                <th class="col-period">入学</th>
+                                <th class="col-period">毕业</th>
+                                <th class="col-text">类别</th>
+                                <th class="col-approval">审核状态</th>
+                                <th class="col-approval-actor">操作人</th>
+                                <th class="col-approval-action">审核操作</th>
+                                <th class="col-note">备注</th>
+                                <th class="col-action">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody id="maint-education-rows"></tbody>
+                        </table>
+                    </div>
                 </div>
                 <div id="personnel-tab-position" class="tab-panel hidden">
                     <div class="subrecord-toolbar position-subrecord-toolbar">
                         <div>
                             <strong>职务变化信息</strong>
-                            <p class="subrecord-hint">录入现任职务、职务层次、执行工资职务层次、任职时间、扣减年限与现任职；职务编码（xrzwbm / zwbm）由字典选择自动带出。</p>
+                            <p class="subrecord-hint">录入现任职务、职务层次、执行工资职务层次、任职时间与现任职；职务编码（xrzwbm / zwbm）由字典选择自动带出。</p>
                         </div>
                         <button id="add-position-record" type="button">新增任职</button>
                     </div>
-                    <div class="table-wrap position-subrecord-table-wrap">
-                        <table class="promotion-table position-subrecord-table">
+                    <div class="table-wrap personnel-subrecord-table-wrap position-subrecord-table-wrap">
+                        <table class="personnel-subrecord-table personnel-subrecord-table-position promotion-table position-subrecord-table">
                             <thead>
                             <tr>
                                 <th class="col-period">任职时间</th>
                                 <th class="col-position">现任职务</th>
                                 <th class="col-level">职务层次</th>
                                 <th class="col-position">执行工资职务层次</th>
-                                <th class="col-years">扣减年限</th>
+                                <th class="col-change">变动原因</th>
                                 <th class="col-flag">现任职</th>
                                 <th class="col-code">编码</th>
+                                <th class="col-approval">审核状态</th>
+                                <th class="col-approval-actor">操作人</th>
+                                <th class="col-approval-action">审核操作</th>
                                 <th class="col-action">操作</th>
                             </tr>
                             </thead>
@@ -389,7 +440,7 @@
                         <strong>历次调资信息</strong>
                         <button id="add-payroll-record" type="button">新增调资</button>
                     </div>
-                    <div class="table-wrap"><table><thead><tr><th>年月</th><th>变动类别</th><th>岗位</th><th>级别</th><th>档次/薪级</th><th>级别起始年限</th><th>档次起始年限</th><th>职务工资</th><th>级别/薪级</th><th>合计</th><th>当前执行</th></tr></thead><tbody id="maint-payroll-rows"></tbody></table></div>
+                    <div class="table-wrap"><table class="maint-payroll-table"><thead><tr><th>年月</th><th>变动类别</th><th>岗位</th><th>级别/档次</th><th class="col-level-start">级别起始年限</th><th>档次起始年限</th><th>职务工资</th><th>级别/薪级</th><th>合计</th><th class="col-current">当前执行</th><th class="col-action">操作</th></tr></thead><tbody id="maint-payroll-rows"></tbody></table></div>
                 </div>
                 <div id="personnel-tab-current-payroll" class="tab-panel hidden">
                     <div class="subrecord-toolbar"><strong>人员当前执行工资详情</strong></div>
@@ -401,15 +452,75 @@
                         <button id="auto-fill-missing-assessments" type="button">自动补录缺失考核</button>
                         <button id="add-assessment-record" type="button">新增考核</button>
                     </div>
-                    <div class="table-wrap"><table><thead><tr><th>ID</th><th>年度</th><th>结果</th></tr></thead><tbody id="maint-assessment-rows"></tbody></table></div>
+                    <div class="table-wrap personnel-subrecord-table-wrap">
+                        <table class="personnel-subrecord-table personnel-subrecord-table-assessment">
+                            <thead>
+                            <tr>
+                                <th class="col-id">ID</th>
+                                <th class="col-year">年度</th>
+                                <th class="col-result">结果</th>
+                                <th class="col-approval">审核状态</th>
+                                <th class="col-approval-actor">操作人</th>
+                                <th class="col-approval-action">审核操作</th>
+                                <th class="col-action">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody id="maint-assessment-rows"></tbody>
+                        </table>
+                    </div>
                 </div>
                 <div id="personnel-tab-award" class="tab-panel hidden">
-                    <div class="subrecord-toolbar"><strong>获奖信息</strong></div>
-                    <div class="table-wrap"><table><thead><tr><th>奖惩名称</th><th>授奖单位</th><th>类型</th><th>时间</th><th>提前/计算时间</th><th>级别</th><th>档次</th><th>其他情况</th></tr></thead><tbody id="maint-award-rows"></tbody></table></div>
+                    <div class="subrecord-toolbar">
+                        <strong>获奖信息</strong>
+                        <button id="add-award-record" type="button">新增获奖</button>
+                    </div>
+                    <div class="table-wrap personnel-subrecord-table-wrap">
+                        <table class="personnel-subrecord-table personnel-subrecord-table-award">
+                            <thead>
+                            <tr>
+                                <th class="col-text">奖惩名称</th>
+                                <th class="col-text">授奖单位</th>
+                                <th class="col-text">类型</th>
+                                <th class="col-period">时间</th>
+                                <th class="col-period">提前/计算时间</th>
+                                <th class="col-level">级别</th>
+                                <th class="col-level">档次</th>
+                                <th class="col-note">其他情况</th>
+                                <th class="col-approval">审核状态</th>
+                                <th class="col-approval-actor">操作人</th>
+                                <th class="col-approval-action">审核操作</th>
+                                <th class="col-action">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody id="maint-award-rows"></tbody>
+                        </table>
+                    </div>
                 </div>
                 <div id="personnel-tab-rank-level" class="tab-panel hidden">
-                    <div class="subrecord-toolbar"><strong>警衔、检察、审判、监察</strong></div>
-                    <div class="table-wrap"><table><thead><tr><th>类型</th><th>名称/等级</th><th>授予时间</th><th>原因</th><th>任命文号</th><th>现任</th><th>类别</th></tr></thead><tbody id="maint-rank-rows"></tbody></table></div>
+                    <div class="subrecord-toolbar">
+                        <strong>警衔、检察、审判、监察</strong>
+                        <button id="add-rank-record" type="button">新增等级</button>
+                    </div>
+                    <div class="table-wrap personnel-subrecord-table-wrap">
+                        <table class="personnel-subrecord-table personnel-subrecord-table-rank">
+                            <thead>
+                            <tr>
+                                <th class="col-text">类型</th>
+                                <th class="col-text">名称/等级</th>
+                                <th class="col-period">授予时间</th>
+                                <th class="col-note">原因</th>
+                                <th class="col-code">任命文号</th>
+                                <th class="col-flag">现任</th>
+                                <th class="col-text">类别</th>
+                                <th class="col-approval">审核状态</th>
+                                <th class="col-approval-actor">操作人</th>
+                                <th class="col-approval-action">审核操作</th>
+                                <th class="col-action">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody id="maint-rank-rows"></tbody>
+                        </table>
+                    </div>
                 </div>
                 <div id="personnel-tab-wage-reform" class="tab-panel hidden">
                     <div class="subrecord-toolbar">
@@ -455,6 +566,71 @@
                 <div id="subrecord-editor-status" class="status"></div>
             </div>
         </div>
+        <div id="attachment-preview-modal" class="modal-overlay hidden">
+            <div class="modal-card wide-modal attachment-preview-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="attachment-preview-title">附件预览</h3>
+                    </div>
+                    <div class="attachment-preview-header-actions">
+                        <button id="attachment-preview-back" type="button" class="row-action hidden">返回列表</button>
+                        <button id="attachment-preview-download" type="button" class="row-action hidden">下载</button>
+                        <button id="attachment-preview-close" type="button">关闭</button>
+                    </div>
+                </div>
+                <div id="attachment-preview-status" class="status"></div>
+                <div id="attachment-preview-body" class="attachment-preview-body"></div>
+            </div>
+        </div>
+        <div id="mobile-attachment-upload-modal" class="modal-overlay hidden">
+            <div class="modal-card mobile-attachment-upload-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>手机拍照</h3>
+                    </div>
+                    <button id="mobile-attachment-upload-close" type="button">关闭</button>
+                </div>
+                <p class="subrecord-hint mobile-attachment-upload-intro">请用手机扫描下方二维码，在手机上拍照后照片会自动传回电脑。若微信扫码后白屏，请点击右上角「···」选择「在浏览器中打开」。</p>
+                <label class="mobile-attachment-upload-base-url">
+                    手机访问地址
+                    <input id="mobile-attachment-upload-base-url" type="text" placeholder="例如 http://192.168.1.100:8081">
+                </label>
+                <p id="mobile-attachment-upload-base-url-hint" class="subrecord-hint"></p>
+                <div id="mobile-attachment-upload-qrcode" class="mobile-attachment-upload-qrcode"></div>
+                <p id="mobile-attachment-upload-url" class="mobile-attachment-upload-url"></p>
+                <div id="mobile-attachment-upload-status" class="status"></div>
+                <div class="mobile-attachment-upload-actions">
+                    <button id="mobile-attachment-upload-refresh" type="button">重新生成二维码</button>
+                </div>
+            </div>
+        </div>
+        <div id="attachment-capture-modal" class="modal-overlay hidden">
+            <div class="modal-card attachment-capture-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>高拍仪拍照</h3>
+                        <p class="subrecord-hint">请选择高拍仪或 USB 摄像头，拍照后确认上传。</p>
+                    </div>
+                    <button id="attachment-capture-close" type="button">关闭</button>
+                </div>
+                <div class="attachment-capture-toolbar">
+                    <label>摄像头
+                        <select id="attachment-capture-device"></select>
+                    </label>
+                </div>
+                <div id="attachment-capture-status" class="status"></div>
+                <div class="attachment-capture-stage">
+                    <video id="attachment-capture-video" autoplay playsinline muted></video>
+                    <img id="attachment-capture-preview" class="hidden" alt="拍照预览">
+                </div>
+                <canvas id="attachment-capture-canvas" class="hidden"></canvas>
+                <div class="attachment-capture-actions">
+                    <button id="attachment-capture-snap" type="button">拍照</button>
+                    <button id="attachment-capture-retake" type="button" class="hidden">重拍</button>
+                    <button id="attachment-capture-upload" type="button" class="hidden">上传</button>
+                </div>
+            </div>
+        </div>
         <div id="personnel-change-remark-modal" class="modal-overlay hidden">
             <div class="modal-card">
                 <div class="modal-header">
@@ -474,6 +650,25 @@
                     <button type="submit">确认办理</button>
                 </form>
                 <div id="personnel-change-remark-modal-status" class="status"></div>
+            </div>
+        </div>
+        <div id="personnel-approval-cancel-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div>
+                        <h3>取消审核</h3>
+                        <p id="personnel-approval-cancel-subtitle">取消审核后将退回草稿，具有维护权限的用户可再次修改。</p>
+                    </div>
+                    <button id="personnel-approval-cancel-modal-close" type="button">关闭</button>
+                </div>
+                <form id="personnel-approval-cancel-form" class="toolbar modal-form-grid">
+                    <input type="hidden" id="personnel-approval-cancel-uid">
+                    <input type="hidden" id="personnel-approval-cancel-target" value="main">
+                    <input type="hidden" id="personnel-approval-cancel-subrecord-id">
+                    <label class="full-width">取消原因<textarea id="personnel-approval-cancel-reason" rows="3" maxlength="200" placeholder="请填写取消审核原因"></textarea></label>
+                    <button type="submit">确认取消审核</button>
+                </form>
+                <div id="personnel-approval-cancel-modal-status" class="status"></div>
             </div>
         </div>
         <div id="missing-assessment-fill-modal" class="modal-overlay hidden">
@@ -825,6 +1020,7 @@
                     <button id="assessment-batch-apply-selected" type="button" class="btn-secondary">应用到勾选</button>
                     <button id="assessment-batch-fill-defaults" type="button" class="btn-secondary">未录入填默认</button>
                     <button id="assessment-batch-save" type="button">保存考核</button>
+                    <button id="assessment-batch-submit" type="button" class="btn-secondary">批量提交申报</button>
                 </div>
             </div>
         </div>
@@ -840,7 +1036,8 @@
                     <th class="col-position">岗位</th>
                     <th class="col-year">年度</th>
                     <th class="col-result">考核结果</th>
-                    <th class="col-status">状态</th>
+                    <th class="col-status">录入状态</th>
+                    <th class="col-approval">审核状态</th>
                 </tr>
                 </thead>
                 <tbody id="assessment-batch-rows"></tbody>
@@ -943,6 +1140,195 @@
             <span class="pagination-info">第 <input id="changed-personnel-page-input" type="number" min="1" value="1"> / <strong id="changed-personnel-total-pages">1</strong> 页，共 <strong id="changed-personnel-total-count">0</strong> 人</span>
             <button id="changed-personnel-next" type="button" class="btn-secondary">下一页</button>
             <button id="changed-personnel-last" type="button" class="btn-secondary">末页</button>
+        </div>
+    </section>
+
+    <section id="personnel-approval-tracking" class="panel hidden" data-menu-code="PERSONNEL_APPROVAL_TRACKING">
+        <div class="panel-title">
+            <div>
+                <h2>人员信息审核跟踪</h2>
+                <p>汇总主表及学历、任职、考核、获奖、警衔等待审或已审条目；审核员可在此处理，录入员可跟踪提交与通过记录。</p>
+            </div>
+        </div>
+        <div class="tab-bar">
+            <button type="button" class="tab-button active" id="personnel-approval-tracking-tab-pending" data-tracking-status="申报">待审核</button>
+            <button type="button" class="tab-button" id="personnel-approval-tracking-tab-approved" data-tracking-status="审批通过">已通过</button>
+        </div>
+        <form id="personnel-approval-tracking-form" class="toolbar info-maint-query-toolbar personnel-approval-tracking-toolbar">
+            <label>
+                单位
+                <div class="dict-input-combo">
+                    <input id="personnel-approval-tracking-organization-code" readonly placeholder="留空=权限范围内全部单位">
+                    <button id="personnel-approval-tracking-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label class="personnel-toolbar-keyword">
+                关键词
+                <input id="personnel-approval-tracking-keyword" placeholder="姓名 / 编码（00018 或 00601-00018）/ 摘要">
+            </label>
+            <label>
+                类型
+                <select id="personnel-approval-tracking-record-type">
+                    <option value="">全部</option>
+                    <option value="main">主表</option>
+                    <option value="education">学历</option>
+                    <option value="position">任职</option>
+                    <option value="assessment">考核</option>
+                    <option value="award">获奖</option>
+                    <option value="rank">警衔</option>
+                </select>
+            </label>
+            <label id="personnel-approval-tracking-year-label">
+                考核年度
+                <input id="personnel-approval-tracking-assessment-year" type="number" min="1990" max="2100" placeholder="例如 2025">
+            </label>
+            <label class="retirement-scope-check hidden" id="personnel-approval-tracking-descendants-label" for="personnel-approval-tracking-include-descendants">
+                <input id="personnel-approval-tracking-include-descendants" type="checkbox">
+                含下属单位
+            </label>
+            <label class="retirement-scope-check" for="personnel-approval-tracking-submitted-by-me">
+                <input id="personnel-approval-tracking-submitted-by-me" type="checkbox">
+                仅我的提交
+            </label>
+            <label id="personnel-approval-tracking-approved-window-label" class="hidden">
+                审核时间
+                <select id="personnel-approval-tracking-approved-within-days">
+                    <option value="30">近 30 天</option>
+                    <option value="90" selected>近 90 天</option>
+                    <option value="365">近 1 年</option>
+                    <option value="">全部</option>
+                </select>
+            </label>
+            <div class="info-maint-query-actions">
+                <button type="submit">查询</button>
+                <button type="button" id="personnel-approval-tracking-reset" class="btn-secondary">重置筛选</button>
+                <button type="button" id="personnel-approval-tracking-batch-approve" class="btn-secondary personnel-approval-batch-write-only hidden">批量审核通过</button>
+            </div>
+        </form>
+        <div id="personnel-approval-tracking-assessment-stats" class="assessment-approval-stats-bar hidden"></div>
+        <div id="personnel-approval-tracking-status" class="status"></div>
+        <div class="table-wrap personnel-approval-tracking-table-wrap">
+            <table class="info-maint-result-table personnel-approval-tracking-table">
+                <thead>
+                <tr>
+                    <th class="col-select personnel-approval-batch-write-only hidden"><input id="personnel-approval-tracking-select-all" type="checkbox" aria-label="全选"></th>
+                    <th class="col-org">单位</th>
+                    <th class="col-code">人员编码</th>
+                    <th class="col-name">姓名</th>
+                    <th class="col-type">类型</th>
+                    <th class="col-position">任职</th>
+                    <th class="col-period">取得时间</th>
+                    <th class="col-attachment">附件</th>
+                    <th class="col-summary">内容摘要</th>
+                    <th class="col-approval">状态</th>
+                    <th class="col-actor">提交人</th>
+                    <th class="col-time">提交时间</th>
+                    <th class="col-actor">审核人</th>
+                    <th class="col-time">审核时间</th>
+                    <th class="col-actions">操作</th>
+                </tr>
+                </thead>
+                <tbody id="personnel-approval-tracking-rows"></tbody>
+            </table>
+        </div>
+        <div id="personnel-approval-tracking-pagination" class="pagination-bar hidden">
+            <button id="personnel-approval-tracking-first" type="button" class="btn-secondary">首页</button>
+            <button id="personnel-approval-tracking-prev" type="button" class="btn-secondary">上一页</button>
+            <span class="pagination-info">第 <input id="personnel-approval-tracking-page-input" type="number" min="1" value="1"> / <strong id="personnel-approval-tracking-total-pages">1</strong> 页，共 <strong id="personnel-approval-tracking-total-count">0</strong> 条</span>
+            <button id="personnel-approval-tracking-next" type="button" class="btn-secondary">下一页</button>
+            <button id="personnel-approval-tracking-last" type="button" class="btn-secondary">末页</button>
+        </div>
+    </section>
+
+    <section id="payroll-workflow-center" class="panel hidden" data-menu-code="PAYROLL_WORKFLOW_CENTER">
+        <div class="panel-title">
+            <div>
+                <h2>待办工资变动 <span id="payroll-workflow-pending-badge" class="exchange-unread-badge hidden"></span></h2>
+                <p>人员信息审批通过后自动入队的工资变动待办；点击「去办理」进入对应工资变动模块。</p>
+            </div>
+        </div>
+        <form id="payroll-workflow-center-form" class="toolbar info-maint-query-toolbar">
+            <label>
+                状态
+                <select id="payroll-workflow-center-status">
+                    <option value="PAYROLL_PENDING" selected>待办理</option>
+                    <option value="PAYROLL_DONE">已办理</option>
+                    <option value="all">全部</option>
+                </select>
+            </label>
+            <label>
+                单位
+                <div class="dict-input-combo">
+                    <input id="payroll-workflow-center-organization-code" readonly placeholder="留空=权限范围内全部单位">
+                    <button id="payroll-workflow-center-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label class="personnel-toolbar-keyword">
+                关键词
+                <input id="payroll-workflow-center-keyword" placeholder="姓名 / 编码 / 摘要">
+            </label>
+            <div class="info-maint-query-actions">
+                <button type="submit">查询</button>
+                <button type="button" id="payroll-workflow-center-refresh" class="btn-secondary">刷新</button>
+            </div>
+        </form>
+        <div id="payroll-workflow-center-message" class="status"></div>
+        <div class="table-wrap">
+            <table class="info-maint-result-table">
+                <thead>
+                <tr>
+                    <th>审批时间</th>
+                    <th>单位</th>
+                    <th>人员</th>
+                    <th>来源</th>
+                    <th>目标模块</th>
+                    <th>预期变动</th>
+                    <th>状态</th>
+                    <th>摘要</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="payroll-workflow-center-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="payroll-workflow-status" class="panel hidden" data-menu-code="PAYROLL_WORKFLOW_STATUS">
+        <div class="panel-title">
+            <div>
+                <h2>工资变动进度</h2>
+                <p>查看本单位人员信息审批通过后的工资变动办理进度（只读）。</p>
+            </div>
+        </div>
+        <form id="payroll-workflow-status-form" class="toolbar info-maint-query-toolbar">
+            <label>
+                状态
+                <select id="payroll-workflow-status-filter">
+                    <option value="PAYROLL_PENDING" selected>办理中</option>
+                    <option value="PAYROLL_DONE">已完成</option>
+                    <option value="all">全部</option>
+                </select>
+            </label>
+            <div class="info-maint-query-actions">
+                <button type="submit">查询</button>
+                <button type="button" id="payroll-workflow-status-refresh" class="btn-secondary">刷新</button>
+            </div>
+        </form>
+        <div id="payroll-workflow-status-message" class="status"></div>
+        <div class="table-wrap">
+            <table class="info-maint-result-table">
+                <thead>
+                <tr>
+                    <th>更新时间</th>
+                    <th>姓名</th>
+                    <th>来源</th>
+                    <th>变动类别</th>
+                    <th>状态</th>
+                    <th>摘要</th>
+                </tr>
+                </thead>
+                <tbody id="payroll-workflow-status-rows"></tbody>
+            </table>
         </div>
     </section>
 
@@ -1072,7 +1458,7 @@
         <div class="panel-title">
             <div>
                 <h2>单位信息维护</h2>
-                <p>对标旧系统 dwxx：树形浏览单位，维护编制、工资类别、津补贴与扣缴等基本信息。</p>
+                <p>对标旧系统 dwxx：树形浏览单位，维护编制、津补贴与扣缴等基本信息。</p>
             </div>
         </div>
         <form id="organization-maintenance-form" class="toolbar standards-search-toolbar">
@@ -1101,12 +1487,7 @@
                         <label>单位编码<input id="organization-modal-code" required></label>
                         <label>单位名称<input id="organization-modal-name" required></label>
                         <label>单位简称<input id="organization-modal-short-name"></label>
-                        <label>单位性质
-                            <select id="organization-modal-property">
-                                <option value="">请选择</option>
-                            </select>
-                        </label>
-                        <label>工资类别
+                        <label>单位编制
                             <select id="organization-modal-category">
                                 <option value="">请选择</option>
                             </select>
@@ -1116,17 +1497,22 @@
                                 <option value="">请选择</option>
                             </select>
                         </label>
+                        <label>系统类别
+                            <select id="organization-modal-system-category">
+                                <option value="">请选择</option>
+                            </select>
+                        </label>
                     </div>
                     <h4 class="personnel-form-section-title">编制人数</h4>
                     <div class="personnel-form-meta-grid">
                         <label>编制人数<input id="organization-modal-personnel-quota" type="number" min="0" value="0"></label>
                         <label>在编人数<input id="organization-modal-establishment-count" type="number" min="0" value="0"></label>
-                        <label>实领人数<input id="organization-modal-actual-count" type="number" min="0" value="0"></label>
+                        <label>实有人数<input id="organization-modal-actual-count" type="number" min="0" value="0"></label>
                         <label>当前人员<strong id="organization-detail-active-count">—</strong></label>
                     </div>
                     <h4 class="personnel-form-section-title">工资与津补贴</h4>
                     <div class="personnel-form-meta-grid">
-                        <label>工资标准类别
+                        <label>工资管理方式
                             <select id="organization-modal-payroll-category">
                                 <option value="">请选择</option>
                             </select>
@@ -1136,20 +1522,23 @@
                                 <option value="">请选择</option>
                             </select>
                         </label>
-                        <label>DFBT
+                        <label>是否审批津贴绩效
                             <select id="organization-modal-performance-enabled">
-                                <option value="0">0 否</option>
-                                <option value="1">1 是</option>
+                                <option value="0">否</option>
+                                <option value="1">是</option>
                             </select>
                         </label>
-                        <label>绩效类别
+                        <label>津贴绩效类别
                             <select id="organization-modal-performance-category">
                                 <option value="0">0</option>
                             </select>
                         </label>
-                        <label>年补贴类别
+                        <label>绩效比例
+                            <input id="organization-modal-performance-ratio" maxlength="10" placeholder="如 3:7">
+                        </label>
+                        <label>农教补贴类别
                             <select id="organization-modal-year-allowance-category">
-                                <option value="0">0</option>
+                                <option value="0"></option>
                             </select>
                         </label>
                         <label>经费来源
@@ -1222,7 +1611,7 @@
         <div class="panel-title">
             <div>
                 <h2>本地工资政策</h2>
-                <p>查询与维护 `cyxx` 本地工资政策参数、`xtcs` 系统选项，以及 `fldgz` 工资项目勾选。</p>
+                <p>查询与维护 `cyxx` 本地工资政策参数，以及 `fldgz` 工资项目勾选。</p>
             </div>
         </div>
         <form id="local-policy-form" class="toolbar">
@@ -1250,39 +1639,15 @@
                     <th>单位名称</th>
                     <th>地市</th>
                     <th>审批日期</th>
-                    <th>工资标题</th>
                     <th>保留小数</th>
-                    <th>四舍五入</th>
-                    <th>警衔名称</th>
-                    <th>生活补贴名称</th>
+                    <th>数字取舍方式</th>
                     <th>审批方式</th>
                     <th>单位审批类别</th>
-                    <th>见习工资模式</th>
                     <th>奖金结余模式</th>
-                    <th>浮动工资模式</th>
-                    <th>PGBC 模式</th>
-                    <th>自动备份</th>
-                    <th>检查更新</th>
+                    <th>操作</th>
                 </tr>
                 </thead>
                 <tbody id="local-policy-rows"></tbody>
-            </table>
-        </div>
-
-        <h3>系统选项</h3>
-        <div class="table-wrap">
-            <table>
-                <thead>
-                <tr>
-                    <th>企业调入提高</th>
-                    <th>套改档次学历关联</th>
-                    <th>小数位数</th>
-                    <th>警务补助</th>
-                    <th>套改奖金结余</th>
-                    <th>浮动工资</th>
-                </tr>
-                </thead>
-                <tbody id="system-option-rows"></tbody>
             </table>
         </div>
 
@@ -1309,28 +1674,6 @@
             </table>
         </div>
     </section>
-
-    <div id="system-options-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3>系统选项维护</h3>
-                <button id="system-options-modal-close" type="button" class="modal-close">×</button>
-            </div>
-            <form id="system-options-modal-form" class="form-grid">
-                <label>企业调入提高<input id="system-options-enterprise-transfer-raise"></label>
-                <label>套改档次学历关联<input id="system-options-grade-step-education-link"></label>
-                <label>小数位数<input id="system-options-decimal-places" required></label>
-                <label>警务补助<input id="system-options-police-rank-allowance"></label>
-                <label>套改奖金结余<input id="system-options-reform-bonus-balance"></label>
-                <label>浮动工资<input id="system-options-floating-salary"></label>
-                <div class="form-actions">
-                    <button type="submit">保存</button>
-                    <button id="system-options-modal-cancel" type="button">取消</button>
-                </div>
-            </form>
-            <div id="system-options-modal-status" class="status"></div>
-        </div>
-    </div>
 
     <section id="payroll" class="panel hidden" data-menu-code="PAYROLL">
         <div class="panel-title">
@@ -2199,6 +2542,86 @@
         </div>
     </section>
 
+    <section id="disciplinary-demotion-promotion" class="panel hidden" data-menu-code="DISCIPLINARY_DEMOTION_PROMOTION">
+        <div class="panel-title">
+            <div>
+                <h2>处分降职办理</h2>
+                <p>识别职务层次降低且任职记录声明为处分降职（或关联奖惩记录）的人员，按每层降 2 级就近就低试算并办理降资处分；支持还原。</p>
+            </div>
+        </div>
+        <form id="disciplinary-demotion-promotion-form" class="toolbar promotion-search-toolbar position-change-search-toolbar">
+            <label class="promotion-field-org">单位
+                <div class="dict-input-combo">
+                    <input id="disciplinary-demotion-organization-code" readonly placeholder="请选择单位或留空">
+                    <button id="disciplinary-demotion-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
+                </div>
+            </label>
+            <label>关键词
+                <input id="disciplinary-demotion-keyword" placeholder="人员编码 / 姓名 / 岗位">
+            </label>
+            <div class="promotion-checkbox-field position-change-status-filter-field">
+                <span>状态</span>
+                <span class="position-change-status-options">
+                    <label class="checkbox-inline"><input id="disciplinary-demotion-include-apply" type="checkbox" checked> 待处理</label>
+                    <label class="checkbox-inline"><input id="disciplinary-demotion-include-processed" type="checkbox" checked> 已处理</label>
+                </span>
+            </div>
+            <div class="promotion-search-actions">
+                <button type="submit">查询试算</button>
+            </div>
+        </form>
+        <div class="payroll-change-results-header position-change-results-header">
+            <div id="disciplinary-demotion-status" class="status"></div>
+            <button id="disciplinary-demotion-batch-apply" type="button" class="btn-secondary">批量处理勾选</button>
+            <button id="disciplinary-demotion-batch-rollback" type="button" class="btn-secondary danger-button">批量还原勾选</button>
+        </div>
+        <div class="table-wrap promotion-table-wrap position-change-table-wrap">
+            <table class="promotion-table position-change-table">
+                <thead>
+                <tr>
+                    <th class="col-select"><input id="disciplinary-demotion-select-all" type="checkbox" aria-label="全选处分降职"></th>
+                    <th class="col-org">单位</th>
+                    <th class="col-code">人员编码</th>
+                    <th class="col-name">姓名</th>
+                    <th class="col-position">原职务</th>
+                    <th class="col-position">新职务</th>
+                    <th class="col-change">变动原因</th>
+                    <th class="col-change">是否处理</th>
+                    <th class="col-period">任职年月</th>
+                    <th class="col-period">执行年月</th>
+                    <th class="col-level">原级别</th>
+                    <th class="col-grade">原档次</th>
+                    <th class="col-level">试算级别</th>
+                    <th class="col-grade">试算档次</th>
+                    <th class="col-money">合计变动</th>
+                    <th class="col-note">说明</th>
+                    <th class="col-action">操作</th>
+                </tr>
+                </thead>
+                <tbody id="disciplinary-demotion-rows"></tbody>
+            </table>
+        </div>
+        <div id="disciplinary-demotion-pagination" class="pagination-bar hidden">
+            <button id="disciplinary-demotion-first" type="button" class="btn-secondary">首页</button>
+            <button id="disciplinary-demotion-prev" type="button" class="btn-secondary">上一页</button>
+            <span class="pagination-info">第 <input id="disciplinary-demotion-page-input" type="number" min="1" value="1"> / <strong id="disciplinary-demotion-total-pages">1</strong> 页，共 <strong id="disciplinary-demotion-total-count">0</strong> 条</span>
+            <button id="disciplinary-demotion-next" type="button" class="btn-secondary">下一页</button>
+            <button id="disciplinary-demotion-last" type="button" class="btn-secondary">末页</button>
+        </div>
+        <div id="disciplinary-demotion-detail-modal" class="modal-overlay hidden">
+            <div class="modal-card wide-modal">
+                <div class="modal-header">
+                    <div>
+                        <h3>处分降职试算明细</h3>
+                        <p id="disciplinary-demotion-detail-summary">查看处分降职规则识别与推算说明。</p>
+                    </div>
+                    <button id="disciplinary-demotion-detail-close" type="button">关闭</button>
+                </div>
+                <div id="disciplinary-demotion-detail-content" class="detail-table-panel"></div>
+            </div>
+        </div>
+    </section>
+
     <section id="education-promotion" class="panel hidden" data-menu-code="EDUCATION_PROMOTION">
         <div class="panel-title">
             <div>
@@ -2535,23 +2958,31 @@
                 <button id="local-policy-modal-close" type="button" class="modal-close">×</button>
             </div>
             <form id="local-policy-modal-form" class="form-grid">
+                <input type="hidden" id="local-policy-modal-id">
                 <label>单位编码<input id="local-policy-modal-organization-code"></label>
                 <label>单位名称<input id="local-policy-modal-organization-name" required></label>
-                <label>城市<input id="local-policy-modal-city"></label>
-                <label>审批时间<input id="local-policy-modal-approved-at"></label>
-                <label>工资表标题<input id="local-policy-modal-payroll-title"></label>
-                <label>舍入方式<input id="local-policy-modal-rounding-mode"></label>
-                <label>取整<input id="local-policy-modal-round-to-integer"></label>
-                <label>警衔津贴标题<input id="local-policy-modal-police-caption"></label>
-                <label>补贴标题<input id="local-policy-modal-subsidy-caption"></label>
-                <label>审批模式<input id="local-policy-modal-approval-mode"></label>
+                <label>地市<input id="local-policy-modal-city" placeholder="签发授权必填"></label>
+                <label>审批日期<input id="local-policy-modal-approved-at"></label>
+                <label>保留小数<input id="local-policy-modal-rounding-mode" type="number" min="0" max="4"></label>
+                <label>数字取舍方式
+                    <select id="local-policy-modal-round-to-integer">
+                        <option value="0">四舍五入</option>
+                        <option value="1">向上取整</option>
+                        <option value="2">向下取整</option>
+                    </select>
+                </label>
+                <label>审批方式<input id="local-policy-modal-approval-mode"></label>
                 <label>单位审批类别<input id="local-policy-modal-unit-approval-category"></label>
-                <label>见习工资模式<input id="local-policy-modal-intern-salary-mode" type="number" step="1"></label>
-                <label>套改保留模式<input id="local-policy-modal-bonus-balance-mode" type="number" step="1"></label>
-                <label>浮动工资模式<input id="local-policy-modal-floating-salary-mode" type="number" step="1"></label>
-                <label>保留档次模式<input id="local-policy-modal-pay-grade-retention-mode" type="number" step="1"></label>
-                <label>自动备份<input id="local-policy-modal-auto-backup" type="number" step="1"></label>
-                <label>检查更新<input id="local-policy-modal-check-update" type="number" step="1"></label>
+                <label>奖金结余模式
+                    <select id="local-policy-modal-bonus-balance-mode">
+                        <option value="0">0 - 不自动试算（保留旧值）</option>
+                        <option value="1">1 - 按93年职务查 bz06_jjjy</option>
+                        <option value="3">3 - 随职务工龄变</option>
+                    </select>
+                </label>
+                <p class="form-hint" style="grid-column: 1 / -1;">
+                    奖金结余模式对应 `cyxx.jjjy`：仅模式 1 且 hisbase 旧值为 0 时，试算/对账才按 jjjy06 查表；其它模式保留旧值。
+                </p>
                 <div class="form-actions">
                     <button type="submit">保存</button>
                     <button id="local-policy-modal-cancel" type="button">取消</button>
@@ -3459,8 +3890,8 @@
     <section id="data-exchange" class="panel hidden" data-menu-code="DATA_EXCHANGE">
         <div class="panel-title">
             <div>
-                <h2>数据交换</h2>
-                <p>单位将已变更人员（含新增）申报到审批部门，审核通过后再回传单位；另含人员迁入迁出与年报导出。</p>
+                <h2>数据交换 <span id="data-exchange-unread-badge" class="exchange-unread-badge hidden" aria-live="polite"></span></h2>
+                <p>申报、审批回传与人员数据交换；「交换待办」可查看跨单位提醒。</p>
             </div>
         </div>
 
@@ -3468,6 +3899,7 @@
             <button type="button" class="tab-button active" data-exchange-group="submission">工资申报</button>
             <button type="button" class="tab-button" data-exchange-group="approval">审批回传</button>
             <button type="button" class="tab-button" data-exchange-group="export">人员导入导出</button>
+            <button type="button" class="tab-button" data-exchange-group="inbox">交换待办 <span id="data-exchange-inbox-tab-badge" class="exchange-unread-badge hidden"></span></button>
         </div>
 
         <p class="data-exchange-hint data-exchange-group-hint" data-exchange-group-hint="submission">将信息已变更的人员（含新增）上报审批部门；审批部门在此审核申报包。</p>
@@ -3487,10 +3919,15 @@
             <button type="button" class="tab-button" data-exchange-tab="personnel-import">人员导入</button>
             <button type="button" class="tab-button" data-exchange-tab="annual">年报导出</button>
         </div>
+        <div class="tab-bar data-exchange-subtabs hidden" data-exchange-subtabs="inbox">
+            <button type="button" class="tab-button active" data-exchange-tab="exchange-inbox">全部待办</button>
+        </div>
+
+        <p class="data-exchange-hint data-exchange-group-hint hidden" data-exchange-group-hint="inbox">单位与审批部门之间的申报、审核、回传及人员审核提醒；独立部署时远端需在本端导入包后才会出现对应待办。</p>
 
         <div id="data-exchange-submission-export-panel" class="data-exchange-tab-panel">
-        <h3>导出申报包</h3>
-        <form id="data-exchange-submission-export-form" class="toolbar data-exchange-filter-toolbar">
+        <form id="data-exchange-submission-export-form" class="toolbar data-exchange-filter-toolbar data-exchange-filter-card">
+            <div class="data-exchange-filter-grid">
             <label class="exchange-org-field">选择单位
                 <div class="dict-input-combo">
                     <input id="data-exchange-submission-organization" readonly placeholder="点击选择申报单位">
@@ -3505,8 +3942,9 @@
                 <button type="submit">筛选人员</button>
                 <button id="data-exchange-submission-download" type="button">生成申报包</button>
             </div>
+            </div>
         </form>
-        <div id="data-exchange-submission-organizations" class="permission-list"></div>
+        <div id="data-exchange-submission-organizations" class="permission-list data-exchange-org-chips"></div>
         <div id="data-exchange-submission-export-status" class="status"></div>
         <div class="table-wrap">
             <table>
@@ -3529,8 +3967,8 @@
         </div>
 
         <div id="data-exchange-submission-review-panel" class="data-exchange-tab-panel hidden">
-        <h3>审核申报包</h3>
-        <form id="data-exchange-submission-review-form" class="toolbar data-exchange-receive-toolbar">
+        <form id="data-exchange-submission-review-form" class="toolbar data-exchange-receive-toolbar data-exchange-filter-card">
+            <div class="data-exchange-receive-grid data-exchange-receive-grid-compact">
             <label class="receive-file-field">申报包文件
                 <input id="data-exchange-submission-review-file" type="file" accept=".json,application/json">
                 <input id="data-exchange-submission-review-json" type="hidden">
@@ -3538,6 +3976,7 @@
             <div class="receive-actions">
                 <button type="submit">预览审核</button>
                 <button id="data-exchange-submission-review-approve" type="button">同意接收</button>
+            </div>
             </div>
         </form>
         <p class="data-exchange-hint">先预览审核比对本地数据。勾选「不一致 / 新增人员」后点「同意接收」写入；不接收则无需操作。</p>
@@ -3581,8 +4020,8 @@
         </div>
 
         <div id="data-exchange-approval-dispatch-panel" class="data-exchange-tab-panel hidden">
-        <h3>下发审批包</h3>
-        <form id="data-exchange-approval-dispatch-form" class="toolbar data-exchange-filter-toolbar">
+        <form id="data-exchange-approval-dispatch-form" class="toolbar data-exchange-filter-toolbar data-exchange-filter-card">
+            <div class="data-exchange-filter-grid data-exchange-filter-grid-wide">
             <label class="exchange-org-field">选择单位
                 <div class="dict-input-combo">
                     <input id="data-exchange-approval-organization" readonly placeholder="点击选择下发单位">
@@ -3607,8 +4046,9 @@
                 <button id="data-exchange-approval-download" type="button">生成审批包</button>
                 <button id="data-exchange-approval-revert" type="button" class="btn-secondary">退回已审</button>
             </div>
+            </div>
         </form>
-        <div id="data-exchange-approval-organizations" class="permission-list"></div>
+        <div id="data-exchange-approval-organizations" class="permission-list data-exchange-org-chips"></div>
         <p class="data-exchange-hint">默认可下发「申报 / 已审 / 审批通过」；生成后标记「已下发」。筛「已下发」后可勾选并「退回已审」以便重下。</p>
         <div id="data-exchange-approval-dispatch-status" class="status"></div>
         <div class="table-wrap">
@@ -3632,18 +4072,24 @@
         </div>
 
         <div id="data-exchange-approval-receive-panel" class="data-exchange-tab-panel hidden">
-        <h3>接收审批包</h3>
-        <form id="data-exchange-approval-receive-form" class="toolbar data-exchange-receive-toolbar">
-            <label class="receive-file-field">审批包文件
-                <input id="data-exchange-approval-receive-file" type="file" accept=".json,application/json">
-                <input id="data-exchange-approval-receive-json" type="hidden">
-            </label>
-            <div class="receive-actions">
-                <button type="submit">预览</button>
-                <button id="data-exchange-approval-receive-apply" type="button">确认接收</button>
+        <form id="data-exchange-approval-receive-form" class="data-exchange-approval-toolbar data-exchange-filter-card">
+            <div class="approval-receive-toolbar-grid">
+                <label class="receive-file-field approval-receive-file">审批包文件
+                    <input id="data-exchange-approval-receive-file" type="file" accept=".json,application/json">
+                    <input id="data-exchange-approval-receive-json" type="hidden">
+                </label>
+                <div class="approval-receive-mode" role="radiogroup" aria-label="接收模式">
+                    <span class="approval-receive-mode-label">接收模式</span>
+                    <label class="mode-option"><input type="radio" name="approval-receive-mode" value="UPDATE" checked><span>更新</span></label>
+                    <label class="mode-option"><input type="radio" name="approval-receive-mode" value="REPLACE"><span>删除后接收</span></label>
+                </div>
+                <div class="receive-actions approval-receive-buttons">
+                    <button type="submit" class="approval-receive-preview-btn">预览接收</button>
+                    <button id="data-exchange-approval-receive-apply" type="button" class="approval-receive-apply-btn">确认接收</button>
+                </div>
             </div>
         </form>
-        <p class="data-exchange-hint">先预览核对再确认。确认后将按勾选（未勾选则全部）写入已审工资变动结果。</p>
+        <p class="data-exchange-hint">先预览核对再确认。「更新」用审批包覆盖本地人员基础信息与全部关联表；「删除后接收」先删除本地同编码人员全部关联数据，再写入审批包数据。</p>
         <div id="data-exchange-approval-receive-summary" class="note-card hidden"></div>
         <div id="data-exchange-approval-receive-status" class="status"></div>
         <div class="table-wrap">
@@ -3667,9 +4113,40 @@
         </div>
         </div>
 
+        <div id="data-exchange-exchange-inbox-panel" class="data-exchange-tab-panel hidden">
+            <div class="toolbar data-exchange-filter-card">
+                <label>状态
+                    <select id="data-exchange-inbox-filter">
+                        <option value="unread">未读</option>
+                        <option value="all">全部</option>
+                    </select>
+                </label>
+                <button id="data-exchange-inbox-refresh" type="button">刷新</button>
+                <button id="data-exchange-inbox-read-all" type="button">全部标为已读</button>
+            </div>
+            <div id="data-exchange-inbox-status" class="status"></div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>类型</th>
+                        <th>方向</th>
+                        <th>单位</th>
+                        <th>人数</th>
+                        <th>摘要</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="data-exchange-inbox-rows"></tbody>
+                </table>
+            </div>
+        </div>
+
         <div id="data-exchange-personnel-panel" class="data-exchange-tab-panel hidden">
-        <h3>人员导出</h3>
-        <form id="data-exchange-personnel-form" class="toolbar data-exchange-filter-toolbar">
+        <form id="data-exchange-personnel-form" class="toolbar data-exchange-filter-toolbar data-exchange-filter-card">
+            <div class="data-exchange-filter-grid data-exchange-filter-grid-actions-wide">
             <label class="exchange-org-field">单位
                 <div class="dict-input-combo">
                     <input id="data-exchange-personnel-organization" readonly placeholder="请选择单位或留空">
@@ -3684,6 +4161,7 @@
                 <button type="submit">查询预览</button>
                 <button id="data-exchange-personnel-download" type="button">下载 CSV</button>
                 <button id="data-exchange-personnel-package-download" type="button">生成人员包</button>
+            </div>
             </div>
         </form>
         <p class="data-exchange-hint">勾选人员后可只导出勾选人员；生成人员包供对方「人员导入」迁入指定单位。</p>
@@ -3710,10 +4188,10 @@
         </div>
 
         <div id="data-exchange-personnel-import-panel" class="data-exchange-tab-panel hidden">
-        <h3>人员导入</h3>
-        <form id="data-exchange-personnel-import-form" class="toolbar data-exchange-receive-toolbar">
+        <form id="data-exchange-personnel-import-form" class="toolbar data-exchange-receive-toolbar data-exchange-filter-card">
+            <div class="data-exchange-receive-grid">
             <label class="receive-file-field">人员包文件
-                <input id="data-exchange-personnel-import-file" type="file" accept=".json,application/json">
+                <input id="data-exchange-personnel-import-file" type="file" accept=".json,.zl,.zip,application/json">
                 <input id="data-exchange-personnel-import-json" type="hidden">
             </label>
             <label class="receive-org-field">导入到单位
@@ -3726,8 +4204,9 @@
                 <button type="submit">预览</button>
                 <button id="data-exchange-personnel-import-apply" type="button">确认导入</button>
             </div>
+            </div>
         </form>
-        <p class="data-exchange-hint">可先预览人员包；确认导入时必须选择目标单位，勾选人员（未勾选则全部）将追加到该单位并重新生成个人编码。</p>
+        <p class="data-exchange-hint">支持新系统 JSON 人员包（<code>rsgzgl_personnel_package.json</code>）或旧系统 <code>.zl</code> 备份包。可先预览；确认导入时必须选择目标单位，勾选人员（未勾选则全部）将追加到该单位并重新生成个人编码。旧系统包仅导入人员及子表，不导入单位组织树。</p>
         <div id="data-exchange-personnel-import-summary" class="note-card hidden"></div>
         <div id="data-exchange-personnel-import-status" class="status"></div>
         <div class="table-wrap">
@@ -3754,19 +4233,22 @@
         </div>
 
         <div id="data-exchange-annual-panel" class="data-exchange-tab-panel hidden">
-        <h3>工资年报数据导出</h3>
-        <form id="data-exchange-annual-form" class="toolbar">
-            <label>单位
+        <form id="data-exchange-annual-form" class="toolbar data-exchange-filter-toolbar data-exchange-filter-card">
+            <div class="data-exchange-filter-grid data-exchange-filter-grid-annual">
+            <label class="exchange-org-field">单位
                 <div class="dict-input-combo">
                     <input id="data-exchange-annual-organization" readonly placeholder="请选择单位或留空">
                     <button id="data-exchange-annual-organization-picker-button" class="dict-picker-button organization-picker-button" type="button" aria-label="选择单位">⌄</button>
                 </div>
             </label>
-            <label>年月<input id="data-exchange-annual-period" placeholder="例如 202407"></label>
-            <label>关键词<input id="data-exchange-annual-keyword" placeholder="人员编码 / 姓名"></label>
-            <button type="submit">查询预览</button>
-            <button id="data-exchange-annual-download" type="button">下载 CSV</button>
-            <button id="data-exchange-annual-excel-download" type="button">导出年报 Excel</button>
+            <label class="exchange-period-field">年月<input id="data-exchange-annual-period" placeholder="例如 202407"></label>
+            <label class="exchange-keyword-field">关键词<input id="data-exchange-annual-keyword" placeholder="人员编码 / 姓名"></label>
+            <div class="exchange-actions">
+                <button type="submit">查询预览</button>
+                <button id="data-exchange-annual-download" type="button">下载 CSV</button>
+                <button id="data-exchange-annual-excel-download" type="button">导出年报 Excel</button>
+            </div>
+            </div>
         </form>
         <div id="data-exchange-annual-status" class="status"></div>
         <div class="table-wrap">
@@ -4203,7 +4685,7 @@
         <div class="panel-title">
             <div>
                 <h2>基本工资标准</h2>
-                <p>查询职务工资、岗位档次工资、级别工资和薪级工资标准表。</p>
+                <p>查询职务工资、法检等级工资、警员警务等级工资、岗位档次工资、级别工资和薪级工资标准表。</p>
             </div>
         </div>
         <form id="basic-standards-form" class="toolbar standards-search-toolbar">
@@ -4211,6 +4693,8 @@
                 标准类型
                 <select id="basic-standard-type">
                     <option value="position">职务工资 bz06_zwgz</option>
+                    <option value="judicial-grade">法检等级工资 bz06_zwgz_fj</option>
+                    <option value="police-grade">警员警务等级工资 bz06_djgz</option>
                     <option value="position-grade">岗位档次工资 bz06_zwgz_gr</option>
                     <option value="grade">级别工资 bz06_jbgz</option>
                     <option value="salary-level">薪级工资 bz06_xjgz</option>
@@ -4260,6 +4744,10 @@
                 <label id="grade-standard-code-wrap">
                     <span id="grade-standard-code-label">编码</span>
                     <input id="grade-standard-code" required placeholder="级别或职务编码">
+                </label>
+                <label id="grade-standard-position-name-wrap" class="hidden">
+                    职务名称
+                    <input id="grade-standard-position-name" placeholder="例如 一级检察官">
                 </label>
                 <label id="grade-standard-jsdjgz-wrap" class="hidden">
                     技术等级工资
@@ -5217,11 +5705,25 @@
         <div class="panel-title">
             <div>
                 <h2>上机日志</h2>
-                <p>对应 VFP 上机日志：查询系统登录、权限变更及业务办理操作记录。</p>
+                <p>对应 VFP 上机日志：查询登录、权限变更、人员信息及工资变动等业务操作记录。</p>
             </div>
         </div>
         <form id="operation-log-form" class="toolbar standards-search-toolbar">
             <label>关键词<input id="operation-log-keyword" placeholder="操作者 / 动作 / 对象 / 摘要"></label>
+            <label>业务类型
+                <select id="operation-log-action-prefix">
+                    <option value="">全部</option>
+                    <option value="PERSONNEL">人员信息</option>
+                    <option value="CREATE_PERSONNEL">人员新增</option>
+                    <option value="UPDATE_PERSONNEL">人员修改</option>
+                    <option value="DELETE_PERSONNEL">人员删除</option>
+                    <option value="PERSONNEL_APPROVAL">人员审核提交/退回</option>
+                    <option value="PERSONNEL_APPROVE">人员审核通过</option>
+                    <option value="PERSONNEL_SUBRECORD">人员子表</option>
+                    <option value="APPLY_PAYROLL_CHANGE">工资变动办理</option>
+                    <option value="ROLLBACK_PAYROLL_CHANGE">工资变动还原</option>
+                </select>
+            </label>
             <label>页码<input id="operation-log-page" type="number" min="0" value="0"></label>
             <label>每页数量<input id="operation-log-size" type="number" min="1" max="200" value="50"></label>
             <div class="standards-search-actions">
@@ -5313,7 +5815,7 @@
 
         <div class="note-card" style="margin-top:1rem;">
             <h3>导入单位授权包</h3>
-            <p>支持 <code>.rsauth.json</code> / <code>.json</code>，或包含 <code>license.json</code> 的 <code>.rsauth</code>/<code>.zip</code>。导入后写入 <code>cyxx</code> 签约主体，并 upsert 包内单位到 <code>dwbm</code>（初始种子）；<strong>不会删除</strong>本地已有多余单位，审批单位可继续维护单位树。</p>
+            <p>支持 <code>.rsauth.json</code> / <code>.json</code>，或包含 <code>license.json</code> 的 <code>.rsauth</code>/<code>.zip</code>。导入后写入 <code>cyxx</code> 签约主体与本地工资政策参数，并 upsert 包内单位到 <code>dwbm</code>（初始种子）；<strong>不会删除</strong>本地已有多余单位，审批单位可继续维护单位树。</p>
             <div class="toolbar">
                 <label>
                     授权文件
@@ -5325,10 +5827,10 @@
         </div>
 
         <div class="note-card" style="margin-top:1rem;">
-            <h3>导出单位目录（供运维 ops）</h3>
-            <p>从本地 <code>dwbm</code> 导出 <code>license-orgs-v1.json</code>，在独立 H2 的 rsgzgl-ops「单位目录」中导入，用于签发授权时选择签约主体与包含单位。不共享人事库连接。</p>
+            <h3>导出签发种子（供运维 ops）</h3>
+            <p>从本地 <code>dwbm</code> 与 <code>cyxx</code> 导出 <code>license-seed-v2.json</code>（单位目录 + 本地工资政策），在 rsgzgl-ops「单位目录」中导入后签发；目标租户导入授权包时将同步 cyxx 政策参数。不共享人事库连接。</p>
             <div class="toolbar">
-                <button id="license-orgs-export" type="button">导出单位目录</button>
+                <button id="license-orgs-export" type="button">导出签发种子</button>
             </div>
             <div id="license-orgs-export-status" class="status"></div>
         </div>
@@ -5434,7 +5936,6 @@
                     <tr><td>tzjcjtbz / tzspjtbz</td><td>调整检察/审判津贴</td></tr>
                     <tr><td>tzjxjtbz / tzmtjtbz</td><td>调整警衔/监察津贴</td></tr>
                     <tr><td>njbtsz 农村教师补贴</td><td>农村学校教师补贴（njbt）</td></tr>
-                    <tr><td>options 系统选项</td><td>本地工资政策 → 系统选项</td></tr>
                     <tr><td>czsjgl 数据维护</td><td>数据维护</td></tr>
                     <tr><td>上机日志</td><td>上机日志</td></tr>
                     </tbody>
@@ -5444,12 +5945,16 @@
         <div class="note-card">
             <h3>权限说明</h3>
             <ul>
-                <li><code>PERSONNEL_WRITE</code>：人员档案及附属信息增删改。</li>
+                <li><code>PERSONNEL_READ</code> / <code>PERSONNEL_BASIC_READ</code>：人员列表与关键基础信息查询。</li>
+                <li><code>PERSONNEL_BASIC_WRITE</code>：关键基础信息维护（不含工资自动计算字段）。</li>
+                <li><code>PERSONNEL_KEY_FIELD_WRITE</code>：关键工资字段维护（对应旧系统 gz_xg 许可）。</li>
+                <li><code>PERSONNEL_APPROVAL_WRITE</code>：人员信息审核；主表及学历/任职/考核/获奖/警衔子记录三态流转（草稿→申报→审批通过），可审核通过、退回草稿或取消审核。审核跟踪页见「人员信息审核跟踪」。</li>
+                <li><code>PERSONNEL_WRITE</code>：人员档案新增/删除、附属信息及人员变动。</li>
                 <li><code>PAYROLL_WRITE</code>：工资变动办理/还原及调资记录手工维护。</li>
                 <li><code>LEVEL_PROMOTION_READ</code>：级别晋升试算查询与明细。</li>
                 <li><code>LEVEL_PROMOTION_WRITE</code>：级别晋升办理与还原。</li>
                 <li><code>STANDARD_WRITE</code>：工资标准表维护。</li>
-                <li><code>SYSTEM_CONFIG</code>：本地政策、字典、系统选项。</li>
+                <li><code>SYSTEM_CONFIG</code>：本地政策、字典。</li>
             </ul>
         </div>
         <div class="note-card">
@@ -5490,6 +5995,7 @@
             <div id="payroll-preview-modal-steps" class="projection-steps">暂无分步明细。</div>
 
             <h3 class="section-heading">工资项目</h3>
+            <p id="payroll-preview-modal-salary-items-hint" class="subrecord-hint"></p>
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -5521,6 +6027,7 @@
 </div>
 
 <script src="/month-picker.js?v=20260803-month-picker"></script>
-<script src="/app.js?v=20260819-normal-promotion-list-totals-only"></script>
+<script src="/vendor/qrcode.min.js"></script>
+<script src="/app.js?v=20260831-approval-tracking-filters"></script>
 </body>
 </html>

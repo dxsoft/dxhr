@@ -306,6 +306,29 @@ h3 {
     border-radius: 8px;
 }
 
+#personnel-approval-status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+    grid-template-columns: none;
+}
+
+#personnel-approval-status-bar .approval-actor-meta {
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+#personnel-approval-status-bar .approval-actor-meta strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+#personnel-approval-status-bar #personnel-approval-cancel-button {
+    margin-left: auto;
+}
+
 .standards-search-toolbar {
     grid-template-columns: minmax(120px, 150px) minmax(150px, 1.2fr) minmax(130px, 170px) 72px 80px auto;
     gap: 10px 12px;
@@ -758,6 +781,20 @@ th, td {
 
 .info-maint-result-table tbody tr:hover td {
     background: #eef4ff;
+}
+
+.info-maint-result-table .col-attachment {
+    width: 56px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.info-maint-result-table .col-position {
+    min-width: 88px;
+}
+
+.info-maint-result-table .col-period {
+    white-space: nowrap;
 }
 
 .info-maint-result-table .row-action {
@@ -2581,6 +2618,78 @@ main:has(#security:not(.hidden)) > #license-banner {
 
 .personnel-table tbody tr:hover td {
     background: #eef4ff;
+}
+
+.personnel-retirement-legend {
+    margin-left: 8px;
+    color: #b45309;
+    font-size: 13px;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-due td {
+    background: #fff7ed;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-due:nth-child(even) td {
+    background: #ffedd5;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-due:hover td {
+    background: #fed7aa;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-due td.col-actions {
+    background: #fff7ed;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-due:nth-child(even) td.col-actions {
+    background: #ffedd5;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-due:hover td.col-actions {
+    background: #fed7aa;
+}
+
+.personnel-retirement-badge {
+    display: inline-block;
+    margin-right: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #f97316;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.personnel-retirement-badge-soon {
+    background: #eab308;
+    color: #422006;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-soon td {
+    background: #fefce8;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-soon:nth-child(even) td {
+    background: #fef9c3;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-soon:hover td {
+    background: #fde68a;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-soon td.col-actions {
+    background: #fefce8;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-soon:nth-child(even) td.col-actions {
+    background: #fef9c3;
+}
+
+.personnel-table tbody tr.personnel-row-retirement-soon:hover td.col-actions {
+    background: #fde68a;
 }
 
 .personnel-table th.col-actions,
@@ -4823,11 +4932,29 @@ main:has(#personnel-statistics:not(.hidden)) > #license-banner {
     border-color: var(--border);
 }
 
+.modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.modal-header > div:first-child {
+    flex: 1;
+    min-width: 0;
+}
+
 .modal-header > button {
     color: var(--text);
     background: #fff;
     border: 1px solid var(--border);
     box-shadow: none;
+    flex-shrink: 0;
+    align-self: flex-start;
+    white-space: nowrap;
+    min-width: 64px;
+    padding: 8px 14px;
 }
 
 .modal-header > button:hover {
@@ -4990,12 +5117,188 @@ main:has(#personnel-statistics:not(.hidden)) > #license-banner {
     max-width: 56rem;
 }
 
+#data-exchange-approval-receive-form.data-exchange-approval-toolbar {
+    margin-bottom: 0.45rem;
+}
+
+#data-exchange-approval-receive-form .approval-receive-toolbar-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) auto auto;
+    gap: 0.75rem 1rem;
+    align-items: end;
+}
+
+#data-exchange-approval-receive-form .approval-receive-file {
+    margin: 0;
+    min-width: 0;
+}
+
+#data-exchange-approval-receive-form .approval-receive-file input[type="file"] {
+    width: 100%;
+    min-height: 38px;
+}
+
+#data-exchange-approval-receive-form .approval-receive-mode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.85rem;
+    min-height: 42px;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid #dbe3f0;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+#data-exchange-approval-receive-form .approval-receive-mode-label {
+    font-weight: 600;
+    color: var(--muted);
+    font-size: 0.88rem;
+    white-space: nowrap;
+}
+
+#data-exchange-approval-receive-form .mode-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    cursor: pointer;
+    font-size: 0.92rem;
+    white-space: nowrap;
+}
+
+#data-exchange-approval-receive-form .mode-option input {
+    margin: 0;
+}
+
+#data-exchange-approval-receive-form .approval-receive-buttons {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.55rem;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+#data-exchange-approval-receive-form .approval-receive-preview-btn {
+    color: var(--primary);
+    background: #fff;
+    border: 1px solid rgba(37, 99, 235, 0.35);
+    box-shadow: none;
+}
+
+#data-exchange-approval-receive-form .approval-receive-preview-btn:hover {
+    background: #eff6ff;
+    transform: none;
+}
+
+#data-exchange-approval-receive-form .approval-receive-apply-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+@media (max-width: 960px) {
+    #data-exchange-approval-receive-form .approval-receive-toolbar-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #data-exchange-approval-receive-form .approval-receive-buttons {
+        justify-content: flex-start;
+    }
+}
+
 #data-exchange .toolbar {
     display: flex;
     flex-wrap: wrap;
     align-items: end;
     gap: 0.75rem 1rem;
     margin-bottom: 0.5rem;
+}
+
+#data-exchange .data-exchange-filter-card {
+    display: block;
+    padding: 0.85rem 1rem 0.95rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 0.55rem;
+}
+
+#data-exchange .data-exchange-filter-grid {
+    display: grid;
+    grid-template-columns: minmax(240px, 1.35fr) minmax(200px, 1fr) auto auto;
+    gap: 0.75rem 1rem;
+    align-items: end;
+    width: 100%;
+}
+
+#data-exchange .data-exchange-filter-grid-wide {
+    grid-template-columns: minmax(200px, 1.15fr) minmax(160px, 0.95fr) minmax(150px, 0.8fr) auto auto;
+}
+
+#data-exchange .data-exchange-filter-grid-actions-wide {
+    grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 0.95fr) auto minmax(280px, auto);
+}
+
+#data-exchange .data-exchange-filter-grid-annual {
+    grid-template-columns: minmax(220px, 1.1fr) minmax(120px, 0.55fr) minmax(180px, 0.85fr) auto;
+}
+
+#data-exchange .data-exchange-receive-grid {
+    display: grid;
+    grid-template-columns: minmax(260px, 1.4fr) minmax(220px, 1fr) auto;
+    gap: 0.75rem 1rem;
+    align-items: end;
+    width: 100%;
+}
+
+#data-exchange .data-exchange-receive-toolbar.data-exchange-filter-card,
+#data-exchange .data-exchange-approval-toolbar.data-exchange-filter-card {
+    display: block;
+}
+
+#data-exchange .data-exchange-filter-grid-wide .exchange-actions,
+#data-exchange .data-exchange-filter-grid-actions-wide .exchange-actions,
+#data-exchange .data-exchange-filter-grid-annual .exchange-actions,
+#data-exchange .data-exchange-receive-grid .receive-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+    justify-self: end;
+}
+
+#data-exchange .data-exchange-org-chips:not(:empty) {
+    margin: 0 0 0.45rem;
+}
+
+#data-exchange .data-exchange-org-chips:empty {
+    display: none;
+}
+
+@media (max-width: 1080px) {
+    #data-exchange .data-exchange-filter-grid,
+    #data-exchange .data-exchange-filter-grid-wide,
+    #data-exchange .data-exchange-filter-grid-actions-wide,
+    #data-exchange .data-exchange-filter-grid-annual,
+    #data-exchange .data-exchange-receive-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    #data-exchange .data-exchange-filter-grid .exchange-descendants-field,
+    #data-exchange .data-exchange-filter-grid-wide .exchange-descendants-field,
+    #data-exchange .data-exchange-filter-grid-actions-wide .exchange-descendants-field,
+    #data-exchange .data-exchange-filter-grid .exchange-actions,
+    #data-exchange .data-exchange-filter-grid-wide .exchange-actions,
+    #data-exchange .data-exchange-filter-grid-actions-wide .exchange-actions,
+    #data-exchange .data-exchange-filter-grid-annual .exchange-actions,
+    #data-exchange .data-exchange-receive-grid .receive-actions {
+        grid-column: 1 / -1;
+        justify-self: stretch;
+        justify-content: flex-end;
+    }
 }
 
 #data-exchange .toolbar label {
@@ -5055,9 +5358,19 @@ main:has(#personnel-statistics:not(.hidden)) > #license-banner {
     padding-bottom: 2px;
 }
 
+#data-exchange .data-exchange-receive-grid-compact {
+    grid-template-columns: minmax(280px, 1fr) auto;
+}
+
 #data-exchange .data-exchange-filter-toolbar .exchange-org-field .dict-input-combo,
-#data-exchange .data-exchange-filter-toolbar .exchange-keyword-field input {
+#data-exchange .data-exchange-filter-toolbar .exchange-keyword-field input,
+#data-exchange .data-exchange-filter-toolbar .exchange-period-field input {
     width: 100%;
+    min-width: 0;
+}
+
+#data-exchange .data-exchange-filter-toolbar .exchange-keyword-field,
+#data-exchange .data-exchange-filter-toolbar .exchange-period-field {
     min-width: 0;
 }
 
@@ -5084,6 +5397,10 @@ main:has(#personnel-statistics:not(.hidden)) > #license-banner {
 
 .data-exchange-tab-panel h3 {
     margin-top: 0;
+}
+
+#data-exchange-approval-receive-form.data-exchange-filter-card {
+    margin-bottom: 0.55rem;
 }
 
 /* 数据交换：锁定视口，仅表格区域滚动，去掉最外层双滚动条 */
@@ -5174,8 +5491,8 @@ main:has(#data-exchange:not(.hidden)) > #license-banner {
     overflow: hidden;
 }
 
-#data-exchange .data-exchange-tab-panel:not(.hidden) > h3,
 #data-exchange .data-exchange-tab-panel:not(.hidden) > form,
+#data-exchange .data-exchange-tab-panel:not(.hidden) > .data-exchange-filter-card,
 #data-exchange .data-exchange-tab-panel:not(.hidden) > .status,
 #data-exchange .data-exchange-tab-panel:not(.hidden) > .permission-list,
 #data-exchange .data-exchange-tab-panel:not(.hidden) > .data-exchange-hint,
@@ -6781,6 +7098,15 @@ body.domain-retirement .domain-badge {
     z-index: 10020;
 }
 
+#attachment-preview-modal {
+    z-index: 10040;
+}
+
+#mobile-attachment-upload-modal,
+#attachment-capture-modal {
+    z-index: 10050;
+}
+
 #dictionary-picker-modal,
 #organization-picker-modal {
     z-index: 10030;
@@ -7032,8 +7358,8 @@ body.domain-retirement .domain-badge {
 #personnel-maintenance-modal.personnel-maintenance-readonly .form-actions,
 #personnel-maintenance-modal.personnel-maintenance-readonly #maint-organization-picker-button,
 #personnel-maintenance-modal.personnel-maintenance-readonly #maint-wage-projection-form,
-#personnel-maintenance-modal.personnel-maintenance-readonly .row-action,
-#personnel-maintenance-modal.personnel-maintenance-readonly .danger-button {
+#personnel-maintenance-modal.personnel-maintenance-readonly #maint-payroll-rows .row-action,
+#personnel-maintenance-modal.personnel-maintenance-readonly #maint-payroll-rows .danger-button {
     display: none !important;
 }
 
@@ -7061,13 +7387,128 @@ body.domain-retirement .domain-badge {
     max-height: none;
 }
 
-.modal-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 16px;
+#personnel-maintenance-modal .personnel-subrecord-table-wrap {
+    max-height: min(52vh, 520px);
+    overflow-x: hidden;
+    overflow-y: auto;
 }
+
+#personnel-maintenance-modal .personnel-subrecord-table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+}
+
+#personnel-maintenance-modal .personnel-subrecord-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #eef4ff;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: normal;
+    vertical-align: middle;
+}
+
+#personnel-maintenance-modal .personnel-subrecord-table td {
+    padding: 6px 8px;
+    font-size: 12px;
+    white-space: normal;
+    vertical-align: top;
+    word-break: break-word;
+}
+
+#personnel-maintenance-modal .personnel-subrecord-table tbody tr:nth-child(even) {
+    background: #fafcff;
+}
+
+#personnel-maintenance-modal .personnel-subrecord-table tbody tr.highlight-row {
+    background: #fff8e8;
+}
+
+#personnel-maintenance-modal .personnel-subrecord-table .col-id,
+#personnel-maintenance-modal .personnel-subrecord-table .col-period,
+#personnel-maintenance-modal .personnel-subrecord-table .col-year,
+#personnel-maintenance-modal .personnel-subrecord-table .col-flag {
+    text-align: center;
+}
+
+#personnel-maintenance-modal .personnel-subrecord-table .col-id { width: 6%; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-code { width: 8%; font-size: 11px; word-break: break-all; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-period { width: 8%; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-year { width: 8%; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-text { width: 10%; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-note { width: 10%; color: var(--muted); }
+#personnel-maintenance-modal .personnel-subrecord-table .col-position { width: 14%; min-width: 0; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-level { width: 10%; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-flag { width: 7%; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-result { width: 10%; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-approval { width: 7%; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-approval-actor {
+    width: 14%;
+    min-width: 128px;
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: nowrap;
+    word-break: keep-all;
+}
+#personnel-maintenance-modal .personnel-subrecord-table .col-approval-actor .approval-actor-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 120px;
+}
+#personnel-maintenance-modal .personnel-subrecord-table .col-approval-actor .approval-actor-line {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#personnel-maintenance-modal .personnel-subrecord-table .col-approval-actor .approval-actor-label {
+    display: inline-block;
+    min-width: 2.2em;
+    margin-right: 4px;
+    color: var(--muted);
+}
+#personnel-maintenance-modal .personnel-subrecord-table .col-approval-action { width: 11%; min-width: 88px; line-height: 1.35; }
+#personnel-maintenance-modal .personnel-subrecord-table .col-action { width: 10%; min-width: 72px; line-height: 1.35; }
+
+#personnel-maintenance-modal .personnel-subrecord-table .col-approval-action .row-action,
+#personnel-maintenance-modal .personnel-subrecord-table .col-action .row-action {
+    display: inline-block;
+    margin: 2px 2px 2px 0;
+    padding: 2px 6px;
+    font-size: 11px;
+}
+
+#personnel-maintenance-modal .personnel-subrecord-table-education .col-text:nth-child(3) { width: 9%; }
+#personnel-maintenance-modal .personnel-subrecord-table-education .col-text:nth-child(4) { width: 12%; }
+
+#personnel-maintenance-modal .personnel-subrecord-table-position .col-period { width: 8%; }
+#personnel-maintenance-modal .personnel-subrecord-table-position .col-position { width: 13%; }
+#personnel-maintenance-modal .personnel-subrecord-table-position .col-level { width: 9%; }
+#personnel-maintenance-modal .personnel-subrecord-table-position .col-code { width: 8%; }
+#personnel-maintenance-modal .personnel-subrecord-table-position .col-flag { width: 6%; }
+#personnel-maintenance-modal .personnel-subrecord-table-position .col-approval-actor { width: 15%; min-width: 136px; }
+
+#personnel-maintenance-modal .personnel-subrecord-table-assessment .col-result { width: 12%; }
+#personnel-maintenance-modal .personnel-subrecord-table-assessment .col-id { width: 8%; }
+
+#personnel-maintenance-modal .personnel-subrecord-table-award .col-text:nth-child(1) { width: 12%; }
+#personnel-maintenance-modal .personnel-subrecord-table-award .col-text:nth-child(2) { width: 12%; }
+#personnel-maintenance-modal .personnel-subrecord-table-award .col-text:nth-child(3) { width: 7%; }
+#personnel-maintenance-modal .personnel-subrecord-table-award .col-period { width: 8%; }
+#personnel-maintenance-modal .personnel-subrecord-table-award .col-level { width: 7%; }
+#personnel-maintenance-modal .personnel-subrecord-table-award .col-note { width: 12%; }
+
+#personnel-maintenance-modal .personnel-subrecord-table-rank .col-text:nth-child(1) { width: 9%; }
+#personnel-maintenance-modal .personnel-subrecord-table-rank .col-text:nth-child(2) { width: 12%; }
+#personnel-maintenance-modal .personnel-subrecord-table-rank .col-period { width: 9%; }
+#personnel-maintenance-modal .personnel-subrecord-table-rank .col-note { width: 14%; }
+#personnel-maintenance-modal .personnel-subrecord-table-rank .col-code { width: 10%; }
+#personnel-maintenance-modal .personnel-subrecord-table-rank .col-flag { width: 7%; }
+#personnel-maintenance-modal .personnel-subrecord-table-rank .col-text:nth-child(7) { width: 8%; }
 
 .modal-header p {
     margin: 0;
@@ -7142,15 +7583,6 @@ body.domain-retirement .domain-badge {
 
 .position-subrecord-toolbar {
     align-items: flex-start;
-}
-
-.position-subrecord-table-wrap {
-    max-height: min(52vh, 520px);
-    overflow: auto;
-}
-
-.position-subrecord-table {
-    min-width: 980px;
 }
 
 .position-subrecord-modal.wide-modal,
@@ -7238,8 +7670,332 @@ body.domain-retirement .domain-badge {
 
 .position-subrecord-modal .position-entry-grid .form-actions {
     grid-column: 1 / -1;
+    margin-top: 4px;
     justify-content: flex-start;
     padding-top: 2px;
+    flex-wrap: wrap;
+}
+
+.subrecord-editor-form-actions .row-action {
+    min-height: 36px;
+    padding: 6px 14px;
+}
+
+.subrecord-attachment-section {
+    margin-top: 4px;
+}
+
+.subrecord-attachment-list {
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.subrecord-attachment-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px 12px;
+    align-items: center;
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.subrecord-attachment-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+
+.subrecord-attachment-meta {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.subrecord-attachment-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.subrecord-attachment-actions .row-action {
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+.subrecord-attachment-empty {
+    padding: 8px 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.subrecord-attachment-upload {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--primary);
+}
+
+.subrecord-attachment-upload input[type="file"] {
+    display: none;
+}
+
+.attachment-mobile-camera-input {
+    display: none !important;
+}
+
+.subrecord-attachment-upload-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.subrecord-attachment-upload-button {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--primary);
+}
+
+.subrecord-attachment-upload-button:hover {
+    border-color: var(--primary);
+    background: #f8fbff;
+}
+
+.attachment-capture-modal {
+    width: min(720px, calc(100vw - 32px));
+}
+
+.attachment-capture-toolbar label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.attachment-capture-toolbar select {
+    min-width: min(100%, 420px);
+    padding: 6px 8px;
+}
+
+.attachment-capture-stage {
+    margin-top: 12px;
+    min-height: 280px;
+    max-height: min(60vh, 520px);
+    background: #111;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.attachment-capture-stage video,
+.attachment-capture-stage img {
+    width: 100%;
+    max-height: min(60vh, 520px);
+    object-fit: contain;
+    background: #111;
+}
+
+.attachment-capture-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.attachment-capture-actions button {
+    min-width: 88px;
+}
+
+.mobile-attachment-upload-modal {
+    width: min(480px, calc(100vw - 32px));
+}
+
+.mobile-attachment-upload-intro {
+    margin: 0 0 12px;
+}
+
+.mobile-attachment-upload-base-url {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    margin-bottom: 8px;
+}
+
+.mobile-attachment-upload-base-url input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.mobile-attachment-upload-qrcode {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    margin: 12px 0;
+    padding: 12px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+.mobile-attachment-upload-url {
+    word-break: break-all;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.mobile-attachment-upload-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+.attachment-count-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 4px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    font-size: 11px;
+    color: var(--primary);
+    white-space: nowrap;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.attachment-count-badge:hover {
+    text-decoration: underline;
+}
+
+.attachment-picker-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.attachment-picker-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    text-align: left;
+}
+
+.attachment-picker-item:hover {
+    border-color: var(--primary);
+    background: #f8fbff;
+}
+
+.attachment-picker-name {
+    font-size: 14px;
+    color: var(--text);
+    word-break: break-all;
+}
+
+.attachment-picker-meta {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.attachment-preview-modal {
+    width: min(960px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+}
+
+.attachment-preview-modal .modal-header {
+    align-items: flex-start;
+}
+
+.attachment-preview-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.attachment-preview-body {
+    flex: 1 1 auto;
+    min-height: 320px;
+    max-height: min(72vh, 720px);
+    overflow: auto;
+    background: #f5f7fb;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+}
+
+.attachment-preview-frame {
+    width: 100%;
+    min-height: 480px;
+    height: min(68vh, 680px);
+    border: 0;
+    background: #fff;
+    border-radius: 6px;
+}
+
+.attachment-preview-image {
+    max-width: 100%;
+    max-height: min(68vh, 680px);
+    object-fit: contain;
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    transition: opacity 0.2s ease;
+}
+
+.attachment-preview-image.attachment-preview-loading {
+    opacity: 0.35;
+}
+
+.attachment-preview-unsupported {
+    margin: 0;
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--muted);
+    line-height: 1.6;
 }
 
 /* 工资变动情况：整页不滚动，仅表格区域滚动 */
@@ -8032,6 +8788,228 @@ main:has(#annual-assessment-management:not(.hidden)) > #license-banner {
     width: 72px;
 }
 
+.assessment-batch-table .col-approval {
+    width: 80px;
+}
+
+.assessment-batch-status.status-draft {
+    color: #6b7280;
+}
+
+.assessment-batch-status.status-submitted {
+    color: #2563eb;
+}
+
+.assessment-batch-status.status-approved {
+    color: #059669;
+}
+
+.assessment-approval-stats-bar {
+    margin: 0.75rem 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    background: #f8fbff;
+    font-size: 0.92rem;
+    line-height: 1.5;
+}
+
+#personnel-approval-tracking-assessment-stats.assessment-approval-stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+    overflow-x: auto;
+    line-height: 1.4;
+}
+
+.assessment-approval-stats-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    min-width: 0;
+}
+
+.assessment-approval-stats-footnote-inline {
+    color: #6b7280;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+}
+
+.assessment-approval-stats-summary {
+    margin-bottom: 0.35rem;
+}
+
+.assessment-approval-stats-breakdown {
+    color: #374151;
+}
+
+.assessment-approval-stats-footnote {
+    margin-top: 0.35rem;
+    color: #6b7280;
+    font-size: 0.82rem;
+}
+
+.personnel-approval-tracking-table .col-select {
+    width: 40px;
+}
+
+/* 人员信息审核跟踪：筛选单行 + 仅表格滚动 */
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 8px 10px;
+    grid-template-columns: none;
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar > label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar > label:first-of-type {
+    flex: 1 1 360px;
+    min-width: 320px;
+    max-width: 480px;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar .dict-input-combo {
+    min-width: 280px;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar .personnel-toolbar-keyword {
+    flex: 1 1 160px;
+    min-width: 140px;
+    max-width: 220px;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar #personnel-approval-tracking-record-type {
+    min-width: 88px;
+    width: 100%;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar #personnel-approval-tracking-assessment-year {
+    width: 112px;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar #personnel-approval-tracking-year-label {
+    flex: 0 0 auto;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar #personnel-approval-tracking-approved-within-days {
+    min-width: 100px;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar .retirement-scope-check {
+    flex: 0 0 auto;
+    padding-bottom: 10px;
+}
+
+#personnel-approval-tracking-form.personnel-approval-tracking-toolbar .info-maint-query-actions {
+    flex: 0 0 auto;
+    align-self: flex-end;
+    margin-left: auto;
+}
+
+body:has(#personnel-approval-tracking:not(.hidden)) {
+    overflow: hidden;
+    height: 100vh;
+}
+
+.app-shell:has(#personnel-approval-tracking:not(.hidden)) {
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app-workspace:has(#personnel-approval-tracking:not(.hidden)) {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.app-workspace:has(#personnel-approval-tracking:not(.hidden)) > .app-header {
+    flex-shrink: 0;
+}
+
+.app-workspace:has(#personnel-approval-tracking:not(.hidden)) > main {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 12px 24px 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+main:has(#personnel-approval-tracking:not(.hidden)) > #license-banner {
+    flex-shrink: 0;
+    margin: 0 0 10px !important;
+    padding: 10px 12px;
+}
+
+#personnel-approval-tracking:not(.hidden) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    height: auto;
+    margin-bottom: 0;
+    padding: 16px 20px;
+    overflow: hidden;
+}
+
+#personnel-approval-tracking:not(.hidden) > .panel-title,
+#personnel-approval-tracking:not(.hidden) > .tab-bar,
+#personnel-approval-tracking:not(.hidden) > form,
+#personnel-approval-tracking:not(.hidden) > #personnel-approval-tracking-assessment-stats,
+#personnel-approval-tracking:not(.hidden) > .status,
+#personnel-approval-tracking:not(.hidden) > .pagination-bar {
+    flex-shrink: 0;
+}
+
+#personnel-approval-tracking:not(.hidden) > .panel-title {
+    margin-bottom: 8px;
+}
+
+#personnel-approval-tracking:not(.hidden) > .tab-bar {
+    margin-top: 4px;
+    margin-bottom: 8px;
+}
+
+#personnel-approval-tracking:not(.hidden) > .personnel-approval-tracking-table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: 4px;
+    overflow: auto;
+}
+
+#personnel-approval-tracking .status:empty {
+    display: none;
+    margin: 0;
+    padding: 0;
+}
+
+#personnel-approval-tracking:not(.hidden) > .status {
+    margin: 4px 0;
+}
+
+#personnel-approval-tracking:not(.hidden) > #personnel-approval-tracking-assessment-stats {
+    margin: 6px 0;
+}
+
+#personnel-approval-tracking:not(.hidden) > .pagination-bar {
+    margin-top: 8px;
+}
+
 .assessment-batch-table.hide-org-column .col-code {
     width: 104px;
 }
@@ -8190,6 +9168,11 @@ tr.hidden-row {
 
 .promotion-table .col-action {
     white-space: nowrap;
+}
+
+#personnel-maintenance-modal .personnel-subrecord-table.promotion-table {
+    min-width: 0;
+    table-layout: fixed;
 }
 
 .level-promotion-search-toolbar {
@@ -8430,8 +9413,59 @@ main:has(#level-promotion:not(.hidden)) > #license-banner {
 }
 
 .normal-promotion-table.hide-level-start-column th.col-level-start,
-.normal-promotion-table.hide-level-start-column td.col-level-start {
+.normal-promotion-table.hide-level-start-column td.col-level-start,
+.maint-payroll-table.hide-level-start-column th.col-level-start,
+.maint-payroll-table.hide-level-start-column td.col-level-start {
     display: none;
+}
+
+.maint-payroll-table .col-current {
+    width: 72px;
+    min-width: 72px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.maint-payroll-table .col-action {
+    width: 112px;
+    min-width: 112px;
+    white-space: nowrap;
+}
+
+.maint-payroll-table .col-money {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.maint-payroll-table .maint-payroll-row-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.maint-payroll-table .col-action .row-action {
+    margin: 0;
+    padding: 4px 8px;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+.payroll-current-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    background: #f1f5f9;
+}
+
+.payroll-current-badge.is-current {
+    color: #047857;
+    background: #d1fae5;
 }
 
 .normal-promotion-table {
@@ -9653,4 +10687,28 @@ main:has(#police-rank-change-promotion:not(.hidden)) > #license-banner {
     min-width: 140px;
 }
 
+.exchange-unread-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    padding: 0 0.35rem;
+    margin-left: 0.35rem;
+    border-radius: 999px;
+    background: #c0392b;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.4;
+    vertical-align: middle;
+}
+
+.exchange-unread-badge.hidden {
+    display: none;
+}
+
+
+.exchange-inbox-unread td {
+    font-weight: 600;
+}
 

@@ -6,6 +6,9 @@ import com.dxsoft.rsgzgl.maintenance.OperationLogService;
 import com.dxsoft.rsgzgl.personnel.PersonnelChangeRequest;
 import com.dxsoft.rsgzgl.personnel.PersonnelChangeResult;
 import com.dxsoft.rsgzgl.personnel.PersonnelRepository;
+import com.dxsoft.rsgzgl.payroll.PayrollRepository;
+import com.dxsoft.rsgzgl.payroll.PayrollRounding;
+import com.dxsoft.rsgzgl.payroll.PayrollRoundingPolicy;
 import com.dxsoft.rsgzgl.report.export.ReportPdfService;
 import com.dxsoft.rsgzgl.retirement.RetirementRepository.RetirementApprovalDetailRow;
 import com.dxsoft.rsgzgl.retirement.RetirementRepository.RetirementSeedInsert;
@@ -40,6 +43,7 @@ public class RetirementService {
     private final RetirementApprovalHtmlRenderer approvalHtmlRenderer;
     private final ReportPdfService reportPdfService;
     private final RetirementCalculationEngine calculationEngine;
+    private final PayrollRepository payrollRepository;
 
     RetirementService(
             RetirementRepository retirementRepository,
@@ -48,7 +52,8 @@ public class RetirementService {
             OperationLogService operationLogService,
             RetirementApprovalHtmlRenderer approvalHtmlRenderer,
             ReportPdfService reportPdfService,
-            RetirementCalculationEngine calculationEngine) {
+            RetirementCalculationEngine calculationEngine,
+            PayrollRepository payrollRepository) {
         this.retirementRepository = retirementRepository;
         this.personnelRepository = personnelRepository;
         this.accessControlService = accessControlService;
@@ -56,6 +61,7 @@ public class RetirementService {
         this.approvalHtmlRenderer = approvalHtmlRenderer;
         this.reportPdfService = reportPdfService;
         this.calculationEngine = calculationEngine;
+        this.payrollRepository = payrollRepository;
     }
 
     public List<RetirementApprovalStyleOption> approvalStyles() {
@@ -347,7 +353,8 @@ public class RetirementService {
         int positionSalary = wage.positionSalary() > 0 ? wage.positionSalary() : Math.max(existing.positionSalary(), 0);
         int gradeSalary = wage.gradeSalary() > 0 ? wage.gradeSalary() : Math.max(existing.gradeSalary(), 0);
         int technicalSalary = wage.technicalSalary() > 0 ? wage.technicalSalary() : Math.max(existing.technicalSalary(), 0);
-        int autoTeachingRaise = Math.round((positionSalary + gradeSalary) * Math.max(teachingRaisePercentage, 0) / 100.0f);
+        int autoTeachingRaise = PayrollRounding.zroundPercent(
+                positionSalary + gradeSalary, Math.max(teachingRaisePercentage, 0), this.roundingPolicy());
         int teachingRaiseAmount = request.teachingRaise() == null ? autoTeachingRaise : Math.max(request.teachingRaise(), 0);
         int rankAllowance = request.rankAllowance() == null
                 ? Math.max(existing.rankAllowance(), 0)
@@ -358,7 +365,7 @@ public class RetirementService {
         int conversionRatio = retirementRepository.lookupConversionRatio(postCategory, salaryYears, category);
         int effectiveRatio = Math.min(100, conversionRatio + Math.max(increaseRatio, 0));
         int convertedWageBase = positionSalary + gradeSalary + technicalSalary + rankAllowance + teachingRaiseAmount;
-        int convertedBase = Math.round(convertedWageBase * effectiveRatio / 100.0f);
+        int convertedBase = PayrollRounding.zroundPercent(convertedWageBase, effectiveRatio, this.roundingPolicy());
         int basicRetirementFee = convertedBase + wage.teachingAllowance();
         int afterAllowanceTotal = wage.afterAllowanceTotal() - wage.afterBonusBalance() + bonusBalance;
         int totalAmount = basicRetirementFee + existing.cumulativeIncrease() + afterAllowanceTotal;
@@ -481,7 +488,7 @@ public class RetirementService {
         int effectiveRatio = Math.min(100, conversionRatio + Math.max(row.increaseRatio(), 0));
         int convertedWageBase = row.positionSalary() + row.gradeSalary() + row.technicalSalary()
                 + row.teachingRaise() + row.rankAllowance();
-        int convertedAmount = Math.round(convertedWageBase * effectiveRatio / 100.0f);
+        int convertedAmount = PayrollRounding.zroundPercent(convertedWageBase, effectiveRatio, this.roundingPolicy());
         int beforeAllowanceTotal = row.beforeRetainedAllowance() + row.beforeLocalAllowance()
                 + row.beforePostAllowance() + row.beforeFloatingSalary() + row.beforeBonusBalance()
                 + row.beforeLivingAllowance() + row.beforeSpecialPostAllowance()
@@ -1063,5 +1070,9 @@ public class RetirementService {
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private PayrollRoundingPolicy roundingPolicy() {
+        return payrollRepository.roundingPolicy();
     }
 }

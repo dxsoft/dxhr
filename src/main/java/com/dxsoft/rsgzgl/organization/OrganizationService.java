@@ -179,30 +179,14 @@ public class OrganizationService {
         return new OrganizationFieldOptions(
                 properties,
                 mergeStringOptions(organizationRepository.findDistinctValues("dwbz"), List.of("行政", "事业")),
-                stringOptions(organizationRepository.findDistinctValues("dwjc")),
-                stringOptions(organizationRepository.findDistinctValues("gzczbz")),
+                OrganizationFieldCatalog.organizationLevels(),
+                OrganizationFieldCatalog.systemCategories(),
+                mergeStringOptions(organizationRepository.findDistinctValues("gzczbz"), OrganizationFieldCatalog.defaultPayrollCategoryValues()),
                 stringOptions(organizationRepository.findDistinctValues("jtbz")),
-                mergeLabeledOptions(
-                        integerOptions(organizationRepository.findDistinctIntegers("dfbt"), value -> value == 0 ? "否" : "是"),
-                        List.of(
-                                new OrganizationFieldOption("0", "0 否"),
-                                new OrganizationFieldOption("1", "1 是"))),
-                mergeLabeledOptions(
-                        integerOptions(organizationRepository.findDistinctIntegers("jxlb"), null),
-                        List.of(
-                                new OrganizationFieldOption("0", "0"),
-                                new OrganizationFieldOption("1", "1"),
-                                new OrganizationFieldOption("2", "2"),
-                                new OrganizationFieldOption("5", "5"))),
-                mergeLabeledOptions(
-                        integerOptions(organizationRepository.findDistinctIntegers("njbt"), null),
-                        List.of(
-                                new OrganizationFieldOption("0", "0"),
-                                new OrganizationFieldOption("1", "1"),
-                                new OrganizationFieldOption("2", "2"),
-                                new OrganizationFieldOption("3", "3"),
-                                new OrganizationFieldOption("4", "4"))),
-                stringOptions(organizationRepository.findDistinctValues("jfly")),
+                OrganizationFieldCatalog.performanceEnabledOptions(),
+                OrganizationFieldCatalog.performanceCategories(),
+                OrganizationFieldCatalog.yearAllowanceCategories(),
+                mergeStringOptions(organizationRepository.findDistinctValues("jfly"), OrganizationFieldCatalog.defaultFinanceSourceValues()),
                 mergeStringOptions(organizationRepository.findDistinctValues("kzfgjj"), List.of("是", "否")),
                 mergeStringOptions(organizationRepository.findDistinctValues("kylbxf"), List.of("是", "否")));
     }

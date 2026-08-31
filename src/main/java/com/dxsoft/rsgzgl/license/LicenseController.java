@@ -46,7 +46,7 @@ public class LicenseController {
         byte[] body = licenseService.exportOrganizationsForOps();
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                        .filename("license-orgs-v1.json", StandardCharsets.UTF_8)
+                        .filename("license-seed-v2.json", StandardCharsets.UTF_8)
                         .build()
                         .toString())
                 .contentType(MediaType.APPLICATION_JSON)

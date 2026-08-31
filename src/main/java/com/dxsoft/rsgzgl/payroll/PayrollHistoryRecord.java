@@ -49,6 +49,7 @@ public record PayrollHistoryRecord(
         Integer hygieneAllowance,
         Integer specialPostAllowance,
         Integer otherAllowance,
-        Integer totalAmount
+        Integer totalAmount,
+        int attachmentCount
 ) {
 }

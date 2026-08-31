@@ -1,10 +1,13 @@
 package com.dxsoft.rsgzgl.personnel;
 
+import java.time.LocalDateTime;
+
 public record PersonnelMaintenanceRecord(
         Integer uid,
         String organizationCode,
         String organizationName,
         String organizationCategory,
+        String organizationPayrollCategory,
         String personCode,
         String name,
         String idCard,
@@ -26,6 +29,13 @@ public record PersonnelMaintenanceRecord(
         String politicalStatus,
         String archiveNumber,
         String joinYearMonth,
-        String joinType
-) {
+        String joinType,
+        String approvalStatus,
+        String salaryStatus,
+        String organizationProperty,
+        boolean organizationLibraryComplete,
+        String submittedBy,
+        LocalDateTime submittedAt,
+        String approvedBy,
+        LocalDateTime approvedAt) {
 }

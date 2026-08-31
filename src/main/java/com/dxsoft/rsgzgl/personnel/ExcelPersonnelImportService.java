@@ -226,7 +226,9 @@ public class ExcelPersonnelImportService {
                     normalizeYearMonth(row.positionStartYearMonth()),
                     0,
                     "1",
-                    "0"));
+                    "0",
+                    null,
+                    null));
         }
         if (workStartYearMonth.equals(joinYearMonth) && "新招人员".equals(joinType)) {
             payrollService.ensureNoExperienceInternSalary(uid);

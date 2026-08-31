@@ -26,18 +26,21 @@ public class DataBackupService {
     private final BackupPackageInspector inspector;
     private final NewFormatBackupService newFormatBackupService;
     private final LegacyDbfRestoreService legacyDbfRestoreService;
+    private final BackupRestorePostProcessor backupRestorePostProcessor;
 
     DataBackupService(
             AccessControlService accessControlService,
             OperationLogService operationLogService,
             BackupPackageInspector inspector,
             NewFormatBackupService newFormatBackupService,
-            LegacyDbfRestoreService legacyDbfRestoreService) {
+            LegacyDbfRestoreService legacyDbfRestoreService,
+            BackupRestorePostProcessor backupRestorePostProcessor) {
         this.accessControlService = accessControlService;
         this.operationLogService = operationLogService;
         this.inspector = inspector;
         this.newFormatBackupService = newFormatBackupService;
         this.legacyDbfRestoreService = legacyDbfRestoreService;
+        this.backupRestorePostProcessor = backupRestorePostProcessor;
     }
 
     public List<BackupTableScopes.ScopeDescriptor> listScopes() {
@@ -100,6 +103,7 @@ public class DataBackupService {
                 case LEGACY -> legacyDbfRestoreService.restore(extractDir, scopeIds);
                 case UNKNOWN -> throw new IllegalArgumentException(inspect.message());
             };
+            result = backupRestorePostProcessor.applyChainRepair(result);
             operationLogService.record(
                     "DATA_RESTORE",
                     "database",

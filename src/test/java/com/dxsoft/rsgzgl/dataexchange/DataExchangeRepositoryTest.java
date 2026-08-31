@@ -93,6 +93,88 @@ class DataExchangeRepositoryTest {
         assertThat(tc).isBlank();
     }
 
+    @Test
+    void applyApprovalReceiveUpdatePreservesUidAndUpdatesBjglxlnx() {
+        jdbcTemplate.update("""
+                INSERT INTO dryjbxx (dwbm, grbm, xm, bjglxlnx, zdgznx, gznx)
+                VALUES ('02108', '00040', '马世明', 0, 0, 39)
+                """);
+
+        Map<String, Object> baseRow = new LinkedHashMap<>();
+        baseRow.put("dwbm", "02108");
+        baseRow.put("grbm", "00040");
+        baseRow.put("xm", "马世明");
+        baseRow.put("bjglxlnx", 2);
+        baseRow.put("zdgznx", 0);
+        baseRow.put("gznx", 41);
+
+        PersonnelExportRecord person = sample("02108", "00040", "马世明");
+        List<DataExchangeService.ExchangeTable> relatedTables = List.of(
+                new DataExchangeService.ExchangeTable("dryjbxx", List.of(baseRow)));
+
+        int count = repository.applyApprovalReceive(List.of(person), relatedTables, "UPDATE");
+
+        assertThat(count).isEqualTo(1);
+        Integer uid = jdbcTemplate.queryForObject(
+                "SELECT uid FROM dryjbxx WHERE dwbm = ? AND grbm = ?",
+                Integer.class,
+                "02108", "00040");
+        assertThat(uid).isEqualTo(1);
+        Integer bjglxlnx = jdbcTemplate.queryForObject(
+                "SELECT bjglxlnx FROM dryjbxx WHERE dwbm = ? AND grbm = ?",
+                Integer.class,
+                "02108", "00040");
+        Integer gznx = jdbcTemplate.queryForObject(
+                "SELECT gznx FROM dryjbxx WHERE dwbm = ? AND grbm = ?",
+                Integer.class,
+                "02108", "00040");
+        assertThat(bjglxlnx).isEqualTo(2);
+        assertThat(gznx).isEqualTo(41);
+    }
+
+    @Test
+    void applyApprovalReceiveReplaceRestoresJxFromPackage() {
+        jdbcTemplate.update("""
+                INSERT INTO dryjbxx (dwbm, grbm, xm, bjglxlnx)
+                VALUES ('02108', '00001', '测试员', 0)
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO jx (dwbm, grbm, jx)
+                VALUES ('02108', '00001', '本地绩效')
+                """);
+
+        Map<String, Object> baseRow = Map.of(
+                "dwbm", "02108",
+                "grbm", "00001",
+                "xm", "测试员",
+                "bjglxlnx", 2);
+        Map<String, Object> jxRow = Map.of(
+                "dwbm", "02108",
+                "grbm", "00001",
+                "jx", "审批包绩效");
+
+        PersonnelExportRecord person = sample("02108", "00001", "测试员");
+        List<DataExchangeService.ExchangeTable> relatedTables = List.of(
+                new DataExchangeService.ExchangeTable("dryjbxx", List.of(baseRow)),
+                new DataExchangeService.ExchangeTable("jx", List.of(jxRow)));
+
+        int count = repository.applyApprovalReceive(List.of(person), relatedTables, "REPLACE");
+
+        assertThat(count).isEqualTo(1);
+        String jx = jdbcTemplate.queryForObject(
+                "SELECT jx FROM jx WHERE dwbm = ? AND grbm = ?",
+                String.class,
+                "02108",
+                "00001");
+        assertThat(jx).isEqualTo("审批包绩效");
+        Integer bjglxlnx = jdbcTemplate.queryForObject(
+                "SELECT bjglxlnx FROM dryjbxx WHERE dwbm = ? AND grbm = ?",
+                Integer.class,
+                "02108",
+                "00001");
+        assertThat(bjglxlnx).isEqualTo(2);
+    }
+
     private static PersonnelExportRecord sample(String org, String person, String name) {
         return new PersonnelExportRecord(
                 org, "单位", person, name, null,

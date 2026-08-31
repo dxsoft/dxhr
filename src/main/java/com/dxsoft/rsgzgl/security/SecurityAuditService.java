@@ -7,7 +7,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -58,7 +61,7 @@ public class SecurityAuditService {
     }
 
     public PageResponse<SecurityAuditLog> search(String keyword, PageRequest pageRequest) {
-        return search(keyword, null, null, pageRequest);
+        return search(keyword, null, null, null, pageRequest);
     }
 
     public PageResponse<SecurityAuditLog> search(
@@ -66,7 +69,16 @@ public class SecurityAuditService {
             LocalDate fromDate,
             LocalDate toDate,
             PageRequest pageRequest) {
-        MapSqlParameterSource parameters = searchParameters(keyword, fromDate, toDate)
+        return search(keyword, fromDate, toDate, null, pageRequest);
+    }
+
+    public PageResponse<SecurityAuditLog> search(
+            String keyword,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String actionPrefix,
+            PageRequest pageRequest) {
+        MapSqlParameterSource parameters = searchParameters(keyword, fromDate, toDate, actionPrefix)
                 .addValue("limit", pageRequest.size())
                 .addValue("offset", pageRequest.offset());
         List<SecurityAuditLog> content = namedJdbcTemplate.query("""
@@ -80,6 +92,7 @@ public class SecurityAuditService {
                    OR summary LIKE :keywordLike)
                   AND (:fromAt IS NULL OR created_at >= :fromAt)
                   AND (:toAt IS NULL OR created_at <= :toAt)
+                  AND (:actionPrefix IS NULL OR action LIKE :actionPrefixLike)
                 ORDER BY id DESC
                 LIMIT :limit OFFSET :offset
                 """, parameters, (rs, rowNum) -> mapRow(rs));
@@ -94,8 +107,89 @@ public class SecurityAuditService {
                    OR summary LIKE :keywordLike)
                   AND (:fromAt IS NULL OR created_at >= :fromAt)
                   AND (:toAt IS NULL OR created_at <= :toAt)
-                """, searchParameters(keyword, fromDate, toDate), Long.class);
+                  AND (:actionPrefix IS NULL OR action LIKE :actionPrefixLike)
+                """, searchParameters(keyword, fromDate, toDate, actionPrefix), Long.class);
         return PageResponse.of(content, pageRequest, total == null ? 0 : total);
+    }
+
+    public Optional<AuditActorMoment> findLatestByTargetAndActions(
+            String targetType,
+            String targetId,
+            List<String> actions) {
+        if (targetType == null || targetType.isBlank() || targetId == null || targetId.isBlank() || actions == null || actions.isEmpty()) {
+            return Optional.empty();
+        }
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("targetType", targetType.trim())
+                .addValue("targetId", targetId.trim())
+                .addValue("actions", actions);
+        List<AuditActorMoment> rows = namedJdbcTemplate.query("""
+                SELECT actor_username, created_at
+                FROM app_security_audit_log
+                WHERE target_type = :targetType
+                  AND TRIM(target_id) = TRIM(:targetId)
+                  AND action IN (:actions)
+                ORDER BY id DESC
+                LIMIT 1
+                """, parameters, (rs, rowNum) -> new AuditActorMoment(
+                rs.getString("actor_username"),
+                rs.getTimestamp("created_at").toLocalDateTime()));
+        return rows.stream().findFirst();
+    }
+
+    public Map<AuditTargetKey, AuditActorMoment> findLatestByTargetsAndActions(
+            List<AuditTargetKey> targets,
+            List<String> actions) {
+        if (targets == null || targets.isEmpty() || actions == null || actions.isEmpty()) {
+            return Map.of();
+        }
+        List<AuditTargetKey> distinctTargets = targets.stream()
+                .filter(key -> key != null && !key.targetType().isBlank() && !key.targetId().isBlank())
+                .distinct()
+                .toList();
+        if (distinctTargets.isEmpty()) {
+            return Map.of();
+        }
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("actions", actions);
+        StringBuilder inClause = new StringBuilder();
+        for (int index = 0; index < distinctTargets.size(); index++) {
+            AuditTargetKey key = distinctTargets.get(index);
+            String typeParam = "targetType" + index;
+            String idParam = "targetId" + index;
+            parameters.addValue(typeParam, key.targetType());
+            parameters.addValue(idParam, key.targetId());
+            if (index > 0) {
+                inClause.append(", ");
+            }
+            inClause.append("(:%s, :%s)".formatted(typeParam, idParam));
+        }
+        List<AuditTargetRow> rows = namedJdbcTemplate.query("""
+                SELECT target_type, target_id, actor_username, created_at, id
+                FROM app_security_audit_log
+                WHERE action IN (:actions)
+                  AND (target_type, target_id) IN (%s)
+                ORDER BY id DESC
+                """.formatted(inClause), parameters, (rs, rowNum) -> new AuditTargetRow(
+                rs.getString("target_type"),
+                rs.getString("target_id"),
+                rs.getString("actor_username"),
+                rs.getTimestamp("created_at").toLocalDateTime(),
+                rs.getLong("id")));
+        Map<AuditTargetKey, AuditActorMoment> latest = new LinkedHashMap<>();
+        for (AuditTargetRow row : rows) {
+            AuditTargetKey key = new AuditTargetKey(row.targetType(), row.targetId());
+            latest.putIfAbsent(key, new AuditActorMoment(row.actorUsername(), row.createdAt()));
+        }
+        return latest;
+    }
+
+    private record AuditTargetRow(
+            String targetType,
+            String targetId,
+            String actorUsername,
+            LocalDateTime createdAt,
+            long id) {
     }
 
     public byte[] exportCsv(String keyword, LocalDate fromDate, LocalDate toDate) {
@@ -112,7 +206,7 @@ public class SecurityAuditService {
                   AND (:toAt IS NULL OR created_at <= :toAt)
                 ORDER BY id DESC
                 LIMIT 20000
-                """, searchParameters(keyword, fromDate, toDate), (rs, rowNum) -> mapRow(rs));
+                """, searchParameters(keyword, fromDate, toDate, null), (rs, rowNum) -> mapRow(rs));
         StringBuilder csv = new StringBuilder();
         csv.append('\uFEFF');
         csv.append("ID,操作者,动作,对象类型,对象ID,摘要,时间\n");
@@ -140,15 +234,22 @@ public class SecurityAuditService {
                 rs.getTimestamp("created_at").toLocalDateTime());
     }
 
-    private MapSqlParameterSource searchParameters(String keyword, LocalDate fromDate, LocalDate toDate) {
+    private MapSqlParameterSource searchParameters(
+            String keyword,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String actionPrefix) {
         String trimmedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        String trimmedActionPrefix = actionPrefix == null || actionPrefix.isBlank() ? null : actionPrefix.trim();
         LocalDateTime fromAt = fromDate == null ? null : fromDate.atStartOfDay();
         LocalDateTime toAt = toDate == null ? null : toDate.atTime(LocalTime.MAX);
         return new MapSqlParameterSource()
                 .addValue("keyword", trimmedKeyword)
                 .addValue("keywordLike", trimmedKeyword == null ? null : "%" + trimmedKeyword + "%")
                 .addValue("fromAt", fromAt)
-                .addValue("toAt", toAt);
+                .addValue("toAt", toAt)
+                .addValue("actionPrefix", trimmedActionPrefix)
+                .addValue("actionPrefixLike", trimmedActionPrefix == null ? null : trimmedActionPrefix + "%");
     }
 
     private String normalizeSummary(String summary) {

@@ -36,7 +36,17 @@ class AppMenuService {
     private boolean menuVisible(AppUserPrincipal user, MenuItem menu) {
         if ("PERSONNEL".equals(menu.code()) || "ANNUAL_ASSESSMENT_MANAGEMENT".equals(menu.code())) {
             return user.permissions().contains("PERSONNEL_READ")
-                    || user.permissions().contains("PERSONNEL_WRITE");
+                    || user.permissions().contains("PERSONNEL_WRITE")
+                    || user.permissions().contains("PERSONNEL_BASIC_READ")
+                    || user.permissions().contains("PERSONNEL_BASIC_WRITE");
+        }
+        if ("PERSONNEL_APPROVAL_TRACKING".equals(menu.code())) {
+            for (String permission : PersonnelFeaturePermissions.approvalTrackingReadAuthorities()) {
+                if (user.permissions().contains(permission)) {
+                    return true;
+                }
+            }
+            return false;
         }
         if ("RETIREMENT_PROCESSING".equals(menu.code())
                 || "RETIREE_PERSONNEL".equals(menu.code())

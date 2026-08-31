@@ -10,6 +10,8 @@ public record PositionMaintenanceRequest(
         String startYearMonth,
         Integer intervalYears,
         String activeFlag,
-        String promotionFlag
+        String promotionFlag,
+        String positionChangeReason,
+        Integer linkedAwardId
 ) {
 }

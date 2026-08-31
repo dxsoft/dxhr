@@ -10,15 +10,20 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 @RestController
 @RequestMapping("/api/data-exchange")
 class DataExchangeController {
 
     private final DataExchangeService dataExchangeService;
+    private final ObjectMapper objectMapper;
 
-    DataExchangeController(DataExchangeService dataExchangeService) {
+    DataExchangeController(DataExchangeService dataExchangeService, ObjectMapper objectMapper) {
         this.dataExchangeService = dataExchangeService;
+        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/personnel")
@@ -101,6 +106,41 @@ class DataExchangeController {
     @PostMapping("/receive/apply")
     ReceiveApplyResponse applyReceive(@RequestBody ReceiveRequest request) {
         return dataExchangeService.applyReceive(request);
+    }
+
+    @PostMapping("/receive/legacy/preview")
+    ReceivePreviewResponse previewLegacyReceive(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String mode,
+            @RequestParam(required = false) String targetOrganizationCode,
+            @RequestParam(required = false) String selectedPersonnel) {
+        return dataExchangeService.previewLegacyReceive(
+                file,
+                mode,
+                targetOrganizationCode,
+                parseSelectedPersonnel(selectedPersonnel));
+    }
+
+    @PostMapping("/receive/legacy/apply")
+    ReceiveApplyResponse applyLegacyReceive(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String mode,
+            @RequestParam(required = false) String targetOrganizationCode,
+            @RequestParam(required = false) String selectedPersonnel,
+            @RequestParam(required = false) Boolean dryRun) {
+        return dataExchangeService.applyLegacyReceive(
+                file,
+                mode,
+                targetOrganizationCode,
+                parseSelectedPersonnel(selectedPersonnel),
+                dryRun);
+    }
+
+    private List<PersonKey> parseSelectedPersonnel(String selectedPersonnel) {
+        if (selectedPersonnel == null || selectedPersonnel.isBlank()) {
+            return List.of();
+        }
+        return objectMapper.readValue(selectedPersonnel, new TypeReference<List<PersonKey>>() {});
     }
 
     @GetMapping("/annual-report")
@@ -261,6 +301,7 @@ class DataExchangeController {
     record ApprovalReceiveRequest(
             String packageJson,
             List<PersonKey> selectedPersonnel,
-            Boolean dryRun) {
+            Boolean dryRun,
+            String mode) {
     }
 }

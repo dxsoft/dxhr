@@ -1,6 +1,6 @@
 package com.dxsoft.rsgzgl.dataexchange;
 
-record PersonnelExportRecord(
+public record PersonnelExportRecord(
         String organizationCode,
         String organizationName,
         String personCode,

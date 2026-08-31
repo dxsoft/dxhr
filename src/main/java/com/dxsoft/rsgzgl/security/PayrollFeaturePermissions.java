@@ -33,6 +33,7 @@ public final class PayrollFeaturePermissions {
             feature("level-promotions", "LEVEL_PROMOTION", "级别晋升查询", "级别晋升办理", "LEVEL_PROMOTION"),
             feature("reform-level-rollings", "LEVEL_PROMOTION", "级别晋升查询", "级别晋升办理", null),
             feature("position-change-promotions", "POSITION_CHANGE_PROMOTION", "职务变化晋升查询", "职务变化晋升办理", "POSITION_CHANGE_PROMOTION"),
+            feature("disciplinary-demotion-promotions", "DISCIPLINARY_DEMOTION_PROMOTION", "处分降职办理查询", "处分降职办理", "DISCIPLINARY_DEMOTION_PROMOTION"),
             feature("new-personnel-salary-determinations", "NEW_PERSONNEL_SALARY", "新进定资查询", "新进定资办理", "NEW_PERSONNEL_SALARY"),
             feature("regularizations", "REGULARIZATION", "转正定级查询", "转正定级办理", "REGULARIZATION"),
             feature("education-promotions", "EDUCATION_PROMOTION", "学历晋升查询", "学历晋升办理", "EDUCATION_PROMOTION"),

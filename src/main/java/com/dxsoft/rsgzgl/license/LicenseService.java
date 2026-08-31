@@ -132,7 +132,12 @@ public class LicenseService {
                 licenseRepository.insertOrganization(org);
             }
         }
-        licenseRepository.upsertCyxxSubject(doc.subject(), softsn, fingerprint);
+        licenseRepository.upsertCyxx(doc.subject(), doc.localPolicy(), softsn, fingerprint);
+        String policyNote = doc.localPolicy() != null
+                ? "，已写入本地工资政策"
+                : (licenseRepository.hasExistingLocalPolicyFields()
+                        ? "，保留已有本地政策"
+                        : "");
         String storedJson = LicenseCrypto.toJson(doc);
         licenseRepository.saveImported(doc, fingerprint, storedJson);
         List<String> codes = orgs.stream().map(LicenseOrganization::organizationCode).toList();
@@ -142,6 +147,7 @@ public class LicenseService {
                 doc.subject().organizationCode(),
                 "导入单位授权：" + doc.subject().organizationName()
                         + "，初始单位种子 " + orgs.size() + " 个，指纹 " + fingerprint
+                        + policyNote
                         + "（不删除本地已有多余单位）");
         return new LicenseImportResult(
                 doc.subject().organizationCode(),
@@ -149,7 +155,9 @@ public class LicenseService {
                 orgs.size(),
                 codes,
                 fingerprint,
-                "单位授权导入成功：已写入/更新初始单位种子，本地已有单位不会被删除；审批单位可继续增删改单位。");
+                "单位授权导入成功：已写入/更新初始单位种子"
+                        + (doc.localPolicy() != null ? "及本地工资政策参数" : policyNote)
+                        + "，本地已有单位不会被删除；审批单位可继续增删改单位。");
     }
 
     public boolean isIssueEnabled() {
@@ -167,17 +175,20 @@ public class LicenseService {
         }
         String city = empty(licenseRepository.findCyxxCity());
         String supervisor = empty(licenseRepository.findCyxxSupervisor());
+        LicenseLocalPolicy localPolicy = licenseRepository.findLocalPolicyForIssue().orElse(null);
         String json = LicenseCrypto.toOrgsExportJson(
-                LicenseOrgsExportFormat.FORMAT,
+                LicenseOrgsExportFormat.SEED_FORMAT,
                 Instant.now().toString(),
                 city,
                 supervisor,
-                orgs);
+                orgs,
+                localPolicy);
         operationLogService.record(
                 "LICENSE_ORGS_EXPORT",
                 "dwbm",
                 "all",
-                "导出单位目录供 ops：单位数 " + orgs.size());
+                "导出签发种子供 ops：单位数 " + orgs.size()
+                        + (localPolicy != null ? "，含本地工资政策" : "，未找到 cyxx 政策"));
         return json.getBytes(StandardCharsets.UTF_8);
     }
 
@@ -230,6 +241,7 @@ public class LicenseService {
                 subjectLevel,
                 city,
                 empty(request.supervisor()));
+        LicenseLocalPolicy localPolicy = licenseRepository.findLocalPolicyForIssue().orElse(null);
         Boolean ukeyEnabled = request.ukeyEnabled() == null || request.ukeyEnabled();
         Boolean ukeyRequired = Boolean.TRUE.equals(request.ukeyRequired()) && ukeyEnabled;
         LicensePackageDocument unsigned = new LicensePackageDocument(
@@ -239,6 +251,7 @@ public class LicenseService {
                 blank(request.issuer()) ? "鼎星软件" : request.issuer().trim(),
                 subject,
                 orgs,
+                localPolicy,
                 ukeyEnabled,
                 ukeyRequired,
                 "");
@@ -254,6 +267,7 @@ public class LicenseService {
                 subject.organizationCode(),
                 "签发单位授权包：" + subject.organizationName()
                         + "，单位数 " + orgs.size()
+                        + (localPolicy != null ? "，含本地工资政策" : "")
                         + scopeNote
                         + "，UKey启用=" + ukeyEnabled
                         + "，要求双认证=" + ukeyRequired);

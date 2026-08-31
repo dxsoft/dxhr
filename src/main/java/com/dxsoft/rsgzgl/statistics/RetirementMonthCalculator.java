@@ -66,6 +66,61 @@ public final class RetirementMonthCalculator {
                 category);
     }
 
+    public static boolean isRetirementDue(String birthYearMonth, String gender, String positionCode, String referencePeriod) {
+        CalculationResult calculation = calculate(birthYearMonth, gender, positionCode);
+        if (calculation.retirementYearMonth().isBlank()) {
+            return false;
+        }
+        String reference = normalizeYearMonth(referencePeriod);
+        if (reference.isBlank()) {
+            return false;
+        }
+        return compareYearMonth(calculation.retirementYearMonth(), reference) <= 0;
+    }
+
+    public static boolean isRetirementWithinOneMonth(
+            String birthYearMonth,
+            String gender,
+            String positionCode,
+            String referencePeriod) {
+        CalculationResult calculation = calculate(birthYearMonth, gender, positionCode);
+        if (calculation.retirementYearMonth().isBlank()) {
+            return false;
+        }
+        String reference = normalizeYearMonth(referencePeriod);
+        if (reference.isBlank()) {
+            return false;
+        }
+        if (compareYearMonth(calculation.retirementYearMonth(), reference) <= 0) {
+            return false;
+        }
+        String upperBound = yearMonthPlusMonths(reference, 1);
+        if (upperBound.isBlank()) {
+            return false;
+        }
+        return compareYearMonth(calculation.retirementYearMonth(), upperBound) <= 0;
+    }
+
+    public static String yearMonthPlusMonths(String yearMonth, int months) {
+        String normalized = normalizeYearMonth(yearMonth);
+        if (normalized.length() < 6 || months < 0) {
+            return "";
+        }
+        try {
+            int year = Integer.parseInt(normalized.substring(0, 4));
+            int month = Integer.parseInt(normalized.substring(4, 6));
+            int totalMonths = year * 12 + (month - 1) + months;
+            if (totalMonths < 0) {
+                return "";
+            }
+            int resultYear = totalMonths / 12;
+            int resultMonth = totalMonths % 12 + 1;
+            return String.format("%04d%02d", resultYear, resultMonth);
+        } catch (NumberFormatException ex) {
+            return "";
+        }
+    }
+
     public static int compareYearMonth(String left, String right) {
         int leftValue = yearMonthValue(left);
         int rightValue = yearMonthValue(right);

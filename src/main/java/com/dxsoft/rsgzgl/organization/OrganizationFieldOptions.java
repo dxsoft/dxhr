@@ -6,6 +6,7 @@ public record OrganizationFieldOptions(
         List<OrganizationFieldOption> properties,
         List<OrganizationFieldOption> categories,
         List<OrganizationFieldOption> organizationLevels,
+        List<OrganizationFieldOption> systemCategories,
         List<OrganizationFieldOption> payrollCategories,
         List<OrganizationFieldOption> allowanceStandards,
         List<OrganizationFieldOption> performanceEnabled,

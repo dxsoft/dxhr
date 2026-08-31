@@ -14,6 +14,7 @@ public record PersonnelTransferRecord(
         String transferPeriod,
         String changeType,
         String remark,
-        String createdAt
+        String createdAt,
+        int attachmentCount
 ) {
 }

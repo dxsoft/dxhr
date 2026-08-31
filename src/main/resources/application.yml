@@ -68,6 +68,30 @@ rsgzgl:
     url: ${RSGZGL_PRINT_AUTH_URL:http://www.dxsoft.cn:7099/dxmanage/customer/selectCus.dx}
     connect-timeout-ms: ${RSGZGL_PRINT_AUTH_CONNECT_TIMEOUT_MS:5000}
     request-timeout-ms: ${RSGZGL_PRINT_AUTH_REQUEST_TIMEOUT_MS:8000}
+  attachments:
+    storage-dir: ${RSGZGL_ATTACHMENT_DIR:./data/attachments}
+    max-file-size-bytes: ${RSGZGL_ATTACHMENT_MAX_SIZE_BYTES:20971520}
+    # 生产环境手机扫码上传公网地址，如 https://pq.dxsoft.cn；留空则使用浏览器当前域名
+    mobile-upload-public-base-url: ${RSGZGL_MOBILE_UPLOAD_PUBLIC_BASE_URL:}
+  backup:
+    restore:
+      # Conservative defaults for small-memory hosts; override via RSGZGL_RESTORE_* env vars.
+      batch-size: ${RSGZGL_RESTORE_BATCH_SIZE:200}
+      commit-every-batches: ${RSGZGL_RESTORE_COMMIT_EVERY_BATCHES:1}
+      truncate-before-insert: ${RSGZGL_RESTORE_TRUNCATE:false}
+      repair-hisbase-chain: ${RSGZGL_RESTORE_REPAIR_HISBASE_CHAIN:true}
+  exchange:
+    # SHARED: same database for units and approval dept; STANDALONE: separate deployments (default)
+    deployment-mode: ${RSGZGL_EXCHANGE_DEPLOYMENT_MODE:STANDALONE}
+  workflow:
+    enabled: ${RSGZGL_WORKFLOW_ENABLED:false}
+    hide-data-exchange: ${RSGZGL_WORKFLOW_HIDE_DATA_EXCHANGE:false}
+    auto-queue-on-approve: ${RSGZGL_WORKFLOW_AUTO_QUEUE:true}
+  maintenance:
+    hisbase-sid-chain:
+      # Weekly rebuild + NULL→'' normalize; off by default, enable on SaaS tenants if desired.
+      enabled: ${RSGZGL_HISBASE_SID_MAINTENANCE:false}
+      cron: ${RSGZGL_HISBASE_SID_MAINTENANCE_CRON:0 0 3 * * 0}
   report:
     # 审批表 PDF 引擎：openpdf（默认，更快）| html（OpenHTMLToPDF 回退）
     approval-pdf-engine: ${RSGZGL_APPROVAL_PDF_ENGINE:openpdf}

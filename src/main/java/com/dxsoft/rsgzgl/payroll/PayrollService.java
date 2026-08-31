@@ -75,7 +75,11 @@ public class PayrollService {
    private static final Set<String> POSITION_SEQUENCE_PREFIXES = Set.of("01", "02", "03", "04", "21", "22", "23", "24", "25", "26", "27", "28");
    private static final Set<String> POLICE_OFFICER_CONVERSION_SOURCE_PREFIXES = Set.of("01", "02", "03", "04", "23", "24", "25", "26", "27", "28");
    private static final Set<String> POLICE_OFFICER_CONVERSION_TARGET_PREFIXES = Set.of("21", "22");
+   private static final Set<String> JUDICIAL_CONVERSION_SOURCE_PREFIXES = Set.of("01", "02", "04", "21", "22", "23", "24", "25", "26", "27", "28");
    private static final Set<String> JUDICIAL_CONVERSION_TARGET_PREFIXES = Set.of("03");
+   private static final Set<String> JUDICIAL_LOWER_TIER_POSITIONS = Set.of(
+      "0319", "0329", "031A", "032A", "031B", "032B", "031C", "032C", "031D", "032D"
+   );
    private static final Set<String> INSTITUTION_POSITION_PREFIXES = Set.of("07", "08", "09", "10", "11");
    private static final Set<String> GOVERNMENT_WORKER_POSITION_PREFIXES = Set.of("05", "06");
    private static final String ADMINISTRATIVE_REGULARIZATION_LOOKUP_POSITION = "01B0";
@@ -90,7 +94,8 @@ public class PayrollService {
    private static final Set<String> EDUCATION_CHANGE_TYPES = Set.of("学历变化", "学历变动", "学历晋升");
    private static final Set<String> POLICE_HIGH_GRADE_EXCLUDED_PREFIXES = Set.of("05", "06", "08", "09");
    private static final List<String> AUTOMATED_PAYROLL_CHANGE_KEYWORDS = List.of("职务变化", "职级晋升", "职级套改", "法检套改", "警员套改", "警务套改", "调标", "套改");
-   private static final List<String> OTHER_PAYROLL_CHANGE_TYPE_OPTIONS = List.of("正常档次", "正常级别", "职务变化", "其他情况");
+   private static final List<String> OTHER_PAYROLL_CHANGE_TYPE_OPTIONS = List.of("正常档次", "正常级别", "职务变化", "降资处分", "其他情况");
+   private static final Set<String> MANUAL_PROJECTION_PRESERVED_FIELD_NAMES = Set.of("QTBT", "SIDBT", "ZWJT", "ZFBT", "JZMCBT", "NZGWSF", "GWJT2", "PGBC");
    private static final Set<String> PAYROLL_CHANGE_COMPARISON_FIELDS = Set.of(
       "ZWGZSE2",
       "JBGZSE2",
@@ -117,6 +122,11 @@ public class PayrollService {
    private final com.dxsoft.rsgzgl.payroll.PayrollRepository payrollRepository;
    private final AccessControlService accessControlService;
    private final OperationLogService operationLogService;
+   private final DisciplinaryDemotionPolicy disciplinaryDemotionPolicy;
+   @org.springframework.beans.factory.annotation.Autowired(required = false)
+   private com.dxsoft.rsgzgl.personnel.SubrecordAttachmentService subrecordAttachmentService;
+   @org.springframework.beans.factory.annotation.Autowired(required = false)
+   private com.dxsoft.rsgzgl.workflow.PayrollWorkflowService payrollWorkflowService;
    private final boolean mapCompulsoryEducation10To11;
    private final ConcurrentHashMap<String, com.dxsoft.rsgzgl.payroll.PayrollService.CachedLevelPromotionList> levelPromotionListCache = new ConcurrentHashMap<>();
    private final ConcurrentHashMap<String, com.dxsoft.rsgzgl.payroll.PayrollService.CachedNormalPromotionList> normalPromotionListCache = new ConcurrentHashMap<>();
@@ -126,6 +136,7 @@ public class PayrollService {
    private static final Set<String> MERGED_BASIC_AND_ALLOWANCE_STANDARD_PERIODS = Set.of("201410", "201607", "201807", "202110", "202407");
    private static final Set<String> STANDARD_ADJUSTMENT_PROMOTION_PERIODS = Set.of("201410", "201607", "201807", "202110", "202407");
    private volatile List<com.dxsoft.rsgzgl.payroll.PayrollFieldMetadata> calculationFieldsCache;
+   private final ThreadLocal<Map<String, BigDecimal>> wageProjectionPreservedFields = new ThreadLocal<>();
    private static final String PROBATION_REGULARIZATION_AFTER_REFORM_UNTIL = "200801";
    private static final String LATER_PERIOD_MODE_BLOCK = "block";
    private static final String LATER_PERIOD_MODE_INSERT_RECALC = "insertRecalc";
@@ -140,18 +151,31 @@ public class PayrollService {
       com.dxsoft.rsgzgl.payroll.PayrollRepository payrollRepository,
       AccessControlService accessControlService,
       @Value("${rsgzgl.payroll.map-compulsory-education-10-to-11:true}") boolean mapCompulsoryEducation10To11,
-      OperationLogService operationLogService
+      OperationLogService operationLogService,
+      DisciplinaryDemotionPolicy disciplinaryDemotionPolicy
    ) {
       this.payrollRepository = payrollRepository;
       this.accessControlService = accessControlService;
       this.mapCompulsoryEducation10To11 = mapCompulsoryEducation10To11;
       this.operationLogService = operationLogService;
+      this.disciplinaryDemotionPolicy = disciplinaryDemotionPolicy;
    }
 
    PayrollService(
-      com.dxsoft.rsgzgl.payroll.PayrollRepository payrollRepository, AccessControlService accessControlService, boolean mapCompulsoryEducation10To11
+      com.dxsoft.rsgzgl.payroll.PayrollRepository payrollRepository,
+      AccessControlService accessControlService,
+      boolean mapCompulsoryEducation10To11
    ) {
-      this(payrollRepository, accessControlService, mapCompulsoryEducation10To11, null);
+      this(payrollRepository, accessControlService, mapCompulsoryEducation10To11, null, new DisciplinaryDemotionPolicy(payrollRepository, null));
+   }
+
+   PayrollService(
+      com.dxsoft.rsgzgl.payroll.PayrollRepository payrollRepository,
+      AccessControlService accessControlService,
+      boolean mapCompulsoryEducation10To11,
+      OperationLogService operationLogService
+   ) {
+      this(payrollRepository, accessControlService, mapCompulsoryEducation10To11, operationLogService, new DisciplinaryDemotionPolicy(payrollRepository, null));
    }
 
    public PageResponse<com.dxsoft.rsgzgl.payroll.PayrollFieldMetadata> fields(Boolean enabledIn2006Policy, PageRequest pageRequest) {
@@ -567,6 +591,12 @@ public class PayrollService {
          : this.payrollRepository.findLatestHistory(uid).orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
       com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot standards = standardContext != null ? standardContext : latest;
       this.accessControlService.requireOrganization(latest.organizationCode());
+      boolean preserveProjectionFields = captureStepDetails;
+      if (preserveProjectionFields) {
+         this.wageProjectionPreservedFields.set(this.preservedManualFieldsFromHistory(uid));
+      }
+
+      try {
       String regularizationYearMonth = this.payrollRepository.findRegularizationYearMonth(latest.organizationCode(), latest.personCode());
       ArrayList<String> lines = new ArrayList<>();
       ArrayList<com.dxsoft.rsgzgl.payroll.WageProjectionStepDetail> stepDetails = captureStepDetails ? new ArrayList<>() : null;
@@ -745,7 +775,7 @@ public class PayrollService {
                      auditStopped = true;
                   }
                }
-            } else if (!auditStopped && "WORKER_GRADE".equals(salarySource)) {
+            } else if (!auditStopped && this.supportsPositionGradeStepPromotion(salarySource)) {
                int stepStartx = this.assessmentStartYear(state.stepStartYear(), start.positionStartYearMonth(), state.positionCode());
                this.appendMissingAssessmentPrompt(
                   lines, uid, latest.organizationCode(), latest.personCode(), stepStartx, projectionYear - 1, promptedMissingAssessmentYears, auditContext
@@ -762,7 +792,9 @@ public class PayrollService {
                      state,
                      lightweightStepCapture,
                      null,
-                     current -> this.promoteWorkerGradeStep(current, projectionYear, lines, "累计 " + qualifiedStepx + " 年考核合格")
+                     current -> "JUDICIAL_GRADE".equals(salarySource)
+                        ? this.promoteJudicialGradeStep(current, projectionYear, lines, "累计 " + qualifiedStepx + " 年考核合格")
+                        : this.promoteWorkerGradeStep(current, projectionYear, lines, "累计 " + qualifiedStepx + " 年考核合格")
                   );
                   if (this.auditStopReached(auditStop, projectionYear, com.dxsoft.rsgzgl.payroll.PayrollService.AuditMilestone.AFTER_STEP_PROMOTION)) {
                      auditStopped = true;
@@ -870,6 +902,11 @@ public class PayrollService {
          return new com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionRun(
             latest, start, targetPeriod, regularizationYearMonth, state, lines, true, stepDetails
          );
+      }
+      } finally {
+         if (preserveProjectionFields) {
+            this.wageProjectionPreservedFields.remove();
+         }
       }
    }
 
@@ -1176,11 +1213,31 @@ public class PayrollService {
    private com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState finalizeProjectionSalaryStandard(
       com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState state, String targetPeriod
    ) {
-      String effectiveStandard = this.payrollRepository.latestBasicSalaryStandardAtOrBefore(targetPeriod);
+      String effectiveStandard = "JUDICIAL_GRADE".equals(this.resolvedBaseSalarySource(state))
+         ? this.payrollRepository.latestJudicialPositionSalaryStandardAtOrBefore(targetPeriod)
+         : this.payrollRepository.latestBasicSalaryStandardAtOrBefore(targetPeriod);
       if (this.emptyToNull(effectiveStandard) != null && this.emptyToNull(state.salaryStandardYearMonth()) != null) {
-         return effectiveStandard.compareTo(state.salaryStandardYearMonth()) > 0 ? state.withSalaryStandard(effectiveStandard) : state;
+         com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState updated = effectiveStandard.compareTo(state.salaryStandardYearMonth()) > 0
+            ? state.withSalaryStandard(effectiveStandard)
+            : state;
+         if ("JUDICIAL_GRADE".equals(this.resolvedBaseSalarySource(updated))) {
+            String resolved = this.payrollRepository.resolveJudicialSalaryStandardYearMonth(updated.salaryStandardYearMonth());
+            if (this.emptyToNull(resolved) != null) {
+               updated = updated.withSalaryStandard(resolved);
+            }
+         }
+         return updated;
       } else {
-         return this.emptyToNull(effectiveStandard) == null ? state : state.withSalaryStandard(effectiveStandard);
+         com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState updated = this.emptyToNull(effectiveStandard) == null
+            ? state
+            : state.withSalaryStandard(effectiveStandard);
+         if ("JUDICIAL_GRADE".equals(this.resolvedBaseSalarySource(updated)) && this.emptyToNull(updated.salaryStandardYearMonth()) != null) {
+            String resolved = this.payrollRepository.resolveJudicialSalaryStandardYearMonth(updated.salaryStandardYearMonth());
+            if (this.emptyToNull(resolved) != null) {
+               updated = updated.withSalaryStandard(resolved);
+            }
+         }
+         return updated;
       }
    }
 
@@ -1198,20 +1255,37 @@ public class PayrollService {
       String regularizationSalaryPositionCode = this.regularizationSalaryPositionCodeForProjection(
          organizationCode, personCode, normalizedRegularization, latest
       );
-      this.payrollRepository
-         .findPositionChangesBetween(organizationCode, personCode, startPeriod, targetPeriod, WAGE_REFORM_POSITION_PREFIXES)
-         .stream()
-         .filter(position -> this.includeWageProjectionPositionChange(latest, institutionPersonnel, position.positionCode()))
-         .filter(position -> !this.isRegularizationAppointmentPosition(position, normalizedRegularization))
-         .filter(position -> !this.isDuplicatePostRegularizationAppointment(position, normalizedRegularization, regularizationSalaryPositionCode))
-         .map(
-            position -> com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionEvent.position(
-                  this.salaryExecutionPeriodForPositionChange(position.startYearMonth()), position, organizationCode, personCode
-               )
-         )
-         .filter(event -> !event.period().isBlank())
-         .filter(event -> event.period().compareTo(startPeriod) > 0 && event.period().compareTo(targetPeriod) <= 0)
-         .forEach(events::add);
+      String priorPositionCode = this.payrollRepository
+         .findLatestPositionBefore(organizationCode, personCode, startPeriod, WAGE_REFORM_POSITION_PREFIXES)
+         .map(com.dxsoft.rsgzgl.payroll.PositionChangeCandidate::positionCode)
+         .orElseGet(() -> this.payrollRepository.findPositionAtOrBefore(organizationCode, personCode, startPeriod)
+            .map(com.dxsoft.rsgzgl.payroll.PositionChangeCandidate::positionCode)
+            .orElse(""));
+      for (com.dxsoft.rsgzgl.payroll.PositionChangeCandidate position : this.payrollRepository.findPositionChangesBetween(
+         organizationCode, personCode, startPeriod, targetPeriod, WAGE_REFORM_POSITION_PREFIXES)) {
+         if (!this.includeWageProjectionPositionChange(latest, institutionPersonnel, position.positionCode())
+               && !this.isJudicialConversionTarget(position.positionCode())) {
+            continue;
+         }
+         if (this.isRegularizationAppointmentPosition(position, normalizedRegularization)) {
+            continue;
+         }
+         if (this.isDuplicatePostRegularizationAppointment(position, normalizedRegularization, regularizationSalaryPositionCode)) {
+            continue;
+         }
+         String executionPeriod = this.salaryExecutionPeriodForProjectionPositionChange(
+            priorPositionCode, position.startYearMonth(), position.positionCode());
+         if (executionPeriod.isBlank()
+               || executionPeriod.compareTo(startPeriod) <= 0
+               || executionPeriod.compareTo(targetPeriod) > 0) {
+            priorPositionCode = position.positionCode();
+            continue;
+         }
+         events.add(
+            com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionEvent.position(
+               executionPeriod, position, organizationCode, personCode));
+         priorPositionCode = position.positionCode();
+      }
       if (!normalizedRegularization.isBlank() && normalizedRegularization.compareTo(startPeriod) > 0 && normalizedRegularization.compareTo(targetPeriod) <= 0) {
          events.add(
             com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionEvent.regularization(
@@ -1598,7 +1672,11 @@ public class PayrollService {
    ) {
       String salaryStandard = this.emptyToNull(state.salaryStandardYearMonth());
       if (salaryStandard == null || salaryStandard.compareTo(period) > 0) {
-         salaryStandard = this.payrollRepository.latestPositionSalaryStandardAtOrBefore(period);
+         salaryStandard = "JUDICIAL_GRADE".equals(this.resolvedBaseSalarySource(state))
+            ? this.payrollRepository.latestJudicialPositionSalaryStandardAtOrBefore(period)
+            : this.payrollRepository.latestPositionSalaryStandardAtOrBefore(period);
+      } else if ("JUDICIAL_GRADE".equals(this.resolvedBaseSalarySource(state))) {
+         salaryStandard = this.payrollRepository.resolveJudicialSalaryStandardYearMonth(salaryStandard);
       }
 
       return this.emptyToNull(salaryStandard) != null ? state.withSalaryStandard(salaryStandard) : state;
@@ -1647,7 +1725,7 @@ public class PayrollService {
             .civilServantGradeSalary(state.level(), state.stepOrSalaryLevel(), state.gradeStepDifferenceCount(), standardYearMonth);
             case "POLICE_GRADE" -> this.payrollRepository
             .policeOfficerGradeSalary(state.level(), this.policeGradeStep(state.stepOrSalaryLevel(), state.gradeStepDifferenceCount()), standardYearMonth);
-            case "WORKER_GRADE" -> 0;
+            case "JUDICIAL_GRADE", "WORKER_GRADE" -> 0;
             default -> this.payrollRepository
             .salaryLevelSalary(
                state.stepOrSalaryLevel(),
@@ -1753,7 +1831,10 @@ public class PayrollService {
       String positionName = position.positionName();
       String salaryStandardYearMonth = state.salaryStandardYearMonth();
       String appointmentPeriod = this.normalizeYearMonth(position.startYearMonth());
-      String period = this.nextMonth(appointmentPeriod);
+      String currentPositionPrefix = this.positionPrefix(state.positionCode());
+      String newPositionPrefix = this.positionPrefix(positionCode);
+      boolean judicialConversion = this.isJudicialConversion(currentPositionPrefix, newPositionPrefix);
+      String period = judicialConversion ? appointmentPeriod : this.nextMonth(appointmentPeriod);
       if (latest != null && this.isGovernmentWorker(latest, state) && this.isInstitutionPosition(positionCode)) {
          lines.add(
             period + " 任职记录 " + this.formatYearMonth(appointmentPeriod) + " 为事业岗位 " + this.positionDisplay(positionCode, positionName) + "，机关工人推算忽略该条任职。"
@@ -1764,7 +1845,8 @@ public class PayrollService {
       } else if (latest != null
          && this.isInstitutionPersonnel(latest)
          && !this.isInstitutionPosition(positionCode)
-         && !this.isGovernmentWorkerPosition(positionCode)) {
+         && !this.isGovernmentWorkerPosition(positionCode)
+         && !this.isJudicialConversionTarget(positionCode)) {
          lines.add(
             period + " 任职记录 " + this.formatYearMonth(appointmentPeriod) + " 为行政职务 " + this.positionDisplay(positionCode, positionName) + "，事业人员推算忽略该条任职。"
          );
@@ -1772,7 +1854,7 @@ public class PayrollService {
       } else if (this.normalizedEquals(positionCode, state.positionCode())) {
          return state;
       } else if (this.isLowerPositionLayer(state.positionCode(), positionCode)
-         && this.payrollRepository.hasDemotionDisciplinaryRecord(organizationCode, personCode, appointmentPeriod)) {
+         && this.disciplinaryDemotionPolicy.isDisciplinaryDemotion(organizationCode, personCode, position)) {
          com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState demotionBase = this.disciplinaryDemotionBaseState(state, positionCode);
          com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState demoted = this.projectDisciplinaryDemotion(
             demotionBase, positionCode, positionName, period, salaryStandardYearMonth
@@ -1847,6 +1929,55 @@ public class PayrollService {
                   + " 为 "
                   + this.positionDisplay(positionCode, positionName)
                   + "，未找到套改后职务对应的等级范围，暂不能试算。"
+            );
+            return state;
+         }
+      } else if (judicialConversion) {
+         String combinedStep = String.valueOf(
+               this.payrollRepository.intValue(state.stepOrSalaryLevel())
+                     + this.payrollRepository.intValue(state.gradeStepDifferenceCount()));
+         String judicialStep = this.payrollRepository.judicialConversionStep(state.level(), combinedStep, positionCode);
+         if (judicialStep != null && !judicialStep.isBlank()) {
+            com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState next = new com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState(
+               positionCode,
+               positionName,
+               "",
+               judicialStep,
+               "0",
+               state.levelStartYear(),
+               state.stepStartYear(),
+               "JUDICIAL_GRADE",
+               state.salaryStandardYearMonth(),
+               state.allowanceStandardYearMonth(),
+               state.rankName(),
+               state.rankAllowanceStandardYearMonth(),
+               state.rankAllowance(),
+               state.rankAllowanceCategory()
+            );
+            this.appendProjectionLine(
+               lines,
+               state,
+               next,
+               period
+                  + " 法检套改：采用任职记录 "
+                  + this.formatYearMonth(appointmentPeriod)
+                  + " 职务 "
+                  + this.positionDisplay(positionCode, positionName)
+                  + "，按 bz06_fjtgb 由 "
+                  + this.levelStepDisplay(state.baseSalarySource(), state.level(), state.stepOrSalaryLevel(), state.gradeStepDifferenceCount())
+                  + " 试算为 "
+                  + this.levelStepDisplay("JUDICIAL_GRADE", "", judicialStep)
+                  + "。"
+            );
+            return next;
+         } else {
+            lines.add(
+               period
+                  + " 法检套改：任职记录 "
+                  + this.formatYearMonth(appointmentPeriod)
+                  + " 为 "
+                  + this.positionDisplay(positionCode, positionName)
+                  + "，未在 bz06_fjtgb 找到套改档次，暂不能试算。"
             );
             return state;
          }
@@ -1930,6 +2061,54 @@ public class PayrollService {
                state.levelStartYear(),
                result.nextStepAssessmentStartYear(),
                "WORKER_GRADE",
+               state.salaryStandardYearMonth(),
+               state.allowanceStandardYearMonth(),
+               state.rankName(),
+               state.rankAllowanceStandardYearMonth(),
+               state.rankAllowance(),
+               state.rankAllowanceCategory()
+            );
+            this.appendProjectionLine(
+               lines,
+               state,
+               next,
+               period
+                  + " 职务变化：采用任职记录 "
+                  + this.formatYearMonth(appointmentPeriod)
+                  + " 职务 "
+                  + this.positionDisplay(positionCode, positionName)
+                  + "，"
+                  + result.note()
+            );
+            return next;
+         }
+      } else if (this.isJudicialPosition(state.positionCode())
+         && this.isJudicialPosition(positionCode)
+         && "JUDICIAL_GRADE".equals(state.baseSalarySource())) {
+         com.dxsoft.rsgzgl.payroll.PayrollService.JudicialPositionChangeResult result = this.judicialPositionChangeResult(
+            state.stepOrSalaryLevel(), positionCode, position.startYearMonth(), state.stepStartYear()
+         );
+         if (!result.eligible()) {
+            lines.add(
+               period
+                  + " 职务变化：任职记录 "
+                  + this.formatYearMonth(appointmentPeriod)
+                  + " 为 "
+                  + this.positionDisplay(positionCode, positionName)
+                  + "，"
+                  + result.note()
+            );
+            return state;
+         } else {
+            com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState next = new com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState(
+               positionCode,
+               positionName,
+               "",
+               result.promotedGradeStep(),
+               "0",
+               state.levelStartYear(),
+               result.nextStepAssessmentStartYear(),
+               "JUDICIAL_GRADE",
                state.salaryStandardYearMonth(),
                state.allowanceStandardYearMonth(),
                state.rankName(),
@@ -2206,6 +2385,246 @@ public class PayrollService {
          state.rankAllowanceStandardYearMonth(),
          state.rankAllowance(),
          state.rankAllowanceCategory()
+      );
+   }
+
+   private boolean isDisciplinaryDemotionAuditType(String changeType) {
+      return this.containsAny(changeType, "降资处分", "撤职降级");
+   }
+
+   private com.dxsoft.rsgzgl.payroll.PayrollService.DisciplinaryDemotionTrialResult computeDisciplinaryDemotionTrial(
+      com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot history,
+      String beforePositionCode,
+      String beforePositionName,
+      String afterPositionCode,
+      String afterPositionName,
+      com.dxsoft.rsgzgl.payroll.PositionChangeCandidate candidate,
+      com.dxsoft.rsgzgl.payroll.PayrollService.PositionChangePreviewCache cache
+   ) {
+      com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState state = new com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState(
+         beforePositionCode,
+         beforePositionName,
+         history.gradeSalaryLevel(),
+         history.positionSalaryGrade(),
+         history.gradeSalaryStep() == null ? "0" : history.gradeSalaryStep(),
+         history.levelAssessmentStartYear(),
+         history.stepAssessmentStartYear(),
+         this.baseSalarySource(beforePositionCode, history.gradeSalaryLevel()),
+         history.salaryStandardYearMonth(),
+         history.allowanceStandardYearMonth(),
+         history.rankName(),
+         history.rankAllowanceStandardYearMonth(),
+         history.storedRankAllowance(),
+         history.postAllowanceCategory()
+      );
+      String appointmentPeriod = this.normalizeYearMonth(candidate.startYearMonth());
+      String period = this.nextMonth(appointmentPeriod);
+      com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState demotionBase = this.disciplinaryDemotionBaseState(state, afterPositionCode);
+      com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState demoted = this.projectDisciplinaryDemotion(
+         demotionBase, afterPositionCode, afterPositionName, period, history.salaryStandardYearMonth()
+      );
+      int layers = this.positionLayer(afterPositionCode) - this.positionLayer(beforePositionCode);
+      java.util.ArrayList<String> lines = new java.util.ArrayList<>();
+      lines.add(
+         period
+            + " 撤职处分：采用任职记录 "
+            + this.formatYearMonth(appointmentPeriod)
+            + " 职务 "
+            + this.positionDisplay(afterPositionCode, afterPositionName)
+            + this.disciplinaryDemotionBaseExplanation(state, demotionBase)
+            + "，降低 "
+            + layers
+            + " 个职务层次，级别按每层降低 2 级逐级就近就低套入 "
+            + this.levelStepDisplay("GRADE", demoted.level(), demoted.stepOrSalaryLevel())
+            + "。"
+      );
+      String currentStep = String.valueOf(
+         this.payrollRepository.intValue(history.positionSalaryGrade()) + this.payrollRepository.intValue(history.gradeSalaryStep())
+      );
+      Integer currentPositionSalary = cache.positionSalary(
+         this.salaryStandardPositionCode(history.organizationCode(), beforePositionCode, history.salaryStandardYearMonth()),
+         history.salaryStandardYearMonth()
+      );
+      Integer newPositionSalary = cache.positionSalary(
+         this.salaryStandardPositionCode(history.organizationCode(), afterPositionCode, history.salaryStandardYearMonth()),
+         history.salaryStandardYearMonth()
+      );
+      Integer currentGradeSalary = this.positionChangeGradeSalaryAmount(
+         beforePositionCode, history.gradeSalaryLevel(), history.positionSalaryGrade(), history.gradeSalaryStep(), history.salaryStandardYearMonth(), cache
+      );
+      Integer promotedGradeSalary = this.gradeSalaryAmount(demoted, demoted.level(), demoted.stepOrSalaryLevel(), history.salaryStandardYearMonth());
+      int totalIncrease = this.nullToZero(newPositionSalary)
+         + this.nullToZero(promotedGradeSalary)
+         + this.nullToZero(history.storedRankAllowance())
+         - this.nullToZero(history.storedTotal());
+      return new com.dxsoft.rsgzgl.payroll.PayrollService.DisciplinaryDemotionTrialResult(
+         demoted.level(),
+         demoted.stepOrSalaryLevel(),
+         currentStep,
+         currentPositionSalary,
+         newPositionSalary,
+         currentGradeSalary,
+         promotedGradeSalary,
+         totalIncrease,
+         period,
+         demoted.levelStartYear(),
+         demoted.stepStartYear(),
+         lines
+      );
+   }
+
+   private com.dxsoft.rsgzgl.payroll.PositionChangePromotionPreview buildDisciplinaryDemotionPositionChangePreview(
+      com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot history,
+      com.dxsoft.rsgzgl.payroll.PayrollService.PositionChangeTrialContext trialContext,
+      com.dxsoft.rsgzgl.payroll.PositionChangeCandidate candidate,
+      com.dxsoft.rsgzgl.payroll.PayrollService.PositionChangePreviewCache cache,
+      boolean includeExplanation,
+      boolean includeNote
+   ) {
+      String beforePositionCode = trialContext.beforePositionCode();
+      String beforePositionName = trialContext.beforePositionName();
+      String afterPositionCode = trialContext.afterPositionCode();
+      String afterPositionName = trialContext.afterPositionName();
+      com.dxsoft.rsgzgl.payroll.PayrollService.DisciplinaryDemotionTrialResult trial = this.computeDisciplinaryDemotionTrial(
+         history, beforePositionCode, beforePositionName, afterPositionCode, afterPositionName, candidate, cache
+      );
+      int gradeSalaryIncrease = this.nullToZero(trial.promotedGradeSalary()) - this.nullToZero(trial.currentGradeSalary());
+      int positionSalaryIncrease = this.nullToZero(trial.newPositionSalary()) - this.nullToZero(trial.currentPositionSalary());
+      boolean applyEligible = false;
+      String note = includeNote
+         ? (trial.totalIncrease() != 0
+            ? "识别为撤职/降职处分试算，请在「处分降职办理」模块处理工资变动。"
+            : "撤职/降职处分试算工资无变化，无需办理。")
+         : "";
+      List<String> explanationLines = includeExplanation ? trial.explanationLines() : List.of();
+      return new com.dxsoft.rsgzgl.payroll.PositionChangePromotionPreview(
+         history.id(),
+         history.organizationCode(),
+         history.personCode(),
+         history.name(),
+         beforePositionCode,
+         beforePositionName,
+         afterPositionCode,
+         afterPositionName,
+         this.positionPrefix(beforePositionCode),
+         this.positionPrefix(afterPositionCode),
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         null,
+         null,
+         null,
+         "撤职降级",
+         candidate.startYearMonth(),
+         trial.effectivePeriod(),
+         history.salaryStandardYearMonth(),
+         history.gradeSalaryLevel(),
+         trial.currentStep(),
+         null,
+         null,
+         null,
+         null,
+         false,
+         null,
+         false,
+         null,
+         null,
+         null,
+         null,
+         trial.promotedLevel(),
+         trial.promotedStep(),
+         trial.currentPositionSalary(),
+         trial.newPositionSalary(),
+         trial.currentGradeSalary(),
+         trial.promotedGradeSalary(),
+         positionSalaryIncrease,
+         0,
+         0,
+         positionSalaryIncrease,
+         gradeSalaryIncrease,
+         trial.totalIncrease(),
+         trial.nextLevelAssessmentStartYear(),
+         trial.nextStepAssessmentStartYear(),
+         trial.nextLevelAssessmentStartYear(),
+         trial.nextStepAssessmentStartYear(),
+         false,
+         history.calculationType(),
+         false,
+         applyEligible,
+         applyEligible,
+         note,
+         explanationLines,
+         List.of()
+      );
+   }
+
+   private com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionPreview buildDisciplinaryDemotionPromotionPreview(
+      int uid,
+      com.dxsoft.rsgzgl.payroll.PayrollService.PositionChangePreviewCache cache,
+      boolean includeExplanation,
+      boolean includeNote
+   ) {
+      com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot history = cache.requireHistory(uid);
+      com.dxsoft.rsgzgl.payroll.PayrollService.PositionChangeTrialContext trialContext = this.resolvePositionChangeTrialContext(history, uid, cache);
+      com.dxsoft.rsgzgl.payroll.PositionChangeCandidate candidate = trialContext.appointmentCandidate();
+      if (trialContext.processed()) {
+         boolean rollbackEligible = this.isDisciplinaryDemotionAuditType(history.calculationType());
+         return new com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionPreview(
+            history.id(), history.organizationCode(), history.personCode(), history.name(),
+            trialContext.beforePositionCode(), trialContext.beforePositionName(),
+            trialContext.afterPositionCode(), trialContext.afterPositionName(),
+            candidate.startYearMonth(), history.calculationYear() + history.calculationMonth(),
+            history.salaryStandardYearMonth(), history.gradeSalaryLevel(), history.positionSalaryGrade(),
+            history.gradeSalaryLevel(), history.positionSalaryGrade(),
+            history.storedPositionSalary(), history.storedPositionSalary(),
+            history.storedGradeSalary(), history.storedGradeSalary(), 0,
+            history.calculationType(), candidate.linkedAwardId(), candidate.positionChangeReason(),
+            rollbackEligible, false, rollbackEligible,
+            includeNote ? "当前记录已按处分降职办理，可执行还原。" : "",
+            List.of()
+         );
+      }
+      if (!this.isLowerPositionLayer(trialContext.beforePositionCode(), trialContext.afterPositionCode())
+            || !this.disciplinaryDemotionPolicy.isDisciplinaryDemotion(history.organizationCode(), history.personCode(), candidate)) {
+         return new com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionPreview(
+            history.id(), history.organizationCode(), history.personCode(), history.name(),
+            trialContext.beforePositionCode(), trialContext.beforePositionName(),
+            trialContext.afterPositionCode(), trialContext.afterPositionName(),
+            candidate.startYearMonth(), null, history.salaryStandardYearMonth(),
+            history.gradeSalaryLevel(), history.positionSalaryGrade(),
+            null, null, null, null, null, null, 0,
+            null, candidate.linkedAwardId(), candidate.positionChangeReason(),
+            false, false, false,
+            includeNote ? "当前记录不满足处分降职办理条件。" : "",
+            List.of()
+         );
+      }
+      com.dxsoft.rsgzgl.payroll.PayrollService.DisciplinaryDemotionTrialResult trial = this.computeDisciplinaryDemotionTrial(
+         history,
+         trialContext.beforePositionCode(),
+         trialContext.beforePositionName(),
+         trialContext.afterPositionCode(),
+         trialContext.afterPositionName(),
+         candidate,
+         cache
+      );
+      boolean applyEligible = trial.totalIncrease() != 0;
+      return new com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionPreview(
+         history.id(), history.organizationCode(), history.personCode(), history.name(),
+         trialContext.beforePositionCode(), trialContext.beforePositionName(),
+         trialContext.afterPositionCode(), trialContext.afterPositionName(),
+         candidate.startYearMonth(), trial.effectivePeriod(), history.salaryStandardYearMonth(),
+         history.gradeSalaryLevel(), trial.currentStep(),
+         trial.promotedLevel(), trial.promotedStep(),
+         trial.currentPositionSalary(), trial.newPositionSalary(),
+         trial.currentGradeSalary(), trial.promotedGradeSalary(),
+         trial.totalIncrease(), "降资处分", candidate.linkedAwardId(), candidate.positionChangeReason(),
+         false, applyEligible, applyEligible,
+         includeNote ? (applyEligible ? "符合处分降职条件，可办理。" : "处分降职试算无变化。") : "",
+         includeExplanation ? trial.explanationLines() : List.of()
       );
    }
 
@@ -2519,12 +2938,14 @@ public class PayrollService {
                if (qualifiedStep >= 2) {
                   state = this.promoteCivilServantGradeStep(state, year, null, "累计 " + qualifiedStep + " 年考核合格");
                }
-            } else if ("WORKER_GRADE".equals(salarySource)) {
+            } else if (this.supportsPositionGradeStepPromotion(salarySource)) {
                int stepStartx = this.assessmentStartYear(state.stepStartYear(), start.positionStartYearMonth(), state.positionCode());
                int qualifiedStepx = this.payrollRepository
                   .countQualifiedAssessmentYears(history.organizationCode(), history.personCode(), stepStartx, year - 1);
                if (qualifiedStepx >= 2) {
-                  state = this.promoteWorkerGradeStep(state, year, null, "累计 " + qualifiedStepx + " 年考核合格");
+                  state = "JUDICIAL_GRADE".equals(salarySource)
+                     ? this.promoteJudicialGradeStep(state, year, null, "累计 " + qualifiedStepx + " 年考核合格")
+                     : this.promoteWorkerGradeStep(state, year, null, "累计 " + qualifiedStepx + " 年考核合格");
                }
             }
 
@@ -2907,13 +3328,13 @@ public class PayrollService {
       } else {
          int lineStart = lines.size();
          com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState next = action.apply(state);
-         if (next == state) {
-            return next;
-         } else {
-            String description = lines.size() > lineStart ? String.join(" ", lines.subList(lineStart, lines.size())) : "工资状态更新";
+         if (lines.size() > lineStart) {
+            String description = String.join(" ", lines.subList(lineStart, lines.size()));
             this.captureProjectionStep(stepDetails, latest, period, description, next, lightweightStepCapture);
-            return next;
+         } else if (next != state) {
+            this.captureProjectionStep(stepDetails, latest, period, "工资状态更新", next, lightweightStepCapture);
          }
+         return next;
       }
    }
 
@@ -3029,6 +3450,8 @@ public class PayrollService {
             return "转业定资";
          } else if (this.containsAny(note, "调入定资")) {
             return "调入定资";
+         } else if (this.mentionsRegularizationProjectionEvent(note)) {
+            return "转正定级";
          } else {
             String category = this.projectionStepCategory(note);
             return "工资调整".equals(category) ? "推算起点" : category;
@@ -3040,6 +3463,10 @@ public class PayrollService {
 
    private boolean mentionsRegularizationProjectionEvent(String text) {
       if (text != null && !text.isBlank()) {
+         if (text.contains("转正定级")) {
+            return true;
+         }
+
          String stripped = text.replace("转正定级标准", "").replace("转正定级工资待遇", "");
          return stripped.contains("转正定级");
       } else {
@@ -3055,6 +3482,14 @@ public class PayrollService {
          return "学历变化";
       } else if (this.mentionsRegularizationProjectionEvent(text)) {
          return "转正定级";
+      } else if (this.containsAny(text, "法检套改")) {
+         return "法检套改";
+      } else if (this.containsAny(text, "警员套改", "警务套改")) {
+         return "警员套改";
+      } else if (this.containsAny(text, "职级套改")) {
+         return "职级套改";
+      } else if (this.containsAny(text, "级别滚动", "套改后级别滚动")) {
+         return "级别滚动";
       } else if (this.containsAny(text, "套改")) {
          return "套改";
       } else if (this.containsAny(text, "撤职处分")) {
@@ -3065,8 +3500,16 @@ public class PayrollService {
          return "正常晋升级别";
       } else if (this.containsAny(text, "晋升薪级", "晋升档次", "档差")) {
          return "正常晋升薪级/档次";
-      } else if (this.containsAny(text, "晋升一档岗位工资")) {
+      } else if (this.containsAny(text, "晋升一档岗位工资", "晋升一档档次工资")) {
          return "正常晋档";
+      } else if (this.containsAny(text, "检察变化")) {
+         return "检察变化";
+      } else if (this.containsAny(text, "警衔变化")) {
+         return "警衔变化";
+      } else if (this.containsAny(text, "审判变化")) {
+         return "审判变化";
+      } else if (this.containsAny(text, "监察变化")) {
+         return "监察变化";
       } else {
          String category;
          if (this.containsAny(text, "津补贴")) {
@@ -3102,6 +3545,15 @@ public class PayrollService {
    private List<com.dxsoft.rsgzgl.payroll.PayrollPreviewComponent> projectionStepComponents(
       com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot latest, com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState state, String lookupPeriod
    ) {
+      return this.projectionStepComponents(latest, state, lookupPeriod, this.activePreservedProjectionFields(latest));
+   }
+
+   private List<com.dxsoft.rsgzgl.payroll.PayrollPreviewComponent> projectionStepComponents(
+      com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot latest,
+      com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState state,
+      String lookupPeriod,
+      Map<String, BigDecimal> preservedManualFields
+   ) {
       com.dxsoft.rsgzgl.payroll.BasicPayrollCalculation basic = this.basicCalculation(state, latest, lookupPeriod);
       com.dxsoft.rsgzgl.payroll.AllowanceCalculation allowance = this.allowanceCalculation(state, latest);
       com.dxsoft.rsgzgl.payroll.AdditionalPayrollCalculation additional = this.additionalCalculation(state, latest);
@@ -3124,7 +3576,7 @@ public class PayrollService {
             this.preview("NJBT", "农教补贴", allowance.yearAllowance(), "AUTO"),
             this.preview("JXJT", "警衔/检察/审判/监察津贴", additional.rankAllowance(), "AUTO"),
             this.preview("FDGZ2", "浮动工资", additional.floatingSalary(), "AUTO"),
-            this.preview("JJJY2", "奖金结余", additional.bonusBalance(), "AUTO_OR_PRESERVE"),
+            this.preview("JJJY2", "奖金结余", additional.bonusBalance(), this.bonusBalancePreviewSource(latest)),
             this.preview("TGBLBF", "套改/特岗保留", additional.retainedSpecialPostAllowance(), "AUTO_OR_PRESERVE"),
             this.preview("JHLJT", "教护龄津贴", teachingAllowance, "AUTO"),
             this.preview("JSFSZWTG2", "提高工资", salaryIncrease, "AUTO")
@@ -3134,7 +3586,33 @@ public class PayrollService {
          computed.add(3, this.preview("JXGZ", "见习工资", internSalary, "AUTO"));
       }
 
-      return this.configuredSalaryItems(computed, Map.of());
+      return this.configuredSalaryItems(computed, preservedManualFields);
+   }
+
+   private Map<String, BigDecimal> preservedManualFieldsFromHistory(int uid) {
+      return this.preservedManualFieldsFromHistoryValues(this.payrollRepository.findLatestHistoryValues(uid));
+   }
+
+   private Map<String, BigDecimal> preservedManualFieldsFromHistoryValues(Map<String, Object> historyValues) {
+      LinkedHashMap<String, BigDecimal> preserved = new LinkedHashMap<>();
+      Map<String, Object> values = historyValues == null ? Map.of() : historyValues;
+
+      for (com.dxsoft.rsgzgl.payroll.PayrollFieldMetadata field : this.cachedCalculationFields()) {
+         if (MANUAL_PROJECTION_PRESERVED_FIELD_NAMES.contains(field.fieldName().toUpperCase(Locale.ROOT))) {
+            preserved.put(field.fieldName(), this.payrollRepository.decimalValue(values, field.fieldName()));
+         }
+      }
+
+      return preserved;
+   }
+
+   private Map<String, BigDecimal> activePreservedProjectionFields(com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot latest) {
+      Map<String, BigDecimal> preserved = this.wageProjectionPreservedFields.get();
+      if (preserved != null) {
+         return preserved;
+      }
+
+      return this.preservedManualFieldsFromHistoryValues(this.payrollRepository.findHistoryValuesById(latest.id()));
    }
 
    private BigDecimal projectionStepTotal(List<com.dxsoft.rsgzgl.payroll.PayrollPreviewComponent> components) {
@@ -3237,6 +3715,24 @@ public class PayrollService {
       }
 
       return next;
+   }
+
+   private com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState promoteJudicialGradeStep(
+      com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState state, int year, List<String> lines, String reasonPrefix
+   ) {
+      String promotedStep = String.valueOf(this.payrollRepository.intValue(state.stepOrSalaryLevel()) + 1);
+      com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState next = this.projectionWithStep(state, promotedStep, String.valueOf(year), "JUDICIAL_GRADE");
+      if (lines != null) {
+         this.appendProjectionLine(
+            lines, state, next, year + " 年：" + reasonPrefix + "，晋升一档档次工资到 " + this.levelStepDisplay("JUDICIAL_GRADE", state.level(), promotedStep) + "。"
+         );
+      }
+
+      return next;
+   }
+
+   private boolean supportsPositionGradeStepPromotion(String baseSalarySource) {
+      return "WORKER_GRADE".equals(baseSalarySource) || "JUDICIAL_GRADE".equals(baseSalarySource);
    }
 
    private int normalizedGradeStepDifferenceCount(com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState state) {
@@ -3801,6 +4297,9 @@ public class PayrollService {
          .orElseThrow(() -> new NotFoundException("Payroll history not found: " + id));
       this.accessControlService.requireOrganization(organizationCode);
       this.requirePayrollWritePermission();
+      if (this.subrecordAttachmentService != null) {
+         this.subrecordAttachmentService.deleteAllForPayroll(id);
+      }
       this.payrollRepository.deletePayrollHistory(id);
    }
 
@@ -6427,6 +6926,166 @@ public class PayrollService {
    @Transactional(
       readOnly = true
    )
+   public PageResponse<com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionListItem> disciplinaryDemotionPromotionPreviews(
+      String organizationCode, String keyword, PageRequest pageRequest
+   ) {
+      return this.disciplinaryDemotionPromotionPreviews(organizationCode, keyword, true, true, pageRequest);
+   }
+
+   @Transactional(
+      readOnly = true
+   )
+   public PageResponse<com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionListItem> disciplinaryDemotionPromotionPreviews(
+      String organizationCode, String keyword, Boolean includeApply, Boolean includeProcessed, PageRequest pageRequest
+   ) {
+      OrganizationScope scope = this.accessControlService.organizationScope(Optional.ofNullable(this.emptyToNull(organizationCode)));
+      String scopedOrganizationCode = this.emptyToNull(organizationCode);
+      boolean showApply = !Boolean.FALSE.equals(includeApply);
+      boolean showProcessed = !Boolean.FALSE.equals(includeProcessed);
+      if (!showApply && !showProcessed) {
+         return PageResponse.of(List.of(), pageRequest, 0L);
+      } else {
+         List<com.dxsoft.rsgzgl.payroll.PositionChangePromotionCandidateRow> candidateRows = this.payrollRepository
+            .findPositionChangePromotionCandidateRows(scope, scopedOrganizationCode, keyword);
+         LinkedHashMap<Integer, com.dxsoft.rsgzgl.payroll.PositionChangePromotionCandidateRow> uniqueByUid = new LinkedHashMap<>();
+         for (com.dxsoft.rsgzgl.payroll.PositionChangePromotionCandidateRow row : candidateRows) {
+            uniqueByUid.putIfAbsent(Integer.valueOf(row.uid()), row);
+         }
+         com.dxsoft.rsgzgl.payroll.PayrollService.PositionChangePreviewCache cache = uniqueByUid.isEmpty()
+            ? this.loadPositionChangePreviewCache(List.of(), false)
+            : this.loadPositionChangePreviewCache(new ArrayList<>(uniqueByUid.values()), false);
+         List<com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionListItem> items = new ArrayList<>();
+         for (com.dxsoft.rsgzgl.payroll.PositionChangePromotionCandidateRow row : uniqueByUid.values()) {
+            com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionPreview preview = this.buildDisciplinaryDemotionPromotionPreview(
+               row.uid(), cache, false, true
+            );
+            boolean include = showApply && Boolean.TRUE.equals(preview.applyEligible()) || showProcessed && Boolean.TRUE.equals(preview.rollbackEligible());
+            if (include) {
+               String organizationName = this.payrollRepository.findOrganizationName(preview.organizationCode()).orElse(preview.organizationCode());
+               items.add(com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionListItem.fromPreview(preview, row.uid(), organizationName));
+            }
+         }
+         int fromIndex = pageRequest.offset();
+         if (fromIndex >= items.size()) {
+            return PageResponse.of(List.of(), pageRequest, (long)items.size());
+         } else {
+            int toIndex = Math.min(fromIndex + pageRequest.size(), items.size());
+            return PageResponse.of(items.subList(fromIndex, toIndex), pageRequest, (long)items.size());
+         }
+      }
+   }
+
+   public com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionPreview disciplinaryDemotionPromotionDetail(String payrollHistoryId) {
+      int uid = this.requireCurrentHistoryUid(payrollHistoryId);
+      return this.buildDisciplinaryDemotionPromotionPreview(
+         uid, this.loadPositionChangePreviewCacheForUids(List.of(uid)), true, true
+      );
+   }
+
+   @Transactional
+   public com.dxsoft.rsgzgl.payroll.PromotionActionResult applyDisciplinaryDemotionPromotion(String payrollHistoryId) {
+      this.requirePayrollFeatureWrite("DISCIPLINARY_DEMOTION_PROMOTION_WRITE");
+      int uid = this.requireCurrentHistoryUid(payrollHistoryId);
+      com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot latest = this.payrollRepository
+         .findLatestHistory(uid)
+         .orElseThrow(() -> new NotFoundException("Payroll history not found for personnel record: " + uid));
+      com.dxsoft.rsgzgl.payroll.DisciplinaryDemotionPromotionPreview preview = this.buildDisciplinaryDemotionPromotionPreview(
+         uid, this.loadPositionChangePreviewCacheForUids(List.of(uid)), true, true
+      );
+      if (Boolean.TRUE.equals(preview.rollbackEligible())) {
+         throw new IllegalArgumentException("当前记录已办理处分降职，只能执行还原，不能再次办理。");
+      } else if (Boolean.TRUE.equals(preview.applyEligible()) && preview.totalIncrease() != null) {
+         if (Objects.equals(preview.currentPositionCode(), preview.newPositionCode())) {
+            throw new IllegalArgumentException("现任职务编码未变化，不能按处分降职办理。");
+         } else if (this.nullToZero(preview.totalIncrease()) == 0) {
+            throw new IllegalArgumentException("处分降职试算工资无变化，不能办理。");
+         } else {
+            Object effectivePeriod = preview.effectivePeriod() != null && !preview.effectivePeriod().isBlank()
+               ? preview.effectivePeriod()
+               : latest.calculationYear() + latest.calculationMonth();
+            String normalizedPeriod = ((String)effectivePeriod).replace(".", "");
+            if (normalizedPeriod.length() < 6) {
+               throw new IllegalArgumentException("处分降职执行年月不完整。");
+            } else {
+               com.dxsoft.rsgzgl.payroll.PayrollService.PositionChangePreviewCache cache = this.loadPositionChangePreviewCacheForUids(List.of(uid));
+               com.dxsoft.rsgzgl.payroll.PayrollService.PositionChangeTrialContext trialContext = this.resolvePositionChangeTrialContext(latest, uid, cache);
+               com.dxsoft.rsgzgl.payroll.PayrollService.DisciplinaryDemotionTrialResult trial = this.computeDisciplinaryDemotionTrial(
+                  latest,
+                  preview.currentPositionCode(),
+                  preview.currentPositionName(),
+                  preview.newPositionCode(),
+                  preview.newPositionName(),
+                  trialContext.appointmentCandidate(),
+                  cache
+               );
+               Integer teachingIncrease = this.teachingIncreaseForPosition(
+                  latest, preview.newPositionCode(), preview.newPositionSalary(), preview.promotedGradeSalary()
+               );
+               Integer technicalGradeSalary = this.isGovernmentWorkerPosition(preview.newPositionCode())
+                  ? this.payrollRepository.technicalGradeSalary(preview.newPositionCode(), preview.salaryStandardYearMonth())
+                  : latest.storedTechnicalGradeSalary();
+               com.dxsoft.rsgzgl.payroll.PayrollService.PositionChangeAllowanceTrial allowanceTrial = this.positionChangeAllowanceTrial(
+                  latest, preview.newPositionCode(), normalizedPeriod, false
+               );
+               com.dxsoft.rsgzgl.payroll.PositionChangeHistoryMutation mutation = new com.dxsoft.rsgzgl.payroll.PositionChangeHistoryMutation(
+                  normalizedPeriod.substring(0, 4),
+                  normalizedPeriod.substring(4, 6),
+                  "降资处分",
+                  trial.nextStepAssessmentStartYear(),
+                  trial.nextLevelAssessmentStartYear(),
+                  preview.newPositionCode(),
+                  preview.newPositionName(),
+                  preview.newPositionSalary(),
+                  preview.promotedStep(),
+                  preview.promotedLevel(),
+                  "",
+                  preview.promotedGradeSalary(),
+                  technicalGradeSalary,
+                  allowanceTrial.trialPerformanceAllowance(),
+                  allowanceTrial.trialSubsidyAllowance(),
+                  null,
+                  teachingIncrease,
+                  latest.storedPgbc(),
+                  this.nullToZero(latest.storedTotal()) + this.nullToZero(preview.totalIncrease()),
+                  ""
+               );
+               String newId = this.payrollRepository.createPositionChangeHistoryFromLatest(uid, mutation);
+               this.payrollRepository
+                  .updatePositionPromotionFlag(
+                     latest.organizationCode(), latest.personCode(), preview.positionStartYearMonth(), preview.newPositionCode(), "1"
+                  );
+               this.invalidatePositionChangeListCache();
+               return this.buildAppliedPayrollChange(latest, newId, payrollHistoryId, "降资处分", "处分降职处理完成。");
+            }
+         }
+      } else {
+         throw new IllegalArgumentException(this.emptyToNull(preview.note()) == null ? "当前工资记录不满足处分降职处理条件。" : preview.note());
+      }
+   }
+
+   @Transactional
+   public com.dxsoft.rsgzgl.payroll.PromotionActionResult rollbackDisciplinaryDemotionPromotion(String payrollHistoryId) {
+      com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot current = this.payrollRepository
+         .findCurrentHistoryById(payrollHistoryId)
+         .orElseThrow(() -> new NotFoundException("Current payroll history not found: " + payrollHistoryId));
+      this.accessControlService.requireOrganization(current.organizationCode());
+      this.requirePayrollFeatureWrite("DISCIPLINARY_DEMOTION_PROMOTION_WRITE");
+      if (!this.isDisciplinaryDemotionAuditType(current.calculationType())) {
+         throw new IllegalArgumentException("当前工资记录不满足处分降职还原条件。");
+      } else {
+         this.payrollRepository
+            .updatePositionPromotionFlag(current.organizationCode(), current.personCode(), current.positionStartYearMonth(), current.positionCode(), "");
+         com.dxsoft.rsgzgl.payroll.PromotionActionResult result = this.rollbackPromotion(
+            current, this::isDisciplinaryDemotionAuditType, "处分降职已还原。"
+         );
+         this.invalidatePositionChangeListCache();
+         return result;
+      }
+   }
+
+   @Transactional(
+      readOnly = true
+   )
    public PageResponse<com.dxsoft.rsgzgl.payroll.EducationPromotionPreview> educationPromotionPreviews(
       String organizationCode, String keyword, PageRequest pageRequest
    ) {
@@ -7520,13 +8179,15 @@ public class PayrollService {
                      transferYearAllowance = yearAllowance;
                      rewriteTransferAllowances = true;
                      totalAmount = tip == null
-                        ? this.nullToZero(positionSalary)
-                           + this.nullToZero(gradeSalary)
-                           + performanceAllowance
-                           + subsidyAllowance
-                           + retainedAllowance
-                           + yearAllowance.intValue()
-                           + this.nullToZero(projected.rankAllowance())
+                        ? this.roundMonthlyTotal(
+                           this.nullToZero(positionSalary)
+                              + this.nullToZero(gradeSalary)
+                              + performanceAllowance
+                              + subsidyAllowance
+                              + retainedAllowance
+                              + yearAllowance.intValue()
+                              + this.nullToZero(projected.rankAllowance())
+                        )
                         : this.nullToZero(tip.storedTotal())
                            - this.nullToZero(tip.storedPositionSalary())
                            - this.nullToZero(tip.storedGradeSalary())
@@ -9894,6 +10555,13 @@ public class PayrollService {
    }
 
    @Transactional
+   public com.dxsoft.rsgzgl.payroll.GradeSalaryStandard createPoliceGradeSalaryStandard(com.dxsoft.rsgzgl.payroll.GradeSalaryStandardRequest request) {
+      this.requireStandardWritePermission();
+      this.payrollRepository.insertPoliceGradeSalaryStandard(request);
+      return this.payrollRepository.findPoliceGradeSalaryStandard(request.standardYearMonth(), request.gradeLevel());
+   }
+
+   @Transactional
    public com.dxsoft.rsgzgl.payroll.InternSalaryStandard createInternSalaryStandard(com.dxsoft.rsgzgl.payroll.InternSalaryStandardRequest request) {
       this.requireStandardWritePermission();
       this.payrollRepository.insertInternSalaryStandard(request);
@@ -9905,6 +10573,31 @@ public class PayrollService {
       this.requireStandardWritePermission();
       this.payrollRepository.insertOtherAllowanceStandard(request);
       return this.payrollRepository.findOtherAllowanceStandardByKey(request.standardType(), request.standardYearMonth(), request.code());
+   }
+
+   private com.dxsoft.rsgzgl.payroll.JudicialPositionGradeSalaryStandardRequest normalizeJudicialPositionGradeSalaryStandardRequest(
+      com.dxsoft.rsgzgl.payroll.JudicialPositionGradeSalaryStandardRequest request
+   ) {
+      String positionName = this.emptyToNull(request.positionName());
+      if (positionName == null && this.emptyToNull(request.positionCode()) != null) {
+         positionName = request.positionCode().trim();
+      }
+      return new com.dxsoft.rsgzgl.payroll.JudicialPositionGradeSalaryStandardRequest(
+         request.standardYearMonth(),
+         request.positionCode(),
+         positionName == null ? "" : positionName,
+         request.gradeSteps()
+      );
+   }
+
+   @Transactional
+   public com.dxsoft.rsgzgl.payroll.JudicialPositionGradeSalaryStandard createJudicialPositionGradeSalaryStandard(
+      com.dxsoft.rsgzgl.payroll.JudicialPositionGradeSalaryStandardRequest request
+   ) {
+      this.requireStandardWritePermission();
+      com.dxsoft.rsgzgl.payroll.JudicialPositionGradeSalaryStandardRequest normalized = this.normalizeJudicialPositionGradeSalaryStandardRequest(request);
+      this.payrollRepository.insertJudicialPositionGradeSalaryStandard(normalized);
+      return this.payrollRepository.findJudicialPositionGradeSalaryStandard(normalized.standardYearMonth(), normalized.positionCode());
    }
 
    @Transactional
@@ -9976,6 +10669,12 @@ public class PayrollService {
    }
 
    @Transactional
+   public void deletePoliceGradeSalaryStandard(String standardYearMonth, String gradeLevel) {
+      this.requireStandardWritePermission();
+      this.payrollRepository.deletePoliceGradeSalaryStandard(standardYearMonth, gradeLevel);
+   }
+
+   @Transactional
    public void deleteInternSalaryStandard(String standardYearMonth, String educationCode, String regularPositionCode) {
       this.requireStandardWritePermission();
       this.payrollRepository.deleteInternSalaryStandard(standardYearMonth, educationCode, regularPositionCode);
@@ -9985,6 +10684,12 @@ public class PayrollService {
    public void deleteOtherAllowanceStandard(String standardType, String standardYearMonth, String code) {
       this.requireStandardWritePermission();
       this.payrollRepository.deleteOtherAllowanceStandard(standardType, standardYearMonth, code);
+   }
+
+   @Transactional
+   public void deleteJudicialPositionGradeSalaryStandard(String standardYearMonth, String positionCode) {
+      this.requireStandardWritePermission();
+      this.payrollRepository.deleteJudicialPositionGradeSalaryStandard(standardYearMonth, positionCode);
    }
 
    @Transactional
@@ -10415,7 +11120,7 @@ public class PayrollService {
                      );
                      performanceAllowance = executeAllowances[0];
                      subsidyAllowance = executeAllowances[1];
-                     calculatedTotal = executeAllowances[2];
+                     calculatedTotal = this.roundMonthlyTotal(executeAllowances[2]);
                      if (projected.explanationLines() != null) {
                         lines.addAll(projected.explanationLines().stream().limit(6L).toList());
                      }
@@ -10717,6 +11422,7 @@ public class PayrollService {
          tip.storedRetainedAllowance(),
          tip.storedTeachingAllowance(),
          tip.storedTotal(),
+         tip.rankName(),
          institutionPayroll ? "基础性绩效" : this.dfbt2CaptionForPosition(tip.positionCode()),
          institutionPayroll ? null : this.sdbtCaptionForPosition(tip.positionCode()),
          !institutionPayroll,
@@ -10802,7 +11508,8 @@ public class PayrollService {
       int teachingAllowance = this.teachingAllowanceForOtherChange(tip, positionCode, year);
       Integer salaryIncrease = this.teachingIncreaseAfterWrite(tip, positionCode, positionSalary, gradeSalary, (String)salaryStandard);
       int teachingIncreaseDelta = this.teachingIncreaseDelta(tip, positionCode, positionSalary, gradeSalary, (String)salaryStandard);
-      int totalAmount = this.nullToZero(tip.storedTotal())
+      int totalAmount = this.roundMonthlyTotal(
+         this.nullToZero(tip.storedTotal())
          - this.nullToZero(tip.storedPositionSalary())
          + positionSalary
          - this.nullToZero(tip.storedGradeSalary())
@@ -10817,7 +11524,8 @@ public class PayrollService {
          + retainedAllowance
          - this.nullToZero(tip.storedTeachingAllowance())
          + teachingAllowance
-         + teachingIncreaseDelta;
+         + teachingIncreaseDelta
+      );
       String note = "职务/级别/津补贴等自动计算项已按所选结构与标准带出，不可手工改数。";
       return new com.dxsoft.rsgzgl.payroll.OtherPayrollChangeCalcResult(
          period,
@@ -11391,6 +12099,15 @@ public class PayrollService {
    }
 
    @Transactional
+   public com.dxsoft.rsgzgl.payroll.GradeSalaryStandard updatePoliceGradeSalaryStandard(
+      String standardYearMonth, String gradeLevel, com.dxsoft.rsgzgl.payroll.GradeSalaryStandardRequest request
+   ) {
+      this.requireStandardWritePermission();
+      this.payrollRepository.updatePoliceGradeSalaryStandard(standardYearMonth, gradeLevel, request);
+      return this.payrollRepository.findPoliceGradeSalaryStandard(standardYearMonth, gradeLevel);
+   }
+
+   @Transactional
    public com.dxsoft.rsgzgl.payroll.InternSalaryStandard updateInternSalaryStandard(
       String standardYearMonth, String educationCode, String regularPositionCode, com.dxsoft.rsgzgl.payroll.InternSalaryStandardRequest request
    ) {
@@ -11415,6 +12132,16 @@ public class PayrollService {
       );
       this.payrollRepository.updateOtherAllowanceStandard(standardType, merged);
       return this.payrollRepository.findOtherAllowanceStandardByKey(standardType, merged.standardYearMonth(), merged.code());
+   }
+
+   @Transactional
+   public com.dxsoft.rsgzgl.payroll.JudicialPositionGradeSalaryStandard updateJudicialPositionGradeSalaryStandard(
+      String standardYearMonth, String positionCode, com.dxsoft.rsgzgl.payroll.JudicialPositionGradeSalaryStandardRequest request
+   ) {
+      this.requireStandardWritePermission();
+      com.dxsoft.rsgzgl.payroll.JudicialPositionGradeSalaryStandardRequest normalized = this.normalizeJudicialPositionGradeSalaryStandardRequest(request);
+      this.payrollRepository.updateJudicialPositionGradeSalaryStandard(standardYearMonth, positionCode, normalized);
+      return this.payrollRepository.findJudicialPositionGradeSalaryStandard(standardYearMonth, positionCode);
    }
 
    @Transactional
@@ -11581,7 +12308,7 @@ public class PayrollService {
       Integer selectedBaseSalary = switch (salarySource) {
          case "GRADE" -> n;
          case "POLICE_GRADE" -> n;
-         case "JUDICIAL_GRADE" -> this.payrollRepository.positionGradeSalary(positionCode, state.stepOrSalaryLevel(), "0", standardYearMonth);
+         case "JUDICIAL_GRADE" -> 0;
          case "WORKER_GRADE" -> 0;
          default -> salaryLevelSalary;
       };
@@ -11630,6 +12357,7 @@ public class PayrollService {
    private com.dxsoft.rsgzgl.payroll.BasicPayrollCalculation basicCalculation(com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot history) {
       String standardYearMonth = history.salaryStandardYearMonth();
       String positionCode = history.positionCode();
+      String baseSalarySource = this.baseSalarySource(positionCode, history.gradeSalaryLevel());
       Integer gradeSalary = this.payrollRepository
          .civilServantGradeSalary(history.gradeSalaryLevel(), history.positionSalaryGrade(), history.gradeSalaryStep(), standardYearMonth);
       Integer salaryLevelSalary = this.payrollRepository
@@ -11641,18 +12369,19 @@ public class PayrollService {
          );
       Integer technicalGradeSalary = this.payrollRepository.technicalGradeSalary(positionCode, standardYearMonth);
       Integer policeGradeSalary = this.payrollRepository.policeOfficerGradeSalary(history.gradeSalaryLevel(), this.policeGradeStep(history), standardYearMonth);
-      Integer positionSalary = this.payrollRepository
-            .positionSalary(this.salaryStandardPositionCode(history.organizationCode(), positionCode, standardYearMonth), standardYearMonth)
-         + this.payrollRepository.positionGradeSalary(positionCode, history.positionSalaryGrade(), history.gradeSalaryStep(), standardYearMonth);
-      String baseSalarySource = this.baseSalarySource(positionCode, history.gradeSalaryLevel());
+      int positionSalary = "JUDICIAL_GRADE".equals(baseSalarySource) || "WORKER_GRADE".equals(baseSalarySource)
+         ? this.workerPositionSalary(positionCode, history.positionSalaryGrade(), standardYearMonth)
+         : this.nullToZero(this.payrollRepository.positionSalary(this.salaryStandardPositionCode(history.organizationCode(), positionCode, standardYearMonth), standardYearMonth))
+            + this.nullToZero(
+               this.payrollRepository.positionGradeSalary(positionCode, history.positionSalaryGrade(), history.gradeSalaryStep(), standardYearMonth)
+            );
       if ("WORKER_GRADE".equals(baseSalarySource)) {
          salaryLevelSalary = 0;
       }
       Integer selectedBaseSalary = switch (baseSalarySource) {
          case "GRADE" -> gradeSalary;
          case "POLICE_GRADE" -> policeGradeSalary;
-         case "JUDICIAL_GRADE" -> this.payrollRepository.positionGradeSalary(positionCode, history.positionSalaryGrade(), "0", standardYearMonth);
-         case "WORKER_GRADE" -> 0;
+         case "JUDICIAL_GRADE", "WORKER_GRADE" -> 0;
          default -> salaryLevelSalary;
       };
       return new com.dxsoft.rsgzgl.payroll.BasicPayrollCalculation(
@@ -11682,7 +12411,7 @@ public class PayrollService {
       com.dxsoft.rsgzgl.payroll.PayrollTotalComparison total = context.totalComparison();
       return List.of(
          this.preview("ZWGZSE2", "职务工资", basic.positionSalary(), "AUTO"),
-         this.preview("JBGZSE2", "级别/薪级工资", basic.selectedBaseSalary(), "AUTO"),
+         this.preview("JBGZSE2", this.baseSalaryLabel(basic.baseSalarySource()), basic.selectedBaseSalary(), "AUTO"),
          this.preview("JSDJGZ2", "技术等级工资", basic.technicalGradeSalary(), "AUTO"),
          this.preview("DFBT2", this.dfbt2Caption(context.latestHistory()), allowance.performanceAllowance(), "AUTO"),
          this.preview("SDBT", this.sdbtCaption(context.latestHistory()), allowance.subsidyAllowance(), "AUTO"),
@@ -11690,7 +12419,7 @@ public class PayrollService {
          this.preview("NJBT", "农教补贴", allowance.yearAllowance(), "AUTO"),
          this.preview("JXJT", "警衔/检察/审判/监察津贴", additional.rankAllowance(), "AUTO"),
          this.preview("FDGZ2", "浮动工资", additional.floatingSalary(), "AUTO"),
-         this.preview("JJJY2", "奖金结余", additional.bonusBalance(), "AUTO_OR_PRESERVE"),
+         this.preview("JJJY2", "奖金结余", additional.bonusBalance(), this.bonusBalancePreviewSource(context.latestHistory())),
          this.preview("TGBLBF", "套改/特岗保留", additional.retainedSpecialPostAllowance(), "AUTO_OR_PRESERVE"),
          this.preview("JHLJT", "教护龄津贴", total.teachingAllowance(), "AUTO"),
          this.preview("JSFSZWTG2", "提高工资", total.salaryIncrease(), "AUTO")
@@ -12287,11 +13016,12 @@ public class PayrollService {
       com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot latest
    ) {
       Optional<com.dxsoft.rsgzgl.payroll.WageProjectionStepDetail> auditStep = this.findAuditStepDetailForRecord(projection.stepDetails(), record, period);
+      Map<String, BigDecimal> preservedManualFields = this.preservedManualFieldsFromHistoryValues(this.resolveHistoryValuesForAudit(record, null));
       if (auditStep.isPresent()) {
          com.dxsoft.rsgzgl.payroll.PayrollService.WageProjectionState stepState = this.amountStateFromAuditStep(projection.state(), auditStep.get(), latest);
-         return this.projectionStepTotal(this.projectionStepComponents(latest, stepState, period));
+         return this.projectionStepTotal(this.projectionStepComponents(latest, stepState, period, preservedManualFields));
       } else {
-         return this.projectionStepTotal(this.projectionStepComponents(latest, amountState, period));
+         return this.projectionStepTotal(this.projectionStepComponents(latest, amountState, period, preservedManualFields));
       }
    }
 
@@ -12587,13 +13317,18 @@ public class PayrollService {
          return null;
       } else {
          com.dxsoft.rsgzgl.payroll.RankAllowanceChange rankChange = rankChangeOptional.get();
-         String targetRankName = this.emptyToNull(rankChange.rankName());
+         boolean cancellation = com.dxsoft.rsgzgl.payroll.RankAllowanceCancellationSupport.isCancellation(
+            category, rankChange.rankName(), rankChange.category()
+         );
+         String targetRankName = cancellation ? "" : this.emptyToNull(rankChange.rankName());
          if (targetRankName == null) {
             return null;
          } else {
             String storedRankName = this.storedRankNameForCategory(context.rankName(), category);
             int storedRankAllowance = this.nullToZero(context.storedRankAllowance());
-            int calculatedRankAllowance = this.calculatedRankAllowanceForChange(category, context, targetRankName, rankAllowanceAmounts);
+            int calculatedRankAllowance = cancellation
+               ? 0
+               : this.calculatedRankAllowanceForChange(category, context, targetRankName, rankAllowanceAmounts);
             int difference = calculatedRankAllowance - storedRankAllowance;
             boolean rankChanged = !this.normalizedEquals(storedRankName, targetRankName);
             if (!rankChanged && difference == 0) {
@@ -13732,7 +14467,7 @@ public class PayrollService {
    }
 
    private List<com.dxsoft.rsgzgl.payroll.ExcludedPayrollComponent> excludedComponents(List<com.dxsoft.rsgzgl.payroll.PayrollComponentValue> components) {
-      Set<String> excludedFieldNames = Set.of("QTBT", "SIDBT", "ZWJT", "ZFBT", "JZMCBT", "GWJT2");
+      Set<String> excludedFieldNames = Set.of("QTBT", "SIDBT", "ZWJT", "ZFBT", "JZMCBT", "NZGWSF", "GWJT2");
       return components.stream()
          .filter(component -> excludedFieldNames.contains(component.fieldName().toUpperCase()))
          .map(
@@ -13751,8 +14486,9 @@ public class PayrollService {
          case "SIDBT" -> "不参与迁移补贴";
          case "ZWJT" -> "职务津贴";
          case "ZFBT" -> "住房补贴";
-         case "JZMCBT" -> "津补贴保留项";
-         case "GWJT2" -> "岗位津贴";
+         case "JZMCBT" -> "加班补贴";
+         case "NZGWSF" -> "岗位津贴";
+         case "GWJT2" -> "岗位津贴(事业)";
          default -> fieldName;
       };
    }
@@ -13760,15 +14496,34 @@ public class PayrollService {
    private String excludedReason(String fieldName) {
       if ("QTBT".equalsIgnoreCase(fieldName)) {
          return "手工录入项，保留旧值，不做自动计算。";
+      }
+      if ("NZGWSF".equalsIgnoreCase(fieldName) || "JZMCBT".equalsIgnoreCase(fieldName)) {
+         return "手工录入项（岗位津贴/加班补贴），保留旧值，不做自动计算。";
       } else {
          return "GWJT2".equalsIgnoreCase(fieldName) ? "已确认不考虑迁移，保留旧值，不作为自动计算差异。" : "已确认暂不考虑迁移，保留旧值，不作为自动计算差异。";
       }
    }
 
    private Integer selectedBonusBalance(com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot history) {
-      return history.storedBonusBalance() != null && history.storedBonusBalance() > 0
-         ? history.storedBonusBalance()
-         : this.payrollRepository.bonusBalance(history);
+      Integer stored = history.storedBonusBalance();
+      if (stored != null && stored > 0) {
+         return stored;
+      }
+      if (this.payrollRepository.bonusBalanceMode() == 1) {
+         return this.payrollRepository.bonusBalance(history);
+      }
+      return stored == null ? 0 : stored;
+   }
+
+   private String bonusBalancePreviewSource(com.dxsoft.rsgzgl.payroll.PayrollHistorySnapshot history) {
+      Integer stored = history.storedBonusBalance();
+      if (stored != null && stored > 0) {
+         return "PRESERVE";
+      }
+      if (this.payrollRepository.bonusBalanceMode() == 1) {
+         return "AUTO";
+      }
+      return "PRESERVE";
    }
 
    private void addDifference(
@@ -13895,10 +14650,15 @@ public class PayrollService {
          }
 
          BigDecimal base = BigDecimal.valueOf((long)(this.nullToZero(positionSalary) + this.nullToZero(baseSalary)));
-         return base.multiply(BigDecimal.valueOf((long)effectivePercentage)).divide(BigDecimal.valueOf(100L), 0, RoundingMode.HALF_UP).intValue();
+         BigDecimal raw = base.multiply(BigDecimal.valueOf((long)effectivePercentage)).divide(BigDecimal.valueOf(100L), 8, RoundingMode.HALF_UP);
+         return PayrollRounding.zroundToInt(raw, this.payrollRepository.roundingPolicy());
       } else {
          return 0;
       }
+   }
+
+   private int roundMonthlyTotal(int componentSum) {
+      return PayrollRounding.zroundToInt(BigDecimal.valueOf(componentSum), this.payrollRepository.roundingPolicy());
    }
 
    private boolean isCompulsoryEducationTechnicalPosition(String organizationCode, String positionCode) {
@@ -14052,7 +14812,7 @@ public class PayrollService {
          boolean overdueFromLastYear = eligible
             && this.isNormalStepPromotionDueInPriorYear(uid, promotionYear, stepStartYear, requiredYears, assessmentCache, history);
          com.dxsoft.rsgzgl.payroll.LevelPromotionPreview levelPreview = null;
-         if (eligible && !overdueFromLastYear && !"WORKER_GRADE".equals(baseSalarySource)) {
+         if (eligible && !overdueFromLastYear && !"WORKER_GRADE".equals(baseSalarySource) && !"JUDICIAL_GRADE".equals(baseSalarySource)) {
             levelPreview = this.levelPromotionPreview(
                uid,
                promotionYear,
@@ -15743,6 +16503,7 @@ public class PayrollService {
                null,
                null,
                null,
+               null,
                true
             )
          : "";
@@ -15882,6 +16643,12 @@ public class PayrollService {
          String afterPositionCode = trialContext.afterPositionCode();
          String afterPositionName = trialContext.afterPositionName();
          com.dxsoft.rsgzgl.payroll.PositionChangeCandidate candidate = trialContext.appointmentCandidate();
+         if (this.isLowerPositionLayer(beforePositionCode, afterPositionCode)
+               && this.disciplinaryDemotionPolicy.isDisciplinaryDemotion(history.organizationCode(), history.personCode(), candidate)) {
+            return this.buildDisciplinaryDemotionPositionChangePreview(
+               history, trialContext, candidate, cache, includeExplanation, includeNote
+            );
+         }
          com.dxsoft.rsgzgl.payroll.PositionLevelRange levelRange = cache.levelRange(afterPositionCode).orElse(null);
          String currentPositionPrefix = this.positionPrefix(beforePositionCode);
          String newPositionPrefix = this.positionPrefix(afterPositionCode);
@@ -15892,6 +16659,7 @@ public class PayrollService {
          boolean rankHighPositionPromotion = rankConversion && this.isHigherPositionLayer(beforePositionCode, afterPositionCode);
          boolean institutionPositionChange = this.isInstitutionPosition(currentPositionPrefix) && this.isInstitutionPosition(newPositionPrefix);
          boolean governmentWorkerPositionChange = this.isGovernmentWorkerPosition(beforePositionCode) && this.isGovernmentWorkerPosition(afterPositionCode);
+         boolean judicialPositionChange = this.isJudicialPosition(beforePositionCode) && this.isJudicialPosition(afterPositionCode) && !judicialConversion;
          String lastPayrollChangeType = history.calculationType();
          String changeType = this.positionChangeType(
             beforePositionCode, afterPositionCode, sequenceConversion, policeOfficerConversion, judicialConversion, rankConversion, institutionPositionChange
@@ -15899,7 +16667,7 @@ public class PayrollService {
          int currentLevel = this.payrollRepository.intValue(history.gradeSalaryLevel());
          String positionSalaryGrade = history.positionSalaryGrade();
          String gradeSalaryStep = history.gradeSalaryStep();
-         String currentStep = governmentWorkerPositionChange
+         String currentStep = governmentWorkerPositionChange || judicialPositionChange
             ? positionSalaryGrade
             : String.valueOf(this.payrollRepository.intValue(positionSalaryGrade) + this.payrollRepository.intValue(gradeSalaryStep));
          Integer currentPositionSalary;
@@ -15914,6 +16682,12 @@ public class PayrollService {
          } else if (governmentWorkerPositionChange) {
             currentPositionSalary = this.workerPositionSalary(beforePositionCode, currentStep, history.salaryStandardYearMonth());
             currentGradeSalary = 0;
+            newPositionSalary = 0;
+         } else if (judicialPositionChange) {
+            currentPositionSalary = this.workerPositionSalary(beforePositionCode, currentStep, history.salaryStandardYearMonth());
+            currentGradeSalary = this.nullToZero(
+               this.payrollRepository.positionGradeSalary(beforePositionCode, currentStep, "0", history.salaryStandardYearMonth())
+            );
             newPositionSalary = 0;
          } else {
             currentPositionSalary = cache.positionSalary(
@@ -15951,6 +16725,9 @@ public class PayrollService {
                history.organizationCode()
             )
             : null;
+         com.dxsoft.rsgzgl.payroll.PayrollService.JudicialPositionChangeResult judicialPositionChangeResult = judicialPositionChange
+            ? this.judicialPositionChangeResult(currentStep, afterPositionCode, candidate.startYearMonth(), history.stepAssessmentStartYear())
+            : null;
          String judicialConversionStep = judicialConversion
             ? this.payrollRepository.judicialConversionStep(history.gradeSalaryLevel(), currentStep, candidate.positionCode())
             : null;
@@ -15971,6 +16748,7 @@ public class PayrollService {
                   || rankConversionResult != null && rankConversionResult.eligible()
                   || institutionResult != null && institutionResult.eligible()
                   || governmentWorkerResult != null && governmentWorkerResult.eligible()
+                  || judicialPositionChangeResult != null && judicialPositionChangeResult.eligible()
                   || judicialConversion && judicialConversionStep != null && !judicialConversionStep.isBlank()
                   || administrativeReplayResult != null && administrativeReplayResult.eligible()
                   || sameSequenceEligible
@@ -16039,6 +16817,15 @@ public class PayrollService {
             promotedGradeSalary = 0;
          }
 
+         if (!listSummaryOnly && judicialPositionChangeResult != null && judicialPositionChangeResult.eligible()) {
+            promotedLevel = "";
+            promotedStep = judicialPositionChangeResult.promotedGradeStep();
+            newPositionSalary = this.workerPositionSalary(afterPositionCode, promotedStep, history.salaryStandardYearMonth());
+            promotedGradeSalary = this.nullToZero(
+               this.payrollRepository.positionGradeSalary(afterPositionCode, promotedStep, "0", history.salaryStandardYearMonth())
+            );
+         }
+
          int promotedLevels = Math.max(0, currentLevel - this.payrollRepository.intValue(promotedLevel));
          String nextLevelAssessmentStartYear = promotedLevels >= 2 ? history.calculationYear() : history.levelAssessmentStartYear();
          boolean gradeIncreaseExceedsStepDifference = !listSummaryOnly && governmentWorkerResult != null && governmentWorkerResult.eligible()
@@ -16051,7 +16838,9 @@ public class PayrollService {
                );
          String nextStepAssessmentStartYear = !listSummaryOnly && governmentWorkerResult != null && governmentWorkerResult.eligible()
             ? governmentWorkerResult.nextStepAssessmentStartYear()
-            : (gradeIncreaseExceedsStepDifference ? history.calculationYear() : history.stepAssessmentStartYear());
+            : !listSummaryOnly && judicialPositionChangeResult != null && judicialPositionChangeResult.eligible()
+               ? judicialPositionChangeResult.nextStepAssessmentStartYear()
+               : (gradeIncreaseExceedsStepDifference ? history.calculationYear() : history.stepAssessmentStartYear());
          int positionSalaryIncrease = this.nullToZero(newPositionSalary) - this.nullToZero(currentPositionSalary);
          int pgbcRetainedAmount = rankConversion && positionSalaryIncrease < 0 ? Math.abs(positionSalaryIncrease) : 0;
          int pgbcOffsetAmount = sameSequenceEligible && positionSalaryIncrease > 0
@@ -16107,6 +16896,7 @@ public class PayrollService {
                rankConversionResult,
                institutionResult,
                governmentWorkerResult,
+               judicialPositionChangeResult,
                judicialConversionStep,
                administrativeReplayResult,
                policeOfficerResult,
@@ -18066,6 +18856,14 @@ public class PayrollService {
       return this.nextMonth(this.normalizeYearMonth(changeYearMonth));
    }
 
+   private String salaryExecutionPeriodForProjectionPositionChange(
+         String priorPositionCode, String appointmentYearMonth, String newPositionCode) {
+      if (this.isJudicialConversion(this.positionPrefix(priorPositionCode), this.positionPrefix(newPositionCode))) {
+         return this.normalizeYearMonth(appointmentYearMonth);
+      }
+      return this.salaryExecutionPeriodForPositionChange(appointmentYearMonth);
+   }
+
    private String salaryExecutionPeriodForEducation(String graduationDate) {
       return this.nextMonth(this.normalizeYearMonth(graduationDate));
    }
@@ -18827,8 +19625,8 @@ public class PayrollService {
                currentPosition.positionName(),
                "；原任低一职务 "
                   + this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName())
-                  + "（任职 "
-                  + this.formatYearMonth(lowerPosition.startYearMonth())
+                  + "（"
+                  + this.wageReformLowerPositionAppointmentClause(lowerPosition)
                   + "）未找到 2006 套改标准"
             );
             return this.applyEducationRegularizationFloor(latest, selection, regularizationYearMonth, regularizationPositionForFloor);
@@ -18847,8 +19645,8 @@ public class PayrollService {
                   promotedStep,
                   "；现任职务套改级别低于或等于原任低一职务 "
                      + this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName())
-                     + "（任职 "
-                     + this.formatYearMonth(lowerPosition.startYearMonth())
+                     + "（"
+                     + this.wageReformLowerPositionAppointmentClause(lowerPosition)
                      + "，套改为 "
                      + this.levelStepDisplay("GRADE", lowerStandard.get().convertedLevel(), lowerStandard.get().convertedStep())
                      + "），按原任低一职务合并任职年限套改后高套一级"
@@ -18865,8 +19663,8 @@ public class PayrollService {
                   promotedStep,
                   "；现任职务级别较高但工资额低于原任低一职务 "
                      + this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName())
-                     + "（任职 "
-                     + this.formatYearMonth(lowerPosition.startYearMonth())
+                     + "（"
+                     + this.wageReformLowerPositionAppointmentClause(lowerPosition)
                      + "，套改为 "
                      + this.levelStepDisplay("GRADE", lowerStandard.get().convertedLevel(), lowerStandard.get().convertedStep())
                      + "），按原任低一职务工资额就近就高套入现任职务级别"
@@ -18894,8 +19692,8 @@ public class PayrollService {
    ) {
       return "；已比照原任低一职务 "
          + this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName())
-         + "（任职 "
-         + this.formatYearMonth(lowerPosition.startYearMonth())
+         + "（"
+         + this.wageReformLowerPositionAppointmentClause(lowerPosition)
          + "，套改为 "
          + this.levelStepDisplay("GRADE", lowerStandard.convertedLevel(), lowerStandard.convertedStep())
          + "），现任职务套改为 "
@@ -18949,8 +19747,8 @@ public class PayrollService {
          } else {
             note.append("；原任低一职务 ")
                .append(this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName()))
-               .append("（任职 ")
-               .append(this.formatYearMonth(lowerPosition.startYearMonth()))
+               .append("（")
+               .append(this.wageReformLowerPositionAppointmentClause(lowerPosition))
                .append("）未找到 2006 套改标准");
          }
       }
@@ -18974,8 +19772,8 @@ public class PayrollService {
    ) {
       return "；已比照原任低一职务 "
          + this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName())
-         + "（任职 "
-         + this.formatYearMonth(lowerPosition.startYearMonth())
+         + "（"
+         + this.wageReformLowerPositionAppointmentClause(lowerPosition)
          + "，套改档次 "
          + lowerStandard.convertedStep()
          + "），现任职务套改档次 "
@@ -19184,6 +19982,26 @@ public class PayrollService {
       return Math.max(0, 2006 - this.yearOf(position.startYearMonth()) + 1 - this.nullToZero(position.interruptedYears()));
    }
 
+   private String wageReformAppointmentYearsLabel(int appointmentYears) {
+      return "任职年限 " + Math.max(1, appointmentYears) + " 年";
+   }
+
+   private String wageReformAppointmentClause(String startYearMonth, int appointmentYears) {
+      String formattedStart = this.formatYearMonth(startYearMonth);
+      if (formattedStart.isBlank() || "-".equals(formattedStart)) {
+         return "（" + this.wageReformAppointmentYearsLabel(appointmentYears) + "）";
+      }
+
+      return "（任职 " + formattedStart + "，" + this.wageReformAppointmentYearsLabel(appointmentYears) + "）";
+   }
+
+   private String wageReformLowerPositionAppointmentClause(com.dxsoft.rsgzgl.payroll.WageReformPosition lowerPosition) {
+      return "任职 "
+         + this.formatYearMonth(lowerPosition.startYearMonth())
+         + "，"
+         + this.wageReformAppointmentYearsLabel(this.wageReformAppointmentYears(lowerPosition));
+   }
+
    private int wageReformAppointmentYearsForProjection(
       Optional<com.dxsoft.rsgzgl.payroll.PositionChangeCandidate> positionBeforeReform,
       String regularization,
@@ -19347,7 +20165,8 @@ public class PayrollService {
                );
                String note = "2006.07 前已转正事业人员，按 200607 前最近事业岗位 "
                   + this.positionDisplay(positionCode, positionName)
-                  + " 及套改年限 "
+                  + this.wageReformAppointmentClause(positionStartYearMonth, appointmentYears)
+                  + "及套改年限 "
                   + reformYears
                   + " 年查表起点薪级 "
                   + reformStart.tableSalaryLevel()
@@ -19523,7 +20342,9 @@ public class PayrollService {
             com.dxsoft.rsgzgl.payroll.PayrollService.WageReformSelection selection = this.wageReformSelection(
                latest, standard.get(), reformYears, regularization, regularizationPositionForFloor
             );
-            String reformNote = "2006.07 前已转正，按基础信息折算套改年限 "
+            String reformNote = "2006.07 前已转正，"
+               + this.wageReformAppointmentYearsLabel(appointmentYears)
+               + "、套改年限 "
                + reformYears
                + " 年，并按 2006 套改标准确定起点：职务 "
                + this.positionDisplay(selection.positionCode(), selection.positionName())
@@ -19533,7 +20354,9 @@ public class PayrollService {
             reformNote = needRegularizationSalaryPosition && regularizationPosition.standard() != null
                ? "2006.07 前已转正，未找到转正定级任职记录，按转正定级标准确认执行工资职务 "
                   + this.positionDisplay(regularizationPosition.salaryPositionCode(), regularizationPosition.salaryPositionName())
-                  + "；按基础信息折算套改年限 "
+                  + "；"
+                  + this.wageReformAppointmentYearsLabel(appointmentYears)
+                  + "、套改年限 "
                   + reformYears
                   + " 年，并按 2006 套改标准确定起点：级别/档次 "
                   + this.levelStepDisplay("GRADE", selection.level(), selection.step())
@@ -20357,7 +21180,13 @@ public class PayrollService {
    }
 
    private boolean isJudicialConversion(String currentPositionPrefix, String newPositionPrefix) {
-      return POLICE_OFFICER_CONVERSION_SOURCE_PREFIXES.contains(currentPositionPrefix) && JUDICIAL_CONVERSION_TARGET_PREFIXES.contains(newPositionPrefix);
+      return JUDICIAL_CONVERSION_SOURCE_PREFIXES.contains(currentPositionPrefix)
+         && JUDICIAL_CONVERSION_TARGET_PREFIXES.contains(newPositionPrefix);
+   }
+
+   private boolean isJudicialConversionTarget(String positionCode) {
+      return positionCode != null && positionCode.length() >= 2
+         && JUDICIAL_CONVERSION_TARGET_PREFIXES.contains(positionCode.substring(0, 2));
    }
 
    private boolean isRankConversion(String currentPositionPrefix, String newPositionPrefix) {
@@ -20406,6 +21235,59 @@ public class PayrollService {
          );
       } else {
          return com.dxsoft.rsgzgl.payroll.PayrollService.RankConversionResult.ineligible();
+      }
+   }
+
+   private boolean isJudicialPosition(String positionCode) {
+      return positionCode != null && positionCode.length() >= 2 && "03".equals(positionCode.substring(0, 2));
+   }
+
+   private com.dxsoft.rsgzgl.payroll.PayrollService.JudicialPositionChangeResult judicialPositionChangeResult(
+      String currentGradeStep,
+      String newPositionCode,
+      String appointmentYearMonth,
+      String currentStepAssessmentStartYear
+   ) {
+      int oldGrade = this.payrollRepository.intValue(currentGradeStep);
+      if (oldGrade <= 0) {
+         return com.dxsoft.rsgzgl.payroll.PayrollService.JudicialPositionChangeResult.ineligible("当前法检档次不完整，无法试算法检职务变化。");
+      } else {
+         boolean lowerTierTarget = JUDICIAL_LOWER_TIER_POSITIONS.contains(newPositionCode);
+         String promotedGradeStep;
+         boolean resetStepAssessmentYear;
+         if (lowerTierTarget) {
+            promotedGradeStep = oldGrade <= 2 ? "1" : String.valueOf(oldGrade - 1);
+            resetStepAssessmentYear = oldGrade == 1;
+         } else {
+            promotedGradeStep = oldGrade <= 3 ? "1" : String.valueOf(oldGrade - 2);
+            resetStepAssessmentYear = oldGrade <= 2;
+         }
+
+         String nextStepStartYear = resetStepAssessmentYear
+            ? this.judicialPositionChangeStepStartYear(appointmentYearMonth)
+            : currentStepAssessmentStartYear;
+         String tierNote = lowerTierTarget ? "一级法官/检察官及以下" : "四级高级法官/检察官及以上";
+         String note = "法检职务变化：新任职务为"
+            + tierNote
+            + "，档次 "
+            + currentGradeStep
+            + " → "
+            + promotedGradeStep
+            + (resetStepAssessmentYear ? "；原档次不足减档时，xckhndzw 从本次变动年度重新计算。" : "；xckhndzw 沿用原起算年。");
+         return new com.dxsoft.rsgzgl.payroll.PayrollService.JudicialPositionChangeResult(
+            true, currentGradeStep, promotedGradeStep, nextStepStartYear, note
+         );
+      }
+   }
+
+   private String judicialPositionChangeStepStartYear(String appointmentYearMonth) {
+      String normalized = this.normalizeYearMonth(appointmentYearMonth);
+      if (normalized.length() < 6) {
+         return "";
+      } else {
+         int year = this.payrollRepository.intValue(normalized.substring(0, 4));
+         int month = this.payrollRepository.intValue(normalized.substring(4, 6));
+         return month == 12 ? String.valueOf(year + 1) : String.valueOf(year);
       }
    }
 
@@ -20661,8 +21543,8 @@ public class PayrollService {
                   tableSalaryLevel,
                   "；原任低一职务 "
                      + this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName())
-                     + "（任职 "
-                     + this.formatYearMonth(lowerPosition.startYearMonth())
+                     + "（"
+                     + this.wageReformLowerPositionAppointmentClause(lowerPosition)
                      + "）未找到 2006 套改标准"
                );
             } else {
@@ -20675,12 +21557,12 @@ public class PayrollService {
                      "；现任岗位套改薪级 "
                         + currentLevel
                         + " 低于原任低一职务 "
-                        + this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName())
-                        + "（任职 "
-                        + this.formatYearMonth(lowerPosition.startYearMonth())
-                        + "，套改薪级 "
-                        + lowerLevel
-                        + "），按低一职务套改高套一级"
+                     + this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName())
+                     + "（"
+                     + this.wageReformLowerPositionAppointmentClause(lowerPosition)
+                     + "，套改薪级 "
+                     + lowerLevel
+                     + "），按低一职务套改高套一级"
                   );
                } else {
                   return new com.dxsoft.rsgzgl.payroll.PayrollService.InstitutionSalaryLevelReformStart(
@@ -20688,8 +21570,8 @@ public class PayrollService {
                      tableSalaryLevel,
                      "；已比照原任低一职务 "
                         + this.positionDisplay(lowerPosition.positionCode(), lowerPosition.positionName())
-                        + "（任职 "
-                        + this.formatYearMonth(lowerPosition.startYearMonth())
+                        + "（"
+                        + this.wageReformLowerPositionAppointmentClause(lowerPosition)
                         + "，套改薪级 "
                         + lowerLevel
                         + "），不作低一职务套改调整"
@@ -21148,6 +22030,7 @@ public class PayrollService {
       com.dxsoft.rsgzgl.payroll.PayrollService.RankConversionResult rankConversionResult,
       com.dxsoft.rsgzgl.payroll.PayrollService.InstitutionPositionChangeResult institutionResult,
       com.dxsoft.rsgzgl.payroll.PayrollService.GovernmentWorkerPositionChangeResult governmentWorkerResult,
+      com.dxsoft.rsgzgl.payroll.PayrollService.JudicialPositionChangeResult judicialPositionChangeResult,
       String judicialConversionStep,
       com.dxsoft.rsgzgl.payroll.PayrollService.AdministrativeReplayResult administrativeReplayResult,
       com.dxsoft.rsgzgl.payroll.PayrollService.PoliceOfficerConversionResult policeOfficerResult,
@@ -21168,6 +22051,7 @@ public class PayrollService {
          rankConversionResult,
          institutionResult,
          governmentWorkerResult,
+         judicialPositionChangeResult,
          judicialConversionStep,
          administrativeReplayResult,
          policeOfficerResult,
@@ -21186,6 +22070,8 @@ public class PayrollService {
       } else {
          String code = this.firstNonBlank(positionCode, snapshot.positionCode());
          if (this.isGovernmentWorkerPosition(code)) {
+            return this.firstNonBlank(snapshot.positionSalaryGrade(), "");
+         } else if (this.isJudicialPosition(code)) {
             return this.firstNonBlank(snapshot.positionSalaryGrade(), "");
          } else {
             int combinedStep = this.payrollRepository.intValue(snapshot.positionSalaryGrade()) + this.payrollRepository.intValue(snapshot.gradeSalaryStep());
@@ -21267,6 +22153,7 @@ public class PayrollService {
       com.dxsoft.rsgzgl.payroll.PayrollService.RankConversionResult rankConversionResult,
       com.dxsoft.rsgzgl.payroll.PayrollService.InstitutionPositionChangeResult institutionResult,
       com.dxsoft.rsgzgl.payroll.PayrollService.GovernmentWorkerPositionChangeResult governmentWorkerResult,
+      com.dxsoft.rsgzgl.payroll.PayrollService.JudicialPositionChangeResult judicialPositionChangeResult,
       String judicialConversionStep,
       com.dxsoft.rsgzgl.payroll.PayrollService.AdministrativeReplayResult administrativeReplayResult,
       com.dxsoft.rsgzgl.payroll.PayrollService.PoliceOfficerConversionResult policeOfficerResult,
@@ -21306,13 +22193,17 @@ public class PayrollService {
          return institutionResult.eligible() ? institutionResult.note() : institutionResult.note();
       } else if (governmentWorkerResult != null) {
          return governmentWorkerResult.eligible() ? governmentWorkerResult.note() : governmentWorkerResult.note();
+      } else if (judicialPositionChangeResult != null) {
+         return judicialPositionChangeResult.eligible() ? judicialPositionChangeResult.note() : judicialPositionChangeResult.note();
       } else if (!judicialConversion) {
          if (candidate.positionCode() == null || !this.hasPendingPositionChange(history)) {
             return "未发现不同于当前工资记录的新任职务，不参与职务变化晋升试算。";
          } else if (sequenceConversion) {
             return "新旧职务前缀属于不同序列，识别为转换序列；不按同序列职务晋升级别规则试算。";
          } else if (!eligible) {
-            return governmentWorkerResult != null ? governmentWorkerResult.note() : "仅公务员/参公岗位且存在新任职务级别范围时参与职务变化晋升试算。";
+            return judicialPositionChangeResult != null
+               ? judicialPositionChangeResult.note()
+               : governmentWorkerResult != null ? governmentWorkerResult.note() : "仅公务员/参公岗位且存在新任职务级别范围时参与职务变化晋升试算。";
          } else if (promotedLevels >= 2) {
             return gradeIncreaseExceedsStepDifference
                ? "晋升职务相应晋升级别达到两级及以上，xckhndjb 应从职务变动级别当年重新计算；逐级计算增资额超过下一级别一个档差，xckhndzw 也应从本次晋升年度重新计算。"
@@ -21811,6 +22702,13 @@ public class PayrollService {
    ) {
       com.dxsoft.rsgzgl.payroll.PromotionActionResult result = new com.dxsoft.rsgzgl.payroll.PromotionActionResult(newId, priorHistoryId, changeType, message);
       this.recordPayrollApply(context, newId, changeType, message);
+      if (this.payrollWorkflowService != null && context != null) {
+         this.payrollWorkflowService.onPayrollApplied(
+               context.organizationCode(),
+               context.personCode(),
+               changeType,
+               newId);
+      }
       return result;
    }
 
@@ -22147,6 +23045,8 @@ public class PayrollService {
          case "PGBC" -> "工改保留职务工资";
          case "NJBT" -> "农教补贴";
          case "JXGZ" -> "见习工资";
+         case "JZMCBT" -> "加班补贴";
+         case "NZGWSF" -> "岗位津贴";
          default -> fallbackCaption;
       };
    }
@@ -22390,6 +23290,14 @@ public class PayrollService {
    ) {
       static com.dxsoft.rsgzgl.payroll.PayrollService.GovernmentWorkerPositionChangeResult ineligible(String note) {
          return new com.dxsoft.rsgzgl.payroll.PayrollService.GovernmentWorkerPositionChangeResult(false, null, null, null, 0, false, note);
+      }
+   }
+
+   private static record JudicialPositionChangeResult(
+      boolean eligible, String startGradeStep, String promotedGradeStep, String nextStepAssessmentStartYear, String note
+   ) {
+      static com.dxsoft.rsgzgl.payroll.PayrollService.JudicialPositionChangeResult ineligible(String note) {
+         return new com.dxsoft.rsgzgl.payroll.PayrollService.JudicialPositionChangeResult(false, null, null, null, note);
       }
    }
 
@@ -22955,5 +23863,21 @@ public class PayrollService {
       static com.dxsoft.rsgzgl.payroll.PayrollService.WorkerEducationReformAdjustment applied(String positionCode, String gradeStep, String note) {
          return new com.dxsoft.rsgzgl.payroll.PayrollService.WorkerEducationReformAdjustment(true, positionCode, gradeStep, note);
       }
+   }
+
+   private static record DisciplinaryDemotionTrialResult(
+      String promotedLevel,
+      String promotedStep,
+      String currentStep,
+      Integer currentPositionSalary,
+      Integer newPositionSalary,
+      Integer currentGradeSalary,
+      Integer promotedGradeSalary,
+      int totalIncrease,
+      String effectivePeriod,
+      String nextLevelAssessmentStartYear,
+      String nextStepAssessmentStartYear,
+      List<String> explanationLines
+   ) {
    }
 }

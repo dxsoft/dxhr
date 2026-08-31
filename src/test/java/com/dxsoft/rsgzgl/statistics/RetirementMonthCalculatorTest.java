@@ -39,4 +39,18 @@ class RetirementMonthCalculatorTest {
         assertThat(RetirementMonthCalculator.femaleBirthUpperBound("202608")).isEqualTo("197608");
         assertThat(RetirementMonthCalculator.yearMonthMinusYears("2026.08", 50)).isEqualTo("197608");
     }
+
+    @Test
+    void recognizesRetirementDueAgainstReferencePeriod() {
+        assertThat(RetirementMonthCalculator.isRetirementDue("1965.07", "女", "0190", "202608")).isTrue();
+        assertThat(RetirementMonthCalculator.isRetirementDue("1998.01", "男", "0190", "202608")).isFalse();
+    }
+
+    @Test
+    void recognizesRetirementWithinOneMonth() {
+        assertThat(RetirementMonthCalculator.isRetirementWithinOneMonth("1970.01", "女", "0190", "202501")).isTrue();
+        assertThat(RetirementMonthCalculator.isRetirementWithinOneMonth("1970.01", "女", "0190", "202502")).isFalse();
+        assertThat(RetirementMonthCalculator.isRetirementWithinOneMonth("1965.07", "女", "0190", "202608")).isFalse();
+        assertThat(RetirementMonthCalculator.yearMonthPlusMonths("202608", 1)).isEqualTo("202609");
+    }
 }

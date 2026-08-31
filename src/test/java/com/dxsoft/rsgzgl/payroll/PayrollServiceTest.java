@@ -1,9 +1,11 @@
 package com.dxsoft.rsgzgl.payroll;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -1460,6 +1462,235 @@ class PayrollServiceTest {
     }
 
     @Test
+    void wageProjectionAppliesJudicialConversionAt201703() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2016", "07", "调标晋升", "0191", "正科级非领导职务", "19", "5", "2016", "2016", "2009.02");
+
+        when(repository.findLatestHistory(28)).thenReturn(Optional.of(latest));
+        when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("1998.10");
+        when(repository.findLatestPositionBefore(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0191", "正科级非领导职务", "2009.02")));
+        when(repository.findPositionAtOrBefore(eq("001"), eq("00040"), anyString())).thenAnswer(invocation -> {
+            String period = invocation.getArgument(2);
+            if ("201703".compareTo(period) >= 0) {
+                return Optional.of(new PositionChangeCandidate("0191", "正科级非领导职务", "2009.02"));
+            }
+            return Optional.of(new PositionChangeCandidate("0329", "一级检察官", "2017.03"));
+        });
+        when(repository.findWageReformPositionsBefore(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of(new WageReformPosition("0191", "正科级非领导职务", "2009.02", 0)));
+        when(repository.calculatedWageReformYears("001", "00040")).thenReturn(20);
+        when(repository.findWageReformStandard(anyString(), anyInt(), anyInt()))
+                .thenReturn(Optional.of(new WageReformStandard("0191", 0, 99, 0, 99, "19", "5")));
+        when(repository.findPositionChangesBetween(anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of(new PositionChangeCandidate("0329", "一级检察官", "2017.03")));
+        when(repository.judicialConversionStep("19", "5", "0329")).thenReturn("5");
+        when(repository.findLatestEducationForPromotion("001", "00040", "200607")).thenReturn(Optional.empty());
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.gradeSalary(anyString(), anyString(), anyString())).thenAnswer(invocation -> {
+            int level = Integer.parseInt(invocation.getArgument(0));
+            int step = Integer.parseInt(invocation.getArgument(1));
+            return (30 - level) * 100 + step * 10;
+        });
+        stubCivilServantGradeSalary(repository);
+        when(repository.positionGradeSalary(eq("0329"), eq("5"), eq("0"), anyString())).thenReturn(1290);
+        when(repository.positionSalary(anyString(), anyString())).thenReturn(880);
+        when(repository.mapPositionSalaryCode(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.countQualifiedAssessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenReturn(1);
+        when(repository.assessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenReturn(Set.of(2016));
+        when(repository.findHistoryChain("001", "00040")).thenReturn(List.of(latest));
+
+        WageProjectionPreview preview = service.wageProjection(28, "201801");
+
+        assertThat(preview.explanationLines()).anyMatch(line -> line.contains("201703 法检套改")
+                && line.contains("bz06_fjtgb")
+                && line.contains("0329"));
+        assertThat(preview.stepDetails()).anyMatch(step -> "201703".equals(step.period())
+                && step.description() != null
+                && step.description().contains("法检套改")
+                && "法检套改".equals(step.changeCategory()));
+        assertThat(preview.positionCode()).isEqualTo("0329");
+        assertThat(preview.positionSalary()).isGreaterThan(0);
+    }
+
+    @Test
+    void judicialPositionChangeReducesTwoStepsForSeniorPromotion() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        Method method = PayrollService.class.getDeclaredMethod(
+                "judicialPositionChangeResult", String.class, String.class, String.class, String.class);
+        method.setAccessible(true);
+        Object result = method.invoke(service, "6", "0328", "2019.12", "2018");
+
+        assertThat(result.getClass().getMethod("eligible").invoke(result)).isEqualTo(true);
+        assertThat(result.getClass().getMethod("promotedGradeStep").invoke(result)).isEqualTo("4");
+        assertThat(result.getClass().getMethod("nextStepAssessmentStartYear").invoke(result)).isEqualTo("2018");
+    }
+
+    @Test
+    void judicialPositionChangeReducesOneStepForLowerTierPromotion() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        Method method = PayrollService.class.getDeclaredMethod(
+                "judicialPositionChangeResult", String.class, String.class, String.class, String.class);
+        method.setAccessible(true);
+        Object result = method.invoke(service, "5", "0329", "2017.03", "2016");
+
+        assertThat(result.getClass().getMethod("promotedGradeStep").invoke(result)).isEqualTo("4");
+        assertThat(result.getClass().getMethod("nextStepAssessmentStartYear").invoke(result)).isEqualTo("2016");
+    }
+
+    @Test
+    void judicialPositionChangeResetsStepStartYearWhenGradeCannotBeReducedFurther() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        Method method = PayrollService.class.getDeclaredMethod(
+                "judicialPositionChangeResult", String.class, String.class, String.class, String.class);
+        method.setAccessible(true);
+        Object result = method.invoke(service, "2", "0327", "2023.11", "2022");
+
+        assertThat(result.getClass().getMethod("promotedGradeStep").invoke(result)).isEqualTo("1");
+        assertThat(result.getClass().getMethod("nextStepAssessmentStartYear").invoke(result)).isEqualTo("2023");
+    }
+
+    @Test
+    void applyWageProjectionPositionChangeAdjustsJudicialGradeStep() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2019", "07", "调标晋升", "0329", "一级检察官", "", "6", "2016", "2018", "2017.03");
+        Class<?> stateClass = Class.forName("com.dxsoft.rsgzgl.payroll.PayrollService$WageProjectionState");
+        java.lang.reflect.Constructor<?> stateConstructor = stateClass.getDeclaredConstructor(
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                Integer.class,
+                String.class);
+        stateConstructor.setAccessible(true);
+        Object state = stateConstructor.newInstance(
+                "0329",
+                "一级检察官",
+                "",
+                "6",
+                "0",
+                "2016",
+                "2018",
+                "JUDICIAL_GRADE",
+                "201807",
+                "201807",
+                null,
+                null,
+                0,
+                null);
+        PositionChangeCandidate appointment = new PositionChangeCandidate("0328", "四级高级检察官", "2019.12");
+        java.util.ArrayList<String> lines = new java.util.ArrayList<>();
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        Method method = PayrollService.class.getDeclaredMethod(
+                "applyWageProjectionPositionChange",
+                stateClass,
+                PositionChangeCandidate.class,
+                String.class,
+                String.class,
+                List.class,
+                PayrollHistorySnapshot.class);
+        method.setAccessible(true);
+        Object next = method.invoke(service, state, appointment, "016", "00052", lines, latest);
+
+        assertThat(next.getClass().getMethod("positionCode").invoke(next)).isEqualTo("0328");
+        assertThat(next.getClass().getMethod("stepOrSalaryLevel").invoke(next)).isEqualTo("4");
+        assertThat(lines).anyMatch(line -> line.contains("202001") && line.contains("0328") && line.contains("6") && line.contains("4"));
+    }
+
+    @Test
+    void promoteJudicialGradeStepIncrementsGradeStepAfterTwoQualifiedYears() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        Class<?> stateClass = Class.forName("com.dxsoft.rsgzgl.payroll.PayrollService$WageProjectionState");
+        java.lang.reflect.Constructor<?> stateConstructor = stateClass.getDeclaredConstructor(
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                Integer.class,
+                String.class);
+        stateConstructor.setAccessible(true);
+        Object state = stateConstructor.newInstance(
+                "0329",
+                "一级检察官",
+                "",
+                "5",
+                "0",
+                "2016",
+                "2016",
+                "JUDICIAL_GRADE",
+                "201807",
+                "201807",
+                null,
+                null,
+                0,
+                null);
+        java.util.ArrayList<String> lines = new java.util.ArrayList<>();
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        Method method = PayrollService.class.getDeclaredMethod(
+                "promoteJudicialGradeStep", stateClass, int.class, List.class, String.class);
+        method.setAccessible(true);
+        Object next = method.invoke(service, state, 2018, lines, "累计 2 年考核合格");
+
+        assertThat(next.getClass().getMethod("stepOrSalaryLevel").invoke(next)).isEqualTo("6");
+        assertThat(next.getClass().getMethod("stepStartYear").invoke(next)).isEqualTo("2018");
+        assertThat(lines).anyMatch(line -> line.contains("晋升一档档次工资") && line.contains("6"));
+    }
+
+    @Test
     void wageProjectionAppliesNormalPositionPolicyWithinPoliceSequences() {
         PayrollRepository repository = mock(PayrollRepository.class);
         AccessControlService accessControlService = mock(AccessControlService.class);
@@ -1762,6 +1993,85 @@ class PayrollServiceTest {
         assertThat(preview.explanationLines()).anyMatch(line -> line.contains("202008 撤职处分")
                 && line.contains("降低 1 个职务层次")
                 && line.contains("逐级就近就低"));
+    }
+
+    @Test
+    void applyDisciplinaryDemotionPromotion_writesJslbAsPenaltyDemotion() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history(
+                "2024", "01", "正常档次", "0190", "正科级领导职务", "18", "6", "2014", "2016", "2021.07");
+
+        when(accessControlService.hasPermission("DISCIPLINARY_DEMOTION_PROMOTION_WRITE")).thenReturn(true);
+        when(repository.findPersonnelUidByCurrentHistoryId("history-id")).thenReturn(Optional.of(100));
+        when(repository.findLatestHistory(100)).thenReturn(Optional.of(latest));
+        when(repository.findLatestHistoriesByUids(List.of(100))).thenReturn(Map.of(100, latest));
+        when(repository.findProcessedPositionChangeDisplaysByUids(List.of(100))).thenReturn(Map.of());
+        when(repository.findCurrentPositionChangeCandidatesByUids(List.of(100)))
+                .thenReturn(Map.of(100, new PositionChangeCandidate("01A0", "副科级领导职务", "2024.01", "降职处分", null)));
+        when(repository.findPositionLevelRanges(org.mockito.ArgumentMatchers.anyCollection()))
+                .thenReturn(Map.of(
+                        "0190", new PositionLevelRange("0190", 22, 16),
+                        "01A0", new PositionLevelRange("01A0", 24, 18)));
+        when(repository.findPositionSalaries(eq("201607"), org.mockito.ArgumentMatchers.anyCollection()))
+                .thenReturn(Map.of("0190", 1500, "01A0", 1200));
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        when(repository.positionSalary("0190", "201607")).thenReturn(1500);
+        when(repository.positionSalary("01A0", "201607")).thenReturn(1200);
+        stubCivilServantGradeSalary(repository);
+        when(repository.gradeSalary(anyString(), anyString(), anyString())).thenAnswer(invocation -> {
+            int level = Integer.parseInt(invocation.getArgument(0));
+            int step = Integer.parseInt(invocation.getArgument(1));
+            return (30 - level) * 100 + step * 10;
+        });
+        when(repository.hasAllowanceStandardForPosition(eq("201607"), eq("001"), anyString())).thenReturn(false);
+        when(repository.createPositionChangeHistoryFromLatest(eq(100), org.mockito.ArgumentMatchers.any())).thenReturn("new-id");
+
+        service.applyDisciplinaryDemotionPromotion("history-id");
+
+        verify(repository).createPositionChangeHistoryFromLatest(
+                eq(100),
+                argThat(mutation -> "降资处分".equals(mutation.changeType()) && "".equals(mutation.remark())));
+    }
+
+    @Test
+    void rollbackDisciplinaryDemotionPromotion_acceptsPenaltyDemotionJslb() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        OperationLogService operationLogService = mock(OperationLogService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true, operationLogService);
+        PayrollHistorySnapshot current = history("2024", "06", "降资处分", "01A0", "副科级领导职务", "20", "6", "2014", "2016");
+
+        when(accessControlService.hasPermission("DISCIPLINARY_DEMOTION_PROMOTION_WRITE")).thenReturn(true);
+        when(repository.findCurrentHistoryById("history-id")).thenReturn(Optional.of(current));
+        when(repository.findPredecessorHistoryId("001", "00040", "history-id")).thenReturn(Optional.of("prev-id"));
+
+        service.rollbackDisciplinaryDemotionPromotion("history-id");
+
+        verify(operationLogService).record(
+                eq("ROLLBACK_PAYROLL_CHANGE"),
+                eq("hisbase"),
+                eq("history-id"),
+                org.mockito.ArgumentMatchers.contains("001-00040"));
+    }
+
+    @Test
+    void rollbackDisciplinaryDemotionPromotion_rejectsNonPenaltyDemotionJslb() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot current = history("2024", "06", "职务变化", "01A0", "副科级领导职务", "20", "6", "2014", "2016");
+
+        when(accessControlService.hasPermission("DISCIPLINARY_DEMOTION_PROMOTION_WRITE")).thenReturn(true);
+        when(repository.findCurrentHistoryById("history-id")).thenReturn(Optional.of(current));
+
+        assertThatThrownBy(() -> service.rollbackDisciplinaryDemotionPromotion("history-id"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("处分降职还原条件");
     }
 
     @Test
@@ -5398,6 +5708,307 @@ class PayrollServiceTest {
         assertThat(preview.explanationLines()).anyMatch(line -> line.contains("2016.01 退伍定资"));
     }
 
+    @Test
+    void selectedBonusBalancePreservesStoredWhenPositive() {
+        int uid = 9001;
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = historyWithStoredBonusBalance(
+                history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01"),
+                100);
+
+        stubMinimalCalculationContext(repository, uid, latest);
+        when(repository.bonusBalanceMode()).thenReturn(1);
+
+        PayrollCalculationPreview preview = service.calculationPreview(uid);
+
+        assertThat(componentAmount(preview, "JJJY2")).isEqualByComparingTo(BigDecimal.valueOf(100));
+        assertThat(componentSource(preview, "JJJY2")).isEqualTo("PRESERVE");
+        verify(repository, never()).bonusBalance(any());
+    }
+
+    @Test
+    void selectedBonusBalanceCalculatesWhenStoredZeroAndModeOne() {
+        int uid = 9002;
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = historyWithStoredBonusBalance(
+                history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01"),
+                0);
+
+        stubMinimalCalculationContext(repository, uid, latest);
+        when(repository.bonusBalanceMode()).thenReturn(1);
+        when(repository.bonusBalance(any())).thenReturn(250);
+
+        PayrollCalculationPreview preview = service.calculationPreview(uid);
+
+        assertThat(componentAmount(preview, "JJJY2")).isEqualByComparingTo(BigDecimal.valueOf(250));
+        assertThat(componentSource(preview, "JJJY2")).isEqualTo("AUTO");
+        verify(repository).bonusBalance(any());
+    }
+
+    @Test
+    void selectedBonusBalancePreservesZeroWhenModeNotOne() {
+        int uid = 9003;
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = historyWithStoredBonusBalance(
+                history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01"),
+                0);
+
+        stubMinimalCalculationContext(repository, uid, latest);
+        when(repository.bonusBalanceMode()).thenReturn(2);
+
+        PayrollCalculationPreview preview = service.calculationPreview(uid);
+
+        assertThat(componentAmount(preview, "JJJY2")).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(componentSource(preview, "JJJY2")).isEqualTo("PRESERVE");
+        verify(repository, never()).bonusBalance(any());
+    }
+
+    @Test
+    void calculationPreviewMapsJudicialGradeSalaryToPositionSalaryOnly() {
+        int uid = 9108;
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2024", "07", "调标晋升", "0329", "一级检察官", "9", "5", "2006", "2006", "2004.01");
+
+        when(repository.findLatestHistory(uid)).thenReturn(Optional.of(latest));
+        when(repository.findLatestHistoryValues(uid)).thenReturn(Map.of());
+        when(repository.findCalculationFields()).thenReturn(List.of(
+                payrollField("zwgzse2", "职务工资", false),
+                payrollField("jbgzse2", "级别工资", false),
+                payrollField("hj2", "月工资合计", false)));
+        when(repository.decimalValue(org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(BigDecimal.ZERO);
+        when(repository.findMatchedPositionStandards(latest)).thenReturn(List.of());
+        when(repository.findMatchedAllowanceStandards(latest)).thenReturn(List.of());
+        stubCivilServantGradeSalary(repository);
+        when(repository.mapPositionSalaryCode(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.positionSalary(anyString(), anyString())).thenReturn(880);
+        when(repository.positionGradeSalary(eq("0329"), eq("5"), eq("0"), anyString())).thenReturn(5510);
+        when(repository.salaryLevelSalary(anyString(), anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.technicalGradeSalary(anyString(), anyString())).thenReturn(0);
+        when(repository.policeOfficerGradeSalary(anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.performanceAllowance(anyString(), anyString(), anyString())).thenReturn(BigDecimal.ZERO);
+        when(repository.subsidyAllowance(anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.retainedAllowance(anyString())).thenReturn(0);
+        when(repository.rankAllowance(anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.floatingSalary(anyString(), anyString(), anyString(), anyString())).thenReturn(0);
+
+        PayrollCalculationPreview preview = service.calculationPreview(uid);
+
+        assertThat(componentAmount(preview, "ZWGZSE2")).isEqualByComparingTo(BigDecimal.valueOf(6390));
+        assertThat(componentAmount(preview, "JBGZSE2")).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(preview.salaryItems().stream()
+                .filter(component -> "JBGZSE2".equals(component.fieldName()))
+                .map(PayrollPreviewComponent::caption)
+                .findFirst()).contains("档次工资");
+    }
+
+    @Test
+    void wageProjectionStepDetailsPreserveManualOtherAllowance() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2006", "07", "套改", "0190", "正科级领导职务", "21", "4", "2006", "2006", "2004.01");
+
+        when(repository.findLatestHistory(8801)).thenReturn(Optional.of(latest));
+        when(repository.findLatestHistoryValues(8801)).thenReturn(Map.of("qtbt", 1));
+        when(repository.findCalculationFields()).thenReturn(List.of(
+                payrollField("zwgzse2", "职务工资", false),
+                payrollField("jbgzse2", "级别工资", false),
+                payrollField("qtbt", "其它补贴", false),
+                payrollField("hj2", "月工资合计", false)));
+        when(repository.decimalValue(org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(invocation -> {
+                    Map<String, Object> row = invocation.getArgument(0);
+                    String fieldName = invocation.getArgument(1);
+                    Object value = row.get(fieldName);
+                    if (value == null && fieldName != null) {
+                        value = row.get(fieldName.toLowerCase());
+                    }
+                    if (value instanceof Number number) {
+                        return BigDecimal.valueOf(number.doubleValue());
+                    }
+                    return BigDecimal.ZERO;
+                });
+        when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("1998.10");
+        when(repository.findHistoryChain("001", "00040")).thenReturn(List.of(latest));
+        when(repository.findLatestPositionBefore(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(Optional.of(new PositionChangeCandidate("0190", "正科级领导职务", "2004.01")));
+        when(repository.findWageReformPositionsBefore(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of(new WageReformPosition("0190", "正科级领导职务", "2004.01", 0)));
+        when(repository.calculatedWageReformYears("001", "00040")).thenReturn(20);
+        when(repository.findWageReformStandard(anyString(), anyInt(), anyInt()))
+                .thenReturn(Optional.of(new WageReformStandard("0190", 0, 99, 0, 99, "21", "4")));
+        when(repository.findNearestWageReformStandard(anyString(), anyInt(), anyInt()))
+                .thenReturn(Optional.of(new WageReformStandard("0190", 0, 99, 0, 99, "21", "4")));
+        when(repository.findFirstWageReformStandardForPosition(anyString()))
+                .thenReturn(Optional.of(new WageReformStandard("0190", 0, 99, 0, 99, "21", "4")));
+        when(repository.findPositionChangesBetween(anyString(), anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of());
+        when(repository.findEducationRecordsBetween(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(repository.findLatestEducationForPromotion("001", "00040", "200607")).thenReturn(Optional.empty());
+        when(repository.intValue(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+        stubCivilServantGradeSalary(repository);
+        when(repository.gradeSalary(anyString(), anyString(), anyString())).thenReturn(954);
+        when(repository.mapPositionSalaryCode(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.positionSalary(anyString(), anyString())).thenReturn(380);
+        when(repository.positionGradeSalary(anyString(), anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.countQualifiedAssessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenReturn(0);
+        when(repository.assessmentYears(anyString(), anyString(), anyInt(), anyInt())).thenReturn(Set.of());
+        when(repository.performanceAllowance(anyString(), anyString(), anyString())).thenReturn(BigDecimal.ZERO);
+        when(repository.subsidyAllowance(anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.retainedAllowance(anyString())).thenReturn(0);
+
+        WageProjectionPreview preview = service.wageProjection(8801, "200801");
+
+        WageProjectionStepDetail targetStep = preview.stepDetails().stream()
+                .filter(step -> "目标年月工资明细".equals(step.description()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(componentAmount(targetStep.components(), "qtbt")).isEqualByComparingTo(BigDecimal.ONE);
+    }
+
+    @Test
+    void wageProjectionInstitutionReformNoteIncludesAppointmentYears() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        PayrollHistorySnapshot latest = history("2006", "07", "套改", "1007", "七级专业技术岗位", "26", "0", "2006", "2006", "1994.12");
+
+        when(repository.findLatestHistory(8802)).thenReturn(Optional.of(latest));
+        when(repository.findRegularizationYearMonth("001", "00040")).thenReturn("1998.10");
+        when(repository.findPositionAtOrBefore(anyString(), anyString(), anyString())).thenReturn(Optional.empty());
+        when(repository.findLatestPositionBefore(anyString(), anyString(), eq("200607"), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(Optional.of(new PositionChangeCandidate("1007", "七级专业技术岗位", "1994.12")));
+        when(repository.findWageReformPositionsBefore(anyString(), anyString(), eq("200607"), org.mockito.ArgumentMatchers.anySet()))
+                .thenReturn(List.of(
+                        new WageReformPosition("1007", "七级专业技术岗位", "1994.12", 0),
+                        new WageReformPosition("1010", "十级专业技术岗位", "1990.01", 0)));
+        when(repository.calculatedWageReformYears("001", "00040")).thenReturn(23);
+        when(repository.findWageReformStandard(eq("1007"), eq(13), eq(23)))
+                .thenReturn(Optional.of(new WageReformStandard("1007", 0, 99, 0, 99, "0", "26")));
+        when(repository.findWageReformStandard(eq("1010"), eq(17), eq(23)))
+                .thenReturn(Optional.of(new WageReformStandard("1010", 0, 99, 0, 99, "0", "25")));
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        Method wageProjectionStart = PayrollService.class.getDeclaredMethod("wageProjectionStart", PayrollHistorySnapshot.class);
+        wageProjectionStart.setAccessible(true);
+        Object start = wageProjectionStart.invoke(service, latest);
+        String note = start.getClass().getMethod("note").invoke(start).toString();
+
+        assertThat(note).contains("任职 1994.12").contains("任职年限 13 年").contains("套改年限 23 年");
+        assertThat(note).contains("1010").contains("任职年限 17 年");
+    }
+
+    private static String componentSource(PayrollCalculationPreview preview, String fieldName) {
+        return preview.calculatedComponents().stream()
+                .filter(component -> fieldName.equalsIgnoreCase(component.fieldName()))
+                .map(PayrollPreviewComponent::source)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static PayrollHistorySnapshot historyWithStoredBonusBalance(PayrollHistorySnapshot base, int bonusBalance) {
+        return new PayrollHistorySnapshot(
+                base.id(),
+                base.organizationCode(),
+                base.personCode(),
+                base.name(),
+                base.calculationYear(),
+                base.calculationMonth(),
+                base.calculationType(),
+                base.organizationType(),
+                base.organizationPerformanceEnabled(),
+                base.individualPerformanceApproved(),
+                base.approvalOrganization(),
+                base.workStartYearMonth(),
+                base.positionStartYearMonth(),
+                base.salaryYears(),
+                base.interruptedSalaryYears(),
+                base.levelAssessmentStartYear(),
+                base.stepAssessmentStartYear(),
+                base.teachingStartYearMonth(),
+                base.teachingInterruptedYears(),
+                base.raisePercentage(),
+                base.rankAllowanceStandardYearMonth(),
+                base.rankName(),
+                base.positionCode(),
+                base.positionName(),
+                base.positionSalaryGrade(),
+                base.floatingStep(),
+                base.gradeSalaryLevel(),
+                base.gradeSalaryStep(),
+                base.salaryStandardYearMonth(),
+                base.allowanceStandardYearMonth(),
+                base.postAllowanceStandardYearMonth(),
+                base.postAllowanceCategory(),
+                base.storedPositionSalary(),
+                base.storedGradeSalary(),
+                base.storedTechnicalGradeSalary(),
+                base.storedPerformanceAllowance(),
+                base.storedSubsidyAllowance(),
+                base.storedRetainedAllowance(),
+                base.storedTeachingAllowance(),
+                base.storedSalaryIncrease(),
+                base.storedRankAllowance(),
+                base.storedFloatingSalary(),
+                bonusBalance,
+                base.storedPostAllowance(),
+                base.storedRetainedSpecialPostAllowance(),
+                base.storedPgbc(),
+                base.storedYearAllowance(),
+                base.storedTotal());
+    }
+
+    private static void stubMinimalCalculationContext(PayrollRepository repository, int uid, PayrollHistorySnapshot history) {
+        when(repository.findLatestHistory(uid)).thenReturn(Optional.of(history));
+        when(repository.findLatestHistoryValues(uid)).thenReturn(Map.of("jjjy2", history.storedBonusBalance()));
+        when(repository.findCalculationFields()).thenReturn(List.of(
+                payrollField("jjjy2", "奖金结余", false),
+                payrollField("hj2", "月工资合计", false)));
+        when(repository.decimalValue(org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(invocation -> {
+                    Map<String, Object> row = invocation.getArgument(0);
+                    String fieldName = invocation.getArgument(1);
+                    Object value = row.get(fieldName);
+                    if (value == null && fieldName != null) {
+                        value = row.get(fieldName.toLowerCase());
+                    }
+                    if (value instanceof Number number) {
+                        return BigDecimal.valueOf(number.doubleValue());
+                    }
+                    return BigDecimal.ZERO;
+                });
+        when(repository.findMatchedPositionStandards(history)).thenReturn(List.of());
+        when(repository.findMatchedAllowanceStandards(history)).thenReturn(List.of());
+        stubCivilServantGradeSalary(repository);
+        when(repository.mapPositionSalaryCode(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.positionSalary(anyString(), anyString())).thenReturn(0);
+        when(repository.positionGradeSalary(anyString(), anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.salaryLevelSalary(anyString(), anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.technicalGradeSalary(anyString(), anyString())).thenReturn(0);
+        when(repository.policeOfficerGradeSalary(anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.performanceAllowance(anyString(), anyString(), anyString())).thenReturn(BigDecimal.ZERO);
+        when(repository.subsidyAllowance(anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.retainedAllowance(anyString())).thenReturn(0);
+        when(repository.rankAllowance(anyString(), anyString(), anyString())).thenReturn(0);
+        when(repository.floatingSalary(anyString(), anyString(), anyString(), anyString())).thenReturn(0);
+    }
+
     private static PayrollFieldMetadata payrollField(String fieldName, String caption, boolean allowance) {
         return new PayrollFieldMetadata(
                 null,
@@ -5424,5 +6035,208 @@ class PayrollServiceTest {
                 null,
                 null,
                 null);
+    }
+
+    @Test
+    void policeRankChangePromotionsIncludesCancellationWhenAllowanceDropsToZero() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        RankAllowanceChangePromotionContext context = new RankAllowanceChangePromotionContext(
+                "hist-1",
+                "001",
+                "测试单位",
+                "00040",
+                "张三",
+                "2024",
+                "02",
+                "调资",
+                "0190",
+                "正科级领导职务",
+                "三级警督",
+                100,
+                "200607",
+                null,
+                null,
+                "2004.01");
+
+        when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
+        when(repository.findRankAllowanceChangePromotionContexts(any(), any(), any(), eq("jx")))
+                .thenReturn(List.of(context));
+        when(repository.findRankAllowanceChangesByOrgPersons(any(), eq("jx")))
+                .thenReturn(Map.of(
+                        "001|00040",
+                        List.of(
+                                new RankAllowanceChange("三级警督", "2006.01", "jx"),
+                                new RankAllowanceChange("", "2024.03", "jx"))));
+        when(repository.findRankAllowanceAmountsByPeriods(any())).thenReturn(Map.of());
+        when(repository.isRankAllowanceEligiblePosition("0190")).thenReturn(true);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        RankAllowanceChangePromotion preview = service
+                .policeRankChangePromotions(null, null, null, PageRequest.of(0, 10))
+                .content()
+                .getFirst();
+
+        assertThat(preview.targetRankName()).isEmpty();
+        assertThat(preview.calculatedRankAllowance()).isZero();
+        assertThat(preview.differenceAmount()).isEqualTo(-100);
+        assertThat(preview.applyEligible()).isTrue();
+        assertThat(preview.calculationPeriod()).isEqualTo("202404");
+    }
+
+    @Test
+    void policeRankChangePromotionsIncludesCancellationSentinelValue() {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+        RankAllowanceChangePromotionContext context = new RankAllowanceChangePromotionContext(
+                "hist-2",
+                "001",
+                "测试单位",
+                "00041",
+                "李四",
+                "2024",
+                "02",
+                "调资",
+                "0190",
+                "正科级领导职务",
+                "二级警督",
+                150,
+                "200607",
+                null,
+                null,
+                "2004.01");
+
+        when(accessControlService.organizationScope(any())).thenReturn(OrganizationScope.unrestricted());
+        when(repository.findRankAllowanceChangePromotionContexts(any(), any(), any(), eq("jx")))
+                .thenReturn(List.of(context));
+        when(repository.findRankAllowanceChangesByOrgPersons(any(), eq("jx")))
+                .thenReturn(Map.of(
+                        "001|00041",
+                        List.of(
+                                new RankAllowanceChange("二级警督", "2010.05", "jx"),
+                                new RankAllowanceChange("无", "2024.06", "jx"))));
+        when(repository.findRankAllowanceAmountsByPeriods(any())).thenReturn(Map.of());
+        when(repository.isRankAllowanceEligiblePosition("0190")).thenReturn(true);
+        when(repository.intValue(any())).thenAnswer(invocation -> {
+            String value = invocation.getArgument(0);
+            return value == null || value.isBlank() ? 0 : Integer.parseInt(value.trim());
+        });
+
+        RankAllowanceChangePromotion preview = service
+                .policeRankChangePromotions(null, null, null, PageRequest.of(0, 10))
+                .content()
+                .getFirst();
+
+        assertThat(preview.targetRankName()).isEmpty();
+        assertThat(preview.calculatedRankAllowance()).isZero();
+        assertThat(preview.differenceAmount()).isEqualTo(-150);
+        assertThat(preview.calculationPeriod()).isEqualTo("202407");
+    }
+
+    @Test
+    void preservedManualFieldsIncludePositionAndOvertimeAllowance() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+
+        when(repository.findCalculationFields()).thenReturn(List.of(
+                payrollField("NZGWSF", "岗位津贴", false, true),
+                payrollField("JZMCBT", "加班补贴", false, true),
+                payrollField("ZWGZSE2", "职务工资", false, true)));
+        stubDecimalValueFromMap(repository);
+
+        Method method = PayrollService.class.getDeclaredMethod("preservedManualFieldsFromHistoryValues", Map.class);
+        method.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, BigDecimal> preserved = (Map<String, BigDecimal>) method.invoke(
+                service, Map.of("nzgwsf", 240, "jzmcbt", 300));
+
+        assertThat(preserved.get("NZGWSF")).isEqualByComparingTo(BigDecimal.valueOf(240));
+        assertThat(preserved.get("JZMCBT")).isEqualByComparingTo(BigDecimal.valueOf(300));
+    }
+
+    @Test
+    void projectionStepCategoryRecognizesProsecutionRankChange() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+
+        Method method = PayrollService.class.getDeclaredMethod("projectionStepCategory", String.class, String.class);
+        method.setAccessible(true);
+        String description = "202104 检察变化：检察由 一级检察官 调整为 四级高级检察官，执行标准 200707，津贴 233。";
+        assertThat(method.invoke(service, description, "202104")).isEqualTo("检察变化");
+    }
+
+    @Test
+    void projectionStepCategoryRecognizesJudicialConversionReform() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+
+        Method method = PayrollService.class.getDeclaredMethod("projectionStepCategory", String.class, String.class);
+        method.setAccessible(true);
+        String description = "201703 法检套改：采用任职记录 2017.03 职务 0329 一级检察官，按 bz06_fjtgb 由 19级5档 套改为 5档。";
+        assertThat(method.invoke(service, description, "201703")).isEqualTo("法检套改");
+    }
+
+    @Test
+    void projectionStepCategoryRecognizesReformLevelRolling() throws Exception {
+        PayrollRepository repository = mock(PayrollRepository.class);
+        AccessControlService accessControlService = mock(AccessControlService.class);
+        PayrollService service = new PayrollService(repository, accessControlService, true);
+
+        Method method = PayrollService.class.getDeclaredMethod("projectionStepCategory", String.class, String.class);
+        method.setAccessible(true);
+        String description = "2007 年：2007-2010 套改后级别滚动（职务层次未变），上一年度考核称职及以上且达到套改表规定年限，晋升级别 22-5 -> 21-4。";
+        assertThat(method.invoke(service, description, "200701")).isEqualTo("级别滚动");
+    }
+
+    private static void stubDecimalValueFromMap(PayrollRepository repository) {
+        when(repository.decimalValue(org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(invocation -> {
+                    Map<String, Object> row = invocation.getArgument(0);
+                    String fieldName = invocation.getArgument(1);
+                    Object value = row.get(fieldName);
+                    if (value == null && fieldName != null) {
+                        value = row.get(fieldName.toLowerCase());
+                    }
+                    if (value instanceof Number number) {
+                        return BigDecimal.valueOf(number.doubleValue());
+                    }
+                    return BigDecimal.ZERO;
+                });
+    }
+
+    private static PayrollFieldMetadata payrollField(String fieldName, String caption, boolean allowance, boolean counted) {
+        return new PayrollFieldMetadata(
+                null,
+                null,
+                null,
+                "hisbase",
+                fieldName,
+                null,
+                null,
+                null,
+                caption,
+                caption,
+                caption,
+                null,
+                null,
+                "AUTO",
+                null,
+                allowance,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                counted);
     }
 }

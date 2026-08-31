@@ -51,8 +51,30 @@ public class DictionaryService {
         return dictionaryRepository.findFieldConfigs(tableName);
     }
 
+    public List<DictionaryFieldConfig> payrollFieldConfigs() {
+        return dictionaryRepository.findPayrollFieldDictionaryConfigs();
+    }
+
     public List<DictionaryTreeNode> tree(String prefix) {
         return dictionaryRepository.findTreeNodes(prefix);
+    }
+
+    public List<DictionaryTreeNode> rankLevelTree() {
+        String prefix = dictionaryRepository.findPayrollFieldDictionaryPrefix("JX");
+        if (prefix == null || prefix.isBlank()) {
+            prefix = "023";
+        }
+        return dictionaryRepository.findTreeNodes(prefix);
+    }
+
+    public String resolveRankCategory(String rankName, String lb) {
+        String normalizedLb = lb == null ? "" : lb.trim().toLowerCase();
+        if ("jx".equals(normalizedLb) || "jc".equals(normalizedLb)
+                || "sp".equals(normalizedLb) || "mt".equals(normalizedLb)) {
+            return normalizedLb;
+        }
+        String code = dictionaryRepository.findDictionaryCodeByName(rankName);
+        return RankCategorySupport.categoryFromCode(code);
     }
 
     public List<DictionaryTreeNode> treeFiltered(
@@ -60,11 +82,22 @@ public class DictionaryService {
             String unitCategory,
             String organizationProperty,
             String organizationCode) {
+        if ("jx_rank".equalsIgnoreCase(fieldName)) {
+            return rankLevelTree();
+        }
         String resolvedUnitCategory = unitCategory;
+        String payrollCategory = dictionaryRepository.findOrganizationPayrollCategory(organizationCode);
         if (resolvedUnitCategory == null || resolvedUnitCategory.isBlank()) {
             resolvedUnitCategory = dictionaryRepository.findOrganizationCategory(organizationCode);
         }
-        DictionaryFilterSpec filter = DictionaryQueryFilter.forField(fieldName, resolvedUnitCategory, organizationProperty);
+        resolvedUnitCategory = com.dxsoft.rsgzgl.organization.UnitPayrollClassification.effectiveUnitCategory(
+                resolvedUnitCategory,
+                payrollCategory);
+        DictionaryFilterSpec filter = DictionaryQueryFilter.forField(
+                fieldName,
+                resolvedUnitCategory,
+                organizationProperty,
+                payrollCategory);
         if (filter == null) {
             throw new IllegalArgumentException("Unsupported dictionary field filter: " + fieldName);
         }

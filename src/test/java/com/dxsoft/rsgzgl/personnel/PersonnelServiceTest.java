@@ -57,11 +57,21 @@ class PersonnelServiceTest {
         assertThat(PersonnelService.isCurrentPositionFlag("")).isFalse();
     }
 
+    @Test
+    void referenceCivilServiceInstitutionDefaultsToCompetentAssessment() {
+        PersonnelMaintenanceRecord record = new PersonnelMaintenanceRecord(
+                1, "001", "参照单位", "事业", "参照公务员", "0001", "测试人员",
+                "", "", "", "事业人员", "07", "", "", "", 0, "", "", "", "", "", "", "", "", "", "", "",
+                "初始建库", "", "07", false, null, null, null, null);
+        assertThat(PersonnelService.defaultAssessmentResult(record)).isEqualTo("称职");
+    }
+
     private static PersonnelMaintenanceRecord record(String personnelCategory, String organizationType) {
         return new PersonnelMaintenanceRecord(
                 1,
                 "001",
                 "测试单位",
+                "",
                 "",
                 "0001",
                 "测试人员",
@@ -84,6 +94,14 @@ class PersonnelServiceTest {
                 "",
                 "",
                 "",
-                "");
+                "",
+                "初始建库",
+                "",
+                organizationType,
+                false,
+                null,
+                null,
+                null,
+                null);
     }
 }

@@ -14,6 +14,11 @@ public record PersonnelSummary(
         String postCategory,
         String currentPosition,
         String currentPositionCode,
-        String appointmentPosition
+        String payrollPositionCode,
+        String appointmentPosition,
+        String approvalStatus,
+        boolean retirementDue,
+        boolean retirementWithinOneMonth,
+        String calculatedRetirementMonth
 ) {
 }

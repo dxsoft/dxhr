@@ -69,7 +69,7 @@ class OrganizationRepository {
         return jdbc.query(
                 """
                 select o.id, o.dwbm, o.dwmc, o.dwmc1, o.dwbz, o.dwsx, o.gzczbz, o.jtbz,
-                       o.bzrs, o.zbrs, o.slrs, o.dwjc, o.dfbt, o.jxlb, o.njbt,
+                       o.bzrs, o.zbrs, o.slrs, o.jb, o.xtlb, o.dfbt, o.jxlb, o.jxbl, o.njbt,
                        o.jfly, o.kzfgjj, o.kylbxf,
                        (select count(*) from dryjbxx p where p.dwbm = o.dwbm) as active_personnel_count
                 from dwbm o
@@ -164,7 +164,7 @@ class OrganizationRepository {
     OrganizationMaintenanceRecord findMaintenanceRecordById(int id) {
         List<OrganizationMaintenanceRecord> rows = jdbc.query("""
                 select o.id, o.dwbm, o.dwmc, o.dwmc1, o.dwbz, o.dwsx, o.gzczbz, o.jtbz,
-                       o.bzrs, o.zbrs, o.slrs, o.dwjc, o.dfbt, o.jxlb, o.njbt,
+                       o.bzrs, o.zbrs, o.slrs, o.jb, o.xtlb, o.dfbt, o.jxlb, o.jxbl, o.njbt,
                        o.jfly, o.kzfgjj, o.kylbxf,
                        (select count(*) from dryjbxx p where p.dwbm = o.dwbm) as active_personnel_count
                 from dwbm o
@@ -177,7 +177,7 @@ class OrganizationRepository {
     OrganizationMaintenanceRecord findMaintenanceRecordByCode(String organizationCode) {
         List<OrganizationMaintenanceRecord> rows = jdbc.query("""
                 select o.id, o.dwbm, o.dwmc, o.dwmc1, o.dwbz, o.dwsx, o.gzczbz, o.jtbz,
-                       o.bzrs, o.zbrs, o.slrs, o.dwjc, o.dfbt, o.jxlb, o.njbt,
+                       o.bzrs, o.zbrs, o.slrs, o.jb, o.xtlb, o.dfbt, o.jxlb, o.jxbl, o.njbt,
                        o.jfly, o.kzfgjj, o.kylbxf,
                        (select count(*) from dryjbxx p where p.dwbm = o.dwbm) as active_personnel_count
                 from dwbm o
@@ -202,9 +202,11 @@ class OrganizationRepository {
                 rs.getInt("zbrs"),
                 rs.getInt("slrs"),
                 rs.getInt("active_personnel_count"),
-                SqlText.trim(rs.getString("dwjc")),
+                SqlText.trim(rs.getString("jb")),
+                SqlText.trim(rs.getString("xtlb")),
                 rs.getInt("dfbt"),
                 rs.getInt("jxlb"),
+                SqlText.trim(rs.getString("jxbl")),
                 rs.getInt("njbt"),
                 SqlText.trim(rs.getString("jfly")),
                 SqlText.trim(rs.getString("kzfgjj")),
@@ -216,16 +218,17 @@ class OrganizationRepository {
                 update dwbm
                 set dwmc = :name,
                     dwmc1 = :shortName,
-                    dwsx = :property,
                     dwbz = :category,
                     gzczbz = :payrollCategory,
                     jtbz = :allowanceStandard,
                     bzrs = :personnelQuota,
                     zbrs = :establishmentCount,
                     slrs = :actualCount,
-                    dwjc = :organizationLevel,
+                    jb = :organizationLevel,
+                    xtlb = :systemCategory,
                     dfbt = :performanceAllowanceEnabled,
                     jxlb = :performanceCategory,
+                    jxbl = :performanceRatio,
                     njbt = :yearAllowanceCategory,
                     jfly = :financeSource,
                     kzfgjj = :housingFundWithheld,
@@ -235,7 +238,6 @@ class OrganizationRepository {
                 .addValue("id", id)
                 .addValue("name", request.name())
                 .addValue("shortName", request.shortName())
-                .addValue("property", request.property())
                 .addValue("category", request.category())
                 .addValue("payrollCategory", request.payrollCategory())
                 .addValue("allowanceStandard", request.allowanceStandard())
@@ -243,8 +245,10 @@ class OrganizationRepository {
                 .addValue("establishmentCount", request.establishmentCount() == null ? 0 : request.establishmentCount())
                 .addValue("actualCount", request.actualCount() == null ? 0 : request.actualCount())
                 .addValue("organizationLevel", request.organizationLevel())
+                .addValue("systemCategory", nullToEmpty(request.systemCategory()))
                 .addValue("performanceAllowanceEnabled", request.performanceAllowanceEnabled() == null ? 0 : request.performanceAllowanceEnabled())
                 .addValue("performanceCategory", request.performanceCategory() == null ? 0 : request.performanceCategory())
+                .addValue("performanceRatio", normalizePerformanceRatio(request.performanceRatio(), request.payrollCategory()))
                 .addValue("yearAllowanceCategory", request.yearAllowanceCategory() == null ? 0 : request.yearAllowanceCategory())
                 .addValue("financeSource", request.financeSource())
                 .addValue("housingFundWithheld", request.housingFundWithheld())
@@ -266,11 +270,11 @@ class OrganizationRepository {
                     nzj2010, nzj2011, nzj2012, nzj2013, gqbz
                 ) VALUES (
                     :organizationCode, :name, :shortName, :category, :property, :payrollCategory, :allowanceStandard,
-                    :personnelQuota, :establishmentCount, :actualCount, :organizationLevel,
+                    :personnelQuota, :establishmentCount, :actualCount, '',
                     0, 0, 0, '', '',
                     '', '', '', '', '', :housingFundWithheld, :pensionWithheld,
-                    0, 0, :financeSource, :performanceAllowanceEnabled, '', '', '', '',
-                    '', '', '', '', :performanceCategory, :yearAllowanceCategory, 0, '', 0, '',
+                    0, 0, :financeSource, :performanceAllowanceEnabled, :organizationLevel, :systemCategory, '', '',
+                    '', '', '', '', :performanceCategory, :yearAllowanceCategory, 0, '', 0, :performanceRatio,
                     0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0,
@@ -288,8 +292,10 @@ class OrganizationRepository {
                 .addValue("establishmentCount", nullToZero(request.establishmentCount()))
                 .addValue("actualCount", nullToZero(request.actualCount()))
                 .addValue("organizationLevel", nullToEmpty(request.organizationLevel()))
+                .addValue("systemCategory", nullToEmpty(request.systemCategory()))
                 .addValue("performanceAllowanceEnabled", nullToZero(request.performanceAllowanceEnabled()))
                 .addValue("performanceCategory", nullToZero(request.performanceCategory()))
+                .addValue("performanceRatio", normalizePerformanceRatio(request.performanceRatio(), request.payrollCategory()))
                 .addValue("yearAllowanceCategory", nullToZero(request.yearAllowanceCategory()))
                 .addValue("financeSource", nullToEmpty(request.financeSource()))
                 .addValue("housingFundWithheld", nullToEmpty(request.housingFundWithheld()))
@@ -383,7 +389,7 @@ class OrganizationRepository {
 
     List<String> findDistinctValues(String column) {
         String safeColumn = switch (column) {
-            case "dwsx", "dwbz", "dwjc", "gzczbz", "jtbz", "jfly", "kzfgjj", "kylbxf" -> column;
+            case "dwsx", "dwbz", "dwjc", "xtlb", "gzczbz", "jtbz", "jfly", "kzfgjj", "kylbxf" -> column;
             default -> throw new IllegalArgumentException("Unsupported column: " + column);
         };
         return jdbc.query("""
@@ -417,5 +423,18 @@ class OrganizationRepository {
 
     private static int nullToZero(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private static String normalizePerformanceRatio(String performanceRatio, String payrollCategory) {
+        if (payrollCategory == null || !"事业管理".equals(payrollCategory.trim())) {
+            return "";
+        }
+        if (performanceRatio == null) {
+            return "";
+        }
+        return performanceRatio.trim()
+                .replace('/', ':')
+                .replace('\\', ':')
+                .replace('：', ':');
     }
 }

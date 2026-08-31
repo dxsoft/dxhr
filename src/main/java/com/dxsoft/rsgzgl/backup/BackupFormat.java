@@ -1,6 +1,6 @@
 package com.dxsoft.rsgzgl.backup;
 
-enum BackupFormat {
+public enum BackupFormat {
     NEW,
     LEGACY,
     UNKNOWN

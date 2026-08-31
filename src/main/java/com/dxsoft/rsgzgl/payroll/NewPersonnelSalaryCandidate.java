@@ -1,6 +1,6 @@
 package com.dxsoft.rsgzgl.payroll;
 
-record NewPersonnelSalaryCandidate(
+public record NewPersonnelSalaryCandidate(
         Integer uid,
         String organizationCode,
         String organizationName,

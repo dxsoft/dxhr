@@ -10,6 +10,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    ProblemDetail handleAccessDenied(org.springframework.security.access.AccessDeniedException exception) {
+        String message = exception.getMessage();
+        if (message == null || message.isBlank()) {
+            message = "当前账号无权执行此操作。";
+        }
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, message);
+        detail.setProperties(Map.of("timestamp", Instant.now().toString()));
+        return detail;
+    }
+
     @ExceptionHandler(NotFoundException.class)
     ProblemDetail handleNotFound(NotFoundException exception) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());

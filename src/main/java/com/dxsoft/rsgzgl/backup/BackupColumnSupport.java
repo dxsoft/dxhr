@@ -8,13 +8,16 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 final class BackupColumnSupport {
 
-    record ColumnMeta(int sqlType, boolean nullable) {
+    record ColumnMeta(int sqlType, boolean nullable, boolean autoIncrement, boolean generated, boolean hasDefault) {
     }
 
     private BackupColumnSupport() {
@@ -44,7 +47,7 @@ final class BackupColumnSupport {
             throws SQLException {
         Map<String, ColumnMeta> columns = new LinkedHashMap<>();
         String sql = """
-                SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_TYPE
+                SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_TYPE, COLUMN_DEFAULT, EXTRA
                 FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
                 ORDER BY ORDINAL_POSITION
@@ -59,7 +62,14 @@ final class BackupColumnSupport {
                     }
                     int sqlType = mapMysqlType(rs.getString("DATA_TYPE"), rs.getString("COLUMN_TYPE"));
                     boolean nullable = !"NO".equalsIgnoreCase(rs.getString("IS_NULLABLE"));
-                    columns.putIfAbsent(name.toLowerCase(Locale.ROOT), new ColumnMeta(sqlType, nullable));
+                    String extra = rs.getString("EXTRA");
+                    String extraLower = extra == null ? "" : extra.toLowerCase(Locale.ROOT);
+                    boolean autoIncrement = extraLower.contains("auto_increment");
+                    boolean generated = extraLower.contains("generated");
+                    boolean hasDefault = rs.getString("COLUMN_DEFAULT") != null;
+                    columns.putIfAbsent(
+                            name.toLowerCase(Locale.ROOT),
+                            new ColumnMeta(sqlType, nullable, autoIncrement, generated, hasDefault));
                 }
             }
         } catch (SQLException ex) {
@@ -106,10 +116,35 @@ final class BackupColumnSupport {
                 boolean nullable = meta.isNullable(i) != ResultSetMetaData.columnNoNulls;
                 columns.put(
                         meta.getColumnLabel(i).toLowerCase(Locale.ROOT),
-                        new ColumnMeta(meta.getColumnType(i), nullable));
+                        new ColumnMeta(meta.getColumnType(i), nullable, false, false, false));
             }
         }
         return columns;
+    }
+
+    /**
+     * Target columns that are required on insert but absent from the backup source
+     * (e.g. {@code yctxsj} added after an old VFP DBF export).
+     */
+    static List<String> missingRequiredInsertColumns(
+            Map<String, ColumnMeta> targetColumns, Set<String> sourceColumns) {
+        List<String> missing = new ArrayList<>();
+        for (Map.Entry<String, ColumnMeta> entry : targetColumns.entrySet()) {
+            String column = entry.getKey();
+            if (sourceColumns.contains(column)) {
+                continue;
+            }
+            ColumnMeta meta = entry.getValue();
+            if (meta.autoIncrement() || meta.generated()) {
+                continue;
+            }
+            if (meta.nullable() || meta.hasDefault()) {
+                continue;
+            }
+            missing.add(column);
+        }
+        missing.sort(String.CASE_INSENSITIVE_ORDER);
+        return missing;
     }
 
     static Object coerceForInsert(Object value, ColumnMeta meta) {

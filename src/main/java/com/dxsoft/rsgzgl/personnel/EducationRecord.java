@@ -1,5 +1,7 @@
 package com.dxsoft.rsgzgl.personnel;
 
+import java.time.LocalDateTime;
+
 public record EducationRecord(
         Integer id,
         String organizationCode,
@@ -12,6 +14,12 @@ public record EducationRecord(
         Integer studyYears,
         String educationType,
         String remark,
-        Boolean appCreated
+        String approvalStatus,
+        Boolean appCreated,
+        String submittedBy,
+        LocalDateTime submittedAt,
+        String approvedBy,
+        LocalDateTime approvedAt,
+        int attachmentCount
 ) {
 }

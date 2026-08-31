@@ -26,10 +26,12 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.HexFormat;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,16 +50,16 @@ import org.springframework.stereotype.Service;
 @Service
 class NewFormatBackupService {
 
-    /** Keep batches moderate; rewriteBatchedStatements + per-batch commit avoid OOM on small hosts. */
-    private static final int BATCH_SIZE = 200;
     private static final int EXPORT_FETCH_SIZE = 500;
     private static final int EXPORT_PARALLELISM = 2;
     private static final DateTimeFormatter TS = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final DataSource dataSource;
+    private final BackupRestoreProperties restoreProperties;
 
-    NewFormatBackupService(DataSource dataSource) {
+    NewFormatBackupService(DataSource dataSource, BackupRestoreProperties restoreProperties) {
         this.dataSource = dataSource;
+        this.restoreProperties = restoreProperties;
     }
 
     /**
@@ -166,6 +168,7 @@ class NewFormatBackupService {
     }
 
     BackupRestoreResult restore(Path extractDir, Collection<String> scopeIds) throws IOException, SQLException {
+        long startedAt = System.currentTimeMillis();
         Path tablesDir = extractDir.resolve("tables");
         if (!Files.isDirectory(tablesDir)) {
             throw new IllegalArgumentException("新系统备份缺少 tables/ 目录。");
@@ -198,11 +201,12 @@ class NewFormatBackupService {
                     continue;
                 }
                 try {
-                    if (!tableExists(connection, tableName)) {
+                    String resolvedTable = BackupTableNameSupport.resolveTableName(connection, tableName);
+                    if (resolvedTable == null) {
                         skipped.add(tableName + "（目标库无此表）");
                         continue;
                     }
-                    int rows = restoreTableCsv(connection, tableName, tablesDir.resolve(csvName));
+                    int rows = restoreTableCsv(connection, resolvedTable, tablesDir.resolve(csvName));
                     connection.commit();
                     rowCounts.put(tableName, rows);
                     restored.add(tableName);
@@ -217,11 +221,12 @@ class NewFormatBackupService {
                     BackupJdbcSupport.safeClose(connection);
                     connection = BackupJdbcSupport.openRestoreConnectionWithRetry(dataSource);
                     try {
-                        if (!tableExists(connection, tableName)) {
+                        String resolvedTable = BackupTableNameSupport.resolveTableName(connection, tableName);
+                        if (resolvedTable == null) {
                             skipped.add(tableName + "（目标库无此表）");
                             continue;
                         }
-                        int rows = restoreTableCsv(connection, tableName, tablesDir.resolve(csvName));
+                        int rows = restoreTableCsv(connection, resolvedTable, tablesDir.resolve(csvName));
                         connection.commit();
                         rowCounts.put(tableName, rows);
                         restored.add(tableName);
@@ -250,6 +255,7 @@ class NewFormatBackupService {
             BackupJdbcSupport.safeClose(connection);
         }
 
+        long durationMs = System.currentTimeMillis() - startedAt;
         String scopeLabel = describeScopes(scopeIds);
         return new BackupRestoreResult(
                 BackupFormat.NEW,
@@ -259,7 +265,19 @@ class NewFormatBackupService {
                 restored,
                 skipped,
                 rowCounts,
-                "新系统备份恢复完成（" + scopeLabel + "）：已恢复 " + restored.size() + " 张表，共 " + totalRows + " 行。");
+                durationMs,
+                "新系统备份恢复完成（" + scopeLabel + "）：已恢复 " + restored.size() + " 张表，共 " + totalRows
+                        + " 行，耗时 " + formatDuration(durationMs) + "。",
+                List.of());
+    }
+
+    private static String formatDuration(long durationMs) {
+        if (durationMs < 1000) {
+            return durationMs + " 毫秒";
+        }
+        double seconds = durationMs / 1000.0;
+        return seconds >= 10 ? String.format(Locale.ROOT, "%.0f 秒", seconds)
+                : String.format(Locale.ROOT, "%.1f 秒", seconds);
     }
 
     private static String describeScopes(Collection<String> scopeIds) {
@@ -313,69 +331,63 @@ class NewFormatBackupService {
                     .map(h -> h == null ? "" : h.trim())
                     .toList();
             List<String> insertColumns = new ArrayList<>();
+            Set<String> sourceColumns = new HashSet<>();
             for (String header : headers) {
                 String key = header.toLowerCase(Locale.ROOT);
                 if (targetColumns.containsKey(key)) {
                     insertColumns.add(key);
+                    sourceColumns.add(key);
                 }
+            }
+            for (String column : BackupColumnSupport.missingRequiredInsertColumns(targetColumns, sourceColumns)) {
+                insertColumns.add(column);
             }
             if (insertColumns.isEmpty()) {
                 throw new IllegalStateException("表 " + tableName + " 与 CSV 无共同字段。");
             }
 
-            try (var st = connection.createStatement()) {
-                st.execute("DELETE FROM `" + BackupColumnSupport.sanitizeIdent(tableName) + "`");
-            }
+            Map<String, String> columnToHeader =
+                    BackupCsvColumnMapping.buildColumnHeaderMap(headers, insertColumns);
+            BackupTableClearSupport.clearTable(
+                    connection, tableName, restoreProperties.truncateBeforeInsert());
 
             String placeholders = String.join(",", insertColumns.stream().map(c -> "?").toList());
             String columnSql = String.join(",", insertColumns.stream().map(c -> "`" + c + "`").toList());
             String sql = "INSERT INTO `" + BackupColumnSupport.sanitizeIdent(tableName) + "` (" + columnSql
                     + ") VALUES (" + placeholders + ")";
 
-            int rows = 0;
             try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                BackupRestoreBatchWriter batchWriter =
+                        new BackupRestoreBatchWriter(connection, ps, restoreProperties);
                 for (CSVRecord record : parser) {
                     for (int i = 0; i < insertColumns.size(); i++) {
                         String column = insertColumns.get(i);
                         BackupColumnSupport.ColumnMeta meta = targetColumns.get(column);
-                        String raw = null;
-                        for (String header : headers) {
-                            if (header.equalsIgnoreCase(column)) {
-                                raw = record.isMapped(header) ? record.get(header) : null;
-                                break;
-                            }
-                        }
+                        String raw = BackupCsvColumnMapping.readRawValue(
+                                record, column, columnToHeader, sourceColumns);
                         Object value = BackupColumnSupport.coerceForInsert(
-                                deserializeCell(raw, meta.sqlType()), meta);
+                                raw == null && !sourceColumns.contains(column)
+                                        ? null
+                                        : deserializeCell(raw, meta.sqlType()),
+                                meta);
                         if (value == null) {
                             ps.setNull(i + 1, Types.NULL);
                         } else {
                             ps.setObject(i + 1, value);
                         }
                     }
-                    ps.addBatch();
-                    rows++;
-                    if (rows % BATCH_SIZE == 0) {
-                        try {
-                            ps.executeBatch();
-                            ps.clearBatch();
-                            // Commit each batch to keep undo/log memory bounded on small hosts.
-                            connection.commit();
-                        } catch (SQLException ex) {
-                            throw wrapSql(tableName, rows, ex);
-                        }
+                    try {
+                        batchWriter.addBatch();
+                    } catch (SQLException ex) {
+                        throw wrapSql(tableName, batchWriter.totalRows(), ex);
                     }
                 }
-                if (rows % BATCH_SIZE != 0) {
-                    try {
-                        ps.executeBatch();
-                        connection.commit();
-                    } catch (SQLException ex) {
-                        throw wrapSql(tableName, rows, ex);
-                    }
+                try {
+                    return batchWriter.finish();
+                } catch (SQLException ex) {
+                    throw wrapSql(tableName, batchWriter.totalRows(), ex);
                 }
             }
-            return rows;
         }
     }
 
@@ -463,32 +475,6 @@ class NewFormatBackupService {
         }
         tables.sort(String.CASE_INSENSITIVE_ORDER);
         return tables;
-    }
-
-    private boolean tableExists(Connection connection, String tableName) throws SQLException {
-        String safe = BackupColumnSupport.sanitizeIdent(tableName);
-        if (tableExistsExact(connection, safe)) {
-            return true;
-        }
-        if (tableExistsExact(connection, safe.toLowerCase(Locale.ROOT))) {
-            return true;
-        }
-        return tableExistsExact(connection, safe.toUpperCase(Locale.ROOT));
-    }
-
-    private boolean tableExistsExact(Connection connection, String tableName) throws SQLException {
-        try (Statement st = connection.createStatement();
-             ResultSet rs = st.executeQuery(
-                     "SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '"
-                             + tableName + "' LIMIT 1")) {
-            return rs.next();
-        } catch (SQLException ex) {
-            // H2 / engines without information_schema: fall back to metadata.
-            try (ResultSet rs = connection.getMetaData().getTables(
-                    connection.getCatalog(), null, tableName, new String[]{"TABLE"})) {
-                return rs.next();
-            }
-        }
     }
 
     private void zipDirectory(Path workDir, Path zipPath, List<String> roots) throws IOException {

@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,6 +45,8 @@ class DataExchangeRepository {
 
     private final JdbcTemplate jdbcTemplate;
     private final AccessControlService accessControlService;
+    private final Map<String, Map<String, String>> tableColumnTypeCache = new ConcurrentHashMap<>();
+    private Map<String, Integer> activePersonUidCache;
 
     DataExchangeRepository(JdbcTemplate jdbcTemplate, AccessControlService accessControlService) {
         this.jdbcTemplate = jdbcTemplate;
@@ -574,16 +578,17 @@ class DataExchangeRepository {
         for (int offset = 0; offset < personnelRows.size(); offset += batchSize) {
             List<PersonnelExportRecord> batch = personnelRows.subList(
                     offset, Math.min(offset + batchSize, personnelRows.size()));
-            StringBuilder sql = new StringBuilder("SELECT * FROM ").append(tableName).append(" WHERE ");
+            StringBuilder sql = new StringBuilder("SELECT * FROM ").append(tableName).append(" WHERE (dwbm, grbm) IN (");
             List<Object> params = new ArrayList<>();
             for (int i = 0; i < batch.size(); i++) {
                 if (i > 0) {
-                    sql.append(" OR ");
+                    sql.append(',');
                 }
-                sql.append("(dwbm = ? AND grbm = ?)");
+                sql.append("(?,?)");
                 params.add(batch.get(i).organizationCode());
                 params.add(batch.get(i).personCode());
             }
+            sql.append(')');
             if (orderBy != null && !orderBy.isBlank()) {
                 sql.append(" ORDER BY ").append(orderBy);
             }
@@ -742,12 +747,11 @@ class DataExchangeRepository {
 
     private void insertPersonnelFromPackage(
             PersonnelExportRecord row,
-            List<DataExchangeService.ExchangeTable> relatedTables,
+            ExchangePackageIndex packageIndex,
             String targetOrganizationCode,
             String targetPersonCode,
             boolean appendMode) {
-        Optional<Map<String, Object>> baseRow = findPersonnelBaseRow(
-                relatedTables, row.organizationCode(), row.personCode());
+        Optional<Map<String, Object>> baseRow = packageIndex.dryjbxxRow(row.organizationCode(), row.personCode());
         if (baseRow.isPresent()) {
             insertGenericRelatedRow(
                     PERSONNEL_BASE_TABLE,
@@ -758,6 +762,20 @@ class DataExchangeRepository {
             return;
         }
         insertPersonnel(row, targetOrganizationCode, targetPersonCode);
+    }
+
+    private void insertPersonnelFromPackage(
+            PersonnelExportRecord row,
+            List<DataExchangeService.ExchangeTable> relatedTables,
+            String targetOrganizationCode,
+            String targetPersonCode,
+            boolean appendMode) {
+        insertPersonnelFromPackage(
+                row,
+                ExchangePackageIndex.fromRelatedTables(relatedTables),
+                targetOrganizationCode,
+                targetPersonCode,
+                appendMode);
     }
 
     private Optional<Map<String, Object>> findPersonnelBaseRow(
@@ -846,28 +864,37 @@ class DataExchangeRepository {
     }
 
     private void insertRelatedRowsForPerson(
+            ExchangePackageIndex packageIndex,
+            String sourceOrganizationCode,
+            String sourcePersonCode,
+            String targetOrganizationCode,
+            String targetPersonCode,
+            boolean appendMode) {
+        if (packageIndex == null) {
+            return;
+        }
+        for (String tableName : RELATED_TABLES) {
+            for (Map<String, Object> sourceRow : packageIndex.relatedRows(
+                    sourceOrganizationCode, sourcePersonCode, tableName)) {
+                insertGenericRelatedRow(tableName, sourceRow, targetOrganizationCode, targetPersonCode, appendMode);
+            }
+        }
+    }
+
+    private void insertRelatedRowsForPerson(
             List<DataExchangeService.ExchangeTable> relatedTables,
             String sourceOrganizationCode,
             String sourcePersonCode,
             String targetOrganizationCode,
             String targetPersonCode,
             boolean appendMode) {
-        if (relatedTables == null || relatedTables.isEmpty()) {
-            return;
-        }
-        for (DataExchangeService.ExchangeTable table : relatedTables) {
-            if (PERSONNEL_BASE_TABLE.equalsIgnoreCase(table.tableName())
-                    || !RELATED_TABLES.contains(table.tableName())
-                    || table.rows() == null) {
-                continue;
-            }
-            for (Map<String, Object> sourceRow : table.rows()) {
-                if (!matchesPerson(sourceRow, sourceOrganizationCode, sourcePersonCode)) {
-                    continue;
-                }
-                insertGenericRelatedRow(table.tableName(), sourceRow, targetOrganizationCode, targetPersonCode, appendMode);
-            }
-        }
+        insertRelatedRowsForPerson(
+                ExchangePackageIndex.fromRelatedTables(relatedTables),
+                sourceOrganizationCode,
+                sourcePersonCode,
+                targetOrganizationCode,
+                targetPersonCode,
+                appendMode);
     }
 
     private boolean matchesPerson(Map<String, Object> row, String organizationCode, String personCode) {
@@ -899,7 +926,7 @@ class DataExchangeRepository {
                 if (PERSONNEL_BASE_TABLE.equalsIgnoreCase(tableName)) {
                     continue;
                 }
-                value = findPersonUid(targetOrganizationCode, targetPersonCode);
+                value = cachedPersonUid(targetOrganizationCode, targetPersonCode);
             }
             if (value != null) {
                 row.put(column.getKey(), value);
@@ -920,6 +947,11 @@ class DataExchangeRepository {
     }
 
     private Map<String, String> tableColumnTypes(String tableName) {
+        String cacheKey = tableName.toLowerCase(Locale.ROOT);
+        return tableColumnTypeCache.computeIfAbsent(cacheKey, this::loadTableColumnTypes);
+    }
+
+    private Map<String, String> loadTableColumnTypes(String tableName) {
         return jdbcTemplate.execute((ConnectionCallback<Map<String, String>>) connection -> {
             Map<String, String> columns = new LinkedHashMap<>();
             String catalog = connection.getCatalog();
@@ -937,6 +969,14 @@ class DataExchangeRepository {
             }
             return columns;
         });
+    }
+
+    private Integer cachedPersonUid(String organizationCode, String personCode) {
+        if (activePersonUidCache != null) {
+            String key = ExchangePackageIndex.personKey(organizationCode, personCode);
+            return activePersonUidCache.computeIfAbsent(key, ignored -> findPersonUid(organizationCode, personCode));
+        }
+        return findPersonUid(organizationCode, personCode);
     }
 
     private boolean isIntegerType(String typeName) {
@@ -1001,14 +1041,240 @@ class DataExchangeRepository {
             jdbcTemplate.update("DELETE FROM hisbase WHERE dwbm = ? AND grbm = ?", row.organizationCode(), row.personCode());
             insertPayrollRowsForPerson(payrollTables, row.organizationCode(), row.personCode());
             insertSubmissionRelatedRowsForPerson(relatedTables, row.organizationCode(), row.personCode());
-            jdbcTemplate.update("""
-                    UPDATE hisbase
-                    SET bbz = '已审'
-                    WHERE dwbm = ? AND grbm = ? AND (sid IS NULL OR TRIM(sid) = '')
-                    """, row.organizationCode(), row.personCode());
+            markPayrollApproved(row.organizationCode(), row.personCode());
             count++;
         }
         return count;
+    }
+
+    int applyApprovalReceive(
+            List<PersonnelExportRecord> personnelRows,
+            List<DataExchangeService.ExchangeTable> relatedTables,
+            String mode) {
+        ExchangePackageIndex packageIndex = ExchangePackageIndex.fromRelatedTables(relatedTables);
+        Set<String> existingPersonKeys = existingPersonKeys(personnelRows);
+        activePersonUidCache = new HashMap<>();
+        try {
+            if ("REPLACE".equalsIgnoreCase(mode)) {
+                int count = 0;
+                for (PersonnelExportRecord row : personnelRows) {
+                    replaceApprovalReceivePerson(row, packageIndex);
+                    count++;
+                }
+                return count;
+            }
+            if (!"UPDATE".equalsIgnoreCase(mode)) {
+                throw new IllegalArgumentException("不支持的审批接收模式：" + mode);
+            }
+            int count = 0;
+            for (PersonnelExportRecord row : personnelRows) {
+                applyApprovalReceiveUpdate(
+                        row,
+                        packageIndex,
+                        existingPersonKeys.contains(ExchangePackageIndex.personKey(
+                                row.organizationCode(), row.personCode())));
+                count++;
+            }
+            return count;
+        } finally {
+            activePersonUidCache = null;
+        }
+    }
+
+    Map<String, Map<String, Integer>> findPersonnelReformFieldValuesBatch(List<PersonnelExportRecord> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Map<String, Integer>> found = new HashMap<>();
+        final int chunkSize = 400;
+        for (int offset = 0; offset < rows.size(); offset += chunkSize) {
+            List<PersonnelExportRecord> chunk = rows.subList(offset, Math.min(offset + chunkSize, rows.size()));
+            StringBuilder sql = new StringBuilder("""
+                    SELECT dwbm, grbm,
+                           COALESCE(bjglxlnx, 0) AS bjglxlnx,
+                           COALESCE(zdgznx, 0) AS zdgznx,
+                           COALESCE(gznx, 0) AS gznx
+                    FROM dryjbxx
+                    WHERE (dwbm, grbm) IN (
+                    """);
+            List<Object> args = new ArrayList<>(chunk.size() * 2);
+            for (int i = 0; i < chunk.size(); i++) {
+                if (i > 0) {
+                    sql.append(',');
+                }
+                sql.append("(?,?)");
+                PersonnelExportRecord row = chunk.get(i);
+                args.add(row.organizationCode());
+                args.add(row.personCode());
+            }
+            sql.append(')');
+            jdbcTemplate.query(sql.toString(), args.toArray(), rs -> {
+                while (rs.next()) {
+                    String key = ExchangePackageIndex.personKey(
+                            trimKey(rs.getString("dwbm")),
+                            trimKey(rs.getString("grbm")));
+                    found.put(key, Map.of(
+                            "bjglxlnx", rs.getInt("bjglxlnx"),
+                            "zdgznx", rs.getInt("zdgznx"),
+                            "gznx", rs.getInt("gznx")));
+                }
+                return null;
+            });
+        }
+        return found;
+    }
+
+    Set<String> existingOrganizationCodes(List<PersonnelExportRecord> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Set.of();
+        }
+        List<String> codes = rows.stream()
+                .map(PersonnelExportRecord::organizationCode)
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (codes.isEmpty()) {
+            return Set.of();
+        }
+        String placeholders = codes.stream().map(code -> "?").collect(Collectors.joining(", "));
+        List<String> found = jdbcTemplate.queryForList(
+                "SELECT dwbm FROM dwbm WHERE dwbm IN (" + placeholders + ")",
+                String.class,
+                codes.toArray());
+        return new HashSet<>(found);
+    }
+
+    Map<String, PersonnelExportRecord> findPersonnelExportRecordsBatch(List<PersonnelExportRecord> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, PersonnelExportRecord> found = new LinkedHashMap<>();
+        final int chunkSize = 200;
+        for (int offset = 0; offset < rows.size(); offset += chunkSize) {
+            List<PersonnelExportRecord> chunk = rows.subList(offset, Math.min(offset + chunkSize, rows.size()));
+            StringBuilder inClause = new StringBuilder("(r.dwbm, r.grbm) IN (");
+            List<Object> params = new ArrayList<>(chunk.size() * 2);
+            for (int i = 0; i < chunk.size(); i++) {
+                if (i > 0) {
+                    inClause.append(',');
+                }
+                inClause.append("(?,?)");
+                PersonnelExportRecord row = chunk.get(i);
+                params.add(row.organizationCode());
+                params.add(row.personCode());
+            }
+            inClause.append(')');
+            String sql = buildPersonnelPackageQuery(List.of(inClause.toString()));
+            jdbcTemplate.query(sql, this::mapPersonnelExport, params.toArray()).forEach(record ->
+                    found.put(ExchangePackageIndex.personKey(record.organizationCode(), record.personCode()), record));
+        }
+        return found;
+    }
+
+    Map<String, Integer> findPersonnelReformFieldValues(String organizationCode, String personCode) {
+        return jdbcTemplate.query("""
+                SELECT COALESCE(bjglxlnx, 0) AS bjglxlnx,
+                       COALESCE(zdgznx, 0) AS zdgznx,
+                       COALESCE(gznx, 0) AS gznx
+                FROM dryjbxx
+                WHERE dwbm = ? AND grbm = ?
+                LIMIT 1
+                """, rs -> {
+            if (!rs.next()) {
+                return Map.of();
+            }
+            return Map.of(
+                    "bjglxlnx", rs.getInt("bjglxlnx"),
+                    "zdgznx", rs.getInt("zdgznx"),
+                    "gznx", rs.getInt("gznx"));
+        }, organizationCode, personCode);
+    }
+
+    private void applyApprovalReceiveUpdate(
+            PersonnelExportRecord row,
+            ExchangePackageIndex packageIndex,
+            boolean personExists) {
+        if (personExists) {
+            updatePersonnelFromPackage(packageIndex, row.organizationCode(), row.personCode());
+        } else {
+            insertPersonnelFromPackage(
+                    row, packageIndex, row.organizationCode(), row.personCode(), false);
+        }
+        replaceAllRelatedTablesForPerson(packageIndex, row.organizationCode(), row.personCode());
+        markPayrollApproved(row.organizationCode(), row.personCode());
+    }
+
+    private void replaceApprovalReceivePerson(
+            PersonnelExportRecord row,
+            ExchangePackageIndex packageIndex) {
+        deletePersonRelatedRows(row.organizationCode(), row.personCode());
+        jdbcTemplate.update("DELETE FROM dryjbxx WHERE dwbm = ? AND grbm = ?", row.organizationCode(), row.personCode());
+        insertPersonnelFromPackage(row, packageIndex, row.organizationCode(), row.personCode(), false);
+        insertRelatedRowsForPerson(
+                packageIndex,
+                row.organizationCode(),
+                row.personCode(),
+                row.organizationCode(),
+                row.personCode(),
+                false);
+        markPayrollApproved(row.organizationCode(), row.personCode());
+    }
+
+    private void replaceAllRelatedTablesForPerson(
+            ExchangePackageIndex packageIndex,
+            String organizationCode,
+            String personCode) {
+        for (String table : RELATED_TABLES) {
+            jdbcTemplate.update("DELETE FROM " + table + " WHERE dwbm = ? AND grbm = ?", organizationCode, personCode);
+        }
+        insertRelatedRowsForPerson(packageIndex, organizationCode, personCode, organizationCode, personCode, false);
+    }
+
+    private void updatePersonnelFromPackage(
+            ExchangePackageIndex packageIndex,
+            String organizationCode,
+            String personCode) {
+        Optional<Map<String, Object>> baseRow = packageIndex.dryjbxxRow(organizationCode, personCode);
+        if (baseRow.isEmpty()) {
+            return;
+        }
+        Map<String, String> columnTypes = tableColumnTypes(PERSONNEL_BASE_TABLE);
+        List<String> setClauses = new ArrayList<>();
+        List<Object> values = new ArrayList<>();
+        for (Map.Entry<String, String> column : columnTypes.entrySet()) {
+            String name = column.getKey();
+            if ("uid".equalsIgnoreCase(name)
+                    || "id".equalsIgnoreCase(name)
+                    || "dwbm".equalsIgnoreCase(name)
+                    || "grbm".equalsIgnoreCase(name)) {
+                continue;
+            }
+            Object value = valueIgnoreCase(baseRow.get(), name);
+            if (value == null) {
+                continue;
+            }
+            setClauses.add(quoteIdentifier(name) + " = ?");
+            values.add(value);
+        }
+        if (setClauses.isEmpty()) {
+            return;
+        }
+        values.add(organizationCode);
+        values.add(personCode);
+        jdbcTemplate.update(
+                "UPDATE " + PERSONNEL_BASE_TABLE + " SET "
+                        + String.join(", ", setClauses)
+                        + " WHERE dwbm = ? AND grbm = ?",
+                values.toArray());
+    }
+
+    private void markPayrollApproved(String organizationCode, String personCode) {
+        jdbcTemplate.update("""
+                UPDATE hisbase
+                SET bbz = '已审'
+                WHERE dwbm = ? AND grbm = ? AND (sid IS NULL OR TRIM(sid) = '')
+                """, organizationCode, personCode);
     }
 
     private void insertPayrollRowsForPerson(

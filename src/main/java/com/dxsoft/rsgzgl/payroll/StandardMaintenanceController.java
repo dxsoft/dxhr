@@ -134,6 +134,26 @@ class StandardMaintenanceController {
         payrollService.deleteGradeSalaryStandard(standardYearMonth, gradeLevel);
     }
 
+    @PostMapping("/police-grade-salaries")
+    @ResponseStatus(HttpStatus.CREATED)
+    GradeSalaryStandard createPoliceGradeSalary(@RequestBody GradeSalaryStandardRequest request) {
+        return payrollService.createPoliceGradeSalaryStandard(request);
+    }
+
+    @PutMapping("/police-grade-salaries/{standardYearMonth}/{gradeLevel}")
+    GradeSalaryStandard updatePoliceGradeSalary(
+            @PathVariable String standardYearMonth,
+            @PathVariable String gradeLevel,
+            @RequestBody GradeSalaryStandardRequest request) {
+        return payrollService.updatePoliceGradeSalaryStandard(standardYearMonth, gradeLevel, request);
+    }
+
+    @DeleteMapping("/police-grade-salaries/{standardYearMonth}/{gradeLevel}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deletePoliceGradeSalary(@PathVariable String standardYearMonth, @PathVariable String gradeLevel) {
+        payrollService.deletePoliceGradeSalaryStandard(standardYearMonth, gradeLevel);
+    }
+
     @PostMapping("/position-grade-salaries")
     @ResponseStatus(HttpStatus.CREATED)
     PositionGradeSalaryStandard createPositionGradeSalary(@RequestBody PositionGradeSalaryStandardRequest request) {
@@ -154,6 +174,29 @@ class StandardMaintenanceController {
             @PathVariable String standardYearMonth,
             @PathVariable String positionCode) {
         payrollService.deletePositionGradeSalaryStandard(standardYearMonth, positionCode);
+    }
+
+    @PostMapping("/judicial-position-grade-salaries")
+    @ResponseStatus(HttpStatus.CREATED)
+    JudicialPositionGradeSalaryStandard createJudicialPositionGradeSalary(
+            @RequestBody JudicialPositionGradeSalaryStandardRequest request) {
+        return payrollService.createJudicialPositionGradeSalaryStandard(request);
+    }
+
+    @PutMapping("/judicial-position-grade-salaries/{standardYearMonth}/{positionCode}")
+    JudicialPositionGradeSalaryStandard updateJudicialPositionGradeSalary(
+            @PathVariable String standardYearMonth,
+            @PathVariable String positionCode,
+            @RequestBody JudicialPositionGradeSalaryStandardRequest request) {
+        return payrollService.updateJudicialPositionGradeSalaryStandard(standardYearMonth, positionCode, request);
+    }
+
+    @DeleteMapping("/judicial-position-grade-salaries/{standardYearMonth}/{positionCode}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteJudicialPositionGradeSalary(
+            @PathVariable String standardYearMonth,
+            @PathVariable String positionCode) {
+        payrollService.deleteJudicialPositionGradeSalaryStandard(standardYearMonth, positionCode);
     }
 
     @PostMapping("/salary-levels")

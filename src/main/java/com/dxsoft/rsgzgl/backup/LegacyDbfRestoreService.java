@@ -13,12 +13,13 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -34,20 +35,23 @@ class LegacyDbfRestoreService {
     private static final Set<String> SKIP_TABLES = Set.of(
             "YHGL", "BZ06_ZW_GW", "BZ06_ZW_JB_XJ", "CYXX", "RPTINFO");
     private static final Charset DBF_CHARSET = Charset.forName("GBK");
-    private static final int BATCH_SIZE = 200;
 
     private final DataSource dataSource;
+    private final BackupRestoreProperties restoreProperties;
 
-    LegacyDbfRestoreService(DataSource dataSource) {
+    LegacyDbfRestoreService(DataSource dataSource, BackupRestoreProperties restoreProperties) {
         this.dataSource = dataSource;
+        this.restoreProperties = restoreProperties;
     }
 
     BackupRestoreResult restore(Path extractDir, Collection<String> scopeIds) throws IOException, SQLException {
+        long startedAt = System.currentTimeMillis();
         List<String> tableNames = BackupPackageInspector.collectDbfTableNames(extractDir);
         List<String> selected = BackupTableScopes.resolveTables(scopeIds, tableNames);
         var selectedSet = selected.stream()
                 .map(name -> name.toLowerCase(Locale.ROOT))
                 .collect(Collectors.toSet());
+        Map<String, Path> dbfIndex = indexDbfFiles(extractDir);
         Map<String, Integer> rowCounts = new LinkedHashMap<>();
         List<String> restored = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
@@ -65,17 +69,18 @@ class LegacyDbfRestoreService {
                     skipped.add(tableName + "（未选择该分组）");
                     continue;
                 }
-                Path dbf = findDbf(extractDir, tableName + "2.dbf");
+                Path dbf = dbfIndex.get((tableName + "2.dbf").toLowerCase(Locale.ROOT));
                 if (dbf == null) {
                     skipped.add(tableName + "（缺少 " + tableName + "2.dbf）");
                     continue;
                 }
                 try {
-                    if (!tableExists(connection, tableName)) {
+                    String resolvedTable = BackupTableNameSupport.resolveTableName(connection, tableName);
+                    if (resolvedTable == null) {
                         skipped.add(tableName + "（目标库无此表）");
                         continue;
                     }
-                    int rows = restoreTable(connection, tableName, dbf);
+                    int rows = restoreTable(connection, resolvedTable, dbf);
                     connection.commit();
                     rowCounts.put(tableName, rows);
                     restored.add(tableName);
@@ -90,11 +95,12 @@ class LegacyDbfRestoreService {
                     BackupJdbcSupport.safeClose(connection);
                     connection = BackupJdbcSupport.openRestoreConnectionWithRetry(dataSource);
                     try {
-                        if (!tableExists(connection, tableName)) {
+                        String resolvedTable = BackupTableNameSupport.resolveTableName(connection, tableName);
+                        if (resolvedTable == null) {
                             skipped.add(tableName + "（目标库无此表）");
                             continue;
                         }
-                        int rows = restoreTable(connection, tableName, dbf);
+                        int rows = restoreTable(connection, resolvedTable, dbf);
                         connection.commit();
                         rowCounts.put(tableName, rows);
                         restored.add(tableName);
@@ -123,6 +129,7 @@ class LegacyDbfRestoreService {
             BackupJdbcSupport.safeClose(connection);
         }
 
+        long durationMs = System.currentTimeMillis() - startedAt;
         var scopes = BackupTableScopes.normalizeScopeIds(scopeIds);
         String scopeLabel = scopes.isEmpty() || scopes.contains(BackupTableScopes.ALL)
                 ? "全部表"
@@ -135,7 +142,19 @@ class LegacyDbfRestoreService {
                 restored,
                 skipped,
                 rowCounts,
-                "旧系统备份恢复完成（" + scopeLabel + "）：已恢复 " + restored.size() + " 张表，共 " + totalRows + " 行。");
+                durationMs,
+                "旧系统备份恢复完成（" + scopeLabel + "）：已恢复 " + restored.size() + " 张表，共 " + totalRows
+                        + " 行，耗时 " + formatDuration(durationMs) + "。",
+                List.of());
+    }
+
+    private static String formatDuration(long durationMs) {
+        if (durationMs < 1000) {
+            return durationMs + " 毫秒";
+        }
+        double seconds = durationMs / 1000.0;
+        return seconds >= 10 ? String.format(Locale.ROOT, "%.0f 秒", seconds)
+                : String.format(Locale.ROOT, "%.1f 秒", seconds);
     }
 
     private int restoreTable(Connection connection, String tableName, Path dbfPath)
@@ -147,59 +166,72 @@ class LegacyDbfRestoreService {
             int fieldCount = reader.getFieldCount();
             List<String> insertColumns = new ArrayList<>();
             List<Integer> fieldIndexes = new ArrayList<>();
+            Set<String> sourceColumns = new HashSet<>();
             for (int i = 0; i < fieldCount; i++) {
                 DBFField field = reader.getField(i);
                 String fieldName = field.getName().trim().toLowerCase(Locale.ROOT);
                 if (targetColumns.containsKey(fieldName)) {
                     insertColumns.add(fieldName);
                     fieldIndexes.add(i);
+                    sourceColumns.add(fieldName);
                 }
+            }
+            for (String column : BackupColumnSupport.missingRequiredInsertColumns(targetColumns, sourceColumns)) {
+                insertColumns.add(column);
+                fieldIndexes.add(-1);
             }
             if (insertColumns.isEmpty()) {
                 throw new IllegalStateException("表 " + tableName + " 与 DBF 无共同字段，无法恢复。");
             }
 
-            try (var st = connection.createStatement()) {
-                st.execute("DELETE FROM `" + BackupColumnSupport.sanitizeIdent(tableName) + "`");
-            }
+            BackupTableClearSupport.clearTable(
+                    connection, tableName, restoreProperties.truncateBeforeInsert());
 
             String placeholders = String.join(",", insertColumns.stream().map(c -> "?").toList());
             String columnSql = String.join(",", insertColumns.stream().map(c -> "`" + c + "`").toList());
             String sql = "INSERT INTO `" + BackupColumnSupport.sanitizeIdent(tableName) + "` (" + columnSql
                     + ") VALUES (" + placeholders + ")";
 
-            int rows = 0;
             try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                BackupRestoreBatchWriter batchWriter =
+                        new BackupRestoreBatchWriter(connection, ps, restoreProperties);
                 Object[] record;
                 while ((record = reader.nextRecord()) != null) {
                     for (int col = 0; col < insertColumns.size(); col++) {
                         int fieldIndex = fieldIndexes.get(col);
-                        DBFField field = reader.getField(fieldIndex);
                         BackupColumnSupport.ColumnMeta meta = targetColumns.get(insertColumns.get(col));
-                        Object value = BackupColumnSupport.coerceForInsert(
-                                normalizeValue(field, record[fieldIndex], meta.sqlType()), meta);
+                        Object value;
+                        if (fieldIndex < 0) {
+                            value = BackupColumnSupport.coerceForInsert(null, meta);
+                        } else {
+                            DBFField field = reader.getField(fieldIndex);
+                            value = BackupColumnSupport.coerceForInsert(
+                                    normalizeValue(field, record[fieldIndex], meta.sqlType()), meta);
+                        }
                         if (value == null) {
                             ps.setNull(col + 1, Types.NULL);
                         } else {
                             ps.setObject(col + 1, value);
                         }
                     }
-                    ps.addBatch();
-                    rows++;
-                    if (rows % BATCH_SIZE == 0) {
-                        ps.executeBatch();
-                        ps.clearBatch();
-                        connection.commit();
+                    try {
+                        batchWriter.addBatch();
+                    } catch (SQLException ex) {
+                        throw new SQLException(
+                                "恢复表 " + tableName + " 失败（约第 " + batchWriter.totalRows() + " 行）: "
+                                        + ex.getMessage(),
+                                ex);
                     }
                 }
-                if (rows % BATCH_SIZE != 0) {
-                    ps.executeBatch();
-                    connection.commit();
+                try {
+                    return batchWriter.finish();
+                } catch (SQLException ex) {
+                    throw new SQLException(
+                            "恢复表 " + tableName + " 失败（约第 " + batchWriter.totalRows() + " 行）: "
+                                    + ex.getMessage(),
+                            ex);
                 }
-            } catch (SQLException ex) {
-                throw new SQLException("恢复表 " + tableName + " 失败（约第 " + rows + " 行）: " + ex.getMessage(), ex);
             }
-            return rows;
         }
     }
 
@@ -237,38 +269,12 @@ class LegacyDbfRestoreService {
         return raw;
     }
 
-    private boolean tableExists(Connection connection, String tableName) throws SQLException {
-        String safe = BackupColumnSupport.sanitizeIdent(tableName);
-        if (tableExistsExact(connection, safe)) {
-            return true;
-        }
-        if (tableExistsExact(connection, safe.toLowerCase(Locale.ROOT))) {
-            return true;
-        }
-        return tableExistsExact(connection, safe.toUpperCase(Locale.ROOT));
-    }
-
-    private boolean tableExistsExact(Connection connection, String tableName) throws SQLException {
-        try (var st = connection.createStatement();
-             ResultSet rs = st.executeQuery(
-                     "SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '"
-                             + tableName + "' LIMIT 1")) {
-            return rs.next();
-        } catch (SQLException ex) {
-            try (ResultSet rs = connection.getMetaData().getTables(
-                    connection.getCatalog(), null, tableName, new String[]{"TABLE"})) {
-                return rs.next();
-            }
-        }
-    }
-
-    private Path findDbf(Path extractDir, String fileName) throws IOException {
+    private static Map<String, Path> indexDbfFiles(Path extractDir) throws IOException {
+        Map<String, Path> index = new HashMap<>();
         try (var stream = Files.walk(extractDir)) {
-            return stream
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().equalsIgnoreCase(fileName))
-                    .findFirst()
-                    .orElse(null);
+            stream.filter(Files::isRegularFile).forEach(path -> index.putIfAbsent(
+                    path.getFileName().toString().toLowerCase(Locale.ROOT), path));
         }
+        return index;
     }
 }

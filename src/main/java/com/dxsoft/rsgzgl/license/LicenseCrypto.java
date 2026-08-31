@@ -49,7 +49,35 @@ final class LicenseCrypto {
         if (doc.ukeyRequired() != null) {
             sb.append("ukeyRequired=").append(doc.ukeyRequired()).append('\n');
         }
+        appendLocalPolicyCanonical(sb, doc.localPolicy());
         return sb.toString();
+    }
+
+    private static void appendLocalPolicyCanonical(StringBuilder sb, LicenseLocalPolicy policy) {
+        if (policy == null) {
+            return;
+        }
+        sb.append("policyActiveStaffFlag=").append(policy.activeStaffFlag() == null ? "" : policy.activeStaffFlag()).append('\n');
+        sb.append("policyApprovalFlag=").append(nullToEmpty(policy.approvalFlag())).append('\n');
+        sb.append("policyPayrollTitle=").append(nullToEmpty(policy.payrollTitle())).append('\n');
+        sb.append("policyRoundingMode=").append(nullToEmpty(policy.roundingMode())).append('\n');
+        sb.append("policyRoundToInteger=").append(nullToEmpty(policy.roundToInteger())).append('\n');
+        sb.append("policyPoliceAllowanceCaption=").append(nullToEmpty(policy.policeAllowanceCaption())).append('\n');
+        sb.append("policySubsidyCaption=").append(nullToEmpty(policy.subsidyCaption())).append('\n');
+        sb.append("policyApprovalMode=").append(nullToEmpty(policy.approvalMode())).append('\n');
+        sb.append("policyUnitApprovalCategory=").append(nullToEmpty(policy.unitApprovalCategory())).append('\n');
+        sb.append("policyPoliceRankStartLevel=").append(decimalText(policy.policeRankStartLevel())).append('\n');
+        sb.append("policyRetiredGradeStep=").append(nullToEmpty(policy.retiredGradeStep())).append('\n');
+        sb.append("policyInternSalaryMode=").append(decimalText(policy.internSalaryMode())).append('\n');
+        sb.append("policyBonusBalanceMode=").append(decimalText(policy.bonusBalanceMode())).append('\n');
+        sb.append("policyFloatingSalaryMode=").append(decimalText(policy.floatingSalaryMode())).append('\n');
+        sb.append("policyPayGradeRetentionMode=").append(decimalText(policy.payGradeRetentionMode())).append('\n');
+        sb.append("policyBackupPath=").append(nullToEmpty(policy.backupPath())).append('\n');
+        sb.append("policyPositionChangeIncludeTechnicalGrade=").append(nullToEmpty(policy.positionChangeIncludeTechnicalGrade())).append('\n');
+        sb.append("policyRankChangeIncludeTechnicalGrade=").append(nullToEmpty(policy.rankChangeIncludeTechnicalGrade())).append('\n');
+        sb.append("policyAutoBackup=").append(decimalText(policy.autoBackup())).append('\n');
+        sb.append("policyConfirmBeforeAction=").append(decimalText(policy.confirmBeforeAction())).append('\n');
+        sb.append("policyCheckUpdate=").append(decimalText(policy.checkUpdate())).append('\n');
     }
 
     static String hmacSha256Hex(String secret, String payload) {
@@ -95,6 +123,16 @@ final class LicenseCrypto {
             String city,
             String supervisor,
             List<LicenseOrganization> orgs) {
+        return toOrgsExportJson(format, exportedAt, city, supervisor, orgs, null);
+    }
+
+    static String toOrgsExportJson(
+            String format,
+            String exportedAt,
+            String city,
+            String supervisor,
+            List<LicenseOrganization> orgs,
+            LicenseLocalPolicy localPolicy) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         sb.append("  \"format\": ").append(quote(format)).append(",\n");
@@ -117,8 +155,10 @@ final class LicenseCrypto {
             sb.append("      \"establishmentCount\": ").append(org.establishmentCount() == null ? "null" : org.establishmentCount()).append(",\n");
             sb.append("      \"actualCount\": ").append(org.actualCount() == null ? "null" : org.actualCount()).append(",\n");
             sb.append("      \"organizationLevel\": ").append(quote(org.organizationLevel())).append(",\n");
+            sb.append("      \"systemCategory\": ").append(quote(org.systemCategory())).append(",\n");
             sb.append("      \"performanceAllowanceEnabled\": ").append(org.performanceAllowanceEnabled() == null ? "null" : org.performanceAllowanceEnabled()).append(",\n");
             sb.append("      \"performanceCategory\": ").append(org.performanceCategory() == null ? "null" : org.performanceCategory()).append(",\n");
+            sb.append("      \"performanceRatio\": ").append(quote(org.performanceRatio())).append(",\n");
             sb.append("      \"yearAllowanceCategory\": ").append(org.yearAllowanceCategory() == null ? "null" : org.yearAllowanceCategory()).append(",\n");
             sb.append("      \"financeSource\": ").append(quote(org.financeSource())).append(",\n");
             sb.append("      \"housingFundWithheld\": ").append(quote(org.housingFundWithheld())).append(",\n");
@@ -127,8 +167,11 @@ final class LicenseCrypto {
             sb.append("      \"supervisor\": ").append(quote(supervisor)).append("\n");
             sb.append("    }").append(i + 1 < list.size() ? "," : "").append("\n");
         }
-        sb.append("  ]\n");
-        sb.append("}\n");
+        sb.append("  ]");
+        if (localPolicy != null) {
+            sb.append(",\n  \"localPolicy\": ").append(localPolicyJson(localPolicy));
+        }
+        sb.append("\n}\n");
         return sb.toString();
     }
 
@@ -164,8 +207,10 @@ final class LicenseCrypto {
             sb.append("      \"establishmentCount\": ").append(org.establishmentCount() == null ? "null" : org.establishmentCount()).append(",\n");
             sb.append("      \"actualCount\": ").append(org.actualCount() == null ? "null" : org.actualCount()).append(",\n");
             sb.append("      \"organizationLevel\": ").append(quote(org.organizationLevel())).append(",\n");
+            sb.append("      \"systemCategory\": ").append(quote(org.systemCategory())).append(",\n");
             sb.append("      \"performanceAllowanceEnabled\": ").append(org.performanceAllowanceEnabled() == null ? "null" : org.performanceAllowanceEnabled()).append(",\n");
             sb.append("      \"performanceCategory\": ").append(org.performanceCategory() == null ? "null" : org.performanceCategory()).append(",\n");
+            sb.append("      \"performanceRatio\": ").append(quote(org.performanceRatio())).append(",\n");
             sb.append("      \"yearAllowanceCategory\": ").append(org.yearAllowanceCategory() == null ? "null" : org.yearAllowanceCategory()).append(",\n");
             sb.append("      \"financeSource\": ").append(quote(org.financeSource())).append(",\n");
             sb.append("      \"housingFundWithheld\": ").append(quote(org.housingFundWithheld())).append(",\n");
@@ -173,6 +218,9 @@ final class LicenseCrypto {
             sb.append("    }").append(i + 1 < orgs.size() ? "," : "").append("\n");
         }
         sb.append("  ],\n");
+        if (doc.localPolicy() != null) {
+            sb.append("  \"localPolicy\": ").append(localPolicyJson(doc.localPolicy())).append(",\n");
+        }
         if (doc.ukeyEnabled() != null) {
             sb.append("  \"ukeyEnabled\": ").append(doc.ukeyEnabled()).append(",\n");
         }
@@ -214,16 +262,92 @@ final class LicenseCrypto {
                     intField(item, "establishmentCount"),
                     intField(item, "actualCount"),
                     textField(item, "organizationLevel"),
+                    textField(item, "systemCategory"),
                     intField(item, "performanceAllowanceEnabled"),
                     intField(item, "performanceCategory"),
+                    textField(item, "performanceRatio"),
                     intField(item, "yearAllowanceCategory"),
                     textField(item, "financeSource"),
                     textField(item, "housingFundWithheld"),
                     textField(item, "pensionWithheld")));
         }
+        LicenseLocalPolicy localPolicy = parseLocalPolicy(objectBlock(json, "localPolicy"));
         return new LicensePackageDocument(
-                format, issuedAt, expiresAt, issuer, subject, organizations,
+                format, issuedAt, expiresAt, issuer, subject, organizations, localPolicy,
                 ukeyEnabled, ukeyRequired, signature);
+    }
+
+    private static String localPolicyJson(LicenseLocalPolicy policy) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\n");
+        sb.append("    \"activeStaffFlag\": ").append(policy.activeStaffFlag() == null ? "null" : policy.activeStaffFlag()).append(",\n");
+        sb.append("    \"approvalFlag\": ").append(quote(policy.approvalFlag())).append(",\n");
+        sb.append("    \"payrollTitle\": ").append(quote(policy.payrollTitle())).append(",\n");
+        sb.append("    \"roundingMode\": ").append(quote(policy.roundingMode())).append(",\n");
+        sb.append("    \"roundToInteger\": ").append(quote(policy.roundToInteger())).append(",\n");
+        sb.append("    \"policeAllowanceCaption\": ").append(quote(policy.policeAllowanceCaption())).append(",\n");
+        sb.append("    \"subsidyCaption\": ").append(quote(policy.subsidyCaption())).append(",\n");
+        sb.append("    \"approvalMode\": ").append(quote(policy.approvalMode())).append(",\n");
+        sb.append("    \"unitApprovalCategory\": ").append(quote(policy.unitApprovalCategory())).append(",\n");
+        sb.append("    \"policeRankStartLevel\": ").append(decimalJson(policy.policeRankStartLevel())).append(",\n");
+        sb.append("    \"retiredGradeStep\": ").append(quote(policy.retiredGradeStep())).append(",\n");
+        sb.append("    \"internSalaryMode\": ").append(decimalJson(policy.internSalaryMode())).append(",\n");
+        sb.append("    \"bonusBalanceMode\": ").append(decimalJson(policy.bonusBalanceMode())).append(",\n");
+        sb.append("    \"floatingSalaryMode\": ").append(decimalJson(policy.floatingSalaryMode())).append(",\n");
+        sb.append("    \"payGradeRetentionMode\": ").append(decimalJson(policy.payGradeRetentionMode())).append(",\n");
+        sb.append("    \"backupPath\": ").append(quote(policy.backupPath())).append(",\n");
+        sb.append("    \"positionChangeIncludeTechnicalGrade\": ").append(quote(policy.positionChangeIncludeTechnicalGrade())).append(",\n");
+        sb.append("    \"rankChangeIncludeTechnicalGrade\": ").append(quote(policy.rankChangeIncludeTechnicalGrade())).append(",\n");
+        sb.append("    \"autoBackup\": ").append(decimalJson(policy.autoBackup())).append(",\n");
+        sb.append("    \"confirmBeforeAction\": ").append(decimalJson(policy.confirmBeforeAction())).append(",\n");
+        sb.append("    \"checkUpdate\": ").append(decimalJson(policy.checkUpdate())).append("\n");
+        sb.append("  }");
+        return sb.toString();
+    }
+
+    private static LicenseLocalPolicy parseLocalPolicy(String block) {
+        if (block == null || block.isBlank() || "{}".equals(block.trim())) {
+            return null;
+        }
+        return new LicenseLocalPolicy(
+                intField(block, "activeStaffFlag"),
+                textField(block, "approvalFlag"),
+                textField(block, "payrollTitle"),
+                textField(block, "roundingMode"),
+                textField(block, "roundToInteger"),
+                textField(block, "policeAllowanceCaption"),
+                textField(block, "subsidyCaption"),
+                textField(block, "approvalMode"),
+                textField(block, "unitApprovalCategory"),
+                decimalField(block, "policeRankStartLevel"),
+                textField(block, "retiredGradeStep"),
+                decimalField(block, "internSalaryMode"),
+                decimalField(block, "bonusBalanceMode"),
+                decimalField(block, "floatingSalaryMode"),
+                decimalField(block, "payGradeRetentionMode"),
+                textField(block, "backupPath"),
+                textField(block, "positionChangeIncludeTechnicalGrade"),
+                textField(block, "rankChangeIncludeTechnicalGrade"),
+                decimalField(block, "autoBackup"),
+                decimalField(block, "confirmBeforeAction"),
+                decimalField(block, "checkUpdate"));
+    }
+
+    private static java.math.BigDecimal decimalField(String json, String name) {
+        Matcher matcher = Pattern.compile("\"" + Pattern.quote(name) + "\"\\s*:\\s*(null|-?\\d+(?:\\.\\d+)?)")
+                .matcher(json);
+        if (!matcher.find() || "null".equals(matcher.group(1))) {
+            return null;
+        }
+        return new java.math.BigDecimal(matcher.group(1));
+    }
+
+    private static String decimalJson(java.math.BigDecimal value) {
+        return value == null ? "null" : value.stripTrailingZeros().toPlainString();
+    }
+
+    private static String decimalText(java.math.BigDecimal value) {
+        return value == null ? "" : value.stripTrailingZeros().toPlainString();
     }
 
     private static String textField(String json, String name) {

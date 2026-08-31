@@ -23,6 +23,7 @@ add_target() {
 
 add_target 'demo 租户' 'http://127.0.0.1:18081/actuator/health'
 add_target 'pq 租户' 'http://127.0.0.1:18082/actuator/health'
+add_target 'xyzzb 租户' 'http://127.0.0.1:18083/actuator/health'
 curl -s -c /tmp/ops-cj.txt -b /tmp/ops-cj.txt -X POST http://127.0.0.1:18090/api/monitor/collect >/dev/null
 curl -s -c /tmp/ops-cj.txt -b /tmp/ops-cj.txt http://127.0.0.1:18090/api/monitor/overview -o /tmp/ops-overview.json
 python3 - <<'PY'

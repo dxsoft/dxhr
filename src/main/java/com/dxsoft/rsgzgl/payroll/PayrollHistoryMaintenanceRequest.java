@@ -10,6 +10,8 @@ public record PayrollHistoryMaintenanceRequest(
         String positionName,
         String gradeSalaryLevel,
         String positionSalaryGrade,
+        String levelAssessmentStartYear,
+        String stepAssessmentStartYear,
         String salaryStandardYearMonth,
         String allowanceStandardYearMonth,
         String teachingIncreaseRatio,

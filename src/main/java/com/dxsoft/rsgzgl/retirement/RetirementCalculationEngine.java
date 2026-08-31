@@ -1,6 +1,8 @@
 package com.dxsoft.rsgzgl.retirement;
 
 import com.dxsoft.rsgzgl.payroll.PayrollRepository;
+import com.dxsoft.rsgzgl.payroll.PayrollRounding;
+import com.dxsoft.rsgzgl.payroll.PayrollRoundingPolicy;
 import com.dxsoft.rsgzgl.retirement.RetirementRepository.RetirementAllowanceStandardRow;
 import com.dxsoft.rsgzgl.retirement.RetirementRepository.RetirementSeedRow;
 import com.dxsoft.rsgzgl.statistics.RetirementMonthCalculator;
@@ -38,11 +40,13 @@ class RetirementCalculationEngine {
 
         WageAmounts wages = resolveWages(seed, standardYm);
         boolean wagesFromStandards = wages.fromStandards();
-        int teachingRaise = Math.round((wages.positionSalary() + wages.gradeSalary()) * teachingPercent / 100.0f);
+        PayrollRoundingPolicy roundingPolicy = payrollRepository.roundingPolicy();
+        int teachingRaise = PayrollRounding.zroundPercent(
+                wages.positionSalary() + wages.gradeSalary(), teachingPercent, roundingPolicy);
         int wageBase = wages.positionSalary() + wages.gradeSalary() + wages.technicalSalary()
                 + seed.rankAllowance() + teachingRaise + seed.retainedSpecial();
         int effectiveRatio = Math.min(conversionRatio + feeIncreaseRatio, 100);
-        int convertedWageBase = Math.round(wageBase * Math.max(effectiveRatio, 0) / 100.0f);
+        int convertedWageBase = PayrollRounding.zroundPercent(wageBase, Math.max(effectiveRatio, 0), roundingPolicy);
         int basicRetirementFee = convertedWageBase + seed.teachingAllowance();
 
         int educationCategory = retirementRepository.organizationEducationCategory(seed.organizationCode());

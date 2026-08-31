@@ -27,7 +27,9 @@ const state = {
         auditPageIndex: 0,
     },
     dictionaryFieldConfigs: {},
+    payrollFieldConfigs: {},
     dictionaryRows: [],
+    localPolicyRows: [],
     activeDictionaryTarget: null,
     activeDictionaryNodes: [],
     dictionaryExpandedCodes: new Set(),
@@ -53,6 +55,9 @@ const state = {
     dataExchangeReceiveRows: [],
     dataExchangePersonnelRows: [],
     dataExchangePersonnelImportRows: [],
+    dataExchangePersonnelImportFile: null,
+    dataExchangePersonnelImportLegacy: false,
+    exchangeNotificationPollTimer: null,
     assessmentBatchRows: [],
     assessmentBatchMeta: null,
     auditSummaryCache: null,
@@ -69,6 +74,7 @@ const state = {
     normalPromotionPage: 0,
     normalPromotionTotalPages: 1,
     positionChangePage: 0,
+    disciplinaryDemotionPage: 0,
     positionChangeTotalPages: 1,
     regularizationRowsById: {},
     educationPromotionRowsById: {},
@@ -122,6 +128,10 @@ const state = {
     positionHistoryTotalPages: 1,
     changedPersonnelPage: 0,
     changedPersonnelTotalPages: 1,
+    personnelApprovalTrackingPage: 0,
+    personnelApprovalTrackingTotalPages: 1,
+    personnelApprovalTrackingStatus: "申报",
+    personnelApprovalTrackingApprovedWithinDays: 90,
     educationHistoryPage: 0,
     educationHistoryTotalPages: 1,
     retirementProcessingPage: 0,
@@ -163,6 +173,7 @@ const PAYROLL_API_WRITE_PERMISSIONS = {
     "normal-promotions": "NORMAL_PROMOTION_WRITE",
     "level-promotions": "LEVEL_PROMOTION_WRITE",
     "position-change-promotions": "POSITION_CHANGE_PROMOTION_WRITE",
+    "disciplinary-demotion-promotions": "DISCIPLINARY_DEMOTION_PROMOTION_WRITE",
     "regularizations": "REGULARIZATION_WRITE",
     "new-personnel-salary-determinations": "NEW_PERSONNEL_SALARY_WRITE",
     "basic-salary-standard-adjustments": "BASIC_SALARY_STANDARD_ADJUSTMENT_WRITE",
@@ -196,6 +207,12 @@ const PAYROLL_FEATURE_WRITE_UI = [
         batchButtonIds: ["position-change-batch-apply", "position-change-batch-rollback"],
         tableSelector: "#position-change .col-select",
         selectAllId: "position-change-select-all",
+    },
+    {
+        writePermission: "DISCIPLINARY_DEMOTION_PROMOTION_WRITE",
+        batchButtonIds: ["disciplinary-demotion-batch-apply", "disciplinary-demotion-batch-rollback"],
+        tableSelector: "#disciplinary-demotion-promotion .col-select",
+        selectAllId: "disciplinary-demotion-select-all",
     },
     {
         writePermission: "REGULARIZATION_WRITE",
@@ -273,6 +290,101 @@ const dictionaryFilterFields = new Set([
     "ryfl", "gwfl", "xrzw", "zwjb", "xzzw", "zjdj", "zwgw1", "zwgw2",
 ]);
 
+
+const subrecordAttachmentConfigs = {
+    main: {
+        segment: "basic-attachments",
+        apiBase: (uid, recordId) => `/api/personnel/${uid}/basic-attachments`,
+        attachmentPath: (uid, recordId, attachmentId) => `/api/personnel/${uid}/basic-attachments/${attachmentId}`,
+    },
+    education: {
+        segment: "education",
+        apiBase: (uid, recordId) => `/api/personnel/${uid}/education/${recordId}/attachments`,
+        attachmentPath: (uid, recordId, attachmentId) => `/api/personnel/${uid}/education/${recordId}/attachments/${attachmentId}`,
+    },
+    position: {
+        segment: "positions",
+        apiBase: (uid, recordId) => `/api/personnel/${uid}/positions/${recordId}/attachments`,
+        attachmentPath: (uid, recordId, attachmentId) => `/api/personnel/${uid}/positions/${recordId}/attachments/${attachmentId}`,
+    },
+    assessment: {
+        segment: "assessments",
+        apiBase: (uid, recordId) => `/api/personnel/${uid}/assessments/${recordId}/attachments`,
+        attachmentPath: (uid, recordId, attachmentId) => `/api/personnel/${uid}/assessments/${recordId}/attachments/${attachmentId}`,
+    },
+    award: {
+        segment: "awards",
+        apiBase: (uid, recordId) => `/api/personnel/${uid}/awards/${recordId}/attachments`,
+        attachmentPath: (uid, recordId, attachmentId) => `/api/personnel/${uid}/awards/${recordId}/attachments/${attachmentId}`,
+    },
+    rank: {
+        segment: "ranks",
+        apiBase: (uid, recordId) => `/api/personnel/${uid}/ranks/${recordId}/attachments`,
+        attachmentPath: (uid, recordId, attachmentId) => `/api/personnel/${uid}/ranks/${recordId}/attachments/${attachmentId}`,
+    },
+    transfer: {
+        segment: "transfers",
+        apiBase: (uid, recordId) => `/api/personnel/${uid}/transfers/${recordId}/attachments`,
+        attachmentPath: (uid, recordId, attachmentId) => `/api/personnel/${uid}/transfers/${recordId}/attachments/${attachmentId}`,
+    },
+    payroll: {
+        segment: "payroll-histories",
+        apiBase: (uid, recordId) => `/api/payroll/personnel/${uid}/histories/${encodeURIComponent(recordId)}/attachments`,
+        attachmentPath: (uid, recordId, attachmentId) => `/api/payroll/personnel/${uid}/histories/${encodeURIComponent(recordId)}/attachments/${attachmentId}`,
+    },
+};
+
+function subrecordAttachmentConfig(type) {
+    return subrecordAttachmentConfigs[type] || null;
+}
+
+function canEditSubrecordAttachments(type, record) {
+    if (!hasPersonnelWrite()) {
+        return false;
+    }
+    if (type === "main" || type === "transfer" || type === "payroll") {
+        return !record || isSubrecordDraft(record) || type === "transfer" || type === "payroll";
+    }
+    return !record || isSubrecordDraft(record);
+}
+
+function renderSubrecordAttachmentManageButton(type, row) {
+    if (!subrecordAttachmentConfig(type) || !canEditSubrecordAttachments(type, row)) {
+        return "";
+    }
+    return `<button type="button" class="row-action" data-manage-subrecord-attachments="${escapeHtml(type)}" data-attachment-record-id="${escapeHtml(row.id)}">附件</button>`;
+}
+
+async function openSubrecordAttachmentManager(type, record) {
+    const person = state.activePersonnelMaintenance;
+    if (!person?.uid || !record?.id) {
+        return;
+    }
+    state.activeSubrecordEditor = { type, record, attachmentOnly: true };
+    state.pendingSubrecordAttachments = [];
+    state.subrecordAttachments = [];
+    document.getElementById("subrecord-editor-title").textContent = "附件管理";
+    document.getElementById("subrecord-editor-card").className = "modal-card";
+    document.getElementById("subrecord-editor-modal").classList.remove("hidden");
+    document.getElementById("subrecord-editor-status").className = "status";
+    document.getElementById("subrecord-editor-status").textContent = "";
+    const editable = canEditSubrecordAttachments(type, record);
+    document.getElementById("subrecord-editor-form").innerHTML = renderSubrecordAttachmentSection(editable);
+    document.getElementById("subrecord-editor-form").insertAdjacentHTML("beforeend", `<div class="form-actions"><button type="button" id="subrecord-attachment-manager-close">关闭</button></div>`);
+    document.getElementById("subrecord-attachment-manager-close")?.addEventListener("click", () => closeSubrecordEditor());
+    bindSubrecordAttachmentSection(type, person.uid, record.id, editable);
+    await loadSubrecordAttachments(type, person.uid, record.id, editable);
+}
+
+function renderSubrecordAttachmentBadge(type, row, { idField = "id" } = {}) {
+    if (!(row.attachmentCount > 0)) {
+        return "";
+    }
+    const recordId = row[idField];
+    return `<button type="button" class="attachment-count-badge" data-preview-subrecord-attachments="${escapeHtml(type)}" data-attachment-record-id="${escapeHtml(recordId)}" title="查看附件 ${row.attachmentCount} 个">📎${row.attachmentCount}</button>`;
+}
+
+
 const subrecordEditors = {
     education: {
         title: "学历信息",
@@ -315,6 +427,8 @@ const subrecordEditors = {
             }],
             ["startYearMonth", "任职时间", "month"],
             ["intervalYears", "扣减年限", "number"],
+            ["positionChangeReason", "变动原因", "select", { optionsProvider: "positionChangeReasons" }],
+            ["linkedAwardId", "关联奖惩", "select", { optionsProvider: "personDisciplinaryAwards" }],
             ["activeFlag", "现任职", "select", { optionsProvider: "activeFlags" }],
         ],
     },
@@ -324,6 +438,36 @@ const subrecordEditors = {
         fields: [
             ["year", "年度"],
             ["result", "考核结果", "select", { optionsProvider: "assessmentResults" }],
+        ],
+    },
+    award: {
+        title: "获奖信息",
+        endpoint: uid => `/api/personnel/${uid}/awards`,
+        fields: [
+            ["hjmc", "奖惩名称"],
+            ["sjdw", "授奖单位"],
+            ["jllx", "类型"],
+            ["hjsj", "时间", "month"],
+            ["tqyjjssj", "提前/计算时间"],
+            ["jljb", "级别", "number"],
+            ["jldc", "档次", "number"],
+            ["qtqk", "其他情况"],
+        ],
+    },
+    rank: {
+        title: "警衔等级信息",
+        endpoint: uid => `/api/personnel/${uid}/ranks`,
+        fields: [
+            ["lb", "类别", "text", { hidden: true }],
+            ["jx", "等级", "text", {
+                rankLevelField: true,
+                dictionaryFieldKey: "jx_rank",
+                linkedCategoryField: "lb",
+            }],
+            ["sysj", "授予时间", "month"],
+            ["syyy", "原因"],
+            ["rmwh", "任命文号"],
+            ["xrjxbz", "现任", "select", { optionsProvider: "activeFlags" }],
         ],
     },
     payroll: {
@@ -348,6 +492,8 @@ const subrecordEditors = {
                 fields: [
                     ["gradeSalaryLevel", "级别"],
                     ["positionSalaryGrade", "档次"],
+                    ["levelAssessmentStartYear", "级别考核起算年"],
+                    ["stepAssessmentStartYear", "档次考核起算年"],
                     ["salaryStandardYearMonth", "执行工资标准"],
                     ["allowanceStandardYearMonth", "执行津补贴标准"],
                     ["teachingIncreaseRatio", "教护提高比例"],
@@ -418,7 +564,7 @@ const activeMenuGroups = [
     {
         title: "信息维护",
         codes: [
-            "PERSONNEL", "PERSONNEL_STATISTICS", "RETIREMENT_DUE_QUERY", "PERSONNEL_COMPREHENSIVE_QUERY",
+            "PERSONNEL", "PERSONNEL_APPROVAL_TRACKING", "PAYROLL_WORKFLOW_STATUS", "PERSONNEL_STATISTICS", "RETIREMENT_DUE_QUERY", "PERSONNEL_COMPREHENSIVE_QUERY",
             "ANNUAL_ASSESSMENT_MANAGEMENT", "CHANGED_PERSONNEL",
             "POSITION_HISTORY", "EDUCATION_HISTORY", "ORGANIZATION_MAINTENANCE",
         ],
@@ -428,9 +574,11 @@ const activeMenuGroups = [
         sections: [
             {
                 codes: [
+                    "PAYROLL_WORKFLOW_CENTER",
                     "LEVEL_PROMOTION",
                     "NORMAL_PROMOTION",
                     "POSITION_CHANGE_PROMOTION",
+                    "DISCIPLINARY_DEMOTION_PROMOTION",
                     "NEW_PERSONNEL_SALARY",
                     "REGULARIZATION",
                     "EDUCATION_PROMOTION",
@@ -691,6 +839,7 @@ const menuDescriptions = {
     RETIREMENT_APPROVAL_REPORT: "退休审批表（2006/2021/2025）",
     RETIREMENT_DATA_EXCHANGE: "离退专用数据交换",
     PERSONNEL: "查询在册人员，支持工资试算与信息维护",
+    PERSONNEL_APPROVAL_TRACKING: "待审与已通过任务跟踪，含提交/审核人员",
     PERSONNEL_STATISTICS: "人员基本情况与工资变动统计",
     ANNUAL_ASSESSMENT_MANAGEMENT: "考核结果查询录入与汇总统计",
     CHANGED_PERSONNEL: "办理变动人员恢复与查询",
@@ -721,6 +870,7 @@ const menuDescriptions = {
     NORMAL_PROMOTION: "正常档次/薪级晋升试算",
     LEVEL_PROMOTION: "级别晋升（含套改级别滚动）试算",
     POSITION_CHANGE_PROMOTION: "职务变化晋升试算与处理",
+    DISCIPLINARY_DEMOTION_PROMOTION: "处分降职试算与办理",
     EDUCATION_PROMOTION: "学历晋升定级试算",
     REGULARIZATION: "见习人员转正定级试算",
     AUDIT: "逐人工资推算对账与导出",
@@ -747,7 +897,9 @@ document.addEventListener("DOMContentLoaded", () => {
         "personnel-maintenance-modal",
         "dictionary-picker-modal",
         "subrecord-editor-modal",
+        "attachment-preview-modal",
         "personnel-change-remark-modal",
+        "personnel-approval-cancel-modal",
         "missing-assessment-fill-modal",
     ]);
     if (window.MonthPicker) {
@@ -781,16 +933,35 @@ document.addEventListener("DOMContentLoaded", () => {
         th.addEventListener("click", () => onPersonnelSort(th.dataset.sort));
     });
     document.getElementById("personnel-maintenance-form").addEventListener("submit", onPersonnelMaintenanceSave);
+    bindPersonnelBasicAttachments();
     document.getElementById("maint-wage-projection-form").addEventListener("submit", onPersonnelWageProjectionSearch);
     document.getElementById("personnel-maintenance-reset").addEventListener("click", resetPersonnelMaintenanceForm);
     document.getElementById("personnel-maintenance-new").addEventListener("click", openNewPersonnelMaintenance);
     document.getElementById("personnel-maintenance-close").addEventListener("click", closePersonnelMaintenanceModal);
+    document.getElementById("personnel-approval-submit-button")?.addEventListener("click", () => submitMainApproval());
+    document.getElementById("personnel-approval-approve-button")?.addEventListener("click", () => approveMainPersonnel());
+    document.getElementById("personnel-approval-return-draft-button")?.addEventListener("click", () => returnMainPersonnelToDraft());
+    document.getElementById("personnel-approval-cancel-button")?.addEventListener("click", () => openPersonnelApprovalCancelModal("main"));
+    document.getElementById("personnel-approval-cancel-modal-close")?.addEventListener("click", closePersonnelApprovalCancelModal);
+    document.getElementById("personnel-approval-cancel-form")?.addEventListener("submit", onPersonnelApprovalCancelSubmit);
     document.getElementById("subrecord-editor-close").addEventListener("click", closeSubrecordEditor);
     document.getElementById("subrecord-editor-form").addEventListener("submit", onSubrecordSave);
+    document.getElementById("attachment-preview-close")?.addEventListener("click", closeAttachmentPreviewModal);
+    document.getElementById("attachment-preview-back")?.addEventListener("click", backToAttachmentPicker);
+    document.getElementById("attachment-preview-download")?.addEventListener("click", downloadAttachmentPreview);
+    document.getElementById("attachment-preview-modal")?.addEventListener("click", event => {
+        if (event.target.id === "attachment-preview-modal") {
+            closeAttachmentPreviewModal();
+        }
+    });
+    bindAttachmentCaptureModal();
+    bindMobileAttachmentUploadModal();
     document.getElementById("add-education-record").addEventListener("click", () => openSubrecordEditor("education"));
     document.getElementById("add-position-record").addEventListener("click", () => openSubrecordEditor("position"));
     document.getElementById("add-payroll-record").addEventListener("click", () => openSubrecordEditor("payroll"));
     document.getElementById("add-assessment-record").addEventListener("click", () => openSubrecordEditor("assessment"));
+    document.getElementById("add-award-record")?.addEventListener("click", () => openSubrecordEditor("award"));
+    document.getElementById("add-rank-record")?.addEventListener("click", () => openSubrecordEditor("rank"));
     document.getElementById("auto-fill-missing-assessments").addEventListener("click", autoFillMissingAssessments);
     document.getElementById("dictionary-picker-close").addEventListener("click", closeDictionaryPicker);
     document.getElementById("organization-picker-close").addEventListener("click", closeOrganizationPicker);
@@ -808,6 +979,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("assessment-batch-apply-selected").addEventListener("click", applyAssessmentBatchBulkResult);
     document.getElementById("assessment-batch-fill-defaults").addEventListener("click", fillAssessmentBatchDefaults);
     document.getElementById("assessment-batch-save").addEventListener("click", saveAssessmentBatch);
+    document.getElementById("assessment-batch-submit")?.addEventListener("click", submitAssessmentBatch);
     document.getElementById("assessment-batch-select-all").addEventListener("change", event => {
         document.querySelectorAll("[data-assessment-batch-select]").forEach(checkbox => {
             if (!checkbox.closest("tr")?.classList.contains("hidden-row")) {
@@ -826,6 +998,29 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("changed-personnel-prev")?.addEventListener("click", () => gotoChangedPersonnelPage(state.changedPersonnelPage - 1));
     document.getElementById("changed-personnel-next")?.addEventListener("click", () => gotoChangedPersonnelPage(state.changedPersonnelPage + 1));
     document.getElementById("changed-personnel-last")?.addEventListener("click", () => gotoChangedPersonnelPage(state.changedPersonnelTotalPages - 1));
+    document.getElementById("personnel-approval-tracking-form")?.addEventListener("submit", onPersonnelApprovalTrackingSearch);
+    document.getElementById("personnel-approval-tracking-reset")?.addEventListener("click", resetPersonnelApprovalTrackingFilters);
+    document.getElementById("personnel-approval-tracking-record-type")?.addEventListener("change", updatePersonnelApprovalTrackingFilterVisibility);
+    document.getElementById("personnel-approval-tracking-batch-approve")?.addEventListener("click", batchApproveTrackingRecords);
+    document.getElementById("personnel-approval-tracking-select-all")?.addEventListener("change", event => {
+        document.querySelectorAll("[data-tracking-select]").forEach(checkbox => {
+            checkbox.checked = event.target.checked;
+        });
+    });
+    document.getElementById("personnel-approval-tracking-approved-within-days")?.addEventListener("change", () => {
+        state.personnelApprovalTrackingPage = 0;
+        void loadPersonnelApprovalTracking();
+    });
+    document.getElementById("personnel-approval-tracking-tab-pending")?.addEventListener("click", () => switchPersonnelApprovalTrackingTab("申报"));
+    document.getElementById("personnel-approval-tracking-tab-approved")?.addEventListener("click", () => switchPersonnelApprovalTrackingTab("审批通过"));
+    document.getElementById("personnel-approval-tracking-first")?.addEventListener("click", () => gotoPersonnelApprovalTrackingPage(0));
+    document.getElementById("personnel-approval-tracking-prev")?.addEventListener("click", () => gotoPersonnelApprovalTrackingPage(state.personnelApprovalTrackingPage - 1));
+    document.getElementById("personnel-approval-tracking-next")?.addEventListener("click", () => gotoPersonnelApprovalTrackingPage(state.personnelApprovalTrackingPage + 1));
+    document.getElementById("personnel-approval-tracking-last")?.addEventListener("click", () => gotoPersonnelApprovalTrackingPage(state.personnelApprovalTrackingTotalPages - 1));
+    document.getElementById("personnel-approval-tracking-page-input")?.addEventListener("change", event => {
+        const value = Number(event.target.value || 1);
+        gotoPersonnelApprovalTrackingPage(Math.max(value - 1, 0));
+    });
     document.getElementById("changed-personnel-page-input")?.addEventListener("change", event => {
         const value = parseInt(event.target.value, 10);
         if (!Number.isNaN(value)) {
@@ -860,6 +1055,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("organization-add-child-button")?.addEventListener("click", onOrganizationAddChild);
     document.getElementById("organization-delete-button")?.addEventListener("click", onOrganizationDelete);
     document.getElementById("organization-detail-reset")?.addEventListener("click", () => clearOrganizationDetailForm({ keepSelection: false }));
+    document.getElementById("organization-modal-payroll-category")?.addEventListener("change", updateOrganizationPerformanceRatioField);
+    document.getElementById("organization-modal-category")?.addEventListener("change", onOrganizationUnitCategoryChange);
     document.getElementById("personnel-statistics-form").addEventListener("submit", onPersonnelStatisticsSearch);
     document.getElementById("personnel-comprehensive-query-form")?.addEventListener("submit", onPersonnelComprehensiveQuerySearch);
     document.getElementById("personnel-comprehensive-query-size")?.addEventListener("change", () => {
@@ -928,6 +1125,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
     document.getElementById("local-policy-form").addEventListener("submit", onLocalPolicySearch);
+    document.getElementById("local-policy-modal-form")?.addEventListener("submit", onLocalPolicyModalSubmit);
+    document.getElementById("local-policy-modal-close")?.addEventListener("click", closeLocalPolicyModal);
+    document.getElementById("local-policy-modal-cancel")?.addEventListener("click", closeLocalPolicyModal);
+    document.getElementById("local-policy-modal")?.addEventListener("click", event => {
+        if (event.target.id === "local-policy-modal") {
+            closeLocalPolicyModal();
+        }
+    });
     document.getElementById("audit-form").addEventListener("submit", onAudit);
     document.getElementById("audit-run-selected").addEventListener("click", () => runAuditForSelected());
     document.getElementById("audit-run-page").addEventListener("click", () => runAuditForCurrentPage());
@@ -1014,6 +1219,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("data-exchange-approval-receive-file").addEventListener("change", onDataExchangeApprovalReceiveFileSelected);
     document.getElementById("data-exchange-approval-receive-form").addEventListener("submit", onDataExchangeApprovalReceivePreview);
     document.getElementById("data-exchange-approval-receive-apply").addEventListener("click", () => applyDataExchangeApprovalReceive(false));
+    document.querySelectorAll('input[name="approval-receive-mode"]').forEach(input => {
+        input.addEventListener("change", () => {
+            dataExchangeApprovalReceivePreviewReady = false;
+            updateApprovalReceiveApplyButton();
+        });
+    });
+    updateApprovalReceiveApplyButton();
     document.getElementById("data-exchange-approval-receive-select-all").addEventListener("change", event => {
         document.querySelectorAll("[data-approval-receive-select]").forEach(checkbox => checkbox.checked = event.target.checked);
     });
@@ -1023,6 +1235,19 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll("[data-exchange-tab]").forEach(button => {
         button.addEventListener("click", () => showDataExchangeTab(button.dataset.exchangeTab));
     });
+    document.getElementById("data-exchange-inbox-refresh")?.addEventListener("click", () => loadExchangeInbox());
+    document.getElementById("data-exchange-inbox-read-all")?.addEventListener("click", () => markAllExchangeNotificationsRead());
+    document.getElementById("data-exchange-inbox-filter")?.addEventListener("change", () => loadExchangeInbox());
+    document.getElementById("payroll-workflow-center-form")?.addEventListener("submit", event => {
+        event.preventDefault();
+        void loadPayrollWorkflowCenter();
+    });
+    document.getElementById("payroll-workflow-center-refresh")?.addEventListener("click", () => loadPayrollWorkflowCenter());
+    document.getElementById("payroll-workflow-status-form")?.addEventListener("submit", event => {
+        event.preventDefault();
+        void loadPayrollWorkflowStatus();
+    });
+    document.getElementById("payroll-workflow-status-refresh")?.addEventListener("click", () => loadPayrollWorkflowStatus());
     document.getElementById("payroll-history-form").addEventListener("submit", onPayrollHistorySearch);
     document.getElementById("payroll-history-first")?.addEventListener("click", () => gotoPayrollHistoryPage(0));
     document.getElementById("payroll-history-prev")?.addEventListener("click", () => gotoPayrollHistoryPage(state.payrollHistoryPage - 1));
@@ -1161,6 +1386,31 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
     document.getElementById("position-change-detail-close").addEventListener("click", closePositionChangeDetailModal);
+    document.getElementById("disciplinary-demotion-promotion-form").addEventListener("submit", onDisciplinaryDemotionPromotionSearch);
+    document.getElementById("disciplinary-demotion-include-apply")?.addEventListener("change", () => {
+        state.disciplinaryDemotionPage = 0;
+        void loadDisciplinaryDemotionPromotions();
+    });
+    document.getElementById("disciplinary-demotion-include-processed")?.addEventListener("change", () => {
+        state.disciplinaryDemotionPage = 0;
+        void loadDisciplinaryDemotionPromotions();
+    });
+    document.getElementById("disciplinary-demotion-batch-apply").addEventListener("click", applySelectedDisciplinaryDemotions);
+    document.getElementById("disciplinary-demotion-batch-rollback").addEventListener("click", rollbackSelectedDisciplinaryDemotions);
+    document.getElementById("disciplinary-demotion-first")?.addEventListener("click", () => gotoDisciplinaryDemotionPage(0));
+    document.getElementById("disciplinary-demotion-prev")?.addEventListener("click", () => gotoDisciplinaryDemotionPage(state.disciplinaryDemotionPage - 1));
+    document.getElementById("disciplinary-demotion-next")?.addEventListener("click", () => gotoDisciplinaryDemotionPage(state.disciplinaryDemotionPage + 1));
+    document.getElementById("disciplinary-demotion-last")?.addEventListener("click", () => gotoDisciplinaryDemotionPage(state.disciplinaryDemotionTotalPages - 1));
+    document.getElementById("disciplinary-demotion-page-input")?.addEventListener("change", event => {
+        const page = Number(event.target.value || "1") - 1;
+        gotoDisciplinaryDemotionPage(Number.isFinite(page) ? page : 0);
+    });
+    document.getElementById("disciplinary-demotion-select-all").addEventListener("change", event => {
+        document.querySelectorAll("[data-disciplinary-demotion-select]:not(:disabled)").forEach(checkbox => {
+            checkbox.checked = event.target.checked;
+        });
+    });
+    document.getElementById("disciplinary-demotion-detail-close").addEventListener("click", closeDisciplinaryDemotionDetailModal);
     document.getElementById("payroll-preview-modal-close").addEventListener("click", closePayrollPreviewModal);
     document.getElementById("payroll-preview-modal").addEventListener("click", event => {
         if (event.target.id === "payroll-preview-modal") {
@@ -1536,6 +1786,13 @@ async function initializeAuth() {
         renderDashboard();
         applyRoute();
         void refreshLicenseBanner();
+        if (hasMenu("DATA_EXCHANGE")) {
+            startExchangeNotificationPolling();
+        }
+        await loadWorkflowConfig();
+        if (hasMenu("PAYROLL_WORKFLOW_CENTER")) {
+            void refreshPayrollWorkflowPendingCount();
+        }
         if (hasMenu("ANNUAL_ASSESSMENT_MANAGEMENT")) {
             updateAssessmentBatchWriteUi();
             initializeAssessmentBatchPage();
@@ -1574,10 +1831,15 @@ function isAuthFailure(error) {
             || message.includes("登录已失效")
             || message.includes("authentication required")
             || message.includes("full authentication is required")
-            || message.includes("access is denied")
-            || message.includes("access denied")
-            || message.includes("http 401")
-            || message.includes("http 403");
+            || message.includes("http 401");
+}
+
+function isGenericForbiddenMessage(text) {
+    const lowered = String(text || "").trim().toLowerCase();
+    return !lowered
+        || lowered === "forbidden"
+        || lowered === "access denied"
+        || lowered === "access is denied";
 }
 
 function renderMenus() {
@@ -1622,8 +1884,155 @@ function hasPersonnelWrite() {
     return hasPermission("PERSONNEL_WRITE");
 }
 
+function hasPersonnelBasicRead() {
+    return hasPermission("PERSONNEL_BASIC_READ") || hasPermission("PERSONNEL_READ");
+}
+
+function hasPersonnelBasicWrite() {
+    return hasPermission("PERSONNEL_BASIC_WRITE");
+}
+
+function hasPersonnelKeyFieldWrite() {
+    return hasPermission("PERSONNEL_KEY_FIELD_WRITE");
+}
+
+function hasPersonnelApprovalWrite() {
+    return hasPermission("PERSONNEL_APPROVAL_WRITE");
+}
+
+function hasPersonnelApprovalTrackingAccess() {
+    return hasPersonnelApprovalWrite()
+        || hasPersonnelBasicWrite()
+        || hasPersonnelWrite()
+        || hasPersonnelBasicRead();
+}
+
+function normalizePersonnelApprovalStatus(status) {
+    const text = String(status || "").trim();
+    if (!text || text === "初始建库") {
+        return "草稿";
+    }
+    return text;
+}
+
+function subrecordRowApprovalStatus(row) {
+    return normalizePersonnelApprovalStatus(row?.approvalStatus ?? row?.bbz ?? row?.BBZ);
+}
+
+function isSubrecordApproved(row) {
+    return subrecordRowApprovalStatus(row) === "审批通过";
+}
+
+function isSubrecordDraft(row) {
+    return subrecordRowApprovalStatus(row) === "草稿";
+}
+
+function isPersonnelDraft(person) {
+    return normalizePersonnelApprovalStatus(person?.approvalStatus) === "草稿";
+}
+
+function isSubrecordSubmitted(row) {
+    return subrecordRowApprovalStatus(row) === "申报";
+}
+
+function renderSubrecordApprovalStatus(row) {
+    return escapeHtml(subrecordRowApprovalStatus(row));
+}
+
+function renderSubrecordApprovalActions(type, row) {
+    const actions = [];
+    if (isSubrecordDraft(row) && hasPersonnelWrite()) {
+        actions.push(`<button class="row-action" type="button" data-submit-subrecord="${type}" data-subrecord-id="${row.id}">提交申报</button>`);
+    }
+    if (isSubrecordSubmitted(row) && hasPersonnelApprovalWrite()) {
+        actions.push(`<button class="row-action" type="button" data-approve-subrecord="${type}" data-subrecord-id="${row.id}">审核通过</button>`);
+        actions.push(`<button class="row-action" type="button" data-return-subrecord-draft="${type}" data-subrecord-id="${row.id}">退回草稿</button>`);
+    }
+    if (isSubrecordApproved(row) && hasPersonnelApprovalWrite()) {
+        actions.push(`<button class="row-action" type="button" data-cancel-subrecord-approval="${type}" data-subrecord-id="${row.id}">取消审核</button>`);
+    }
+    return actions.length ? actions.join(" ") : "—";
+}
+
+function renderSubrecordMaintenanceActions(type, row, readonly = false) {
+    if (readonly) {
+        return "—";
+    }
+    const canEdit = hasPersonnelWrite() && isSubrecordDraft(row);
+    if (!canEdit) {
+        return "—";
+    }
+    const actions = [];
+    if (type === "position" && String(row.activeFlag ?? "").trim() !== "1") {
+        actions.push(`<button class="row-action" type="button" data-set-current-position="${row.id}">设为现任</button>`);
+    }
+    actions.push(`<button class="row-action" type="button" data-edit-${type}="${row.id}">编辑</button>`);
+    actions.push(`<button class="row-action danger-button" type="button" data-delete-${type}="${row.id}">删除</button>`);
+    return actions.join(" ");
+}
+
+function renderMaintEducationRows(education, readonly = false) {
+    return education.length ? education.map(row => `
+        <tr class="${row.appCreated ? "highlight-row" : ""}">
+            <td class="col-id">${escapeHtml(row.id)}${row.appCreated ? " <span class='new-badge'>新</span>" : ""}${renderSubrecordAttachmentBadge('education', row)}</td>
+            <td class="col-code">${escapeHtml(row.educationCode)}</td>
+            <td class="col-text">${escapeHtml(row.educationName)}</td>
+            <td class="col-text">${escapeHtml(row.school)}</td>
+            <td class="col-period">${escapeHtml(row.enrollmentDate)}</td>
+            <td class="col-period">${escapeHtml(row.graduationDate)}</td>
+            <td class="col-text">${escapeHtml(row.educationType)}</td>
+            <td class="col-approval">${renderSubrecordApprovalStatus(row)}</td>
+            <td class="col-approval-actor">${renderSubrecordApprovalActors(row)}</td>
+            <td class="col-approval-action">${renderSubrecordApprovalActions("education", row)}</td>
+            <td class="col-note">${escapeHtml(row.remark || "")}</td>
+            <td class="col-action">${renderSubrecordMaintenanceActions("education", row, readonly)}</td>
+        </tr>
+    `).join("") : `<tr><td colspan="12">${readonly ? "暂无学历记录" : "暂无学历记录"}</td></tr>`;
+}
+
+function renderMaintAssessmentRows(assessments, readonly = false) {
+    return assessments.length ? assessments.map(row => `
+        <tr class="${row.appCreated ? "highlight-row" : ""}">
+            <td class="col-id">${escapeHtml(row.id)}${row.appCreated ? " <span class='new-badge'>新</span>" : ""}</td>
+            <td class="col-year">${escapeHtml(row.year)}${renderSubrecordAttachmentBadge('assessment', row)}</td>
+            <td class="col-result"><span class="${assessmentResultTagClass(row.result)}">${escapeHtml(row.result || "—")}</span></td>
+            <td class="col-approval">${renderSubrecordApprovalStatus(row)}</td>
+            <td class="col-approval-actor">${renderSubrecordApprovalActors(row)}</td>
+            <td class="col-approval-action">${renderSubrecordApprovalActions("assessment", row)}</td>
+            <td class="col-action">${renderSubrecordMaintenanceActions("assessment", row, readonly)}</td>
+        </tr>
+    `).join("") : `<tr><td colspan="7">暂无考核记录</td></tr>`;
+}
+
+function subrecordApiSegment(type) {
+    if (type === "education") {
+        return "education";
+    }
+    if (type === "position") {
+        return "positions";
+    }
+    if (type === "assessment") {
+        return "assessments";
+    }
+    if (type === "award") {
+        return "awards";
+    }
+    if (type === "rank") {
+        return "ranks";
+    }
+    return type;
+}
+
+function ensurePersonnelBasicWrite() {
+    if (!hasPersonnelBasicWrite()) {
+        window.alert("当前账号没有关键基础信息维护权限。");
+        return false;
+    }
+    return true;
+}
+
 function hasPersonnelAccess() {
-    return hasMenu("PERSONNEL") || hasPersonnelWrite();
+    return hasMenu("PERSONNEL") || hasPersonnelWrite() || hasPersonnelBasicRead();
 }
 
 function hasPayrollRead() {
@@ -1750,6 +2159,33 @@ function setOrganizationDetailFormEditable(editable) {
         input.readOnly = !editable;
         input.disabled = false;
     });
+    updateOrganizationPerformanceRatioField();
+}
+
+function organizationPerformanceRatioEnabled() {
+    const payrollCategory = document.getElementById("organization-modal-payroll-category")?.value?.trim() || "";
+    return payrollCategory === "事业管理";
+}
+
+function updateOrganizationPerformanceRatioField() {
+    const input = document.getElementById("organization-modal-performance-ratio");
+    if (!input) {
+        return;
+    }
+    const enabled = organizationPerformanceRatioEnabled();
+    const formEditable = hasOrgWrite();
+    input.readOnly = !formEditable || !enabled;
+    if (!enabled) {
+        input.value = "";
+    }
+}
+
+function normalizeOrganizationPerformanceRatio(value) {
+    return String(value || "")
+        .trim()
+        .replace(/\//g, ":")
+        .replace(/\\/g, ":")
+        .replace(/：/g, ":");
 }
 
 function hasStandardWrite() {
@@ -1777,37 +2213,55 @@ function updateBasicStandardCreateButton() {
         return;
     }
     const type = document.getElementById("basic-standard-type").value;
-    const maintainable = hasStandardWrite() && ["position", "grade", "position-grade", "salary-level"].includes(type);
+    const maintainable = hasStandardWrite() && ["position", "grade", "position-grade", "judicial-grade", "police-grade", "salary-level"].includes(type);
     button.classList.toggle("hidden", !maintainable);
     const labels = {
         position: "新增职务工资",
         grade: "新增级别工资",
         "position-grade": "新增岗位档次工资",
+        "judicial-grade": "新增法检等级工资",
+        "police-grade": "新增警员警务等级工资",
         "salary-level": "新增薪级工资",
     };
     button.textContent = labels[type] || "新增";
 }
 
-function initGradeStandardStepsGrid() {
+function initGradeStandardStepsGrid(stepCount = 20) {
     const grid = document.getElementById("grade-standard-steps-grid");
-    if (!grid || grid.dataset.initialized === "true") {
+    if (!grid) {
         return;
     }
-    grid.innerHTML = Array.from({ length: 20 }, (_, index) => `
+    const count = Math.max(Number(stepCount) || 20, 1);
+    if (grid.dataset.initialized === "true" && grid.dataset.stepCount === String(count)) {
+        return;
+    }
+    grid.innerHTML = Array.from({ length: count }, (_, index) => `
         <label>
             档次${index + 1}
             <input type="number" data-grade-step="${index + 1}" value="0">
         </label>
     `).join("");
     grid.dataset.initialized = "true";
+    grid.dataset.stepCount = String(count);
+}
+
+function gradeStandardStepCount(kind) {
+    if (kind === "judicial-grade") {
+        return 17;
+    }
+    if (kind === "police-grade") {
+        return 14;
+    }
+    return 20;
 }
 
 function basicStandardMaintainable(standardType) {
-    return hasStandardWrite() && ["position", "grade", "position-grade", "salary-level"].includes(standardType);
+    return hasStandardWrite() && ["position", "grade", "position-grade", "judicial-grade", "police-grade", "salary-level"].includes(standardType);
 }
 
-function extractGradeSteps(values) {
-    return Array.from({ length: 20 }, (_, index) => Number(values[`dc${index + 1}`] ?? 0));
+function extractGradeSteps(values, stepCount = 20) {
+    const count = Math.max(Number(stepCount) || 20, 1);
+    return Array.from({ length: count }, (_, index) => Number(values[`dc${index + 1}`] ?? 0));
 }
 
 function onBasicStandardCreate() {
@@ -1816,7 +2270,7 @@ function onBasicStandardCreate() {
         createPositionSalaryStandard();
         return;
     }
-    if (type === "grade" || type === "position-grade") {
+    if (type === "grade" || type === "position-grade" || type === "judicial-grade" || type === "police-grade") {
         openGradeStandardModal("create", type);
         return;
     }
@@ -1950,6 +2404,16 @@ function applyRouteNow() {
     }
     if (selectedId === "personnel-comprehensive-query" && panelChanged && hasMenu("PERSONNEL_COMPREHENSIVE_QUERY")) {
         void ensurePersonnelComprehensiveQueryOptions().then(() => loadPersonnelComprehensiveQueries());
+    }
+    if (selectedId === "personnel-approval-tracking" && panelChanged && hasMenu("PERSONNEL_APPROVAL_TRACKING")) {
+        initializePersonnelApprovalTrackingPage();
+        void loadPersonnelApprovalTracking();
+    }
+    if (selectedId === "payroll-workflow-center" && panelChanged && hasMenu("PAYROLL_WORKFLOW_CENTER")) {
+        void loadPayrollWorkflowCenter();
+    }
+    if (selectedId === "payroll-workflow-status" && panelChanged && hasMenu("PAYROLL_WORKFLOW_STATUS")) {
+        void loadPayrollWorkflowStatus();
     }
     if (selectedId === "position-history" && panelChanged && hasMenu("POSITION_HISTORY")) {
         void ensurePositionHistoryOptions();
@@ -2352,11 +2816,11 @@ async function initializeDictionaryPickers() {
                     button.className = "dict-picker-button";
                     button.setAttribute("aria-label", "展开选项");
                     button.textContent = "⌄";
-                    button.addEventListener("click", () => openDictionaryPicker(inputId, {
+                    combo.appendChild(button);
+                    bindDictionaryPickerInput(inputId, {
                         ...config,
                         dictionaryFieldKey: fieldName,
-                    }));
-                    combo.appendChild(button);
+                    });
                 }
             });
         }
@@ -2387,7 +2851,7 @@ function initializeRetireeDictionaryPickers() {
     bindings.forEach(({ fieldName, inputId, buttonId, caption, fallbackPrefix, linkedCodeInputId, useFullDictionaryCode }) => {
         const input = document.getElementById(inputId);
         const button = document.getElementById(buttonId);
-        if (!input || !button || button.dataset.pickerBound) {
+        if (!input || !button || input.dataset.dictPickerBound) {
             return;
         }
         const configured = state.dictionaryFieldConfigs?.[fieldName];
@@ -2399,10 +2863,7 @@ function initializeRetireeDictionaryPickers() {
             linkedCodeInputId: linkedCodeInputId || null,
             useFullDictionaryCode: !!useFullDictionaryCode,
         };
-        input.dataset.dictionaryPrefix = config.dictionaryPrefix;
-        input.dataset.dictionaryField = fieldName;
-        button.dataset.pickerBound = "1";
-        button.addEventListener("click", () => openDictionaryPicker(inputId, config));
+        bindDictionaryPickerInput(inputId, config, button);
     });
 }
 
@@ -2631,13 +3092,17 @@ function ensureSelectHasValue(selectId, value) {
 }
 
 async function loadDictionaryFieldConfigs() {
-    const [basicConfigs, positionConfigs] = await Promise.all([
+    const [basicConfigs, positionConfigs, payrollConfigs] = await Promise.all([
         getJson("/api/dictionaries/field-configs?tableName=dryjbxx"),
         getJson("/api/dictionaries/field-configs?tableName=dryzwbh"),
+        getJson("/api/dictionaries/payroll-field-configs"),
     ]);
     state.dictionaryFieldConfigs = Object.fromEntries(
         [...(basicConfigs || []), ...(positionConfigs || [])]
             .map(config => [String(config.fieldName || "").toLowerCase(), config]),
+    );
+    state.payrollFieldConfigs = Object.fromEntries(
+        (payrollConfigs || []).map(config => [String(config.fieldName || "").toLowerCase(), config]),
     );
 }
 
@@ -2911,13 +3376,40 @@ function toggleOrganizationNode(code) {
     renderOrganizationPickerTree();
 }
 
+function bindDictionaryPickerInput(inputId, config, button = null) {
+    const input = document.getElementById(inputId);
+    if (!input) {
+        return;
+    }
+    input.readOnly = true;
+    input.autocomplete = "off";
+    if (!input.placeholder) {
+        input.placeholder = `请选择${config.caption || config.fieldName || ""}`;
+    }
+    input.dataset.dictionaryPrefix = config.dictionaryPrefix || input.dataset.dictionaryPrefix || "";
+    input.dataset.dictionaryField = config.dictionaryFieldKey || config.fieldName || input.dataset.dictionaryField || "";
+    const open = () => openDictionaryPicker(inputId, config);
+    if (!input.dataset.dictPickerBound) {
+        input.addEventListener("click", open);
+        input.addEventListener("focus", open);
+        input.dataset.dictPickerBound = "true";
+    }
+    const combo = input.closest(".dict-input-combo");
+    const pickerButton = button || combo?.querySelector(".dict-picker-button");
+    if (pickerButton && !pickerButton.dataset.dictPickerBound) {
+        pickerButton.addEventListener("click", open);
+        pickerButton.dataset.dictPickerBound = "true";
+    }
+}
+
 async function openDictionaryPicker(inputId, config) {
-    state.activeDictionaryTarget = { inputId, config };
-    document.getElementById("dictionary-picker-title").textContent = `选择${config.caption || config.fieldName}`;
+    const resolvedConfig = { ...(config || {}) };
+    state.activeDictionaryTarget = { inputId, config: resolvedConfig };
+    document.getElementById("dictionary-picker-title").textContent = `选择${resolvedConfig.caption || resolvedConfig.fieldName}`;
     document.getElementById("dictionary-picker-tree").innerHTML = "正在加载选项...";
     document.getElementById("dictionary-picker-modal").classList.remove("hidden");
     try {
-        state.activeDictionaryNodes = await getJson(dictionaryTreeRequestUrl(config));
+        state.activeDictionaryNodes = await getJson(dictionaryTreeRequestUrl(resolvedConfig));
         state.dictionaryExpandedCodes = new Set();
         renderDictionaryPickerTree();
     } catch (error) {
@@ -2925,10 +3417,38 @@ async function openDictionaryPicker(inputId, config) {
     }
 }
 
+function isCivilServiceManagedPayrollCategory(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+        return false;
+    }
+    if (text === "0" || text === "1" || text === "2") {
+        return true;
+    }
+    if (text.includes("事业管理")) {
+        return false;
+    }
+    return text.includes("参照") || text.includes("依照") || text.includes("公务员");
+}
+
+function usesAdministrativeUnitTreatment(person) {
+    const category = String(person?.organizationCategory || "").trim();
+    if (category === "行政") {
+        return true;
+    }
+    return isCivilServiceManagedPayrollCategory(person?.organizationPayrollCategory);
+}
+
+function effectiveUnitCategory(person) {
+    return usesAdministrativeUnitTreatment(person)
+        ? "行政"
+        : (String(person?.organizationCategory || "").trim() || "事业");
+}
+
 function dictionaryPickerContext() {
     const person = state.activePersonnelMaintenance;
     return {
-        unitCategory: person?.organizationCategory || "",
+        unitCategory: effectiveUnitCategory(person),
         organizationProperty: person?.organizationType
             || document.getElementById("maint-organization-type")?.value?.trim()
             || "",
@@ -2941,6 +3461,9 @@ function dictionaryPickerContext() {
 function dictionaryTreeRequestUrl(config) {
     const fieldKey = String(config.dictionaryFieldKey || config.fieldName || "").toLowerCase();
     const prefix = config.dictionaryPrefix || null;
+    if (fieldKey === "jx_rank") {
+        return "/api/dictionaries/tree?field=jx_rank";
+    }
     if (dictionaryFilterFields.has(fieldKey)) {
         const context = dictionaryPickerContext();
         const params = new URLSearchParams({
@@ -3048,6 +3571,13 @@ function selectDictionaryNode(node) {
             || document.getElementById(config.linkedCodeInputId);
         if (linkedInput) {
             linkedInput.value = code;
+            linkedInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+    } else if (config.linkedCategoryField) {
+        const category = rankCategoryFromCode(node.code || code);
+        const linkedInput = document.getElementById(`subrecord-field-${config.linkedCategoryField}`);
+        if (linkedInput && category) {
+            linkedInput.value = category;
             linkedInput.dispatchEvent(new Event("change", { bubbles: true }));
         }
     } else if (config.linkedCodeInputId) {
@@ -3201,9 +3731,48 @@ async function onPersonnelSearch(event) {
     await loadPersonnel();
 }
 
+
+function refreshPersonnelBasicAttachmentSection() {
+    const section = document.getElementById("personnel-basic-attachment-section");
+    const uid = document.getElementById("personnel-maintenance-uid")?.value;
+    if (!section) {
+        return;
+    }
+    section.classList.toggle("hidden", !uid);
+    if (!uid) {
+        return;
+    }
+    const editable = canEditSubrecordAttachments("main", state.activePersonnelMaintenance);
+    const actions = section.querySelector("[data-attachment-upload-actions]");
+    if (actions) {
+        actions.classList.toggle("hidden", !editable);
+    }
+    bindSubrecordAttachmentSection("main", Number(uid), Number(uid), editable);
+    loadSubrecordAttachments("main", Number(uid), Number(uid), editable);
+}
+
+function bindPersonnelBasicAttachments() {
+    const input = document.getElementById("personnel-basic-attachment-input");
+    if (!input || input.dataset.bound === "true") {
+        return;
+    }
+    input.dataset.bound = "true";
+    document.getElementById("personnel-maintenance-form")?.addEventListener("input", () => {
+        refreshPersonnelBasicAttachmentSection();
+    });
+}
+
 async function onPersonnelMaintenanceSave(event) {
     event.preventDefault();
     const uid = document.getElementById("personnel-maintenance-uid").value;
+    if (uid) {
+        if (!ensurePersonnelBasicWrite()) {
+            return;
+        }
+    } else if (!hasPersonnelWrite()) {
+        window.alert("当前账号没有新增人员权限。");
+        return;
+    }
     const payload = personnelMaintenancePayload();
     const status = document.getElementById("personnel-status");
     status.className = "status";
@@ -3213,6 +3782,7 @@ async function onPersonnelMaintenanceSave(event) {
         status.textContent = `保存成功：${saved.name}（${saved.organizationCode}-${saved.personCode}）`;
         showAppToast(status.textContent);
         fillPersonnelMaintenanceForm(saved);
+        refreshPersonnelBasicAttachmentSection();
         await loadPersonnelSubrecords(saved.uid, saved.organizationCode, saved.personCode);
         await loadPersonnel();
     } catch (error) {
@@ -3246,12 +3816,25 @@ async function onPersonnelWageProjectionSearch(event) {
 function openNewPersonnelMaintenance() {
     resetPersonnelMaintenanceForm();
     openPersonnelMaintenanceModal("新增人员", "填写人员基本信息后保存；保存成功后可继续维护多条附属记录。");
+    applyPersonnelFieldPolicy({
+        canEditBasic: hasPersonnelWrite(),
+        canDelete: false,
+        canSave: hasPersonnelWrite(),
+        blockReason: null,
+        approvalStatus: null,
+        canChangeApproval: false,
+        canSubmit: false,
+        canApprove: false,
+        canReturnToDraft: false,
+        canCancelApproval: false,
+        fields: [],
+    });
 }
 
 function mountModalOverlaysToBody(ids) {
     ids.forEach(id => {
         const el = document.getElementById(id);
-        if (el && el.parentElement !== document.body) {
+        if (el) {
             document.body.appendChild(el);
         }
     });
@@ -3262,7 +3845,9 @@ function openPersonnelMaintenanceModal(title, subtitle, readonly = false) {
         "personnel-maintenance-modal",
         "dictionary-picker-modal",
         "subrecord-editor-modal",
+        "attachment-preview-modal",
         "personnel-change-remark-modal",
+        "personnel-approval-cancel-modal",
         "missing-assessment-fill-modal",
     ]);
     setPersonnelMaintenanceReadonly(readonly);
@@ -3275,6 +3860,359 @@ function openPersonnelMaintenanceModal(title, subtitle, readonly = false) {
 function closePersonnelMaintenanceModal() {
     document.getElementById("personnel-maintenance-modal").classList.add("hidden");
     setPersonnelMaintenanceReadonly(false);
+}
+
+function applyPersonnelFieldPolicy(policy) {
+    state.personnelFieldPolicy = policy || null;
+    const form = document.getElementById("personnel-maintenance-form");
+    const saveButton = form?.querySelector("button[type='submit']");
+    if (saveButton) {
+        saveButton.classList.toggle("hidden", !hasPersonnelBasicWrite());
+        saveButton.disabled = !policy?.canSave;
+    }
+    const blockNote = document.getElementById("personnel-maintenance-block-reason");
+    if (blockNote) {
+        blockNote.textContent = policy?.blockReason || "";
+        blockNote.classList.toggle("hidden", !policy?.blockReason);
+    }
+    const approvalBar = document.getElementById("personnel-approval-status-bar");
+    const approvalText = document.getElementById("personnel-approval-status-text");
+    const cancelButton = document.getElementById("personnel-approval-cancel-button");
+    const submitButton = document.getElementById("personnel-approval-submit-button");
+    const approveButton = document.getElementById("personnel-approval-approve-button");
+    const returnDraftButton = document.getElementById("personnel-approval-return-draft-button");
+    const approvalStatus = normalizePersonnelApprovalStatus(
+        policy?.approvalStatus || state.activePersonnelMaintenance?.approvalStatus || "");
+    if (approvalText) {
+        approvalText.textContent = approvalStatus;
+    }
+    const submitText = document.getElementById("personnel-approval-submit-text");
+    const approveText = document.getElementById("personnel-approval-approve-text");
+    const maint = state.activePersonnelMaintenance;
+    if (submitText) {
+        submitText.textContent = formatApprovalActorDisplay(maint?.submittedBy, maint?.submittedAt);
+    }
+    if (approveText) {
+        approveText.textContent = formatApprovalActorDisplay(maint?.approvedBy, maint?.approvedAt);
+    }
+    if (approvalBar) {
+        const uid = document.getElementById("personnel-maintenance-uid")?.value;
+        approvalBar.classList.toggle("hidden", !uid);
+    }
+    submitButton?.classList.toggle("hidden", !policy?.canSubmit);
+    approveButton?.classList.toggle("hidden", !policy?.canApprove);
+    returnDraftButton?.classList.toggle("hidden", !policy?.canReturnToDraft);
+    if (cancelButton) {
+        cancelButton.classList.toggle("hidden", !policy?.canCancelApproval);
+    }
+    form?.querySelectorAll("label").forEach(label => {
+        label.classList.remove("hidden");
+        label.removeAttribute("title");
+    });
+    form?.querySelectorAll("input, select, textarea").forEach(el => {
+        if (el.id === "personnel-maintenance-uid" || el.id === "maint-organization-code") {
+            return;
+        }
+        if (el.id !== "maint-organization-name") {
+            el.removeAttribute("readonly");
+            el.removeAttribute("disabled");
+        }
+    });
+    (policy?.fields || []).forEach(field => {
+        const el = document.getElementById(field.elementId);
+        if (!el) {
+            return;
+        }
+        const label = el.closest("label");
+        if (label) {
+            label.classList.toggle("hidden", !field.visible);
+            if (field.readOnlyReason) {
+                label.title = field.readOnlyReason;
+            }
+        }
+        const locked = !policy.canEditBasic || !field.editable;
+        if (locked) {
+            el.setAttribute("readonly", "readonly");
+            el.setAttribute("disabled", "disabled");
+        } else if (el.id !== "maint-organization-name") {
+            el.removeAttribute("readonly");
+            el.removeAttribute("disabled");
+        }
+        if (window.MonthPicker && (el.dataset.monthField === "true" || el.dataset.monthPickerEnhanced === "1")) {
+            MonthPicker.syncToggleState(el);
+        }
+    });
+    const orgPicker = document.getElementById("maint-organization-picker-button");
+    if (orgPicker) {
+        orgPicker.disabled = !policy?.canSave;
+    }
+}
+
+function openPersonnelApprovalCancelModal(target = "main", subrecordType = "", subrecordId = "") {
+    const uid = document.getElementById("personnel-maintenance-uid")?.value;
+    if (!uid) {
+        return;
+    }
+    const record = state.activePersonnelMaintenance;
+    document.getElementById("personnel-approval-cancel-uid").value = uid;
+    document.getElementById("personnel-approval-cancel-target").value = target;
+    document.getElementById("personnel-approval-cancel-subrecord-id").value = subrecordId || "";
+    document.getElementById("personnel-approval-cancel-reason").value = "";
+    const subtitle = document.getElementById("personnel-approval-cancel-subtitle");
+    if (subtitle && record) {
+        if (target === "main") {
+            subtitle.textContent = `取消「${record.organizationCode}-${record.personCode} ${record.name}」的主表审核后，将退回草稿并可再次修改。`;
+        } else {
+            const typeLabel = {
+                education: "学历",
+                position: "任职",
+                assessment: "考核",
+                award: "获奖",
+                rank: "警衔",
+            }[target] || "子";
+            subtitle.textContent = `取消该条${typeLabel}记录的审核后，将退回草稿并可再次修改。`;
+        }
+    }
+    const status = document.getElementById("personnel-approval-cancel-modal-status");
+    if (status) {
+        status.className = "status";
+        status.textContent = "";
+    }
+    mountModalOverlaysToBody(["personnel-approval-cancel-modal"]);
+    document.getElementById("personnel-approval-cancel-modal")?.classList.remove("hidden");
+}
+
+function closePersonnelApprovalCancelModal() {
+    document.getElementById("personnel-approval-cancel-modal")?.classList.add("hidden");
+}
+
+async function onPersonnelApprovalCancelSubmit(event) {
+    event.preventDefault();
+    const uid = document.getElementById("personnel-approval-cancel-uid")?.value;
+    if (!uid) {
+        return;
+    }
+    const target = document.getElementById("personnel-approval-cancel-target")?.value || "main";
+    const subrecordId = document.getElementById("personnel-approval-cancel-subrecord-id")?.value;
+    const status = document.getElementById("personnel-approval-cancel-modal-status");
+    const reason = document.getElementById("personnel-approval-cancel-reason")?.value.trim() || "";
+    if (status) {
+        status.className = "status";
+        status.textContent = "正在取消审核...";
+    }
+    try {
+        if (target === "main") {
+            const record = await postJson(`/api/personnel/${encodeURIComponent(uid)}/approval/cancel`, { reason });
+            closePersonnelApprovalCancelModal();
+            fillPersonnelMaintenanceForm(record);
+            const policy = await getJson(`/api/personnel/${uid}/field-policy`);
+            applyPersonnelFieldPolicy(policy);
+            setPersonnelMaintenanceReadonly(!policy.canEditBasic);
+            const personnelStatus = document.getElementById("personnel-status");
+            if (personnelStatus) {
+                personnelStatus.className = "status";
+                personnelStatus.textContent = policy.canEditBasic
+                    ? `已取消审核，可编辑：${record.name}`
+                    : `已取消审核：${record.name}`;
+            }
+        } else {
+            const segment = subrecordApiSegment(target);
+            await postJson(`/api/personnel/${encodeURIComponent(uid)}/${segment}/${encodeURIComponent(subrecordId)}/approval/cancel`, { reason });
+            closePersonnelApprovalCancelModal();
+            const person = state.activePersonnelMaintenance;
+            if (person) {
+                await loadPersonnelSubrecords(person.uid, person.organizationCode, person.personCode);
+            }
+            await refreshSubrecordEditorAfterApprovalAction(target, subrecordId, { reopen: true });
+            const personnelStatus = document.getElementById("personnel-status");
+            if (personnelStatus) {
+                personnelStatus.className = "status";
+                personnelStatus.textContent = "子记录已取消审核。";
+            }
+        }
+    } catch (error) {
+        if (status) {
+            showError(status, error);
+        }
+    }
+}
+
+async function submitMainApproval() {
+    const uid = document.getElementById("personnel-maintenance-uid")?.value;
+    if (!uid) {
+        return;
+    }
+    if (!confirm("确认提交申报？提交后待审核期间不能修改关键基础信息。")) {
+        return;
+    }
+    const status = document.getElementById("personnel-status");
+    if (status) {
+        status.className = "status";
+        status.textContent = "正在提交申报...";
+    }
+    try {
+        const record = await postJson(`/api/personnel/${encodeURIComponent(uid)}/approval/submit`, {});
+        fillPersonnelMaintenanceForm(record);
+        const policy = await getJson(`/api/personnel/${uid}/field-policy`);
+        applyPersonnelFieldPolicy(policy);
+        if (status) {
+            status.textContent = "已提交申报，等待审核。";
+        }
+    } catch (error) {
+        if (status) {
+            showError(status, error);
+        }
+    }
+}
+
+async function approveMainPersonnel() {
+    const uid = document.getElementById("personnel-maintenance-uid")?.value;
+    if (!uid) {
+        return;
+    }
+    if (!confirm("确认将该人员主表信息审核通过？审核通过后将不能修改。")) {
+        return;
+    }
+    const status = document.getElementById("personnel-status");
+    if (status) {
+        status.className = "status";
+        status.textContent = "正在审核...";
+    }
+    try {
+        const record = await postJson(`/api/personnel/${encodeURIComponent(uid)}/approval/approve`, {});
+        fillPersonnelMaintenanceForm(record);
+        const policy = await getJson(`/api/personnel/${uid}/field-policy`);
+        applyPersonnelFieldPolicy(policy);
+        if (status) {
+            status.textContent = "主表已审核通过。";
+        }
+    } catch (error) {
+        if (status) {
+            showError(status, error);
+        }
+    }
+}
+
+async function returnMainPersonnelToDraft() {
+    const uid = document.getElementById("personnel-maintenance-uid")?.value;
+    if (!uid) {
+        return;
+    }
+    if (!confirm("确认将该人员退回草稿？退回后录入员可再次修改。")) {
+        return;
+    }
+    const status = document.getElementById("personnel-status");
+    if (status) {
+        status.className = "status";
+        status.textContent = "正在退回草稿...";
+    }
+    try {
+        const record = await postJson(`/api/personnel/${encodeURIComponent(uid)}/approval/return-to-draft`, {});
+        fillPersonnelMaintenanceForm(record);
+        const policy = await getJson(`/api/personnel/${uid}/field-policy`);
+        applyPersonnelFieldPolicy(policy);
+        if (status) {
+            status.textContent = "已退回草稿，可再次修改。";
+        }
+    } catch (error) {
+        if (status) {
+            showError(status, error);
+        }
+    }
+}
+
+async function submitSubrecord(type, id, options = {}) {
+    const person = state.activePersonnelMaintenance;
+    if (!person?.uid) {
+        return;
+    }
+    if (!confirm("确认提交申报？提交后待审核期间不能修改或删除该条记录。")) {
+        return;
+    }
+    const status = subrecordActionStatusElement(options.fromEditor);
+    if (status) {
+        status.className = "status";
+        status.textContent = "正在提交申报...";
+    }
+    try {
+        const segment = subrecordApiSegment(type);
+        await postJson(`/api/personnel/${encodeURIComponent(person.uid)}/${segment}/${encodeURIComponent(id)}/approval/submit`, {});
+        await loadPersonnelSubrecords(person.uid, person.organizationCode, person.personCode);
+        await refreshSubrecordEditorAfterApprovalAction(type, id, { close: options.fromEditor });
+        if (status) {
+            status.textContent = options.fromEditor ? "" : "子记录已提交申报。";
+        }
+        if (options.fromEditor) {
+            showAppToast("已提交申报");
+        }
+    } catch (error) {
+        if (status) {
+            showError(status, error);
+        }
+    }
+}
+
+async function returnSubrecordToDraft(type, id, options = {}) {
+    const person = state.activePersonnelMaintenance;
+    if (!person?.uid) {
+        return;
+    }
+    if (!confirm("确认将该条记录退回草稿？退回后录入员可再次修改。")) {
+        return;
+    }
+    const status = subrecordActionStatusElement(options.fromEditor);
+    if (status) {
+        status.className = "status";
+        status.textContent = "正在退回草稿...";
+    }
+    try {
+        const segment = subrecordApiSegment(type);
+        await postJson(`/api/personnel/${encodeURIComponent(person.uid)}/${segment}/${encodeURIComponent(id)}/approval/return-to-draft`, {});
+        await loadPersonnelSubrecords(person.uid, person.organizationCode, person.personCode);
+        await refreshSubrecordEditorAfterApprovalAction(type, id, { reopen: options.fromEditor });
+        if (status && !options.fromEditor) {
+            status.textContent = "子记录已退回草稿。";
+        }
+        if (options.fromEditor) {
+            showAppToast("已退回草稿");
+        }
+    } catch (error) {
+        if (status) {
+            showError(status, error);
+        }
+    }
+}
+
+async function approveSubrecord(type, id, options = {}) {
+    const person = state.activePersonnelMaintenance;
+    if (!person?.uid) {
+        return;
+    }
+    if (!confirm("确认将该条记录审核通过？审核通过后将不能修改或删除。")) {
+        return;
+    }
+    const status = subrecordActionStatusElement(options.fromEditor);
+    if (status) {
+        status.className = "status";
+        status.textContent = "正在审核...";
+    }
+    try {
+        const segment = subrecordApiSegment(type);
+        await postJson(`/api/personnel/${encodeURIComponent(person.uid)}/${segment}/${encodeURIComponent(id)}/approval/approve`, {});
+        await loadPersonnelSubrecords(person.uid, person.organizationCode, person.personCode);
+        await refreshPersonnelApprovalTrackingAfterApprove();
+        await refreshSubrecordEditorAfterApprovalAction(type, id, { close: options.fromEditor });
+        if (status) {
+            status.textContent = options.fromEditor ? "" : "子记录已审核通过。";
+        }
+        if (options.fromEditor) {
+            showAppToast("已审核通过");
+        }
+    } catch (error) {
+        if (status) {
+            showError(status, error);
+        }
+    }
 }
 
 function setPersonnelMaintenanceReadonly(readonly) {
@@ -3310,7 +4248,7 @@ function showPersonnelTab(tabName) {
     document.querySelectorAll("[data-personnel-tab]").forEach(button => {
         button.classList.toggle("active", button.dataset.personnelTab === tabName);
     });
-    ["basic", "projection", "education", "position", "transfer", "current-payroll", "payroll", "assessment", "award", "rank-level", "wage-reform", "pre-reform"].forEach(name => {
+    ["basic", "education", "position", "transfer", "current-payroll", "payroll", "assessment", "award", "rank-level", "wage-reform", "pre-reform", "projection"].forEach(name => {
         document.getElementById(`personnel-tab-${name}`).classList.toggle("hidden", name !== tabName);
     });
     const tabBody = document.querySelector("#personnel-maintenance-modal .personnel-tab-body");
@@ -5236,13 +6174,17 @@ function allowancePerformanceCategoryLabel(code) {
     const value = Number(code);
     switch (value) {
         case 1:
-            return "1 机关";
+            return "公务员";
         case 2:
-            return "2 义务教育";
+            return "义务教育学校";
         case 3:
-            return "3 公共卫生";
+            return "公共卫生事业单位";
+        case 4:
+            return "基层卫生事业单位";
         case 5:
-            return "5 其他事业";
+            return "其它事业单位";
+        case 6:
+            return "工商质检药监";
         default:
             return String(code ?? "");
     }
@@ -5667,20 +6609,46 @@ async function loadPersonnel() {
         }
         const startIndex = page.totalElements === 0 ? 0 : state.personnelPage * (parseInt(size, 10) || 20) + 1;
         const endIndex = startIndex === 0 ? 0 : startIndex + (page.content || []).length - 1;
-        status.textContent = `共 ${page.totalElements} 人，第 ${startIndex}-${endIndex} 人（第 ${state.personnelPage + 1} / ${totalPages} 页）`;
-        rows.innerHTML = (page.content || []).map(person => `
-            <tr>
+        const retirementDueCount = (page.content || []).filter(person => person.retirementDue).length;
+        const retirementSoonCount = (page.content || []).filter(person => person.retirementWithinOneMonth).length;
+        let retirementStatus = "";
+        if (retirementDueCount > 0 || retirementSoonCount > 0) {
+            const parts = [];
+            if (retirementDueCount > 0) {
+                parts.push(`${retirementDueCount} 人已达退休年龄`);
+            }
+            if (retirementSoonCount > 0) {
+                parts.push(`${retirementSoonCount} 人 1 个月内即将退休`);
+            }
+            retirementStatus = `；本页 ${parts.join("，")}`;
+        }
+        status.textContent = `共 ${page.totalElements} 人，第 ${startIndex}-${endIndex} 人（第 ${state.personnelPage + 1} / ${totalPages} 页）${retirementStatus}`;
+        rows.innerHTML = (page.content || []).map(person => {
+            const highlighted = person.retirementDue || person.retirementWithinOneMonth;
+            const retirementTitle = highlighted && person.calculatedRetirementMonth
+                ? `试算应退休年月 ${person.calculatedRetirementMonth}（含延迟退休）`
+                : "";
+            const rowClass = person.retirementDue
+                ? "personnel-row-retirement-due"
+                : (person.retirementWithinOneMonth ? "personnel-row-retirement-soon" : "");
+            const badge = person.retirementDue
+                ? `<span class="personnel-retirement-badge" title="${escapeHtml(retirementTitle)}">退休</span>`
+                : (person.retirementWithinOneMonth
+                    ? `<span class="personnel-retirement-badge personnel-retirement-badge-soon" title="${escapeHtml(retirementTitle)}">临退</span>`
+                    : "");
+            return `
+            <tr class="${rowClass}"${retirementTitle ? ` title="${escapeHtml(retirementTitle)}"` : ""}>
                 <td class="col-org">${escapeHtml(person.organizationCode)} ${escapeHtml(person.organizationName || "")}</td>
                 <td>${escapeHtml(person.personCode)}</td>
-                <td>${escapeHtml(person.name)}</td>
+                <td class="col-name">${badge}${escapeHtml(person.name)}</td>
                 <td>${escapeHtml(person.idCard || "")}</td>
                 <td>${escapeHtml(person.gender || "")}</td>
                 <td>${escapeHtml(person.birthYearMonth || "")}</td>
                 <td>${escapeHtml(person.currentPosition || "")}</td>
                 <td>${escapeHtml(person.appointmentPosition || "")}</td>
                 <td class="col-actions">${renderPersonnelActions(person)}</td>
-            </tr>
-        `).join("");
+            </tr>`;
+        }).join("");
         rows.querySelectorAll("button[data-payroll-preview]").forEach(button => {
             button.addEventListener("click", () => openPayrollPreviewModal(button.dataset.payrollPreview));
         });
@@ -5755,10 +6723,14 @@ function renderPersonnelActions(person) {
     if (hasPayrollRead()) {
         actions.push(`<button class="row-action" data-payroll-preview="${person.uid}">工资试算</button>`);
     }
-    if (hasPersonnelWrite()) {
+    if (hasPersonnelBasicRead()) {
         actions.push(`<button class="row-action" data-maint-edit="${person.uid}" type="button">编辑</button>`);
+    }
+    if (hasPersonnelWrite()) {
         actions.push(`<button class="row-action" data-maint-change="${person.uid}" data-person-name="${escapeHtml(person.name)}" type="button">变动</button>`);
-        actions.push(`<button class="row-action danger-button" data-maint-delete="${person.uid}" type="button">删除</button>`);
+        if (isPersonnelDraft(person)) {
+            actions.push(`<button class="row-action danger-button" data-maint-delete="${person.uid}" type="button">删除</button>`);
+        }
     }
     return actions.join(" ");
 }
@@ -5848,16 +6820,26 @@ async function continuePersonnelChangeMaintenance(uid, name, changeType, changeD
     }
 }
 
-async function editPersonnelMaintenance(uid) {
+async function editPersonnelMaintenance(uid, focusTab = null) {
     const status = document.getElementById("personnel-status");
     status.className = "status";
     status.textContent = "正在加载人员详情...";
     try {
-        const record = await getJson(`/api/personnel/${uid}/maintenance`);
+        const [record, policy] = await Promise.all([
+            getJson(`/api/personnel/${uid}/maintenance`),
+            getJson(`/api/personnel/${uid}/field-policy`),
+        ]);
         fillPersonnelMaintenanceForm(record);
         openPersonnelMaintenanceModal("编辑人员", `${record.organizationCode}-${record.personCode} ${record.name}`);
+        applyPersonnelFieldPolicy(policy);
+        setPersonnelMaintenanceReadonly(!policy.canEditBasic);
         await loadPersonnelSubrecords(record.uid, record.organizationCode, record.personCode);
-        status.textContent = `正在编辑：${record.name}`;
+        if (focusTab) {
+            showPersonnelTab(focusTab);
+        }
+        status.textContent = policy.canEditBasic
+            ? `正在编辑：${record.name}`
+            : `正在查看：${record.name}${policy.blockReason ? `（${policy.blockReason}）` : ""}`;
     } catch (error) {
         showError(status, error);
     }
@@ -5940,6 +6922,8 @@ function fillPersonnelMaintenanceForm(record) {
 function resetPersonnelMaintenanceForm() {
     state.activePersonnelMaintenance = null;
     state.maintPayrollHistories = [];
+    document.getElementById("personnel-approval-status-bar")?.classList.add("hidden");
+    document.getElementById("personnel-approval-cancel-button")?.classList.add("hidden");
     document.getElementById("personnel-maintenance-form").reset();
     document.getElementById("personnel-maintenance-uid").value = "";
     document.getElementById("maint-salary-years").value = "0";
@@ -5989,6 +6973,9 @@ function isSalaryLevelPosition(positionCode) {
     if (prefix.length < 2) {
         return isInstitutionPersonnel(state.activePersonnelMaintenance);
     }
+    if (usesAdministrativeUnitTreatment(state.activePersonnelMaintenance)) {
+        return false;
+    }
     return !["01", "02", "04", "21", "22", "23", "24", "25", "26", "27", "28"].includes(prefix);
 }
 
@@ -6000,6 +6987,109 @@ function isInstitutionPositionCode(positionCode) {
 function isGovernmentWorkerPositionCode(positionCode) {
     const prefix = String(positionCode || "").trim().substring(0, 2);
     return ["05", "06"].includes(prefix);
+}
+
+/** 与 PayrollService.baseSalarySource 对齐，由执行工资岗位编码推导工资类别。 */
+function resolveBaseSalarySource(positionCode) {
+    const prefix = String(positionCode || "").trim().substring(0, 2);
+    if (prefix.length < 2) {
+        return "SALARY_LEVEL";
+    }
+    if (["01", "02", "23", "24", "25", "26", "27", "28"].includes(prefix)) {
+        return "GRADE";
+    }
+    if (prefix === "03") {
+        return "JUDICIAL_GRADE";
+    }
+    if (["04", "21", "22"].includes(prefix)) {
+        return "POLICE_GRADE";
+    }
+    if (["05", "06"].includes(prefix)) {
+        return "WORKER_GRADE";
+    }
+    return "SALARY_LEVEL";
+}
+
+/** 仅级别工资、警衔级别工资使用 xckhndjb（级别考核起算年）。 */
+function usesLevelAssessmentStartYear(positionCode) {
+    const source = resolveBaseSalarySource(positionCode);
+    return source === "GRADE" || source === "POLICE_GRADE";
+}
+
+function shouldHidePayrollHistoryLevelStartColumn(histories) {
+    const list = histories || [];
+    if (!list.length) {
+        return false;
+    }
+    return list.every(row => !usesLevelAssessmentStartYear(row.positionCode));
+}
+
+function updatePayrollHistoryLevelStartColumnVisibility(histories) {
+    const table = document.querySelector("#personnel-tab-payroll .maint-payroll-table");
+    if (!table) {
+        return;
+    }
+    table.classList.toggle("hide-level-start-column", shouldHidePayrollHistoryLevelStartColumn(histories));
+}
+
+function formatLevelStep(level, step) {
+    const levelText = level == null || level === "" ? "" : String(level).trim();
+    const stepText = step == null || step === "" ? "" : String(step).trim();
+    if (!levelText && !stepText) {
+        return "";
+    }
+    if (!levelText) {
+        return stepText;
+    }
+    if (!stepText) {
+        return levelText;
+    }
+    return `${levelText}-${stepText}`;
+}
+
+function renderPayrollCurrentBadge(currentPayroll) {
+    return currentPayroll
+        ? `<span class="payroll-current-badge is-current">是</span>`
+        : `<span class="payroll-current-badge">否</span>`;
+}
+
+function renderMaintPayrollHistoryActions(row, readOnly = false) {
+    if (readOnly) {
+        return "";
+    }
+    return `
+        <div class="maint-payroll-row-actions">
+            <button class="row-action" type="button" data-edit-payroll="${escapeHtml(row.id)}">编辑</button>
+            <button class="row-action danger-button" type="button" data-delete-payroll="${escapeHtml(row.id)}">删除</button>
+        </div>
+    `;
+}
+
+function renderMaintPayrollHistoryRows(histories, { readOnly = false } = {}) {
+    updatePayrollHistoryLevelStartColumnVisibility(histories);
+    if (!histories.length) {
+        return "<tr><td colspan='11'>暂无调资记录</td></tr>";
+    }
+    return histories.map(row => {
+        const showLevelStart = usesLevelAssessmentStartYear(row.positionCode);
+        const period = `${escapeHtml(row.calculationYear || "")}${escapeHtml(row.calculationMonth || "")}${renderSubrecordAttachmentBadge('payroll', row, { idField: 'id' })}`;
+        const newBadge = row.appCreated ? " <span class='new-badge'>新</span>" : "";
+        return `
+        <tr${row.currentPayroll ? " class='highlight-row'" : ""}>
+            <td>${period}${newBadge}</td>
+            <td>${escapeHtml(row.changeType || "")}</td>
+            <td>${escapeHtml(row.positionName || "")}</td>
+            <td>${escapeHtml(formatLevelStep(row.gradeSalaryLevel, row.positionSalaryGrade))}</td>
+            <td class="col-level-start">${showLevelStart ? escapeHtml(row.levelAssessmentStartYear || "") : ""}</td>
+            <td>${escapeHtml(row.stepAssessmentStartYear || "")}</td>
+            <td class="col-money">${money(row.positionSalary)}</td>
+            <td class="col-money">${money(row.gradeSalary)}</td>
+            <td class="col-money">${money(row.totalAmount)}</td>
+            <td class="col-current">${renderPayrollCurrentBadge(row.currentPayroll)}</td>
+            <td class="col-action">${renderMaintPayrollHistoryActions(row, readOnly) || "—"}</td>
+        </tr>
+    `;
+    }).join("");
 }
 
 /** 事业 zwgzdc2 称薪级；机关工勤及其他非级别序列称档次。 */
@@ -6073,6 +7163,9 @@ function resolvePayrollHistoryFieldMeta(name, defaultLabel, editorContext) {
         return { label: defaultLabel, hidden: false, emphasis: false };
     }
     if (name === "gradeSalaryLevel" && editorContext.isSalaryLevel) {
+        return { label: defaultLabel, hidden: true, emphasis: false };
+    }
+    if (name === "levelAssessmentStartYear" && !usesLevelAssessmentStartYear(editorContext.positionCode)) {
         return { label: defaultLabel, hidden: true, emphasis: false };
     }
     if (name === "positionSalaryGrade") {
@@ -6295,7 +7388,7 @@ function renderSubrecordEditorForm(config, record, beforeRecord = null) {
         return renderPayrollHistoryCompareForm(config, record || {}, beforeRecord);
     }
     const editorContext = subrecordEditorRenderContext(config, record, beforeRecord);
-    const formActions = `<div class="form-actions"><button type="submit">保存记录</button></div>`;
+    const formActions = renderSubrecordEditorFormActions(config, record);
     if (config.sections?.length) {
         return config.sections.map(section => `
             <section class="subrecord-form-section">
@@ -6320,6 +7413,1219 @@ function renderSubrecordEditorForm(config, record, beforeRecord = null) {
         + formActions;
 }
 
+function renderSubrecordEditorFormActions(config, record) {
+    const buttons = [];
+    const canSave = !record?.id || (hasPersonnelWrite() && isSubrecordDraft(record));
+    if (canSave) {
+        buttons.push(`<button type="submit">保存记录</button>`);
+    }
+    if (record?.id) {
+        if (isSubrecordDraft(record) && hasPersonnelWrite()) {
+            buttons.push(`<button type="button" class="row-action" data-subrecord-editor-action="submit">提交申报</button>`);
+        }
+        if (isSubrecordSubmitted(record) && hasPersonnelApprovalWrite()) {
+            buttons.push(`<button type="button" class="row-action" data-subrecord-editor-action="approve">审核通过</button>`);
+            buttons.push(`<button type="button" class="row-action" data-subrecord-editor-action="return-draft">退回草稿</button>`);
+        }
+        if (isSubrecordApproved(record) && hasPersonnelApprovalWrite()) {
+            buttons.push(`<button type="button" class="row-action" data-subrecord-editor-action="cancel-approval">取消审核</button>`);
+        }
+    }
+    return `<div class="form-actions subrecord-editor-form-actions">${buttons.join("")}</div>`;
+}
+
+function bindSubrecordEditorApprovalActions(type, record) {
+    if (!record?.id) {
+        return;
+    }
+    document.querySelector("[data-subrecord-editor-action='submit']")
+        ?.addEventListener("click", () => submitSubrecord(type, record.id, { fromEditor: true }));
+    document.querySelector("[data-subrecord-editor-action='approve']")
+        ?.addEventListener("click", () => approveSubrecord(type, record.id, { fromEditor: true }));
+    document.querySelector("[data-subrecord-editor-action='return-draft']")
+        ?.addEventListener("click", () => returnSubrecordToDraft(type, record.id, { fromEditor: true }));
+    document.querySelector("[data-subrecord-editor-action='cancel-approval']")
+        ?.addEventListener("click", () => openPersonnelApprovalCancelModal(type, type, record.id));
+}
+
+async function refreshSubrecordEditorAfterApprovalAction(type, id, { close = false, reopen = false } = {}) {
+    const person = state.activePersonnelMaintenance;
+    const editor = state.activeSubrecordEditor;
+    if (!person?.uid || editor?.type !== type || Number(editor.record?.id) !== Number(id)) {
+        return;
+    }
+    if (close) {
+        closeSubrecordEditor();
+        return;
+    }
+    if (reopen) {
+        const segment = subrecordApiSegment(type);
+        const rows = await getJson(`/api/personnel/${person.uid}/${segment}`);
+        const updated = rows.find(row => Number(row.id) === Number(id));
+        if (updated) {
+            await openSubrecordEditor(type, updated);
+        } else {
+            closeSubrecordEditor();
+        }
+    }
+}
+
+function subrecordActionStatusElement(fromEditor) {
+    return fromEditor
+        ? document.getElementById("subrecord-editor-status")
+        : document.getElementById("personnel-status");
+}
+
+const ATTACHMENT_PREVIEW_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "bmp"]);
+const ATTACHMENT_PREVIEW_PDF_EXTENSIONS = new Set(["pdf"]);
+
+function attachmentFileExtension(name) {
+    const normalized = String(name || "").trim().toLowerCase();
+    const dot = normalized.lastIndexOf(".");
+    return dot >= 0 ? normalized.slice(dot + 1) : "";
+}
+
+function attachmentPreviewMode(item) {
+    const extension = attachmentFileExtension(item.originalName || item.file?.name);
+    if (ATTACHMENT_PREVIEW_PDF_EXTENSIONS.has(extension)) {
+        return "pdf";
+    }
+    if (ATTACHMENT_PREVIEW_IMAGE_EXTENSIONS.has(extension)) {
+        return "image";
+    }
+    return "unsupported";
+}
+
+function revokeAttachmentPreviewObjectUrl() {
+    if (state.attachmentPreviewObjectUrl) {
+        URL.revokeObjectURL(state.attachmentPreviewObjectUrl);
+        state.attachmentPreviewObjectUrl = null;
+    }
+}
+
+function closeAttachmentPreviewModal() {
+    revokeAttachmentPreviewObjectUrl();
+    state.attachmentPreviewContext = null;
+    state.attachmentPreviewPickerList = null;
+    document.getElementById("attachment-preview-modal")?.classList.add("hidden");
+    document.getElementById("attachment-preview-body").innerHTML = "";
+    document.getElementById("attachment-preview-status").textContent = "";
+    document.getElementById("attachment-preview-download")?.classList.add("hidden");
+    document.getElementById("attachment-preview-back")?.classList.add("hidden");
+}
+
+function updateAttachmentPreviewBackButton(show = false) {
+    document.getElementById("attachment-preview-back")?.classList.toggle("hidden", !show);
+}
+
+function showSubrecordAttachmentPicker(context, attachments) {
+    const { type, uid, recordId } = context;
+    mountModalOverlaysToBody(["attachment-preview-modal"]);
+    const modal = document.getElementById("attachment-preview-modal");
+    const body = document.getElementById("attachment-preview-body");
+    const title = document.getElementById("attachment-preview-title");
+    const status = document.getElementById("attachment-preview-status");
+    revokeAttachmentPreviewObjectUrl();
+    title.textContent = `附件（${attachments.length}）`;
+    status.textContent = "";
+    body.innerHTML = `
+        <ul class="attachment-picker-list">
+            ${attachments.map(item => `
+                <li>
+                    <button type="button" class="attachment-picker-item" data-pick-attachment-id="${item.id}">
+                        <span class="attachment-picker-name">${escapeHtml(item.originalName)}</span>
+                        <span class="attachment-picker-meta">${formatAttachmentSize(item.fileSize)} · ${attachmentPreviewMode(item) === "unsupported" ? "仅下载" : "可预览"}</span>
+                    </button>
+                </li>
+            `).join("")}
+        </ul>
+    `;
+    document.getElementById("attachment-preview-download")?.classList.add("hidden");
+    state.attachmentPreviewContext = { ...context, picker: true };
+    updateAttachmentPreviewBackButton(false);
+    modal.classList.remove("hidden");
+    body.querySelectorAll("[data-pick-attachment-id]").forEach(button => {
+        button.addEventListener("click", () => {
+            const attachmentId = Number(button.getAttribute("data-pick-attachment-id"));
+            const attachment = attachments.find(entry => Number(entry.id) === attachmentId);
+            if (attachment) {
+                void openSubrecordAttachmentPreview({ type, uid, recordId },  attachment);
+            }
+        });
+    });
+}
+
+function backToAttachmentPicker() {
+    const picker = state.attachmentPreviewPickerList;
+    if (!picker) {
+        return;
+    }
+    showSubrecordAttachmentPicker(picker, picker.attachments);
+}
+
+async function openSubrecordAttachmentsFromList(type, uid, recordId) {
+    const status = document.getElementById("personnel-status");
+    try {
+        if (status) {
+            status.className = "status";
+            status.textContent = "正在加载附件...";
+        }
+        const attachments = await getJson(subrecordAttachmentListUrl({ type, uid, recordId })) || [];
+        if (status) {
+            status.textContent = "";
+        }
+        if (!attachments.length) {
+            window.alert("该记录暂无附件。");
+            return;
+        }
+        const context = { type, uid, recordId };
+        state.attachmentPreviewPickerList = attachments.length > 1
+            ? { ...context, attachments }
+            : null;
+        if (attachments.length === 1) {
+            await openSubrecordAttachmentPreview({ type, uid, recordId },  attachments[0]);
+            return;
+        }
+        showSubrecordAttachmentPicker({ type, uid, recordId },  attachments);
+    } catch (error) {
+        if (status) {
+            showError(status, error);
+        } else {
+            window.alert(error.message || "附件加载失败");
+        }
+    }
+}
+
+function renderAttachmentPreviewContent(body, mode, previewUrl, fileName) {
+    if (mode === "pdf") {
+        body.innerHTML = `<iframe class="attachment-preview-frame" src="${previewUrl}" title="${escapeHtml(fileName)}"></iframe>`;
+        return;
+    }
+    if (mode === "image") {
+        body.innerHTML = `<img class="attachment-preview-image attachment-preview-loading" src="${previewUrl}" alt="${escapeHtml(fileName)}" decoding="async">`;
+        return;
+    }
+    body.innerHTML = `<p class="attachment-preview-unsupported">该文件类型不支持在线预览，请下载后查看。</p>`;
+}
+
+function bindAttachmentPreviewLoadHandlers(body, status) {
+    const image = body.querySelector(".attachment-preview-image");
+    if (image) {
+        image.addEventListener("load", () => {
+            image.classList.remove("attachment-preview-loading");
+            if (status) {
+                status.textContent = "";
+            }
+        }, { once: true });
+        image.addEventListener("error", () => {
+            if (status) {
+                showError(status, new Error("预览加载失败"));
+            }
+        }, { once: true });
+        if (image.complete && image.naturalWidth > 0) {
+            image.classList.remove("attachment-preview-loading");
+            if (status) {
+                status.textContent = "";
+            }
+        }
+        return;
+    }
+    const frame = body.querySelector(".attachment-preview-frame");
+    if (frame && status) {
+        frame.addEventListener("load", () => {
+            status.textContent = "";
+        }, { once: true });
+    }
+}
+
+async function openSubrecordAttachmentPreview(context, item) {
+    const { uid, recordId, type } = context;
+    mountModalOverlaysToBody(["attachment-preview-modal"]);
+    const modal = document.getElementById("attachment-preview-modal");
+    const body = document.getElementById("attachment-preview-body");
+    const title = document.getElementById("attachment-preview-title");
+    const status = document.getElementById("attachment-preview-status");
+    const downloadButton = document.getElementById("attachment-preview-download");
+    const fileName = item.originalName || item.file?.name || "附件";
+    revokeAttachmentPreviewObjectUrl();
+    title.textContent = fileName;
+    status.textContent = "";
+    body.innerHTML = "";
+    downloadButton?.classList.remove("hidden");
+    state.attachmentPreviewContext = { ...context, item };
+    updateAttachmentPreviewBackButton(Boolean(state.attachmentPreviewPickerList?.attachments?.length));
+    modal.classList.remove("hidden");
+
+    const mode = attachmentPreviewMode(item);
+    if (item.pending && item.file) {
+        state.attachmentPreviewObjectUrl = URL.createObjectURL(item.file);
+        renderAttachmentPreviewContent(body, mode, state.attachmentPreviewObjectUrl, fileName);
+        bindAttachmentPreviewLoadHandlers(body, status);
+        return;
+    }
+    if (mode === "unsupported") {
+        renderAttachmentPreviewContent(body, mode, "", fileName);
+        return;
+    }
+    status.textContent = "正在加载预览...";
+    const previewUrl = subrecordAttachmentFileUrl(context, item.id, "preview");
+    renderAttachmentPreviewContent(body, mode, previewUrl, fileName);
+    bindAttachmentPreviewLoadHandlers(body, status);
+}
+
+function downloadAttachmentPreview() {
+    const context = state.attachmentPreviewContext;
+    if (!context) {
+        return;
+    }
+    const { uid, recordId, type, item } = context;
+    if (item.pending && item.file) {
+        const link = document.createElement("a");
+        link.href = state.attachmentPreviewObjectUrl || URL.createObjectURL(item.file);
+        link.download = item.file.name || "attachment";
+        link.click();
+        return;
+    }
+    if (item.id) {
+        window.open(subrecordAttachmentFileUrl(context, item.id, "download"), "_blank");
+    }
+}
+
+
+function currentSubrecordAttachmentContext(type, recordId) {
+    const person = state.activePersonnelMaintenance;
+    return {
+        type,
+        uid: person?.uid,
+        recordId: type === "main" ? person?.uid : recordId,
+    };
+}
+
+function subrecordAttachmentListUrl(context) {
+    const config = subrecordAttachmentConfig(context.type);
+    if (!config || !context.uid || !context.recordId) {
+        return null;
+    }
+    return config.apiBase(context.uid, context.recordId);
+}
+
+function subrecordAttachmentFileUrl(context, attachmentId, action) {
+    const config = subrecordAttachmentConfig(context.type);
+    if (!config || !context.uid || !context.recordId) {
+        return null;
+    }
+    const base = config.attachmentPath(context.uid, context.recordId, attachmentId);
+    return action === "preview" ? `${base}/preview` : `${base}/download`;
+}
+
+function subrecordAttachmentUploadPrefix(type) {
+    return type === "main" ? "personnel-basic-attachment" : "subrecord-attachment";
+}
+
+function renderSubrecordAttachmentUploadControls(prefix) {
+    return `
+        <div class="subrecord-attachment-upload-actions" data-attachment-upload-actions="${escapeHtml(prefix)}">
+            <label class="subrecord-attachment-upload">
+                <input type="file" id="${escapeHtml(prefix)}-input" multiple>
+                选择文件
+            </label>
+            <button type="button" class="subrecord-attachment-upload-button" data-attachment-mobile-camera="${escapeHtml(prefix)}">
+                手机拍照
+            </button>
+            <input type="file" id="${escapeHtml(prefix)}-mobile-camera" class="attachment-mobile-camera-input" accept="image/*" capture="environment">
+            <button type="button" class="subrecord-attachment-upload-button" data-attachment-scanner="${escapeHtml(prefix)}">
+                高拍仪拍照
+            </button>
+        </div>
+    `;
+}
+
+let attachmentCaptureContext = null;
+let attachmentCaptureStream = null;
+let attachmentCaptureBlob = null;
+let mobileAttachmentUploadContext = null;
+let mobileAttachmentUploadPollTimer = null;
+let mobileAttachmentUploadPollingActive = false;
+let mobileAttachmentUploadSession = null;
+const mobileAttachmentUploadHandledIds = new Set();
+
+function formatAttachmentCaptureFileName(prefix) {
+    const stamp = new Date();
+    const pad = value => String(value).padStart(2, "0");
+    const timestamp = `${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}`;
+    return `${prefix}-${timestamp}.jpg`;
+}
+
+async function processSubrecordAttachmentFiles(type, uid, recordId, editable, files) {
+    const selected = Array.from(files || []).filter(Boolean);
+    if (!selected.length) {
+        return;
+    }
+    if (recordId) {
+        const status = document.getElementById("subrecord-editor-status");
+        for (const file of selected) {
+            try {
+                if (status) {
+                    status.textContent = `正在上传 ${file.name}...`;
+                }
+                await uploadSubrecordAttachment(type, uid, recordId, file);
+            } catch (error) {
+                if (status) {
+                    showError(status, error);
+                } else {
+                    window.alert(error.message || "上传失败");
+                }
+                return;
+            }
+        }
+        if (status) {
+            status.textContent = "";
+        }
+        await loadSubrecordAttachments(type, uid, recordId, editable);
+        return;
+    }
+    state.pendingSubrecordAttachments = state.pendingSubrecordAttachments || [];
+    selected.forEach(file => {
+        state.pendingSubrecordAttachments.push({
+            key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            file,
+        });
+    });
+    renderSubrecordAttachmentList(type, uid, recordId, editable);
+}
+
+function bindSubrecordAttachmentFileInput(input, type, uid, recordId, editable) {
+    if (!input || input.dataset.bound === "true") {
+        return;
+    }
+    input.dataset.bound = "true";
+    input.addEventListener("change", async () => {
+        const files = Array.from(input.files || []);
+        input.value = "";
+        await processSubrecordAttachmentFiles(type, uid, recordId, editable, files);
+    });
+}
+
+function bindSubrecordAttachmentUploadControls(type, uid, recordId, editable) {
+    const prefix = subrecordAttachmentUploadPrefix(type);
+    bindSubrecordAttachmentFileInput(document.getElementById(`${prefix}-input`), type, uid, recordId, editable);
+    const mobileInput = document.getElementById(`${prefix}-mobile-camera`);
+    bindSubrecordAttachmentFileInput(mobileInput, type, uid, recordId, editable);
+    document.querySelectorAll(`[data-attachment-mobile-camera="${prefix}"]`).forEach(button => {
+        if (button.dataset.bound === "true") {
+            return;
+        }
+        button.dataset.bound = "true";
+        button.addEventListener("click", () => {
+            if (supportsMobileFileCapture()) {
+                mobileInput?.click();
+                return;
+            }
+            openMobileAttachmentUploadModal({ type, uid, recordId, editable }).catch(error => {
+                window.alert(error.message || "无法打开手机拍照");
+            });
+        });
+    });
+    document.querySelectorAll(`[data-attachment-scanner="${prefix}"]`).forEach(button => {
+        if (button.dataset.bound === "true") {
+            return;
+        }
+        button.dataset.bound = "true";
+        button.addEventListener("click", () => {
+            openAttachmentCaptureModal({ type, uid, recordId, editable, mode: "scanner" });
+        });
+    });
+}
+
+function supportsMobileFileCapture() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+}
+
+function setAttachmentCaptureStatus(message, isError) {
+    const status = document.getElementById("attachment-capture-status");
+    if (!status) {
+        return;
+    }
+    status.className = isError ? "status error" : "status";
+    status.textContent = message || "";
+}
+
+function stopAttachmentCaptureStream() {
+    if (attachmentCaptureStream) {
+        attachmentCaptureStream.getTracks().forEach(track => track.stop());
+        attachmentCaptureStream = null;
+    }
+    const video = document.getElementById("attachment-capture-video");
+    if (video) {
+        video.srcObject = null;
+    }
+}
+
+function resetAttachmentCapturePreview() {
+    attachmentCaptureBlob = null;
+    const video = document.getElementById("attachment-capture-video");
+    const preview = document.getElementById("attachment-capture-preview");
+    const snap = document.getElementById("attachment-capture-snap");
+    const retake = document.getElementById("attachment-capture-retake");
+    const upload = document.getElementById("attachment-capture-upload");
+    if (video) {
+        video.classList.remove("hidden");
+    }
+    if (preview) {
+        preview.classList.add("hidden");
+        preview.removeAttribute("src");
+    }
+    if (snap) {
+        snap.classList.remove("hidden");
+    }
+    if (retake) {
+        retake.classList.add("hidden");
+    }
+    if (upload) {
+        upload.classList.add("hidden");
+    }
+}
+
+async function populateAttachmentCaptureDevices(preferredDeviceId) {
+    const select = document.getElementById("attachment-capture-device");
+    if (!select) {
+        return "";
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoInputs = devices.filter(device => device.kind === "videoinput");
+    select.innerHTML = videoInputs.length
+        ? videoInputs.map((device, index) => {
+            const label = device.label || `摄像头 ${index + 1}`;
+            return `<option value="${escapeHtml(device.deviceId)}">${escapeHtml(label)}</option>`;
+        }).join("")
+        : `<option value="">未检测到摄像头</option>`;
+    if (!videoInputs.length) {
+        return "";
+    }
+    const preferred = preferredDeviceId
+        || pickDefaultScannerDeviceId(videoInputs)?.deviceId
+        || videoInputs[0].deviceId;
+    select.value = preferred;
+    return preferred;
+}
+
+function pickDefaultScannerDeviceId(videoInputs) {
+    const keywords = /高拍|文档|document|scanner|良田|eloam|成者|czur|usb/i;
+    const preferred = videoInputs.find(device => keywords.test(device.label || ""));
+    if (preferred) {
+        return preferred;
+    }
+    const external = videoInputs.find(device => device.label && !/integrated|facetime|内置|front|前置|face/i.test(device.label));
+    return external || videoInputs[videoInputs.length - 1];
+}
+
+async function startAttachmentCaptureStream(deviceId) {
+    stopAttachmentCaptureStream();
+    if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("当前浏览器不支持摄像头访问，请改用选择文件。");
+    }
+    const videoConstraints = deviceId
+        ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+        : { width: { ideal: 1920 }, height: { ideal: 1080 } };
+    attachmentCaptureStream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraints,
+        audio: false,
+    });
+    const video = document.getElementById("attachment-capture-video");
+    if (video) {
+        video.srcObject = attachmentCaptureStream;
+        await video.play().catch(() => {});
+    }
+}
+
+async function ensureAttachmentCapturePermission() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("当前浏览器不支持摄像头访问，请改用选择文件。");
+    }
+    const tempStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    tempStream.getTracks().forEach(track => track.stop());
+}
+
+async function openAttachmentCaptureModal(context) {
+    attachmentCaptureContext = context;
+    attachmentCaptureBlob = null;
+    resetAttachmentCapturePreview();
+    setAttachmentCaptureStatus("正在启动摄像头...");
+    document.getElementById("attachment-capture-modal")?.classList.remove("hidden");
+    try {
+        await ensureAttachmentCapturePermission();
+        const deviceId = await populateAttachmentCaptureDevices("");
+        await startAttachmentCaptureStream(deviceId);
+        setAttachmentCaptureStatus("");
+    } catch (error) {
+        setAttachmentCaptureStatus(error.message || "摄像头启动失败", true);
+    }
+}
+
+function closeAttachmentCaptureModal() {
+    stopAttachmentCaptureStream();
+    attachmentCaptureContext = null;
+    attachmentCaptureBlob = null;
+    resetAttachmentCapturePreview();
+    setAttachmentCaptureStatus("");
+    document.getElementById("attachment-capture-modal")?.classList.add("hidden");
+}
+
+function defaultMobileAttachmentUploadBaseUrl() {
+    return window.location.origin;
+}
+
+function isLocalOrPrivateMobileUploadHost(host) {
+    if (!host) {
+        return true;
+    }
+    const normalized = String(host).trim().toLowerCase();
+    if (normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1") {
+        return true;
+    }
+    const parts = normalized.split(".");
+    if (parts.length !== 4) {
+        return false;
+    }
+    const first = Number(parts[0]);
+    const second = Number(parts[1]);
+    if (Number.isNaN(first) || Number.isNaN(second)) {
+        return false;
+    }
+    if (first === 10) {
+        return true;
+    }
+    if (first === 172 && second >= 16 && second <= 31) {
+        return true;
+    }
+    return first === 192 && second === 168;
+}
+
+function isPublicMobileAttachmentUploadBaseUrl(baseUrl) {
+    if (!baseUrl) {
+        return false;
+    }
+    try {
+        const host = new URL(baseUrl).hostname;
+        return host && !isLocalOrPrivateMobileUploadHost(host);
+    } catch (error) {
+        return false;
+    }
+}
+
+function buildLanMobileUploadBaseUrl(host, port) {
+    if (!host) {
+        return "";
+    }
+    const normalizedPort = String(port || "").trim();
+    if (!normalizedPort || normalizedPort === "80") {
+        return `http://${host}`;
+    }
+    return `http://${host}:${normalizedPort}`;
+}
+
+function isLocalhostMobileUploadBaseUrl(baseUrl) {
+    if (!baseUrl) {
+        return true;
+    }
+    try {
+        const host = new URL(baseUrl).hostname.toLowerCase();
+        return host === "localhost" || host === "127.0.0.1" || host === "::1";
+    } catch (error) {
+        return true;
+    }
+}
+
+async function resolveMobileAttachmentUploadBaseUrl() {
+    const browserOrigin = window.location.origin;
+    const port = window.location.port || (window.location.protocol === "https:" ? "443" : "80");
+    const params = new URLSearchParams({ port: String(port) });
+    if (browserOrigin) {
+        params.set("origin", browserOrigin);
+    }
+    let fallbackAddresses = [];
+    try {
+        const response = await fetch(`/api/mobile-attachment-sessions/network-hints?${params.toString()}`, {
+            credentials: "same-origin",
+        });
+        await ensureAuthenticatedApiResponse(response, "读取上传地址失败");
+        const data = await response.json().catch(() => ({}));
+        fallbackAddresses = Array.isArray(data.addresses) ? data.addresses : [];
+        if (response.ok && data.suggestedBaseUrl) {
+            let suggested = data.suggestedBaseUrl;
+            if (isLocalhostMobileUploadBaseUrl(suggested) && fallbackAddresses.length) {
+                suggested = buildLanMobileUploadBaseUrl(fallbackAddresses[0], port);
+            }
+            if (!isLocalhostMobileUploadBaseUrl(suggested)) {
+                return suggested;
+            }
+        } else if (fallbackAddresses.length) {
+            return buildLanMobileUploadBaseUrl(fallbackAddresses[0], port);
+        }
+    } catch (error) {
+        // Fall back to the current browser origin when address detection is unavailable.
+    }
+    if (isPublicMobileAttachmentUploadBaseUrl(browserOrigin)) {
+        return browserOrigin;
+    }
+    try {
+        const host = new URL(browserOrigin).hostname;
+        if (host && isLocalOrPrivateMobileUploadHost(host) && !/localhost|127\.0\.0\.1|::1/i.test(host)) {
+            return browserOrigin;
+        }
+    } catch (error) {
+        // Ignore malformed browser origins.
+    }
+    return "";
+}
+
+function setMobileAttachmentUploadStatus(message, isError) {
+    const status = document.getElementById("mobile-attachment-upload-status");
+    if (!status) {
+        return;
+    }
+    status.className = isError ? "status error" : "status";
+    status.textContent = message || "";
+}
+
+function updateMobileAttachmentUploadBaseUrlHint(baseUrl) {
+    const hint = document.getElementById("mobile-attachment-upload-base-url-hint");
+    if (!hint) {
+        return;
+    }
+    if (isPublicMobileAttachmentUploadBaseUrl(baseUrl)) {
+        hint.textContent = "已使用公网地址生成二维码，手机扫码后可直接上传；若微信白屏，请改用系统浏览器打开。";
+    } else if (isLocalhostMobileUploadBaseUrl(baseUrl)) {
+        hint.textContent = "手机无法访问 localhost。请改为电脑局域网 IP（如 http://192.168.1.100:8081），并确保手机与电脑在同一 Wi-Fi。";
+    } else {
+        hint.textContent = "已自动填入局域网地址。请确保手机与电脑在同一 Wi-Fi；微信扫码若白屏，请点右上角「···」→ 在浏览器中打开。";
+    }
+}
+
+function renderMobileAttachmentUploadQr(uploadUrl) {
+    const container = document.getElementById("mobile-attachment-upload-qrcode");
+    const urlEl = document.getElementById("mobile-attachment-upload-url");
+    if (!container) {
+        return;
+    }
+    container.innerHTML = "";
+    if (uploadUrl && typeof QRCode === "function") {
+        try {
+            new QRCode(container, {
+                text: uploadUrl,
+                width: 220,
+                height: 220,
+                correctLevel: QRCode.CorrectLevel.M,
+            });
+        } catch (error) {
+            container.textContent = "二维码生成失败，请复制下方链接到手机浏览器打开。";
+        }
+    } else if (uploadUrl) {
+        container.textContent = "二维码组件加载失败，请复制下方链接到手机浏览器打开。";
+    }
+    if (urlEl) {
+        urlEl.textContent = uploadUrl || "";
+    }
+}
+
+function stopMobileAttachmentUploadPolling() {
+    mobileAttachmentUploadPollingActive = false;
+    if (mobileAttachmentUploadPollTimer) {
+        window.clearTimeout(mobileAttachmentUploadPollTimer);
+        mobileAttachmentUploadPollTimer = null;
+    }
+}
+
+function scheduleMobileAttachmentUploadPoll(delayMs) {
+    if (!mobileAttachmentUploadPollingActive) {
+        return;
+    }
+    mobileAttachmentUploadPollTimer = window.setTimeout(() => {
+        pollMobileAttachmentUploads()
+            .catch(() => {})
+            .finally(() => scheduleMobileAttachmentUploadPoll(2000));
+    }, delayMs);
+}
+
+async function createMobileAttachmentUploadSession(context, publicBaseUrl) {
+    const response = await fetch("/api/mobile-attachment-sessions", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            type: context.type,
+            uid: context.uid,
+            recordId: context.recordId || null,
+            publicBaseUrl,
+        }),
+    });
+    await ensureAuthenticatedApiResponse(response, "生成手机上传二维码失败");
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.message || data.detail || "生成手机上传二维码失败");
+    }
+    return data;
+}
+
+async function fetchMobileAttachmentUploadFiles(token) {
+    const response = await fetch(`/api/mobile-attachment-sessions/${encodeURIComponent(token)}/files?unconsumed=true`, {
+        credentials: "same-origin",
+    });
+    await ensureAuthenticatedApiResponse(response, "读取手机上传照片失败");
+    const data = await response.json().catch(() => ([]));
+    if (!response.ok) {
+        throw new Error(data.message || data.detail || "读取手机上传照片失败");
+    }
+    return Array.isArray(data) ? data : [];
+}
+
+async function downloadMobileAttachmentUploadFile(token, fileMeta) {
+    const response = await fetch(
+        `/api/mobile-attachment-sessions/${encodeURIComponent(token)}/files/${encodeURIComponent(fileMeta.id)}/download`,
+        { credentials: "same-origin" }
+    );
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || data.detail || "下载手机上传照片失败");
+    }
+    const blob = await response.blob();
+    const fileName = fileMeta.originalName || formatAttachmentCaptureFileName("手机拍照");
+    const type = fileMeta.contentType || blob.type || "image/jpeg";
+    return new File([blob], fileName, { type });
+}
+
+async function consumeMobileAttachmentUploadFile(token, fileId) {
+    const response = await fetch(
+        `/api/mobile-attachment-sessions/${encodeURIComponent(token)}/files/${encodeURIComponent(fileId)}/consume`,
+        { method: "POST", credentials: "same-origin" }
+    );
+    await ensureAuthenticatedApiResponse(response, "同步手机上传照片失败");
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || data.detail || "同步手机上传照片失败");
+    }
+}
+
+async function pollMobileAttachmentUploads() {
+    if (!mobileAttachmentUploadContext || !mobileAttachmentUploadSession?.token) {
+        return;
+    }
+    try {
+        const files = await fetchMobileAttachmentUploadFiles(mobileAttachmentUploadSession.token);
+        let importedCount = 0;
+        for (const fileMeta of files) {
+            if (!fileMeta?.id || mobileAttachmentUploadHandledIds.has(fileMeta.id)) {
+                continue;
+            }
+            mobileAttachmentUploadHandledIds.add(fileMeta.id);
+            try {
+                const file = await downloadMobileAttachmentUploadFile(mobileAttachmentUploadSession.token, fileMeta);
+                const { type, uid, recordId, editable } = mobileAttachmentUploadContext;
+                await processSubrecordAttachmentFiles(type, uid, recordId, editable, [file]);
+                await consumeMobileAttachmentUploadFile(mobileAttachmentUploadSession.token, fileMeta.id);
+                importedCount += 1;
+            } catch (error) {
+                mobileAttachmentUploadHandledIds.delete(fileMeta.id);
+                throw error;
+            }
+        }
+        if (importedCount > 0) {
+            setMobileAttachmentUploadStatus(`已接收 ${mobileAttachmentUploadHandledIds.size} 张照片，可继续在手机上拍摄。`);
+        }
+    } catch (error) {
+        setMobileAttachmentUploadStatus(error.message || "同步手机上传照片失败", true);
+    }
+}
+
+function startMobileAttachmentUploadPolling() {
+    stopMobileAttachmentUploadPolling();
+    mobileAttachmentUploadPollingActive = true;
+    scheduleMobileAttachmentUploadPoll(0);
+}
+
+async function refreshMobileAttachmentUploadSession() {
+    if (!mobileAttachmentUploadContext) {
+        return;
+    }
+    const input = document.getElementById("mobile-attachment-upload-base-url");
+    const publicBaseUrl = (input?.value || defaultMobileAttachmentUploadBaseUrl()).trim();
+    if (!publicBaseUrl) {
+        setMobileAttachmentUploadStatus("未能检测到手机可访问的局域网地址，请手动填写电脑 IP。", true);
+        return;
+    }
+    if (isLocalhostMobileUploadBaseUrl(publicBaseUrl)) {
+        setMobileAttachmentUploadStatus("手机无法访问 localhost，请改为电脑局域网 IP（如 http://192.168.1.100:8081）。", true);
+        return;
+    }
+    updateMobileAttachmentUploadBaseUrlHint(publicBaseUrl);
+    setMobileAttachmentUploadStatus("正在生成二维码...");
+    try {
+        mobileAttachmentUploadSession = await createMobileAttachmentUploadSession(mobileAttachmentUploadContext, publicBaseUrl);
+        mobileAttachmentUploadHandledIds.clear();
+        renderMobileAttachmentUploadQr(mobileAttachmentUploadSession.uploadUrl);
+        setMobileAttachmentUploadStatus("请用手机扫描二维码拍照，照片会自动出现在附件列表。");
+        startMobileAttachmentUploadPolling();
+    } catch (error) {
+        setMobileAttachmentUploadStatus(error.message || "生成手机上传二维码失败", true);
+    }
+}
+
+async function openMobileAttachmentUploadModal(context) {
+    mobileAttachmentUploadContext = context;
+    mobileAttachmentUploadSession = null;
+    mobileAttachmentUploadHandledIds.clear();
+    stopMobileAttachmentUploadPolling();
+    document.getElementById("mobile-attachment-upload-modal")?.classList.remove("hidden");
+    const input = document.getElementById("mobile-attachment-upload-base-url");
+    if (input) {
+        input.value = await resolveMobileAttachmentUploadBaseUrl();
+    }
+    updateMobileAttachmentUploadBaseUrlHint(input?.value || "");
+    renderMobileAttachmentUploadQr("");
+    setMobileAttachmentUploadStatus("正在生成二维码...");
+    try {
+        await refreshMobileAttachmentUploadSession();
+    } catch (error) {
+        setMobileAttachmentUploadStatus(error.message || "生成手机上传二维码失败", true);
+    }
+}
+
+function closeMobileAttachmentUploadModal() {
+    stopMobileAttachmentUploadPolling();
+    mobileAttachmentUploadContext = null;
+    mobileAttachmentUploadSession = null;
+    mobileAttachmentUploadHandledIds.clear();
+    setMobileAttachmentUploadStatus("");
+    document.getElementById("mobile-attachment-upload-qrcode")?.replaceChildren();
+    document.getElementById("mobile-attachment-upload-url")?.replaceChildren();
+    document.getElementById("mobile-attachment-upload-modal")?.classList.add("hidden");
+}
+
+function bindMobileAttachmentUploadModal() {
+    const modal = document.getElementById("mobile-attachment-upload-modal");
+    if (!modal || modal.dataset.bound === "true") {
+        return;
+    }
+    modal.dataset.bound = "true";
+    document.getElementById("mobile-attachment-upload-close")?.addEventListener("click", closeMobileAttachmentUploadModal);
+    document.getElementById("mobile-attachment-upload-refresh")?.addEventListener("click", () => {
+        refreshMobileAttachmentUploadSession().catch(() => {});
+    });
+    document.getElementById("mobile-attachment-upload-base-url")?.addEventListener("change", event => {
+        updateMobileAttachmentUploadBaseUrlHint(event.target.value);
+    });
+    modal.addEventListener("click", event => {
+        if (event.target.id === "mobile-attachment-upload-modal") {
+            closeMobileAttachmentUploadModal();
+        }
+    });
+}
+
+function captureAttachmentScannerPhoto() {
+    const video = document.getElementById("attachment-capture-video");
+    const canvas = document.getElementById("attachment-capture-canvas");
+    const preview = document.getElementById("attachment-capture-preview");
+    if (!video || !canvas || !preview || !attachmentCaptureStream) {
+        setAttachmentCaptureStatus("摄像头未就绪", true);
+        return;
+    }
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    context.drawImage(video, 0, 0, width, height);
+    canvas.toBlob(blob => {
+        if (!blob) {
+            setAttachmentCaptureStatus("拍照失败，请重试", true);
+            return;
+        }
+        attachmentCaptureBlob = blob;
+        preview.src = canvas.toDataURL("image/jpeg", 0.92);
+        video.classList.add("hidden");
+        preview.classList.remove("hidden");
+        document.getElementById("attachment-capture-snap")?.classList.add("hidden");
+        document.getElementById("attachment-capture-retake")?.classList.remove("hidden");
+        document.getElementById("attachment-capture-upload")?.classList.remove("hidden");
+        setAttachmentCaptureStatus("请确认照片后上传");
+    }, "image/jpeg", 0.92);
+}
+
+async function uploadAttachmentCapturePhoto() {
+    if (!attachmentCaptureBlob || !attachmentCaptureContext) {
+        setAttachmentCaptureStatus("请先拍照", true);
+        return;
+    }
+    const file = new File(
+        [attachmentCaptureBlob],
+        formatAttachmentCaptureFileName("高拍仪"),
+        { type: "image/jpeg" }
+    );
+    const { type, uid, recordId, editable } = attachmentCaptureContext;
+    setAttachmentCaptureStatus("正在上传...");
+    try {
+        await processSubrecordAttachmentFiles(type, uid, recordId, editable, [file]);
+        closeAttachmentCaptureModal();
+    } catch (error) {
+        setAttachmentCaptureStatus(error.message || "上传失败", true);
+    }
+}
+
+function bindAttachmentCaptureModal() {
+    const modal = document.getElementById("attachment-capture-modal");
+    if (!modal || modal.dataset.bound === "true") {
+        return;
+    }
+    modal.dataset.bound = "true";
+    document.getElementById("attachment-capture-close")?.addEventListener("click", closeAttachmentCaptureModal);
+    modal.addEventListener("click", event => {
+        if (event.target.id === "attachment-capture-modal") {
+            closeAttachmentCaptureModal();
+        }
+    });
+    document.getElementById("attachment-capture-device")?.addEventListener("change", async event => {
+        try {
+            setAttachmentCaptureStatus("正在切换摄像头...");
+            await startAttachmentCaptureStream(event.target.value);
+            resetAttachmentCapturePreview();
+            setAttachmentCaptureStatus("");
+        } catch (error) {
+            setAttachmentCaptureStatus(error.message || "切换摄像头失败", true);
+        }
+    });
+    document.getElementById("attachment-capture-snap")?.addEventListener("click", captureAttachmentScannerPhoto);
+    document.getElementById("attachment-capture-retake")?.addEventListener("click", async () => {
+        resetAttachmentCapturePreview();
+        setAttachmentCaptureStatus("");
+        try {
+            const deviceId = document.getElementById("attachment-capture-device")?.value || "";
+            await startAttachmentCaptureStream(deviceId);
+        } catch (error) {
+            setAttachmentCaptureStatus(error.message || "摄像头启动失败", true);
+        }
+    });
+    document.getElementById("attachment-capture-upload")?.addEventListener("click", uploadAttachmentCapturePhoto);
+}
+
+function renderPositionAttachmentSection(editable) {
+    return renderSubrecordAttachmentSection(editable);
+}
+
+function renderSubrecordAttachmentSection(editable) {
+    const prefix = subrecordAttachmentUploadPrefix("subrecord");
+    return `
+        <section class="subrecord-form-section subrecord-attachment-section">
+            <h4 class="subrecord-form-section-title">附件</h4>
+            <p class="subrecord-hint">支持 PDF、Word、Excel、图片、压缩包等，单个不超过 20MB；PDF 与图片可在线预览；可使用手机拍照或高拍仪拍照上传图片。</p>
+            <ul class="subrecord-attachment-list" id="subrecord-attachment-list"></ul>
+            ${editable ? renderSubrecordAttachmentUploadControls(prefix) : ""}
+        </section>
+    `;
+}
+
+function formatAttachmentSize(bytes) {
+    const size = Number(bytes) || 0;
+    if (size < 1024) {
+        return `${size} B`;
+    }
+    if (size < 1024 * 1024) {
+        return `${(size / 1024).toFixed(1)} KB`;
+    }
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function renderSubrecordAttachmentListItem(item, editable, type, uid, recordId) {
+    const pending = Boolean(item.pending);
+    const name = escapeHtml(item.originalName || item.file?.name || "");
+    const size = formatAttachmentSize(item.fileSize ?? item.file?.size);
+    const meta = pending
+        ? `<span class="subrecord-attachment-meta">待保存 · ${size}</span>`
+        : `<span class="subrecord-attachment-meta">${size}</span>`;
+    const actions = [];
+    if (!pending) {
+        actions.push(`<button type="button" class="row-action" data-preview-attachment="${item.id || ""}" data-pending="${pending ? "true" : "false"}" data-pending-key="${pending ? escapeHtml(item.pendingKey || "") : ""}">预览</button>`);
+    } else {
+        actions.push(`<button type="button" class="row-action" data-preview-attachment="" data-pending="true" data-pending-key="${escapeHtml(item.pendingKey || "")}">预览</button>`);
+    }
+    if (!pending && item.id) {
+        actions.push(`<button type="button" class="row-action" data-download-attachment="${item.id}">下载</button>`);
+    }
+    if (editable) {
+        actions.push(`<button type="button" class="row-action danger-button" data-remove-attachment="${pending ? escapeHtml(item.pendingKey) : item.id}" data-pending="${pending ? "true" : "false"}">删除</button>`);
+    }
+    return `
+        <li class="subrecord-attachment-item">
+            <span class="subrecord-attachment-name" title="${name}">${name}</span>
+            ${meta}
+            <span class="subrecord-attachment-actions">${actions.join("")}</span>
+        </li>
+    `;
+}
+
+function renderSubrecordAttachmentList(type, uid, recordId, editable) {
+    const list = document.getElementById(type === "main" ? "personnel-basic-attachment-list" : "subrecord-attachment-list");
+    if (!list) {
+        return;
+    }
+    const serverItems = (state.subrecordAttachments || []).map(item => ({ ...item, pending: false }));
+    const pendingItems = (state.pendingSubrecordAttachments || []).map(item => ({
+        pending: true,
+        pendingKey: item.key,
+        file: item.file,
+        originalName: item.file.name,
+        fileSize: item.file.size,
+    }));
+    const all = [...serverItems, ...pendingItems];
+    list.innerHTML = all.length
+        ? all.map(item => renderSubrecordAttachmentListItem(item, editable, type, uid, recordId)).join("")
+        : `<li class="subrecord-attachment-empty">暂无附件</li>`;
+    bindSubrecordAttachmentListEvents(type, uid, recordId, editable);
+}
+
+async function loadSubrecordAttachments(type, uid, recordId, editable) {
+    const list = document.getElementById(type === "main" ? "personnel-basic-attachment-list" : "subrecord-attachment-list");
+    if (!list) {
+        return;
+    }
+    try {
+        state.subrecordAttachments = await getJson(subrecordAttachmentListUrl({ type, uid, recordId })) || [];
+        renderSubrecordAttachmentList(type, uid, recordId, editable);
+    } catch (error) {
+        list.innerHTML = `<li class="subrecord-attachment-empty">附件加载失败</li>`;
+    }
+}
+
+function bindSubrecordAttachmentListEvents(type, uid, recordId, editable) {
+    const list = document.getElementById(type === "main" ? "personnel-basic-attachment-list" : "subrecord-attachment-list");
+    if (!list) {
+        return;
+    }
+    list.querySelectorAll("[data-preview-attachment]").forEach(button => {
+        button.addEventListener("click", () => {
+            const isPending = button.getAttribute("data-pending") === "true";
+            if (isPending) {
+                const pendingKey = button.getAttribute("data-pending-key");
+                const pendingItem = (state.pendingSubrecordAttachments || []).find(entry => entry.key === pendingKey);
+                if (!pendingItem) {
+                    return;
+                }
+                openSubrecordAttachmentPreview({ type, uid, recordId },  {
+                    pending: true,
+                    pendingKey,
+                    file: pendingItem.file,
+                    originalName: pendingItem.file.name,
+                });
+                return;
+            }
+            const attachmentId = Number(button.getAttribute("data-preview-attachment"));
+            const attachment = (state.subrecordAttachments || []).find(entry => Number(entry.id) === attachmentId);
+            if (!attachment) {
+                return;
+            }
+            openSubrecordAttachmentPreview({ type, uid, recordId },  attachment);
+        });
+    });
+    list.querySelectorAll("[data-download-attachment]").forEach(button => {
+        button.addEventListener("click", () => {
+            const attachmentId = button.getAttribute("data-download-attachment");
+            window.open(subrecordAttachmentFileUrl({ type, uid, recordId }, attachmentId, "download"), "_blank");
+        });
+    });
+    list.querySelectorAll("[data-remove-attachment]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const id = button.getAttribute("data-remove-attachment");
+            const isPending = button.getAttribute("data-pending") === "true";
+            const status = document.getElementById("subrecord-editor-status");
+            try {
+                if (isPending) {
+                    state.pendingSubrecordAttachments = (state.pendingSubrecordAttachments || [])
+                        .filter(item => item.key !== id);
+                    renderSubrecordAttachmentList(type, uid, recordId, editable);
+                } else {
+                    status.textContent = "正在删除附件...";
+                    await deleteJson(subrecordAttachmentConfig(type).attachmentPath(uid, recordId, id));
+                    status.textContent = "";
+                    await loadSubrecordAttachments(type, uid, recordId, editable);
+                }
+            } catch (error) {
+                showError(status, error);
+            }
+        });
+    });
+}
+
+function bindSubrecordAttachmentSection(type, uid, recordId, editable) {
+    if (editable) {
+        bindSubrecordAttachmentUploadControls(type, uid, recordId, editable);
+    }
+    renderSubrecordAttachmentList(type, uid, recordId, editable);
+}
+
+async function uploadSubrecordAttachment(type, uid, recordId, file) {
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(subrecordAttachmentListUrl({ type, uid, recordId }), {
+        method: "POST",
+        credentials: "same-origin",
+        body: form,
+    });
+    await ensureAuthenticatedApiResponse(response, "上传失败");
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || data.detail || "上传失败");
+    }
+    return response.json();
+}
+
+async function uploadPendingSubrecordAttachments(type, uid, recordId) {
+    const pending = state.pendingSubrecordAttachments || [];
+    for (const item of pending) {
+        await uploadSubrecordAttachment(type, uid, recordId, item.file);
+    }
+    state.pendingSubrecordAttachments = [];
+}
+
+function resolveNewPayrollHistoryId(rows, payload) {
+    if (!rows?.length) {
+        return null;
+    }
+    const year = payload.calculationYear || "";
+    const month = payload.calculationMonth || "";
+    const matched = rows.filter(row => (row.calculationYear || "") === year && (row.calculationMonth || "") === month);
+    if (matched.length === 1) {
+        return matched[0].id;
+    }
+    return rows[0]?.id || null;
+}
+
+function resolveNewPositionId(rows, payload) {
+    if (!rows?.length) {
+        return null;
+    }
+    const yearMonth = payload.startYearMonth || "";
+    const positionName = payload.currentPosition || "";
+    const positionCode = payload.currentPositionCode || "";
+    const matched = rows.filter(row =>
+        (row.startYearMonth || "") === yearMonth
+        && (row.currentPosition || "") === positionName
+        && (positionCode ? (row.currentPositionCode || "") === positionCode : true));
+    if (matched.length === 1) {
+        return matched[0].id;
+    }
+    return Math.max(...rows.map(row => Number(row.id) || 0));
+}
+
+function resolveNewSubrecordId(rows, payload, matchFields) {
+    if (!rows?.length) {
+        return null;
+    }
+    const matched = rows.filter(row => matchFields.every(([field]) => String(row[field] ?? "") === String(payload[field] ?? "")));
+    if (matched.length === 1) {
+        return matched[0].id;
+    }
+    return Math.max(...rows.map(row => Number(row.id) || 0));
+}
+
 async function openSubrecordEditor(type, record = null) {
     const person = state.activePersonnelMaintenance;
     if (!person || !person.uid) {
@@ -6336,6 +8642,8 @@ async function openSubrecordEditor(type, record = null) {
         }
     }
     state.activeSubrecordEditor = { type, record, beforeRecord };
+    state.pendingSubrecordAttachments = [];
+    state.subrecordAttachments = [];
     document.getElementById("subrecord-editor-title").textContent = `${record ? "编辑" : "新增"}${config.title}`;
     const modalClasses = ["modal-card"];
     if (config.wideModal && config.modalClass !== "position-subrecord-modal") {
@@ -6351,6 +8659,15 @@ async function openSubrecordEditor(type, record = null) {
     document.getElementById("subrecord-editor-status").className = "status";
     document.getElementById("subrecord-editor-status").textContent = "";
     document.getElementById("subrecord-editor-form").innerHTML = renderSubrecordEditorForm(config, afterRecord, beforeRecord);
+    bindSubrecordEditorApprovalActions(type, record);
+    if (subrecordAttachmentConfig(type)) {
+        const editable = canEditSubrecordAttachments(type, record);
+        document.getElementById("subrecord-editor-form").insertAdjacentHTML("beforeend", renderSubrecordAttachmentSection(editable));
+        bindSubrecordAttachmentSection(type, person.uid, record?.id || null, editable);
+        if (record?.id) {
+            loadSubrecordAttachments(type, person.uid, record.id, editable);
+        }
+    }
     if (window.MonthPicker) {
         MonthPicker.enhanceAll(document.getElementById("subrecord-editor-form"));
     }
@@ -6360,7 +8677,7 @@ async function openSubrecordEditor(type, record = null) {
     loadDictionaryFieldConfigs()
         .catch(error => console.warn("字典字段配置加载失败", error))
         .finally(() => {
-            enhanceSubrecordEditorInputs(config);
+            enhanceSubrecordEditorInputs(config, afterRecord);
             if (type === "position" && !record) {
                 const activeInput = document.getElementById("subrecord-field-activeFlag");
                 if (activeInput) {
@@ -6380,6 +8697,9 @@ function renderSubrecordEditorField([name, label, inputType, options], record, e
     const fieldMeta = resolvePayrollHistoryFieldMeta(name, label, editorContext);
     const value = subrecordInputValue(record?.[name], inputType);
     const fieldOptions = { ...(options || {}) };
+    if (fieldOptions.rankLevelField) {
+        fieldMeta.label = "等级";
+    }
     if (fieldMeta.hidden) {
         fieldOptions.hidden = true;
     }
@@ -6389,21 +8709,22 @@ function renderSubrecordEditorField([name, label, inputType, options], record, e
     const labelClass = fieldMeta.emphasis ? "subrecord-field-emphasis" : "";
     if (inputType === "select") {
         const choices = subrecordSelectChoices(fieldOptions);
-        const allChoices = choices.some(choice => choice.value === value) || !value
+        const normalizedValue = value;
+        const allChoices = choices.some(choice => choice.value === normalizedValue) || !normalizedValue
             ? choices
-            : [{ value, label: value, code: "" }, ...choices];
+            : [{ value: normalizedValue, label: normalizedValue, code: "" }, ...choices];
         return `
-            <label class="${labelClass}">${escapeHtml(fieldMeta.label)}
+            <label class="${labelClass}" data-subrecord-field-label="${escapeHtml(name)}">${escapeHtml(fieldMeta.label)}
                 <select id="subrecord-field-${escapeHtml(name)}" data-subrecord-field="${escapeHtml(name)}">
                     <option value="">请选择${escapeHtml(fieldMeta.label)}</option>
-                    ${allChoices.map(choice => `<option value="${escapeHtml(choice.value)}" ${choice.value === value ? "selected" : ""}>${escapeHtml(choice.label)}</option>`).join("")}
+                    ${allChoices.map(choice => `<option value="${escapeHtml(choice.value)}" ${choice.value === normalizedValue ? "selected" : ""}>${escapeHtml(choice.label)}</option>`).join("")}
                 </select>
             </label>
         `;
     }
     return `
-        <label class="${labelClass}">${escapeHtml(fieldMeta.label)}
-            <input id="subrecord-field-${escapeHtml(name)}" data-subrecord-field="${escapeHtml(name)}" type="${inputType === "number" ? "number" : "text"}" value="${escapeHtml(value)}" ${inputType === "month" ? "data-month-picker" : ""} ${fieldOptions.readonly ? "readonly" : ""}>
+        <label class="${labelClass}" data-subrecord-field-label="${escapeHtml(name)}">${escapeHtml(fieldMeta.label)}
+            <input id="subrecord-field-${escapeHtml(name)}" data-subrecord-field="${escapeHtml(name)}" type="${inputType === "number" ? "number" : "text"}" value="${escapeHtml(value)}" ${inputType === "month" ? "data-month-picker" : ""} ${fieldOptions.readonly ? "readonly" : ""}${fieldOptions.rankLevelField ? ' placeholder="请选择等级"' : ""}>
         </label>
     `;
 }
@@ -6430,6 +8751,8 @@ function positionMaintenancePayload(row, overrides = {}) {
         intervalYears: row.intervalYears ?? 0,
         activeFlag: row.activeFlag || "",
         promotionFlag: row.promotionFlag || "",
+        positionChangeReason: row.positionChangeReason || "",
+        linkedAwardId: row.linkedAwardId ?? null,
         ...overrides,
     };
 }
@@ -6438,24 +8761,22 @@ function renderMaintPositionRows(positions, readonly = false) {
     return positions.length ? positions.map(row => {
         const isCurrent = String(row.activeFlag ?? "").trim() === "1";
         const codeHint = [row.currentPositionCode, row.positionCode].filter(Boolean).join(" / ");
-        const actions = readonly
-            ? "—"
-            : `${isCurrent ? "" : `<button class="row-action" type="button" data-set-current-position="${row.id}">设为现任</button>`}
-                    <button class="row-action" type="button" data-edit-position="${row.id}">编辑</button>
-                    <button class="row-action danger-button" type="button" data-delete-position="${row.id}">删除</button>`;
         return `
             <tr class="${isCurrent ? "highlight-row" : ""}">
-                <td class="col-period">${escapeHtml(row.startYearMonth || "")}${row.appCreated ? " <span class='new-badge'>新</span>" : ""}</td>
+                <td class="col-period">${escapeHtml(row.startYearMonth || "")}${row.appCreated ? " <span class='new-badge'>新</span>" : ""}${renderSubrecordAttachmentBadge('position', row)}</td>
                 <td class="col-position" title="${escapeHtml(row.currentPositionCode || "")}">${escapeHtml(row.currentPosition || "")}</td>
                 <td class="col-level">${escapeHtml(row.positionLevel || "")}</td>
                 <td class="col-position" title="${escapeHtml(row.positionCode || "")}">${escapeHtml(row.positionName || "")}</td>
-                <td class="col-years">${escapeHtml(row.intervalYears ?? "")}</td>
+                <td class="col-change">${escapeHtml(row.positionChangeReason || "")}</td>
                 <td class="col-flag"><span class="assessment-batch-status ${isCurrent ? "" : "status-missing"}">${formatActiveFlag(row.activeFlag)}</span></td>
                 <td class="col-code" title="${escapeHtml(codeHint)}">${escapeHtml(codeHint || "-")}</td>
-                <td class="col-action">${actions}</td>
+                <td class="col-approval">${renderSubrecordApprovalStatus(row)}</td>
+                <td class="col-approval-actor">${renderSubrecordApprovalActors(row)}</td>
+                <td class="col-approval-action">${renderSubrecordApprovalActions("position", row)}</td>
+                <td class="col-action">${renderSubrecordMaintenanceActions("position", row, readonly)}</td>
             </tr>
         `;
-    }).join("") : "<tr><td colspan='8'>暂无任职记录</td></tr>";
+    }).join("") : "<tr><td colspan='11'>暂无任职记录</td></tr>";
 }
 
 const educationTypeOptions = [
@@ -6465,6 +8786,30 @@ const educationTypeOptions = [
     "后取",
     "其它",
 ];
+
+const rankLevelLabelsByCategory = {
+    jx: "警衔",
+    jc: "检察官等级",
+    sp: "法官等级",
+    mt: "监察官等级",
+};
+
+function rankCategoryFromCode(code) {
+    const normalized = String(code || "").trim();
+    if (normalized.startsWith("02301")) {
+        return "jx";
+    }
+    if (normalized.startsWith("02302")) {
+        return "jc";
+    }
+    if (normalized.startsWith("02303")) {
+        return "sp";
+    }
+    if (normalized.startsWith("02304")) {
+        return "mt";
+    }
+    return "";
+}
 
 function subrecordSelectChoices(options) {
     if (options?.optionsProvider === "assessmentResults") {
@@ -6488,30 +8833,54 @@ function subrecordSelectChoices(options) {
     if (options?.optionsProvider === "educationTypes") {
         return educationTypeOptions.map(result => ({ value: result, label: result }));
     }
+    if (options?.optionsProvider === "rankCategories") {
+        return [
+            { value: "jx", label: "警衔" },
+            { value: "jc", label: "检察官等级" },
+            { value: "sp", label: "法官等级" },
+            { value: "mt", label: "监察官等级" },
+        ];
+    }
+    if (options?.optionsProvider === "positionChangeReasons") {
+        return positionChangeReasonOptions.map(reason => ({ value: reason, label: reason }));
+    }
+    if (options?.optionsProvider === "personDisciplinaryAwards") {
+        const awards = Array.isArray(state.maintAwards) ? state.maintAwards : [];
+        return awards.map(award => ({
+            value: String(award.id ?? ""),
+            label: [award.hjmc, award.hjsj, award.jllx].filter(Boolean).join(" / "),
+        })).filter(choice => choice.value);
+    }
     return [];
 }
 
 function isInstitutionPersonnel(person) {
+    if (usesAdministrativeUnitTreatment(person)) {
+        return false;
+    }
     const text = `${person?.personnelCategory || ""} ${person?.organizationType || ""}`;
     return text.includes("事业");
 }
 
-/** 年度考核：仅公务员用「称职」等，其余人员用「合格」等。 */
+/** 年度考核：公务员及参照/依照公务员管理单位用「称职」等，其余用「合格」等。 */
 function isCivilServantPersonnelCategory(personOrRow) {
-    return String(personOrRow?.personnelCategory || "").includes("公务员");
+    if (String(personOrRow?.personnelCategory || "").includes("公务员")) {
+        return true;
+    }
+    return isCivilServiceManagedPayrollCategory(personOrRow?.organizationPayrollCategory);
 }
 
 function usesInstitutionAssessmentResults(personOrRow) {
     return !isCivilServantPersonnelCategory(personOrRow);
 }
 
-function enhanceSubrecordEditorInputs(config) {
+function enhanceSubrecordEditorInputs(config, record) {
     subrecordEditorFields(config).forEach(([name, label, , options]) => {
         if (options?.hidden) {
             return;
         }
-        const dictionaryPrefix = subrecordDictionaryPrefix(options);
-        if (!dictionaryPrefix) {
+        const dictionaryPrefix = subrecordDictionaryPrefix(options, record);
+        if (!dictionaryPrefix && !options?.dictionaryFieldKey) {
             return;
         }
         const input = document.getElementById(`subrecord-field-${name}`);
@@ -6528,27 +8897,45 @@ function enhanceSubrecordEditorInputs(config) {
         button.className = "dict-picker-button";
         button.setAttribute("aria-label", `选择${label}`);
         button.textContent = "⌄";
-        button.addEventListener("click", () => openDictionaryPicker(input.id, {
+        combo.appendChild(button);
+        input.readOnly = true;
+        if (dictionaryPrefix) {
+            input.dataset.dictionaryPrefix = dictionaryPrefix;
+        }
+        bindDictionaryPickerInput(input.id, {
             fieldName: name,
-            caption: label,
+            caption: options?.rankLevelField ? "等级" : label,
             dictionaryPrefix,
-            dictionaryFieldKey: options?.dictionaryPrefixField || name,
+            dictionaryFieldKey: options?.dictionaryFieldKey || name,
+            linkedCategoryField: options?.linkedCategoryField || null,
             linkedCodeInputId: options?.linkedCodeField ? `subrecord-field-${options.linkedCodeField}` : null,
             linkedCodeField: options?.linkedCodeField || null,
             useFullDictionaryCode: options?.useFullDictionaryCode || false,
             codeTarget: options?.codeTarget || false,
             codeMaxLength: options?.codeMaxLength || null,
-        }));
-        combo.appendChild(button);
+        });
     });
 }
 
-function subrecordDictionaryPrefix(options) {
+function rankLevelFieldLabel(category) {
+    return rankLevelLabelsByCategory[String(category || "").trim().toLowerCase()] || "等级";
+}
+
+function subrecordDictionaryPrefix(options, record) {
     if (!options) {
         return null;
     }
+    if (options.dictionaryFieldKey === "jx_rank") {
+        return state.payrollFieldConfigs?.jx?.dictionaryPrefix
+            || state.dictionaryFieldConfigs?.jx?.dictionaryPrefix
+            || "023";
+    }
     if (options.dictionaryPrefixField) {
         const fieldKey = String(options.dictionaryPrefixField).toLowerCase();
+        const payrollConfigured = state.payrollFieldConfigs?.[fieldKey];
+        if (payrollConfigured?.dictionaryPrefix) {
+            return payrollConfigured.dictionaryPrefix;
+        }
         const configured = state.dictionaryFieldConfigs?.[fieldKey];
         if (configured?.dictionaryPrefix) {
             return configured.dictionaryPrefix;
@@ -6561,6 +8948,9 @@ function subrecordDictionaryPrefix(options) {
 }
 
 function closeSubrecordEditor() {
+    closeAttachmentPreviewModal();
+    state.pendingSubrecordAttachments = [];
+    state.subrecordAttachments = [];
     document.getElementById("subrecord-editor-modal").classList.add("hidden");
 }
 
@@ -6590,6 +8980,10 @@ async function onSubrecordSave(event) {
     if (editor.type === "position") {
         payload.rankCode = editor.record?.rankCode || "";
         payload.promotionFlag = editor.record?.promotionFlag || "";
+        payload.linkedAwardId = payload.linkedAwardId ? Number(payload.linkedAwardId) : null;
+        if (Number.isNaN(payload.linkedAwardId)) {
+            payload.linkedAwardId = null;
+        }
     }
     status.textContent = "正在保存记录...";
     try {
@@ -6597,6 +8991,25 @@ async function onSubrecordSave(event) {
             ? (config.updateEndpoint ? config.updateEndpoint(editor.record.id) : `${config.endpoint(person.uid)}/${editor.record.id}`)
             : config.endpoint(person.uid);
         const rows = editor.record ? await putJson(url, payload) : await postJson(url, payload);
+        if (subrecordAttachmentConfig(editor.type)) {
+            let recordId = editor.record?.id;
+            if (!recordId && editor.type === "position") {
+                recordId = resolveNewPositionId(rows, payload);
+            }
+            if (!recordId && editor.type === "payroll" && Array.isArray(rows)) {
+                recordId = resolveNewPayrollHistoryId(rows, payload);
+            }
+            if (!recordId && editor.type === "award" && Array.isArray(rows)) {
+                recordId = resolveNewSubrecordId(rows, payload, [["hjmc"], ["hjsj"]]);
+            }
+            if (!recordId && editor.type === "rank" && Array.isArray(rows)) {
+                recordId = resolveNewSubrecordId(rows, payload, [["jx"], ["sysj"]]);
+            }
+            if (recordId && (state.pendingSubrecordAttachments?.length || 0) > 0) {
+                status.textContent = "正在上传附件...";
+                await uploadPendingSubrecordAttachments(editor.type, person.uid, recordId);
+            }
+        }
         status.textContent = "保存成功";
         showAppToast("保存成功");
         closeSubrecordEditor();
@@ -6620,6 +9033,9 @@ async function deleteSubrecord(type, id) {
 function subrecordInputValue(value, inputType) {
     if (inputType === "month") {
         return String(value || "").replace(".", "-").slice(0, 7);
+    }
+    if (typeof value === "number") {
+        return String(value);
     }
     return value ?? "";
 }
@@ -6666,50 +9082,19 @@ async function loadPersonnelSubrecords(uid, organizationCode, personCode) {
     ]);
     renderPersonnelProjection(projection);
     renderWageProjection(await getJson(`/api/payroll/personnel/${uid}/wage-projection`));
-    document.getElementById("maint-education-rows").innerHTML = education.length ? education.map(row => `
-        <tr>
-            <td>${escapeHtml(row.id)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
-            <td>${escapeHtml(row.educationCode)}</td>
-            <td>${escapeHtml(row.educationName)}</td>
-            <td>${escapeHtml(row.school)}</td>
-            <td>${escapeHtml(row.enrollmentDate)}</td>
-            <td>${escapeHtml(row.graduationDate)}</td>
-            <td>${escapeHtml(row.educationType)}</td>
-            <td>${escapeHtml(row.remark)} <button class="row-action" type="button" data-edit-education="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-education="${row.id}">删除</button></td>
-        </tr>
-    `).join("") : "<tr><td colspan='8'>暂无学历记录</td></tr>";
+    document.getElementById("maint-education-rows").innerHTML = renderMaintEducationRows(education);
     document.getElementById("maint-position-rows").innerHTML = renderMaintPositionRows(positions);
-    document.getElementById("maint-assessment-rows").innerHTML = assessments.length ? assessments.map(row => `
-        <tr class="${row.appCreated ? "highlight-row" : ""}">
-            <td class="col-year">${escapeHtml(row.year)}${row.appCreated ? " <span class='new-badge'>新</span>" : ""}</td>
-            <td class="col-result"><span class="${assessmentResultTagClass(row.result)}">${escapeHtml(row.result || "—")}</span></td>
-            <td class="col-action">
-                <button class="row-action" type="button" data-edit-assessment="${row.id}">编辑</button>
-                <button class="row-action danger-button" type="button" data-delete-assessment="${row.id}">删除</button>
-            </td>
-        </tr>
-    `).join("") : "<tr><td colspan='3'>暂无考核记录</td></tr>";
+    document.getElementById("maint-assessment-rows").innerHTML = renderMaintAssessmentRows(assessments);
     const histories = payrollHistory.content || [];
     state.maintPayrollHistories = histories;
-    document.getElementById("maint-payroll-rows").innerHTML = histories.length ? histories.map(row => `
-        <tr>
-            <td>${escapeHtml(row.calculationYear)}${escapeHtml(row.calculationMonth)} ${row.appCreated ? "<span class='new-badge'>新</span>" : ""}</td>
-            <td>${escapeHtml(row.changeType)}</td>
-            <td>${escapeHtml(row.positionName)}</td>
-            <td>${escapeHtml(row.gradeSalaryLevel || "")}</td>
-            <td>${escapeHtml(row.positionSalaryGrade || "")}</td>
-            <td>${escapeHtml(row.levelAssessmentStartYear || "")}</td>
-            <td>${escapeHtml(row.stepAssessmentStartYear || "")}</td>
-            <td>${money(row.positionSalary)}</td>
-            <td>${money(row.gradeSalary)}</td>
-            <td>${money(row.totalAmount)}</td>
-            <td>${row.currentPayroll ? "是" : "否"} <button class="row-action" type="button" data-edit-payroll="${row.id}">编辑</button> <button class="row-action danger-button" type="button" data-delete-payroll="${row.id}">删除</button></td>
-        </tr>
-    `).join("") : "<tr><td colspan='11'>暂无调资记录</td></tr>";
+    document.getElementById("maint-payroll-rows").innerHTML = renderMaintPayrollHistoryRows(histories);
     renderPersonnelRelatedRecords(relatedRecords || {});
+    state.maintAwards = (relatedRecords || {}).awards || [];
     bindSubrecordActions("education", education);
     bindSubrecordActions("position", positions);
     bindSubrecordActions("assessment", assessments);
+    bindSubrecordActions("award", (relatedRecords || {}).awards || []);
+    bindSubrecordActions("rank", (relatedRecords || {}).rankRecords || []);
     bindSubrecordActions("payroll", histories);
 }
 
@@ -6790,12 +9175,42 @@ function bindSubrecordActions(type, rows) {
         if (del) {
             del.addEventListener("click", () => deleteSubrecord(type, row.id));
         }
+        const approve = document.querySelector(`[data-approve-subrecord="${type}"][data-subrecord-id="${row.id}"]`);
+        if (approve) {
+            approve.addEventListener("click", () => approveSubrecord(type, row.id));
+        }
+        const submit = document.querySelector(`[data-submit-subrecord="${type}"][data-subrecord-id="${row.id}"]`);
+        if (submit) {
+            submit.addEventListener("click", () => submitSubrecord(type, row.id));
+        }
+        const returnDraft = document.querySelector(`[data-return-subrecord-draft="${type}"][data-subrecord-id="${row.id}"]`);
+        if (returnDraft) {
+            returnDraft.addEventListener("click", () => returnSubrecordToDraft(type, row.id));
+        }
+        const cancelApproval = document.querySelector(`[data-cancel-subrecord-approval="${type}"][data-subrecord-id="${row.id}"]`);
+        if (cancelApproval) {
+            cancelApproval.addEventListener("click", () => openPersonnelApprovalCancelModal(type, type, row.id));
+        }
         if (type === "position") {
             const setCurrent = document.querySelector(`[data-set-current-position="${row.id}"]`);
             if (setCurrent) {
                 setCurrent.addEventListener("click", () => setPositionAsCurrent(row));
             }
+
         }
+        document.querySelectorAll(`[data-preview-subrecord-attachments="${type}"][data-attachment-record-id="${row.id}"]`).forEach(attachmentBadge => {
+            attachmentBadge.addEventListener("click", event => {
+                event.preventDefault();
+                event.stopPropagation();
+                const person = state.activePersonnelMaintenance;
+                if (person?.uid) {
+                    void openSubrecordAttachmentsFromList(type, person.uid, row.id);
+                }
+            });
+        });
+        document.querySelectorAll(`[data-manage-subrecord-attachments="${type}"][data-attachment-record-id="${row.id}"]`).forEach(button => {
+            button.addEventListener("click", () => openSubrecordAttachmentManager(type, row));
+        });
     });
 }
 
@@ -6918,7 +9333,7 @@ function renderWageProjectionSteps(steps, container = document.getElementById("m
         const stepText = String(step.step || "").trim() || "-";
         const stepLabel = salaryStepCaption(step.positionCode);
         return `
-            <details class="projection-step-card"${index === steps.length - 1 ? " open" : ""}>
+            <details class="projection-step-card">
                 <summary>
                     <span class="projection-step-index">第 ${index + 1} 步</span>
                     <span class="projection-step-period">${escapeHtml(period)}</span>
@@ -6975,18 +9390,83 @@ function regularizationProjectionLine(projection) {
     return "";
 }
 
+function renderMaintAwardRows(awards, readonly = false) {
+    const rows = Array.isArray(awards) ? awards : [];
+    return rows.length ? rows.map(row => `
+        <tr>
+            <td class="col-text">${escapeHtml(textField(row, "hjmc"))}</td>
+            <td class="col-text">${escapeHtml(textField(row, "sjdw"))}</td>
+            <td class="col-text">${escapeHtml(textField(row, "jllx"))}</td>
+            <td class="col-period">${escapeHtml(textField(row, "hjsj"))}${renderSubrecordAttachmentBadge("award", row)}</td>
+            <td class="col-period">${escapeHtml(textField(row, "tqyjjssj"))}</td>
+            <td class="col-level">${escapeHtml(textField(row, "jljb"))}</td>
+            <td class="col-level">${escapeHtml(textField(row, "jldc"))}</td>
+            <td class="col-note">${escapeHtml(textField(row, "qtqk"))}</td>
+            <td class="col-approval">${renderSubrecordApprovalStatus(row)}</td>
+            <td class="col-approval-actor">${renderSubrecordApprovalActors(row)}</td>
+            <td class="col-approval-action">${renderSubrecordApprovalActions("award", row)}${renderSubrecordAttachmentManageButton("award", row)}</td>
+            <td class="col-action">${renderSubrecordMaintenanceActions("award", row, readonly)}</td>
+        </tr>
+    `).join("") : "<tr><td colspan='12'>暂无获奖记录</td></tr>";
+}
+
+function renderMaintRankRows(rankRecords, readonly = false) {
+    const rows = Array.isArray(rankRecords) ? rankRecords : [];
+    return rows.length ? rows.map(row => {
+        const isCurrent = truthyField(row, "xrjxbz");
+        return `
+        <tr class="${isCurrent ? "highlight-row" : ""}">
+            <td class="col-text">${escapeHtml(rankRecordType(row))}</td>
+            <td class="col-text">${escapeHtml(textField(row, "jx"))}</td>
+            <td class="col-period">${escapeHtml(textField(row, "sysj"))}${renderSubrecordAttachmentBadge("rank", row)}</td>
+            <td class="col-note">${escapeHtml(textField(row, "syyy"))}</td>
+            <td class="col-code">${escapeHtml(textField(row, "rmwh"))}</td>
+            <td class="col-flag"><span class="assessment-batch-status ${isCurrent ? "" : "status-missing"}">${isCurrent ? "现任" : "非现任"}</span></td>
+            <td class="col-text">${escapeHtml(textField(row, "lb"))}</td>
+            <td class="col-approval">${renderSubrecordApprovalStatus(row)}</td>
+            <td class="col-approval-actor">${renderSubrecordApprovalActors(row)}</td>
+            <td class="col-approval-action">${renderSubrecordApprovalActions("rank", row)}${renderSubrecordAttachmentManageButton("rank", row)}</td>
+            <td class="col-action">${renderSubrecordMaintenanceActions("rank", row, readonly)}</td>
+        </tr>`;
+    }).join("") : "<tr><td colspan='11'>暂无警衔/等级记录</td></tr>";
+}
+
 function renderPersonnelRelatedRecords(records) {
+    const readonly = !!state.personnelMaintenanceReadonly;
     renderCurrentPayrollDetail(records.currentPayroll || {});
     renderPersonnelTransferRows(records.transfers || []);
+    bindRelatedRecordAttachmentBadges("transfer", records.transfers || []);
 
-    document.getElementById("maint-award-rows").innerHTML = tableRows(records.awards, row => `
-        <tr><td>${escapeHtml(textField(row, "hjmc"))}</td><td>${escapeHtml(textField(row, "sjdw"))}</td><td>${escapeHtml(textField(row, "jllx"))}</td><td>${escapeHtml(textField(row, "hjsj"))}</td><td>${escapeHtml(textField(row, "tqyjjssj"))}</td><td>${escapeHtml(textField(row, "jljb"))}</td><td>${escapeHtml(textField(row, "jldc"))}</td><td>${escapeHtml(textField(row, "qtqk"))}</td></tr>
-    `, 8, "暂无获奖记录");
-    document.getElementById("maint-rank-rows").innerHTML = tableRows(records.rankRecords, row => `
-        <tr><td>${escapeHtml(rankRecordType(row))}</td><td>${escapeHtml(textField(row, "jx"))}</td><td>${escapeHtml(textField(row, "sysj"))}</td><td>${escapeHtml(textField(row, "syyy"))}</td><td>${escapeHtml(textField(row, "rmwh"))}</td><td>${truthyField(row, "xrjxbz") ? "是" : "否"}</td><td>${escapeHtml(textField(row, "lb"))}</td></tr>
-    `, 7, "暂无警衔/等级记录");
+    document.getElementById("maint-award-rows").innerHTML = renderMaintAwardRows(records.awards, readonly);
+    bindRelatedRecordAttachmentBadges("award", records.awards || []);
+    document.getElementById("maint-rank-rows").innerHTML = renderMaintRankRows(records.rankRecords, readonly);
+    bindRelatedRecordAttachmentBadges("rank", records.rankRecords || []);
     renderWageReformDetail(records.wageReform);
     renderPreReformSalaryDetail(records.preReformSalary);
+}
+
+function bindRelatedRecordAttachmentBadges(type, rows) {
+    const hostMap = {
+        award: "maint-award-rows",
+        rank: "maint-rank-rows",
+        transfer: "maint-transfer-rows",
+    };
+    const host = document.getElementById(hostMap[type]);
+    if (!host) {
+        return;
+    }
+    (rows || []).forEach(row => {
+        host.querySelectorAll(`[data-preview-subrecord-attachments="${type}"][data-attachment-record-id="${row.id}"]`).forEach(button => {
+            button.addEventListener("click", event => {
+                event.preventDefault();
+                event.stopPropagation();
+                const person = state.activePersonnelMaintenance;
+                if (person?.uid) {
+                    void openSubrecordAttachmentsFromList(type, person.uid, row.id);
+                }
+            });
+        });
+    });
 }
 
 function renderPersonnelTransferRows(transfers) {
@@ -7000,7 +9480,7 @@ function renderPersonnelTransferRows(transfers) {
         const targetOrg = [row.targetOrganizationName, row.targetOrganizationCode].filter(Boolean).join(" / ");
         return `
         <tr>
-            <td>${escapeHtml(row.transferPeriod || "")}</td>
+            <td>${escapeHtml(row.transferPeriod || "")}${renderSubrecordAttachmentBadge('transfer', row)}</td>
             <td>${escapeHtml(sourceOrg || "—")}</td>
             <td>${escapeHtml(row.sourcePersonCode || "")}</td>
             <td>${escapeHtml(targetOrg || "—")}</td>
@@ -7248,8 +9728,8 @@ const PRE_REFORM_SALARY_ITEMS = [
     { field: "zwjt", label: "职务津贴" },
     { field: "zfbt", label: "住房补贴" },
     { field: "dsznf", label: "独生子女费" },
-    { field: "nzgwsf", label: "女职工卫生费" },
-    { field: "jzmcbt", label: "驻地津贴" },
+    { field: "nzgwsf", label: "岗位津贴" },
+    { field: "jzmcbt", label: "加班补贴" },
     { field: "qtbt", label: "其他补贴" },
     { field: "pgbc", label: "工改保留职务工资" },
 ];
@@ -7348,18 +9828,30 @@ function truthyField(row, fieldName) {
     return value === true || value === 1 || value === "1" || value === "true";
 }
 
+function inferRankCategory(record) {
+    const lb = String(record?.lb || "").trim().toLowerCase();
+    if (["jx", "jc", "sp", "mt"].includes(lb)) {
+        return lb;
+    }
+    const name = String(record?.jx || "");
+    if (name.includes("监察")) {
+        return "mt";
+    }
+    if (name.includes("法官") || name.includes("审判")) {
+        return "sp";
+    }
+    if (name.includes("检察")) {
+        return "jc";
+    }
+    if (name.includes("警")) {
+        return "jx";
+    }
+    return "";
+}
+
 function rankRecordType(row) {
-    const value = String(textField(row, "jx") || "");
-    if (value.includes("检察")) {
-        return "检察";
-    }
-    if (value.includes("法官")) {
-        return "审判";
-    }
-    if (value.includes("监察")) {
-        return "监察";
-    }
-    return "警衔";
+    const category = inferRankCategory(row);
+    return rankLevelLabelsByCategory[category] || "警衔";
 }
 
 function initializeAssessmentBatchPage() {
@@ -7384,7 +9876,7 @@ function updateAssessmentBatchWriteUi() {
 function assessmentBatchVisibleColumnCount() {
     const meta = state.assessmentBatchMeta;
     const hideOrg = Boolean(meta?.organizationCode) && !meta?.includeDescendants;
-    let count = 7;
+    let count = 8;
     if (hideOrg) {
         count -= 1;
     }
@@ -7457,6 +9949,26 @@ function assessmentBatchRowStatus(row) {
     return "已修改";
 }
 
+function assessmentBatchRowApprovalStatus(row) {
+    if (!row.assessmentId) {
+        return "—";
+    }
+    return subrecordRowApprovalStatus(row) || "草稿";
+}
+
+function assessmentBatchRowSubmittable(row) {
+    if (!row.assessmentId) {
+        return false;
+    }
+    if (assessmentBatchRowStatus(row) === "已修改") {
+        return false;
+    }
+    if (!(row.result || "").trim()) {
+        return false;
+    }
+    return isSubrecordDraft(row);
+}
+
 async function onAssessmentBatchSearch(event) {
     event.preventDefault();
     await loadAssessmentBatch();
@@ -7489,6 +10001,7 @@ async function loadAssessmentBatch() {
             ...row,
             originalResult: row.result || "",
             result: row.result || "",
+            originalApprovalStatus: row.approvalStatus || "",
         }));
         state.assessmentBatchMeta = {
             organizationCode: organizationCode || preview.organizationCode || "",
@@ -7608,6 +10121,10 @@ function renderAssessmentBatchRows() {
             : baseOptions;
         const statusText = assessmentBatchRowStatus(row);
         const statusClass = statusText === "未录入" ? "status-missing" : statusText === "已修改" ? "status-modified" : "";
+        const approvalText = assessmentBatchRowApprovalStatus(row);
+        const approvalClass = approvalText === "草稿" ? "status-draft"
+            : approvalText === "申报" ? "status-submitted"
+                : approvalText === "审批通过" ? "status-approved" : "";
         const resultCell = writable
             ? `<select data-assessment-batch-result="${index}">
                     <option value="">— 请选择 —</option>
@@ -7626,6 +10143,7 @@ function renderAssessmentBatchRows() {
                 <td class="col-year">${escapeHtml(row.year || state.assessmentBatchMeta?.year || "")}</td>
                 <td class="col-result">${resultCell}</td>
                 <td class="col-status"><span class="assessment-batch-status ${statusClass}">${statusText}</span></td>
+                <td class="col-approval"><span class="assessment-batch-status ${approvalClass}">${escapeHtml(approvalText)}</span></td>
             </tr>
         `;
     }).join("");
@@ -7721,6 +10239,66 @@ async function saveAssessmentBatch() {
         const result = await postJson("/api/personnel/assessments/batch-entry", payload);
         const failureText = (result.failures || []).slice(0, 3).map(item => `${item.personCode} ${item.name}: ${item.message}`).join("；");
         status.textContent = `保存完成：新增 ${result.inserted} 条，更新 ${result.updated} 条，跳过 ${result.skipped} 条。${failureText || ""}`;
+        if (result.skipped > 0) {
+            status.className = "status error";
+        }
+        await loadAssessmentBatch();
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function submitAssessmentBatch() {
+    const meta = state.assessmentBatchMeta;
+    if (!meta?.year) {
+        alert("请先加载人员列表。");
+        return;
+    }
+    const selectedIndexes = [...document.querySelectorAll("[data-assessment-batch-select]:checked")]
+        .map(checkbox => Number(checkbox.dataset.assessmentBatchSelect));
+    const candidateRows = selectedIndexes.length
+        ? selectedIndexes.map(index => state.assessmentBatchRows[index]).filter(Boolean)
+        : (state.assessmentBatchRows || []).filter(row => assessmentBatchRowMatchesFilter(row));
+    const submittableRows = candidateRows.filter(assessmentBatchRowSubmittable);
+    if (!submittableRows.length) {
+        const hasModified = candidateRows.some(row => assessmentBatchRowStatus(row) === "已修改");
+        const hasUnsaved = candidateRows.some(row => !row.assessmentId);
+        if (hasModified) {
+            alert("所选记录含未保存修改，请先点击「保存考核」后再提交申报。");
+        } else if (hasUnsaved) {
+            alert("所选记录尚未保存考核结果，请先保存后再提交申报。");
+        } else if (selectedIndexes.length) {
+            alert("所选记录中没有可提交的草稿考核（需已保存且审核状态为草稿）。");
+        } else {
+            alert("当前列表中没有可提交的草稿考核（需已保存且审核状态为草稿）。");
+        }
+        return;
+    }
+    const skippedCount = candidateRows.length - submittableRows.length;
+    const skipHint = skippedCount ? `（另有 ${skippedCount} 条不符合条件将跳过）` : "";
+    if (!confirm(`确认将 ${submittableRows.length} 条考核记录提交申报？${skipHint}\n提交后待审核期间不能修改。`)) {
+        return;
+    }
+    const status = document.getElementById("assessment-batch-status");
+    status.className = "status";
+    status.textContent = "正在批量提交申报...";
+    try {
+        const payload = {
+            year: meta.year,
+            includeDescendants: meta.includeDescendants,
+            records: submittableRows.map(row => ({
+                uid: row.uid,
+                assessmentId: row.assessmentId,
+                organizationCode: row.organizationCode,
+                personCode: row.personCode,
+            })),
+        };
+        if (meta.organizationCode) {
+            payload.organizationCode = meta.organizationCode;
+        }
+        const result = await postJson("/api/personnel/assessments/batch-entry/submit", payload);
+        const failureText = (result.failures || []).slice(0, 3).map(item => `${item.personCode} ${item.name}: ${item.message}`).join("；");
+        status.textContent = `提交完成：成功 ${result.submitted} 条，跳过 ${result.skipped} 条。${failureText || ""}`;
         if (result.skipped > 0) {
             status.className = "status error";
         }
@@ -7838,6 +10416,590 @@ async function loadChangedPersonnel() {
     }
 }
 
+async function onPersonnelApprovalTrackingSearch(event) {
+    event.preventDefault();
+    state.personnelApprovalTrackingPage = 0;
+    await loadPersonnelApprovalTracking();
+}
+
+function switchPersonnelApprovalTrackingTab(status) {
+    state.personnelApprovalTrackingStatus = status;
+    state.personnelApprovalTrackingPage = 0;
+    document.getElementById("personnel-approval-tracking-tab-pending")?.classList.toggle("active", status === "申报");
+    document.getElementById("personnel-approval-tracking-tab-approved")?.classList.toggle("active", status === "审批通过");
+    const approvedWindowLabel = document.getElementById("personnel-approval-tracking-approved-window-label");
+    const approvedWindowSelect = document.getElementById("personnel-approval-tracking-approved-within-days");
+    if (approvedWindowLabel) {
+        approvedWindowLabel.classList.toggle("hidden", status !== "审批通过");
+    }
+    if (approvedWindowSelect && status === "审批通过" && !approvedWindowSelect.value) {
+        approvedWindowSelect.value = "90";
+        state.personnelApprovalTrackingApprovedWithinDays = 90;
+    }
+    updatePersonnelApprovalTrackingFilterVisibility();
+    void loadPersonnelApprovalTracking();
+}
+
+function gotoPersonnelApprovalTrackingPage(page) {
+    const totalPages = Math.max(state.personnelApprovalTrackingTotalPages || 1, 1);
+    const target = Math.min(Math.max(page, 0), totalPages - 1);
+    if (target === state.personnelApprovalTrackingPage) {
+        return;
+    }
+    state.personnelApprovalTrackingPage = target;
+    void loadPersonnelApprovalTracking();
+}
+
+function renderPersonnelApprovalTrackingPagination(totalElements, totalPages) {
+    const bar = document.getElementById("personnel-approval-tracking-pagination");
+    if (!bar) {
+        return;
+    }
+    const pages = Math.max(totalPages || 1, 1);
+    state.personnelApprovalTrackingTotalPages = pages;
+    const current = state.personnelApprovalTrackingPage;
+    bar.classList.toggle("hidden", !totalElements);
+    document.getElementById("personnel-approval-tracking-total-pages").textContent = String(pages);
+    document.getElementById("personnel-approval-tracking-total-count").textContent = String(totalElements || 0);
+    const pageInput = document.getElementById("personnel-approval-tracking-page-input");
+    if (pageInput) {
+        pageInput.value = String(current + 1);
+        pageInput.max = String(pages);
+        pageInput.disabled = !totalElements;
+    }
+    const noData = !totalElements;
+    document.getElementById("personnel-approval-tracking-first").disabled = noData || current <= 0;
+    document.getElementById("personnel-approval-tracking-prev").disabled = noData || current <= 0;
+    document.getElementById("personnel-approval-tracking-next").disabled = noData || current >= pages - 1;
+    document.getElementById("personnel-approval-tracking-last").disabled = noData || current >= pages - 1;
+}
+
+function trackingRecordTypeLabel(recordType) {
+    return ({
+        main: "主表",
+        education: "学历",
+        position: "任职",
+        assessment: "考核",
+        award: "获奖",
+        rank: "警衔",
+    })[recordType] || recordType || "";
+}
+
+function trackingRecordTab(recordType) {
+    return ({
+        main: "basic",
+        education: "education",
+        position: "position",
+        assessment: "assessment",
+        award: "award",
+        rank: "rank-level",
+    })[recordType] || "basic";
+}
+
+function formatTrackingDateTime(value) {
+    if (!value) {
+        return "";
+    }
+    return String(value).replace("T", " ").slice(0, 16);
+}
+
+function formatApprovalActorDisplay(actor, at) {
+    const time = formatTrackingDateTime(at);
+    if (actor && time) {
+        return `${actor} / ${time}`;
+    }
+    return actor || time || "—";
+}
+
+function renderSubrecordApprovalActors(row) {
+    const submit = formatApprovalActorDisplay(row.submittedBy, row.submittedAt);
+    const approve = formatApprovalActorDisplay(row.approvedBy, row.approvedAt);
+    return `<div class="approval-actor-cell">
+        <div class="approval-actor-line" title="提交 ${escapeHtml(submit)}"><span class="approval-actor-label">提交</span>${escapeHtml(submit)}</div>
+        <div class="approval-actor-line" title="审核 ${escapeHtml(approve)}"><span class="approval-actor-label">审核</span>${escapeHtml(approve)}</div>
+    </div>`;
+}
+
+function personnelApprovalTrackingColumnCount() {
+    const pending = (state.personnelApprovalTrackingStatus || "申报") === "申报";
+    let count = 14;
+    if (pending && hasPersonnelApprovalWrite()) {
+        count += 1;
+    }
+    return count;
+}
+
+function defaultPersonnelApprovalTrackingAssessmentYear() {
+    return String(new Date().getFullYear() - 1);
+}
+
+function ensurePersonnelApprovalTrackingAssessmentYearDefault() {
+    const recordType = document.getElementById("personnel-approval-tracking-record-type")?.value || "";
+    if (recordType !== "assessment") {
+        return;
+    }
+    const yearInput = document.getElementById("personnel-approval-tracking-assessment-year");
+    if (yearInput && !yearInput.value.trim()) {
+        yearInput.value = defaultPersonnelApprovalTrackingAssessmentYear();
+    }
+}
+
+function initializePersonnelApprovalTrackingPage() {
+    ensurePersonnelApprovalTrackingAssessmentYearDefault();
+    updatePersonnelApprovalTrackingFilterVisibility();
+}
+
+function updatePersonnelApprovalTrackingFilterVisibility() {
+    const recordType = document.getElementById("personnel-approval-tracking-record-type")?.value || "";
+    const isAssessment = recordType === "assessment";
+    document.getElementById("personnel-approval-tracking-year-label")?.classList.toggle("hidden", !isAssessment);
+    document.getElementById("personnel-approval-tracking-descendants-label")?.classList.toggle("hidden", !isAssessment);
+    if (isAssessment) {
+        ensurePersonnelApprovalTrackingAssessmentYearDefault();
+    }
+    const pending = (state.personnelApprovalTrackingStatus || "申报") === "申报";
+    const writable = pending && hasPersonnelApprovalWrite();
+    document.querySelectorAll(".personnel-approval-batch-write-only").forEach(element => {
+        element.classList.toggle("hidden", !writable);
+    });
+}
+
+function describePersonnelApprovalTrackingFilters(
+    organizationCode, keyword, submittedByMe, approvedWithinDays, pending, recordType, assessmentYear) {
+    const parts = [];
+    if (organizationCode) {
+        const orgInput = document.getElementById("personnel-approval-tracking-organization-code");
+        const orgLabel = orgInput?.value?.trim() || organizationCode;
+        parts.push(`单位=${orgLabel}（${organizationCode}）`);
+    }
+    if (recordType) {
+        parts.push(`类型=${trackingRecordTypeLabel(recordType)}`);
+    }
+    if (assessmentYear) {
+        parts.push(`考核年度=${assessmentYear}`);
+    }
+    if (keyword) {
+        parts.push(`关键词=${keyword}`);
+    }
+    if (submittedByMe) {
+        parts.push("仅我的提交");
+    }
+    if (!pending && approvedWithinDays) {
+        parts.push(`审核时间=近${approvedWithinDays}天`);
+    } else if (!pending && approvedWithinDays === null) {
+        parts.push("审核时间=全部");
+    }
+    return parts.length ? parts.join("，") : "";
+}
+
+function resetPersonnelApprovalTrackingFilters() {
+    clearOrganizationInput(document.getElementById("personnel-approval-tracking-organization-code"));
+    const keywordInput = document.getElementById("personnel-approval-tracking-keyword");
+    if (keywordInput) {
+        keywordInput.value = "";
+    }
+    const recordTypeSelect = document.getElementById("personnel-approval-tracking-record-type");
+    if (recordTypeSelect) {
+        recordTypeSelect.value = "";
+    }
+    const assessmentYearInput = document.getElementById("personnel-approval-tracking-assessment-year");
+    if (assessmentYearInput) {
+        assessmentYearInput.value = "";
+    }
+    const includeDescendantsInput = document.getElementById("personnel-approval-tracking-include-descendants");
+    if (includeDescendantsInput) {
+        includeDescendantsInput.checked = false;
+    }
+    const submittedByMeInput = document.getElementById("personnel-approval-tracking-submitted-by-me");
+    if (submittedByMeInput) {
+        submittedByMeInput.checked = false;
+    }
+    const approvedWindowSelect = document.getElementById("personnel-approval-tracking-approved-within-days");
+    if (approvedWindowSelect) {
+        approvedWindowSelect.value = "90";
+    }
+    state.personnelApprovalTrackingApprovedWithinDays = 90;
+    state.personnelApprovalTrackingPage = 0;
+    updatePersonnelApprovalTrackingFilterVisibility();
+    void loadPersonnelApprovalTracking();
+}
+
+function resolvePersonnelApprovalTrackingApprovedWithinDays(pending) {
+    if (pending) {
+        return null;
+    }
+    const select = document.getElementById("personnel-approval-tracking-approved-within-days");
+    const raw = select?.value ?? String(state.personnelApprovalTrackingApprovedWithinDays ?? 90);
+    if (!raw) {
+        return null;
+    }
+    const days = Number.parseInt(raw, 10);
+    return Number.isFinite(days) && days > 0 ? days : null;
+}
+
+function personnelApprovalTrackingEmptyHint(pending, filterSummary) {
+    const base = pending ? "暂无待审核记录" : "暂无已通过记录";
+    if (!filterSummary) {
+        if (pending) {
+            return `${base}。仅显示您账号数据权限范围内的记录；子表待审条目类型为任职/学历等，不会随主表「审批通过」一起隐藏。`;
+        }
+        return `${base}。默认仅显示近 90 天内本系统审核通过的条目；无审核日志的历史「审批通过」数据不会列出，可选「全部」查看。关键词可搜姓名、人员编码（如 00018）或完整编码（如 00601-00018）。`;
+    }
+    return `${base}（当前筛选：${filterSummary}）。请尝试点击「重置筛选」，或改用关键词搜索姓名/编码。`;
+}
+
+function renderTrackingAttachmentBadge(row) {
+    if (!(row.attachmentCount > 0)) {
+        return "—";
+    }
+    const type = row.recordType === "main" ? "main" : row.recordType;
+    return `<button type="button" class="attachment-count-badge" data-tracking-preview-attachments="${escapeHtml(type)}" data-tracking-uid="${row.uid}" data-tracking-record-id="${row.recordId}" title="查看附件 ${row.attachmentCount} 个">📎${row.attachmentCount}</button>`;
+}
+
+function formatTrackingEffectiveYearMonth(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+        return "—";
+    }
+    return text.replace("-", ".").slice(0, 7);
+}
+
+async function loadPersonnelApprovalTrackingAssessmentStats(organizationCode, assessmentYear, includeDescendants) {
+    const statsEl = document.getElementById("personnel-approval-tracking-assessment-stats");
+    if (!statsEl) {
+        return null;
+    }
+    const recordType = document.getElementById("personnel-approval-tracking-record-type")?.value || "";
+    if (recordType !== "assessment" || !assessmentYear) {
+        statsEl.classList.add("hidden");
+        statsEl.innerHTML = "";
+        state.personnelApprovalTrackingAssessmentStats = null;
+        return null;
+    }
+    const params = new URLSearchParams({
+        year: assessmentYear,
+        includeDescendants: String(includeDescendants),
+    });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    try {
+        const stats = await getJson(`/api/personnel/assessments/approval-stats?${params}`);
+        state.personnelApprovalTrackingAssessmentStats = stats;
+        renderPersonnelApprovalTrackingAssessmentStats(stats);
+        return stats;
+    } catch (error) {
+        statsEl.classList.remove("hidden");
+        statsEl.textContent = error.message || "考核统计加载失败";
+        state.personnelApprovalTrackingAssessmentStats = null;
+        return null;
+    }
+}
+
+function renderPersonnelApprovalTrackingAssessmentStats(stats) {
+    const statsEl = document.getElementById("personnel-approval-tracking-assessment-stats");
+    if (!statsEl || !stats) {
+        return;
+    }
+    statsEl.classList.remove("hidden");
+    const orgLabel = stats.organizationName || stats.organizationCode || "全部单位";
+    const ratio = stats.excellentRatio != null ? Number(stats.excellentRatio).toFixed(1) : "0.0";
+    const breakdown = (stats.resultCounts || [])
+        .map(item => `${escapeHtml(item.result)} <strong>${item.count}</strong>`)
+        .join(" · ");
+    const breakdownPart = breakdown ? ` · ${breakdown}` : "";
+    statsEl.innerHTML = `
+        <div class="assessment-approval-stats-line">
+            <strong>${escapeHtml(stats.year)} 年</strong> · ${escapeHtml(orgLabel)}
+            · 参加 <strong>${stats.participantCount}</strong> 人
+            · <span class="${assessmentResultTagClass("优秀")}">优秀 ${stats.excellentCount} 人（${ratio}%）</span>
+            · 待审 <strong>${stats.pendingCount}</strong>（优秀 ${stats.pendingExcellentCount}）
+            · 已通过 <strong>${stats.approvedCount}</strong>（优秀 ${stats.approvedExcellentCount}）${breakdownPart}
+        </div>
+        <span class="assessment-approval-stats-footnote-inline">占比 = 优秀人数 ÷ 已有考核结果人数；仅作审核参考，不设比例上限。</span>`;
+}
+
+function buildAssessmentApprovalConfirmHint(selectedRows) {
+    const stats = state.personnelApprovalTrackingAssessmentStats;
+    const excellentInBatch = (selectedRows || []).filter(row => (row.summary || "").includes("优秀")).length;
+    let hint = "";
+    if (stats?.year) {
+        hint += `\n当前 ${stats.year} 年优秀占比 ${Number(stats.excellentRatio || 0).toFixed(1)}%（${stats.excellentCount}/${stats.participantCount}）。`;
+    }
+    if (excellentInBatch) {
+        hint += `\n本次含优秀 ${excellentInBatch} 条。`;
+    }
+    return hint;
+}
+
+async function loadPersonnelApprovalTracking() {
+    const organizationCode = selectedOrganizationCode("personnel-approval-tracking-organization-code");
+    const keyword = document.getElementById("personnel-approval-tracking-keyword")?.value?.trim() || "";
+    const recordType = document.getElementById("personnel-approval-tracking-record-type")?.value?.trim() || "";
+    const assessmentYear = document.getElementById("personnel-approval-tracking-assessment-year")?.value?.trim() || "";
+    const includeDescendants = !!document.getElementById("personnel-approval-tracking-include-descendants")?.checked;
+    const submittedByMe = !!document.getElementById("personnel-approval-tracking-submitted-by-me")?.checked;
+    const status = state.personnelApprovalTrackingStatus || "申报";
+    const pending = status === "申报";
+    const approvedWithinDays = resolvePersonnelApprovalTrackingApprovedWithinDays(pending);
+    updatePersonnelApprovalTrackingFilterVisibility();
+    if (!pending) {
+        state.personnelApprovalTrackingApprovedWithinDays = approvedWithinDays ?? 0;
+    }
+    const params = new URLSearchParams({
+        page: String(state.personnelApprovalTrackingPage || 0),
+        size: "20",
+        status,
+        submittedByMe: String(submittedByMe),
+    });
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+    if (recordType) {
+        params.set("recordType", recordType);
+    }
+    if (assessmentYear) {
+        params.set("assessmentYear", assessmentYear);
+    }
+    if (!pending && approvedWithinDays) {
+        params.set("approvedWithinDays", String(approvedWithinDays));
+    }
+    const statusEl = document.getElementById("personnel-approval-tracking-status");
+    const rows = document.getElementById("personnel-approval-tracking-rows");
+    if (!statusEl || !rows) {
+        return;
+    }
+    statusEl.className = "status";
+    statusEl.textContent = "正在查询审核跟踪记录...";
+    rows.innerHTML = "";
+    const selectAll = document.getElementById("personnel-approval-tracking-select-all");
+    if (selectAll) {
+        selectAll.checked = false;
+    }
+    void loadPersonnelApprovalTrackingAssessmentStats(organizationCode, assessmentYear, includeDescendants);
+    const columnCount = personnelApprovalTrackingColumnCount();
+    const showSelect = pending && hasPersonnelApprovalWrite();
+    try {
+        const result = await getJson(`/api/personnel/approval-tracking?${params}`);
+        const totalPages = Math.max(result.totalPages || 1, 1);
+        if ((result.page || 0) >= totalPages && totalPages > 0 && (result.totalElements || 0) > 0) {
+            state.personnelApprovalTrackingPage = Math.max(totalPages - 1, 0);
+            return loadPersonnelApprovalTracking();
+        }
+        state.personnelApprovalTrackingPage = result.page || 0;
+        state.personnelApprovalTrackingRows = result.content || [];
+        const filterSummary = describePersonnelApprovalTrackingFilters(
+            organizationCode, keyword, submittedByMe, approvedWithinDays, pending, recordType, assessmentYear);
+        const emptyHint = personnelApprovalTrackingEmptyHint(pending, filterSummary);
+        rows.innerHTML = state.personnelApprovalTrackingRows.map(row => {
+            const actions = [];
+            actions.push(`<button class="row-action" type="button" data-tracking-view="${escapeHtml(row.uid)}" data-tracking-tab="${escapeHtml(trackingRecordTab(row.recordType))}">查看</button>`);
+            if (pending && hasPersonnelApprovalWrite()) {
+                actions.push(`<button class="row-action" type="button" data-tracking-approve="${escapeHtml(row.uid)}" data-tracking-type="${escapeHtml(row.recordType)}" data-tracking-id="${escapeHtml(row.recordId)}">审核通过</button>`);
+                actions.push(`<button class="row-action" type="button" data-tracking-return="${escapeHtml(row.uid)}" data-tracking-type="${escapeHtml(row.recordType)}" data-tracking-id="${escapeHtml(row.recordId)}">退回草稿</button>`);
+            }
+            return `
+            <tr>
+                ${showSelect ? `<td class="col-select"><input type="checkbox" data-tracking-select data-tracking-uid="${escapeHtml(row.uid)}" data-tracking-type="${escapeHtml(row.recordType)}" data-tracking-id="${escapeHtml(row.recordId)}"></td>` : ""}
+                <td class="col-org" title="${escapeHtml(row.organizationCode || "")}">${escapeHtml(row.organizationName || row.organizationCode || "")}</td>
+                <td class="col-code">${escapeHtml(row.personCode || "")}</td>
+                <td class="col-name">${escapeHtml(row.personName || "")}</td>
+                <td class="col-type">${escapeHtml(trackingRecordTypeLabel(row.recordType))}</td>
+                <td class="col-position" title="${escapeHtml(row.positionName || "")}">${escapeHtml(row.positionName || "—")}</td>
+                <td class="col-period">${escapeHtml(formatTrackingEffectiveYearMonth(row.effectiveYearMonth))}</td>
+                <td class="col-attachment">${renderTrackingAttachmentBadge(row)}</td>
+                <td class="col-summary" title="${escapeHtml(row.summary || "")}">${escapeHtml(row.summary || "")}</td>
+                <td class="col-approval">${escapeHtml(row.approvalStatus || "")}</td>
+                <td class="col-actor">${escapeHtml(row.submittedBy || "")}</td>
+                <td class="col-time">${escapeHtml(formatTrackingDateTime(row.submittedAt))}</td>
+                <td class="col-actor">${escapeHtml(row.approvedBy || "")}</td>
+                <td class="col-time">${escapeHtml(formatTrackingDateTime(row.approvedAt))}</td>
+                <td class="col-actions">${actions.join(" ") || "—"}</td>
+            </tr>`;
+        }).join("") || `<tr><td colspan="${columnCount}">${emptyHint}</td></tr>`;
+        rows.querySelectorAll("[data-tracking-view]").forEach(button => {
+            button.addEventListener("click", () => editPersonnelMaintenance(button.dataset.trackingView, button.dataset.trackingTab));
+        });
+        rows.querySelectorAll("[data-tracking-approve]").forEach(button => {
+            button.addEventListener("click", () => approveTrackingRecord(
+                button.dataset.trackingApprove,
+                button.dataset.trackingType,
+                button.dataset.trackingId));
+        });
+        rows.querySelectorAll("[data-tracking-return]").forEach(button => {
+            button.addEventListener("click", () => returnTrackingRecordToDraft(
+                button.dataset.trackingReturn,
+                button.dataset.trackingType,
+                button.dataset.trackingId));
+        });
+        rows.querySelectorAll("[data-tracking-preview-attachments]").forEach(button => {
+            button.addEventListener("click", event => {
+                event.preventDefault();
+                event.stopPropagation();
+                void openSubrecordAttachmentsFromList(
+                    button.dataset.trackingPreviewAttachments,
+                    Number(button.dataset.trackingUid),
+                    button.dataset.trackingRecordId);
+            });
+        });
+        const total = result.totalElements || 0;
+        statusEl.textContent = total
+            ? `共 ${total} 条，第 ${state.personnelApprovalTrackingPage + 1} / ${totalPages} 页${filterSummary ? `（${filterSummary}）` : ""}`
+            : emptyHint;
+        renderPersonnelApprovalTrackingPagination(total, totalPages);
+    } catch (error) {
+        renderPersonnelApprovalTrackingPagination(0, 1);
+        showError(statusEl, error);
+    }
+}
+
+function collectSelectedTrackingApprovalRecords() {
+    const selected = [...document.querySelectorAll("[data-tracking-select]:checked")].map(checkbox => ({
+        uid: Number(checkbox.dataset.trackingUid),
+        recordType: checkbox.dataset.trackingType,
+        recordId: Number(checkbox.dataset.trackingId),
+    })).filter(item => item.uid && item.recordType && item.recordId);
+    if (selected.length) {
+        return selected;
+    }
+    return (state.personnelApprovalTrackingRows || []).map(row => ({
+        uid: row.uid,
+        recordType: row.recordType,
+        recordId: row.recordId,
+    }));
+}
+
+async function batchApproveTrackingRecords() {
+    if (!hasPersonnelApprovalWrite()) {
+        return;
+    }
+    const pending = (state.personnelApprovalTrackingStatus || "申报") === "申报";
+    if (!pending) {
+        alert("请在「待审核」页签下批量审核。");
+        return;
+    }
+    const candidates = collectSelectedTrackingApprovalRecords();
+    if (!candidates.length) {
+        alert("当前页没有可审核的记录。");
+        return;
+    }
+    const selectedCheckboxes = document.querySelectorAll("[data-tracking-select]:checked").length;
+    const totalPending = Number(document.getElementById("personnel-approval-tracking-total-count")?.textContent || 0);
+    const pageHint = !selectedCheckboxes && totalPending > candidates.length
+        ? `\n（当前页 ${candidates.length} 条；全部待审 ${totalPending} 条，可勾选或逐页处理）`
+        : "";
+    const statsHint = buildAssessmentApprovalConfirmHint(
+        selectedCheckboxes
+            ? candidates.map(item => (state.personnelApprovalTrackingRows || []).find(row => row.recordId === item.recordId && row.recordType === item.recordType)).filter(Boolean)
+            : state.personnelApprovalTrackingRows || []);
+    if (!confirm(`确认将 ${candidates.length} 条记录审核通过？审核通过后将不能修改或删除。${pageHint}${statsHint}`)) {
+        return;
+    }
+    const statusEl = document.getElementById("personnel-approval-tracking-status");
+    if (statusEl) {
+        statusEl.className = "status";
+        statusEl.textContent = "正在批量审核...";
+    }
+    try {
+        const result = await postJson("/api/personnel/approval-tracking/batch-approve", {
+            records: candidates.map(item => ({
+                uid: item.uid,
+                recordType: item.recordType,
+                recordId: item.recordId,
+            })),
+        });
+        const failureText = (result.failures || []).slice(0, 3).map(item =>
+            `${item.personName || item.personCode || item.recordType}: ${item.message}`).join("；");
+        if (statusEl) {
+            statusEl.textContent = `批量审核完成：成功 ${result.approved} 条，跳过 ${result.skipped} 条。${failureText || ""}`;
+            if (result.skipped > 0) {
+                statusEl.className = "status error";
+            }
+        }
+        switchPersonnelApprovalTrackingTab("审批通过");
+    } catch (error) {
+        if (statusEl) {
+            showError(statusEl, error);
+        }
+    }
+}
+
+async function refreshPersonnelApprovalTrackingAfterApprove() {
+    const panel = document.getElementById("personnel-approval-tracking");
+    if (!panel || panel.classList.contains("hidden")) {
+        return;
+    }
+    switchPersonnelApprovalTrackingTab("审批通过");
+}
+
+async function approveTrackingRecord(uid, recordType, recordId) {
+    if (!hasPersonnelApprovalWrite()) {
+        return;
+    }
+    const row = (state.personnelApprovalTrackingRows || []).find(item =>
+        String(item.uid) === String(uid)
+        && String(item.recordType) === String(recordType)
+        && String(item.recordId) === String(recordId));
+    const statsHint = buildAssessmentApprovalConfirmHint(row ? [row] : []);
+    if (!confirm(`确认将该条记录审核通过？审核通过后将不能修改或删除。${statsHint}`)) {
+        return;
+    }
+    const statusEl = document.getElementById("personnel-approval-tracking-status");
+    if (statusEl) {
+        statusEl.className = "status";
+        statusEl.textContent = "正在审核...";
+    }
+    try {
+        if (recordType === "main") {
+            await postJson(`/api/personnel/${encodeURIComponent(uid)}/approval/approve`, {});
+        } else {
+            const segment = subrecordApiSegment(recordType);
+            await postJson(`/api/personnel/${encodeURIComponent(uid)}/${segment}/${encodeURIComponent(recordId)}/approval/approve`, {});
+        }
+        if (statusEl) {
+            statusEl.textContent = "审核通过。";
+        }
+        switchPersonnelApprovalTrackingTab("审批通过");
+    } catch (error) {
+        if (statusEl) {
+            showError(statusEl, error);
+        }
+    }
+}
+
+async function returnTrackingRecordToDraft(uid, recordType, recordId) {
+    if (!hasPersonnelApprovalWrite()) {
+        return;
+    }
+    if (!confirm("确认将该条记录退回草稿？退回后录入员可再次修改。")) {
+        return;
+    }
+    const statusEl = document.getElementById("personnel-approval-tracking-status");
+    if (statusEl) {
+        statusEl.className = "status";
+        statusEl.textContent = "正在退回草稿...";
+    }
+    try {
+        if (recordType === "main") {
+            await postJson(`/api/personnel/${encodeURIComponent(uid)}/approval/return-to-draft`, {});
+        } else {
+            const segment = subrecordApiSegment(recordType);
+            await postJson(`/api/personnel/${encodeURIComponent(uid)}/${segment}/${encodeURIComponent(recordId)}/approval/return-to-draft`, {});
+        }
+        if (statusEl) {
+            statusEl.textContent = "已退回草稿。";
+        }
+        await loadPersonnelApprovalTracking();
+    } catch (error) {
+        if (statusEl) {
+            showError(statusEl, error);
+        }
+    }
+}
+
 async function restoreChangedPersonnel(organizationCode, personCode, name) {
     if (!confirm(`确认将 ${name || personCode} 恢复到在册人员信息？`)) {
         return;
@@ -7882,41 +11044,10 @@ function renderChangedPersonnelDetailTabs(detail) {
     const assessments = detail.assessments || [];
     const histories = detail.payrollHistories || [];
     state.maintPayrollHistories = histories;
-    document.getElementById("maint-education-rows").innerHTML = education.length ? education.map(row => `
-        <tr>
-            <td>${escapeHtml(row.id)}</td>
-            <td>${escapeHtml(row.educationCode)}</td>
-            <td>${escapeHtml(row.educationName)}</td>
-            <td>${escapeHtml(row.school)}</td>
-            <td>${escapeHtml(row.enrollmentDate)}</td>
-            <td>${escapeHtml(row.graduationDate)}</td>
-            <td>${escapeHtml(row.educationType)}</td>
-            <td>${escapeHtml(row.remark || "")}</td>
-        </tr>
-    `).join("") : "<tr><td colspan='8'>暂无学历记录</td></tr>";
+    document.getElementById("maint-education-rows").innerHTML = renderMaintEducationRows(education, true);
     document.getElementById("maint-position-rows").innerHTML = renderMaintPositionRows(positions, true);
-    document.getElementById("maint-assessment-rows").innerHTML = assessments.length ? assessments.map(row => `
-        <tr>
-            <td class="col-year">${escapeHtml(row.year)}</td>
-            <td class="col-result"><span class="${assessmentResultTagClass(row.result)}">${escapeHtml(row.result || "—")}</span></td>
-            <td class="col-action">—</td>
-        </tr>
-    `).join("") : "<tr><td colspan='3'>暂无考核记录</td></tr>";
-    document.getElementById("maint-payroll-rows").innerHTML = histories.length ? histories.map(row => `
-        <tr>
-            <td>${escapeHtml(row.calculationYear || "")}${escapeHtml(row.calculationMonth || "")}</td>
-            <td>${escapeHtml(row.changeType || "")}</td>
-            <td>${escapeHtml(row.positionName || "")}</td>
-            <td>${escapeHtml(row.gradeSalaryLevel || "")}</td>
-            <td>${escapeHtml(row.positionSalaryGrade || "")}</td>
-            <td>${escapeHtml(row.levelAssessmentStartYear || "")}</td>
-            <td>${escapeHtml(row.stepAssessmentStartYear || "")}</td>
-            <td>${money(row.positionSalary)}</td>
-            <td>${money(row.gradeSalary)}</td>
-            <td>${money(row.totalAmount)}</td>
-            <td>${row.currentPayroll ? "是" : "否"}</td>
-        </tr>
-    `).join("") : "<tr><td colspan='11'>暂无调资记录</td></tr>";
+    document.getElementById("maint-assessment-rows").innerHTML = renderMaintAssessmentRows(assessments, true);
+    document.getElementById("maint-payroll-rows").innerHTML = renderMaintPayrollHistoryRows(histories, { readOnly: true });
     renderPersonnelRelatedRecords(detail.relatedRecords || {});
     document.getElementById("maint-wage-projection-result").textContent = "变动人员为只读查看，不支持工资推算。";
     document.getElementById("maint-wage-projection-steps").innerHTML = "—";
@@ -8437,40 +11568,161 @@ async function onDictionaryMaintenanceDisable() {
     }
 }
 
-async function editLocalPolicy(id) {
-    const organizationName = prompt("政策单位名称：");
-    if (organizationName === null) {
+function formatBonusBalanceMode(value) {
+    const mode = Number(value);
+    if (mode === 1) {
+        return "1（93年职务）";
+    }
+    if (mode === 3) {
+        return "3（随工龄）";
+    }
+    if (mode === 0 || Number.isNaN(mode)) {
+        return "0（不试算）";
+    }
+    return String(value ?? "");
+}
+
+function formatRoundingMethod(value) {
+    const normalized = String(value ?? "").trim();
+    if (normalized === "1") {
+        return "向上取整";
+    }
+    if (normalized === "2") {
+        return "向下取整";
+    }
+    return "四舍五入";
+}
+
+function normalizeRoundingMethod(value) {
+    const normalized = String(value ?? "").trim();
+    if (normalized === "1" || normalized === "2") {
+        return normalized;
+    }
+    return "0";
+}
+
+function decimalInputValue(value) {
+    if (value == null || value === "") {
+        return "";
+    }
+    return String(value);
+}
+
+function setSelectValue(elementId, value, fallback = "0") {
+    const element = document.getElementById(elementId);
+    if (!element) {
         return;
     }
-    try {
-        await putJson(`/api/system-config/local-policies/${id}`, {
-            organizationCode: "",
-            organizationName,
-        });
-        await loadLocalPolicies({ statusMessage: "保存成功" });
-    } catch (error) {
-        showError(document.getElementById("local-policy-status"), error);
+    const normalized = value == null || value === "" ? fallback : String(value);
+    if ([...element.options].some(option => option.value === normalized)) {
+        element.value = normalized;
+    } else {
+        element.value = fallback;
     }
 }
 
-async function editSystemOptions(current) {
-    const decimalPlaces = prompt("小数位数：", current?.decimalPlaces || "0");
-    if (decimalPlaces === null) {
+function existingStoredValue(existing, field) {
+    const value = existing?.[field];
+    if (value == null || value === "") {
+        return null;
+    }
+    return String(value);
+}
+
+function openLocalPolicyModal(record) {
+    if (!hasSystemConfigWrite() || !record) {
         return;
     }
-    try {
-        await putJson("/api/system-config/options", {
-            enterpriseTransferRaise: current?.enterpriseTransferRaise || "",
-            gradeStepEducationLink: current?.gradeStepEducationLink || "",
-            decimalPlaces,
-            policeRankAllowance: current?.policeRankAllowance || "",
-            reformBonusBalance: current?.reformBonusBalance || "",
-            floatingSalary: current?.floatingSalary || "",
-        });
-        await loadLocalPolicies({ statusMessage: "系统选项保存成功" });
-    } catch (error) {
-        showError(document.getElementById("local-policy-status"), error);
+    const status = document.getElementById("local-policy-modal-status");
+    const title = document.getElementById("local-policy-modal-title");
+    if (status) {
+        status.className = "status";
+        status.textContent = "";
     }
+    if (title) {
+        title.textContent = `本地政策维护 - ${record.organizationName || record.organizationCode || record.id}`;
+    }
+    document.getElementById("local-policy-modal-id").value = record.id ?? "";
+    document.getElementById("local-policy-modal-organization-code").value = record.organizationCode || "";
+    document.getElementById("local-policy-modal-organization-name").value = record.organizationName || "";
+    document.getElementById("local-policy-modal-city").value = record.city || "";
+    document.getElementById("local-policy-modal-approved-at").value = record.approvedAt || "";
+    document.getElementById("local-policy-modal-rounding-mode").value = decimalInputValue(record.roundingMode);
+    setSelectValue("local-policy-modal-round-to-integer", normalizeRoundingMethod(record.roundToInteger), "0");
+    document.getElementById("local-policy-modal-approval-mode").value = record.approvalMode || "";
+    document.getElementById("local-policy-modal-unit-approval-category").value = record.unitApprovalCategory || "";
+    setSelectValue("local-policy-modal-bonus-balance-mode", record.bonusBalanceMode, "0");
+    document.getElementById("local-policy-modal")?.classList.remove("hidden");
+    document.getElementById("local-policy-modal-organization-name")?.focus();
+}
+
+function closeLocalPolicyModal() {
+    document.getElementById("local-policy-modal")?.classList.add("hidden");
+}
+
+async function onLocalPolicyModalSubmit(event) {
+    event.preventDefault();
+    if (!hasSystemConfigWrite()) {
+        return;
+    }
+    const id = Number(document.getElementById("local-policy-modal-id")?.value);
+    const status = document.getElementById("local-policy-modal-status");
+    const existing = state.localPolicyRows.find(row => Number(row.id) === id) || {};
+    const bonusBalanceMode = document.getElementById("local-policy-modal-bonus-balance-mode")?.value ?? "0";
+    const payload = {
+        organizationCode: document.getElementById("local-policy-modal-organization-code")?.value.trim() || "",
+        organizationName: document.getElementById("local-policy-modal-organization-name")?.value.trim() || "",
+        organizationLevel: existing.organizationLevel || "",
+        supervisor: existing.supervisor || "",
+        city: document.getElementById("local-policy-modal-city")?.value.trim() || "",
+        activeStaffFlag: existing.activeStaffFlag ?? null,
+        approvalFlag: existing.approvalFlag || "",
+        approvedAt: document.getElementById("local-policy-modal-approved-at")?.value.trim() || "",
+        payrollTitle: existing.payrollTitle || "",
+        roundingMode: document.getElementById("local-policy-modal-rounding-mode")?.value.trim() || "",
+        roundToInteger: normalizeRoundingMethod(
+            document.getElementById("local-policy-modal-round-to-integer")?.value),
+        policeAllowanceCaption: existing.policeAllowanceCaption || "",
+        subsidyCaption: existing.subsidyCaption || "",
+        approvalMode: document.getElementById("local-policy-modal-approval-mode")?.value.trim() || "",
+        unitApprovalCategory: document.getElementById("local-policy-modal-unit-approval-category")?.value.trim() || "",
+        policeRankStartLevel: existing.policeRankStartLevel ?? null,
+        retiredGradeStep: existing.retiredGradeStep || "",
+        internSalaryMode: existingStoredValue(existing, "internSalaryMode"),
+        bonusBalanceMode,
+        floatingSalaryMode: existingStoredValue(existing, "floatingSalaryMode"),
+        payGradeRetentionMode: existingStoredValue(existing, "payGradeRetentionMode"),
+        softwareSerialNumber: existing.softwareSerialNumber || "",
+        approvalEnabled: existing.approvalEnabled ?? null,
+        backupPath: existing.backupPath || "",
+        positionChangeIncludeTechnicalGrade: existing.positionChangeIncludeTechnicalGrade || "",
+        rankChangeIncludeTechnicalGrade: existing.rankChangeIncludeTechnicalGrade || "",
+        autoBackup: existingStoredValue(existing, "autoBackup"),
+        confirmBeforeAction: existing.confirmBeforeAction ?? null,
+        checkUpdate: existingStoredValue(existing, "checkUpdate"),
+    };
+    if (!payload.organizationName) {
+        showError(status, new Error("单位名称不能为空"));
+        return;
+    }
+    status.className = "status";
+    status.textContent = "正在保存...";
+    try {
+        await putJson(`/api/system-config/local-policies/${id}`, payload);
+        closeLocalPolicyModal();
+        await loadLocalPolicies({ statusMessage: "本地政策保存成功" });
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function editLocalPolicy(id) {
+    const record = state.localPolicyRows.find(row => Number(row.id) === Number(id));
+    if (!record) {
+        showError(document.getElementById("local-policy-status"), new Error("未找到本地政策记录"));
+        return;
+    }
+    openLocalPolicyModal(record);
 }
 
 async function editAllowanceStandardAmount(id, item, positionCode, name, performanceCategory, currentAmount) {
@@ -8870,13 +12122,22 @@ async function deletePositionSalaryStandard(standardYearMonth, positionCode) {
 }
 
 function openGradeStandardModal(mode, kind, record = {}) {
-    initGradeStandardStepsGrid();
+    initGradeStandardStepsGrid(gradeStandardStepCount(kind));
     document.getElementById("grade-standard-mode").value = mode;
     document.getElementById("grade-standard-kind").value = kind;
     const isPositionGrade = kind === "position-grade";
-    document.getElementById("grade-standard-modal-title").textContent = isPositionGrade ? "岗位档次工资标准" : "级别工资标准";
-    document.getElementById("grade-standard-code-label").textContent = isPositionGrade ? "职务编码" : "级别";
+    const isJudicialGrade = kind === "judicial-grade";
+    const isPoliceGrade = kind === "police-grade";
+    document.getElementById("grade-standard-modal-title").textContent = isJudicialGrade
+        ? "法检等级工资标准"
+        : (isPoliceGrade
+            ? "警员警务等级工资标准"
+            : (isPositionGrade ? "岗位档次工资标准" : "级别工资标准"));
+    document.getElementById("grade-standard-code-label").textContent = isPositionGrade || isJudicialGrade
+        ? "职务编码"
+        : (isPoliceGrade ? "警务等级" : "级别");
     document.getElementById("grade-standard-jsdjgz-wrap").classList.toggle("hidden", !isPositionGrade);
+    document.getElementById("grade-standard-position-name-wrap")?.classList.toggle("hidden", !isJudicialGrade);
     const yearInput = document.getElementById("grade-standard-year-month");
     const codeInput = document.getElementById("grade-standard-code");
     yearInput.value = record.standardYearMonth
@@ -8886,7 +12147,11 @@ function openGradeStandardModal(mode, kind, record = {}) {
     yearInput.readOnly = mode === "edit";
     codeInput.readOnly = mode === "edit";
     document.getElementById("grade-standard-jsdjgz").value = record.technicalGradeSalary ?? 0;
-    const steps = record.gradeSteps || Array(20).fill(0);
+    const positionNameInput = document.getElementById("grade-standard-position-name");
+    if (positionNameInput) {
+        positionNameInput.value = record.positionName || "";
+    }
+    const steps = record.gradeSteps || Array(gradeStandardStepCount(kind)).fill(0);
     document.querySelectorAll("#grade-standard-steps-grid [data-grade-step]").forEach(input => {
         input.value = steps[Number(input.dataset.gradeStep) - 1] ?? 0;
     });
@@ -8918,6 +12183,25 @@ async function onGradeStandardFormSubmit(event) {
             } else {
                 await putJson(`/api/standards/grade-salaries/${encodeURIComponent(standardYearMonth)}/${encodeURIComponent(code)}`, payload);
             }
+        } else if (kind === "police-grade") {
+            const payload = { standardYearMonth, gradeLevel: code, gradeSteps };
+            if (mode === "create") {
+                await postJson("/api/standards/police-grade-salaries", payload);
+            } else {
+                await putJson(`/api/standards/police-grade-salaries/${encodeURIComponent(standardYearMonth)}/${encodeURIComponent(code)}`, payload);
+            }
+        } else if (kind === "judicial-grade") {
+            const payload = {
+                standardYearMonth,
+                positionCode: code,
+                positionName: document.getElementById("grade-standard-position-name")?.value.trim() || "",
+                gradeSteps,
+            };
+            if (mode === "create") {
+                await postJson("/api/standards/judicial-position-grade-salaries", payload);
+            } else {
+                await putJson(`/api/standards/judicial-position-grade-salaries/${encodeURIComponent(standardYearMonth)}/${encodeURIComponent(code)}`, payload);
+            }
         } else {
             const payload = {
                 standardYearMonth,
@@ -8938,7 +12222,7 @@ async function onGradeStandardFormSubmit(event) {
         document.getElementById("basic-standard-year-month").value = standardYearMonth;
         await refreshBasicStandardPositionCategories();
         const categoryEl = document.getElementById("basic-standard-position-category");
-        if (categoryEl && kind === "position-grade" && code.length >= 2) {
+        if (categoryEl && (kind === "position-grade" || kind === "judicial-grade") && code.length >= 2) {
             categoryEl.value = code.slice(0, 2);
         }
         await loadBasicStandards({ statusMessage: "保存成功" });
@@ -8965,6 +12249,30 @@ async function deletePositionGradeSalaryStandard(standardYearMonth, positionCode
     }
     try {
         await deleteJson(`/api/standards/position-grade-salaries/${encodeURIComponent(standardYearMonth)}/${encodeURIComponent(positionCode)}`);
+        await loadBasicStandards();
+    } catch (error) {
+        showError(document.getElementById("basic-standards-status"), error);
+    }
+}
+
+async function deleteJudicialPositionGradeSalaryStandard(standardYearMonth, positionCode) {
+    if (!confirm(`确认删除 ${standardYearMonth} / ${positionCode} 的法检等级工资标准？`)) {
+        return;
+    }
+    try {
+        await deleteJson(`/api/standards/judicial-position-grade-salaries/${encodeURIComponent(standardYearMonth)}/${encodeURIComponent(positionCode)}`);
+        await loadBasicStandards();
+    } catch (error) {
+        showError(document.getElementById("basic-standards-status"), error);
+    }
+}
+
+async function deletePoliceGradeSalaryStandard(standardYearMonth, gradeLevel) {
+    if (!confirm(`确认删除 ${standardYearMonth} / ${gradeLevel} 的警员警务等级工资标准？`)) {
+        return;
+    }
+    try {
+        await deleteJson(`/api/standards/police-grade-salaries/${encodeURIComponent(standardYearMonth)}/${encodeURIComponent(gradeLevel)}`);
         await loadBasicStandards();
     } catch (error) {
         showError(document.getElementById("basic-standards-status"), error);
@@ -9320,17 +12628,113 @@ function applyOrganizationFieldOptions(options) {
     if (!options) {
         return;
     }
-    fillOrganizationSelect("organization-modal-property", options.properties, { blankLabel: "请选择" });
     fillOrganizationSelect("organization-modal-category", options.categories, { blankLabel: "请选择" });
     fillOrganizationSelect("organization-modal-organization-level", options.organizationLevels, { blankLabel: "请选择" });
-    fillOrganizationSelect("organization-modal-payroll-category", options.payrollCategories, { blankLabel: "请选择" });
+    fillOrganizationSelect("organization-modal-system-category", options.systemCategories, { blankLabel: "请选择" });
+    refreshOrganizationPayrollCategoryOptions();
+    refreshOrganizationFinanceSourceOptions();
     fillOrganizationSelect("organization-modal-allowance-standard", options.allowanceStandards, { blankLabel: "请选择" });
     fillOrganizationSelect("organization-modal-performance-enabled", options.performanceEnabled, { blankLabel: null });
     fillOrganizationSelect("organization-modal-performance-category", options.performanceCategories, { blankLabel: null });
     fillOrganizationSelect("organization-modal-year-allowance-category", options.yearAllowanceCategories, { blankLabel: null });
-    fillOrganizationSelect("organization-modal-finance-source", options.financeSources, { blankLabel: "请选择" });
     fillOrganizationSelect("organization-modal-housing-fund", options.housingFundWithheld, { blankLabel: "请选择" });
     fillOrganizationSelect("organization-modal-pension", options.pensionWithheld, { blankLabel: "请选择" });
+}
+
+function organizationPayrollCategoryOptions(unitCategory) {
+    const category = String(unitCategory || "").trim();
+    const all = state.organizationFieldOptions?.payrollCategories || [];
+    const preferredValues = category === "行政"
+        ? ["公务员管理", "参照公务员", "依照公务员"]
+        : category === "事业"
+            ? ["事业管理", "参照公务员"]
+            : null;
+    if (!preferredValues) {
+        return all.length
+            ? all
+            : ["公务员管理", "参照公务员", "依照公务员", "事业管理"].map(value => ({ value, label: value }));
+    }
+    const allowed = new Set(preferredValues);
+    const filtered = all.filter(option => allowed.has(option?.value));
+    if (filtered.length > 0) {
+        return filtered;
+    }
+    return preferredValues.map(value => ({ value, label: value }));
+}
+
+function refreshOrganizationPayrollCategoryOptions(options = {}) {
+    const preserveValue = options.preserveValue !== false;
+    const select = document.getElementById("organization-modal-payroll-category");
+    if (!select) {
+        return;
+    }
+    const previous = preserveValue ? select.value : "";
+    const unitCategory = document.getElementById("organization-modal-category")?.value || "";
+    fillOrganizationSelect(
+        "organization-modal-payroll-category",
+        organizationPayrollCategoryOptions(unitCategory),
+        { blankLabel: "请选择" },
+    );
+    const allowed = [...select.options].map(option => option.value).filter(Boolean);
+    if (previous && allowed.includes(previous)) {
+        select.value = previous;
+    } else if (!preserveValue && allowed.length > 0) {
+        select.value = allowed[0];
+    } else if (previous) {
+        setOrganizationSelectValue("organization-modal-payroll-category", previous);
+    }
+    updateOrganizationPerformanceRatioField();
+}
+
+function organizationFinanceSourceOptions(unitCategory) {
+    const category = String(unitCategory || "").trim();
+    const all = state.organizationFieldOptions?.financeSources || [];
+    const preferredValues = category === "行政"
+        ? ["全额拨款"]
+        : category === "事业"
+            ? ["全额拨款", "差额拨款", "自收自支"]
+            : null;
+    if (!preferredValues) {
+        return all.length
+            ? all
+            : ["全额拨款", "差额拨款", "自收自支"].map(value => ({ value, label: value }));
+    }
+    const allowed = new Set(preferredValues);
+    const filtered = all.filter(option => allowed.has(option?.value));
+    if (filtered.length > 0) {
+        return filtered;
+    }
+    return preferredValues.map(value => ({ value, label: value }));
+}
+
+function refreshOrganizationFinanceSourceOptions(options = {}) {
+    const preserveValue = options.preserveValue !== false;
+    const select = document.getElementById("organization-modal-finance-source");
+    if (!select) {
+        return;
+    }
+    const previous = preserveValue ? select.value : "";
+    const unitCategory = document.getElementById("organization-modal-category")?.value || "";
+    fillOrganizationSelect(
+        "organization-modal-finance-source",
+        organizationFinanceSourceOptions(unitCategory),
+        { blankLabel: "请选择" },
+    );
+    const allowed = [...select.options].map(option => option.value).filter(Boolean);
+    if (unitCategory === "行政" && allowed.includes("全额拨款")) {
+        select.value = "全额拨款";
+    } else if (previous && allowed.includes(previous)) {
+        select.value = previous;
+    } else if (!preserveValue && allowed.length === 1) {
+        select.value = allowed[0];
+    } else if (previous) {
+        setOrganizationSelectValue("organization-modal-finance-source", previous);
+    }
+}
+
+function onOrganizationUnitCategoryChange() {
+    refreshOrganizationPayrollCategoryOptions({ preserveValue: false });
+    refreshOrganizationFinanceSourceOptions({ preserveValue: false });
 }
 
 function fillOrganizationSelect(selectId, options, config = {}) {
@@ -9346,7 +12750,7 @@ function fillOrganizationSelect(selectId, options, config = {}) {
     }
     rows.forEach(option => {
         const value = option?.value == null ? "" : String(option.value);
-        const label = option?.label == null || option.label === "" ? value : String(option.label);
+        const label = option?.label == null ? value : String(option.label);
         parts.push(`<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`);
     });
     select.innerHTML = parts.join("");
@@ -9459,19 +12863,22 @@ function fillOrganizationDetailForm(record, mode = "edit") {
     document.getElementById("organization-modal-code").value = record?.organizationCode || "";
     document.getElementById("organization-modal-name").value = record?.name || "";
     document.getElementById("organization-modal-short-name").value = record?.shortName || "";
-    setOrganizationSelectValue("organization-modal-property", record?.property || "");
     setOrganizationSelectValue("organization-modal-category", record?.category || "");
     setOrganizationSelectValue("organization-modal-organization-level", record?.organizationLevel || "");
+    setOrganizationSelectValue("organization-modal-system-category", record?.systemCategory || "");
     document.getElementById("organization-modal-personnel-quota").value = record?.personnelQuota ?? 0;
     document.getElementById("organization-modal-establishment-count").value = record?.establishmentCount ?? 0;
     document.getElementById("organization-modal-actual-count").value = record?.actualCount ?? 0;
     document.getElementById("organization-detail-active-count").textContent =
         record?.activePersonnelCount == null ? "—" : String(record.activePersonnelCount);
+    refreshOrganizationPayrollCategoryOptions({ preserveValue: true });
     setOrganizationSelectValue("organization-modal-payroll-category", record?.payrollCategory || "");
     setOrganizationSelectValue("organization-modal-allowance-standard", record?.allowanceStandard || "");
     setOrganizationSelectValue("organization-modal-performance-enabled", record?.performanceAllowanceEnabled ?? 0);
     setOrganizationSelectValue("organization-modal-performance-category", record?.performanceCategory ?? 0);
+    document.getElementById("organization-modal-performance-ratio").value = record?.performanceRatio || "";
     setOrganizationSelectValue("organization-modal-year-allowance-category", record?.yearAllowanceCategory ?? 0);
+    refreshOrganizationFinanceSourceOptions({ preserveValue: true });
     setOrganizationSelectValue("organization-modal-finance-source", record?.financeSource || "");
     setOrganizationSelectValue("organization-modal-housing-fund", record?.housingFundWithheld || "");
     setOrganizationSelectValue("organization-modal-pension", record?.pensionWithheld || "");
@@ -9488,18 +12895,21 @@ function clearOrganizationDetailForm(options = {}) {
     document.getElementById("organization-modal-code").value = "";
     document.getElementById("organization-modal-name").value = "";
     document.getElementById("organization-modal-short-name").value = "";
-    setOrganizationSelectValue("organization-modal-property", "");
     setOrganizationSelectValue("organization-modal-category", "");
     setOrganizationSelectValue("organization-modal-organization-level", "");
+    setOrganizationSelectValue("organization-modal-system-category", "");
     document.getElementById("organization-modal-personnel-quota").value = "0";
     document.getElementById("organization-modal-establishment-count").value = "0";
     document.getElementById("organization-modal-actual-count").value = "0";
     document.getElementById("organization-detail-active-count").textContent = "—";
+    refreshOrganizationPayrollCategoryOptions({ preserveValue: true });
     setOrganizationSelectValue("organization-modal-payroll-category", "");
     setOrganizationSelectValue("organization-modal-allowance-standard", "");
     setOrganizationSelectValue("organization-modal-performance-enabled", "0");
     setOrganizationSelectValue("organization-modal-performance-category", "0");
+    document.getElementById("organization-modal-performance-ratio").value = "";
     setOrganizationSelectValue("organization-modal-year-allowance-category", "0");
+    refreshOrganizationFinanceSourceOptions({ preserveValue: true });
     setOrganizationSelectValue("organization-modal-finance-source", "");
     setOrganizationSelectValue("organization-modal-housing-fund", "");
     setOrganizationSelectValue("organization-modal-pension", "");
@@ -9519,7 +12929,6 @@ function readOrganizationDetailPayload() {
         organizationCode: document.getElementById("organization-modal-code").value.trim(),
         name: document.getElementById("organization-modal-name").value.trim(),
         shortName: document.getElementById("organization-modal-short-name").value.trim(),
-        property: document.getElementById("organization-modal-property").value.trim(),
         category: document.getElementById("organization-modal-category").value.trim(),
         payrollCategory: document.getElementById("organization-modal-payroll-category").value.trim(),
         allowanceStandard: document.getElementById("organization-modal-allowance-standard").value.trim(),
@@ -9527,8 +12936,12 @@ function readOrganizationDetailPayload() {
         establishmentCount: intValue("organization-modal-establishment-count"),
         actualCount: intValue("organization-modal-actual-count"),
         organizationLevel: document.getElementById("organization-modal-organization-level").value.trim(),
+        systemCategory: document.getElementById("organization-modal-system-category").value.trim(),
         performanceAllowanceEnabled: intValue("organization-modal-performance-enabled"),
         performanceCategory: intValue("organization-modal-performance-category"),
+        performanceRatio: normalizeOrganizationPerformanceRatio(
+            document.getElementById("organization-modal-performance-ratio").value
+        ),
         yearAllowanceCategory: intValue("organization-modal-year-allowance-category"),
         financeSource: document.getElementById("organization-modal-finance-source").value.trim(),
         housingFundWithheld: document.getElementById("organization-modal-housing-fund").value.trim(),
@@ -9709,55 +13122,33 @@ async function loadLocalPolicies(options = {}) {
 
     const status = document.getElementById("local-policy-status");
     const rows = document.getElementById("local-policy-rows");
-    const optionRows = document.getElementById("system-option-rows");
     status.className = "status";
     status.textContent = "正在查询本地工资政策...";
     rows.innerHTML = "";
-    optionRows.innerHTML = "";
 
     try {
-        const [policies, optionsData] = await Promise.all([
-            getJson(`/api/system-config/local-policies?${params}`),
-            getJson("/api/system-config/options"),
-        ]);
-        rows.innerHTML = (policies.content || []).map(row => `
+        const policies = await getJson(`/api/system-config/local-policies?${params}`);
+        state.localPolicyRows = policies.content || [];
+        rows.innerHTML = state.localPolicyRows.map(row => `
             <tr>
                 <td>${escapeHtml(row.id)}</td>
                 <td>${escapeHtml(row.organizationCode)}</td>
                 <td>${escapeHtml(row.organizationName)}</td>
                 <td>${escapeHtml(row.city)}</td>
                 <td>${escapeHtml(row.approvedAt)}</td>
-                <td>${escapeHtml(row.payrollTitle)}</td>
                 <td>${escapeHtml(row.roundingMode)}</td>
-                <td>${escapeHtml(row.roundToInteger)}</td>
-                <td>${escapeHtml(row.policeAllowanceCaption)}</td>
-                <td>${escapeHtml(row.subsidyCaption)}</td>
+                <td>${escapeHtml(formatRoundingMethod(row.roundToInteger))}</td>
                 <td>${escapeHtml(row.approvalMode)}</td>
                 <td>${escapeHtml(row.unitApprovalCategory)}</td>
-                <td>${escapeHtml(row.internSalaryMode)}</td>
-                <td>${escapeHtml(row.bonusBalanceMode)}</td>
-                <td>${escapeHtml(row.floatingSalaryMode)}</td>
-                <td>${escapeHtml(row.payGradeRetentionMode)}</td>
-                <td>${escapeHtml(row.autoBackup)}</td>
-                <td>${escapeHtml(row.checkUpdate)}</td>
-                ${hasSystemConfigWrite() ? `<td><button class="row-action" type="button" data-policy-edit="${row.id}">编辑</button></td>` : ""}
+                <td>${escapeHtml(formatBonusBalanceMode(row.bonusBalanceMode))}</td>
+                ${hasSystemConfigWrite()
+                    ? `<td><button class="row-action" type="button" data-policy-edit="${row.id}">编辑</button></td>`
+                    : `<td></td>`}
             </tr>
         `).join("");
         rows.querySelectorAll("button[data-policy-edit]").forEach(button => {
             button.addEventListener("click", () => editLocalPolicy(Number(button.dataset.policyEdit)));
         });
-        optionRows.innerHTML = (optionsData || []).map(row => `
-            <tr>
-                <td>${escapeHtml(row.enterpriseTransferRaise)}</td>
-                <td>${escapeHtml(row.gradeStepEducationLink)}</td>
-                <td>${escapeHtml(row.decimalPlaces)}</td>
-                <td>${escapeHtml(row.policeRankAllowance)}</td>
-                <td>${escapeHtml(row.reformBonusBalance)}</td>
-                <td>${escapeHtml(row.floatingSalary)}</td>
-                ${hasSystemConfigWrite() ? `<td><button class="row-action" type="button" id="system-options-edit">编辑</button></td>` : ""}
-            </tr>
-        `).join("");
-        document.getElementById("system-options-edit")?.addEventListener("click", () => editSystemOptions(optionsData?.[0]));
         await loadPayrollFieldConfig({ silent: true });
         if (options.statusMessage) {
             showSuccess(status, options.statusMessage);
@@ -9879,6 +13270,48 @@ const payrollPreviewModalIds = {
     componentRows: "payroll-preview-modal-component-rows",
 };
 
+function renderPayrollPreviewSalaryItemRows(components) {
+    return (components || []).map(component => `
+        <tr>
+            <td>${escapeHtml(component.fieldName)}</td>
+            <td>${escapeHtml(component.caption)}</td>
+            <td>${money(component.amount)}</td>
+        </tr>
+    `).join("");
+}
+
+function updatePayrollPreviewSalaryItemsHint(hintEl, options = {}) {
+    if (!hintEl) {
+        return;
+    }
+    if (options.projectionPeriod) {
+        hintEl.textContent = `以下为逐年推算最后一步（目标年月 ${formatProjectionPeriod(options.projectionPeriod)}）的工资项目明细，与上方末步展开内容一致。`;
+        return;
+    }
+    if (options.calculationPeriod) {
+        hintEl.textContent = `以下为库内最新工资记录（${formatProjectionPeriod(options.calculationPeriod)}）按标准重算明细；与逐年推算无关。`;
+        return;
+    }
+    hintEl.textContent = "";
+}
+
+function renderPayrollPreviewSalaryItems(preview, ids, options = {}) {
+    const salaryItems = options.components && options.components.length
+        ? options.components
+        : ((preview.salaryItems && preview.salaryItems.length)
+            ? preview.salaryItems
+            : preview.calculatedComponents);
+    document.getElementById(ids.componentRows).innerHTML = renderPayrollPreviewSalaryItemRows(salaryItems);
+    const hintEl = document.getElementById("payroll-preview-modal-salary-items-hint");
+    if (options.projectionPeriod) {
+        updatePayrollPreviewSalaryItemsHint(hintEl, { projectionPeriod: options.projectionPeriod });
+    } else if (preview?.calculationPeriod) {
+        updatePayrollPreviewSalaryItemsHint(hintEl, { calculationPeriod: preview.calculationPeriod });
+    } else {
+        updatePayrollPreviewSalaryItemsHint(hintEl, {});
+    }
+}
+
 function renderPayrollPreview(preview, ids) {
     document.getElementById(ids.person).textContent =
         `${preview.name} / ${preview.organizationCode}-${preview.personCode}`;
@@ -9889,16 +13322,7 @@ function renderPayrollPreview(preview, ids) {
     diff.textContent = money(preview.totalDifference);
     diff.className = Number(preview.totalDifference) === 0 ? "difference-ok" : "difference-bad";
 
-    const salaryItems = preview.salaryItems && preview.salaryItems.length
-        ? preview.salaryItems
-        : preview.calculatedComponents;
-    document.getElementById(ids.componentRows).innerHTML = salaryItems.map(component => `
-        <tr>
-            <td>${escapeHtml(component.fieldName)}</td>
-            <td>${escapeHtml(component.caption)}</td>
-            <td>${money(component.amount)}</td>
-        </tr>
-    `).join("");
+    renderPayrollPreviewSalaryItems(preview, ids);
 }
 
 async function openPayrollPreviewModal(uid) {
@@ -9932,6 +13356,13 @@ async function openPayrollPreviewModal(uid) {
         renderPayrollPreviewProjectionSummary(preview, steps);
         if (steps.length) {
             renderWageProjectionSteps(steps, stepsContainer);
+            const lastStep = steps[steps.length - 1];
+            if (lastStep?.components?.length) {
+                renderPayrollPreviewSalaryItems(preview, payrollPreviewModalIds, {
+                    components: lastStep.components,
+                    projectionPeriod: lastStep.period,
+                });
+            }
         } else if (projectionError) {
             renderWageProjectionSteps([], stepsContainer, {
                 reason: `逐年推算失败：${projectionError.message || projectionError}`,
@@ -11985,6 +15416,18 @@ async function rollbackAllProcessedRankChangePromotions(config) {
     }
 }
 
+function formatRankChangeTargetRank(row) {
+    const target = String(row?.targetRankName ?? "").trim();
+    if (target) {
+        return target;
+    }
+    const stored = String(row?.storedRankName ?? "").trim();
+    if (stored && stored !== "—" && stored !== "-") {
+        return "无（取消）";
+    }
+    return "";
+}
+
 function closeRankChangeDetailModal() {
     document.getElementById("rank-change-detail-modal")?.classList.add("hidden");
 }
@@ -12014,7 +15457,7 @@ function renderRankChangeDetailContent(config, row) {
                 ${positionChangeDetailCompareRow("岗位", positionText, positionText)}
                 ${positionChangeDetailCompareRow("执行年月", row.calculationPeriod || "-", row.calculationPeriod || "-")}
                 ${positionChangeDetailCompareRow("授衔/变动年月", row.rankChangeYearMonth || "-", row.rankChangeYearMonth || "-")}
-                ${positionChangeDetailCompareRow("旧等级", row.storedRankName || "-", row.targetRankName || "-")}
+                ${positionChangeDetailCompareRow("旧等级", row.storedRankName || "-", formatRankChangeTargetRank(row) || "-")}
                 ${positionChangeDetailMoneyRow("jxjt", row.storedRankAllowance, row.calculatedRankAllowance, row.differenceAmount)}
                 <tr><td>说明</td><td colspan="3">${escapeHtml(row.standardNote || "-")}${row.midChainApply ? "【中段】" : ""}${row.laterPeriodSuccessorCount ? `（后继${row.laterPeriodSuccessorCount}条）` : ""}</td></tr>
             </tbody>
@@ -12136,7 +15579,7 @@ async function loadRankChangePromotions(config) {
                 <td class="col-position" title="${escapeHtml(row.positionCode || "")}">${escapeHtml(row.positionName || "")}</td>
                 <td class="col-period">${escapeHtml(row.rankChangeYearMonth || "")}</td>
                 <td class="col-grade">${escapeHtml(row.storedRankName || "")}</td>
-                <td class="col-grade">${escapeHtml(row.targetRankName || "")}</td>
+                <td class="col-grade">${escapeHtml(formatRankChangeTargetRank(row))}</td>
                 <td class="col-money">${money(row.storedRankAllowance)}</td>
                 <td class="col-money">${money(row.calculatedRankAllowance)}</td>
                 <td class="col-money ${Number(row.differenceAmount) === 0 ? "difference-ok" : "difference-bad"}">${money(row.differenceAmount)}</td>
@@ -12708,21 +16151,6 @@ async function loadLevelPromotions() {
         renderLevelPromotionPagination(0, 1);
         showError(status, error);
     }
-}
-
-function formatLevelStep(level, step) {
-    const levelText = level == null || level === "" ? "" : String(level).trim();
-    const stepText = step == null || step === "" ? "" : String(step).trim();
-    if (!levelText && !stepText) {
-        return "";
-    }
-    if (!levelText) {
-        return stepText;
-    }
-    if (!stepText) {
-        return levelText;
-    }
-    return `${levelText}-${stepText}`;
 }
 
 /** 正常档次/薪级：级别工资显示「级别-档次」，薪级/法检档次仅显示档次。 */
@@ -13830,6 +17258,288 @@ async function rollbackPositionChangeAction(payrollHistoryId) {
         await loadPositionChangePromotions();
     } catch (error) {
         showError(status, error);
+    }
+}
+
+async function onDisciplinaryDemotionPromotionSearch(event) {
+    event.preventDefault();
+    state.disciplinaryDemotionPage = 0;
+    await loadDisciplinaryDemotionPromotions();
+}
+
+function gotoDisciplinaryDemotionPage(page) {
+    const totalPages = Math.max(state.disciplinaryDemotionTotalPages || 1, 1);
+    const target = Math.min(Math.max(page, 0), totalPages - 1);
+    if (target === state.disciplinaryDemotionPage) {
+        return;
+    }
+    state.disciplinaryDemotionPage = target;
+    void loadDisciplinaryDemotionPromotions();
+}
+
+function renderDisciplinaryDemotionPagination(totalElements, totalPages) {
+    const bar = document.getElementById("disciplinary-demotion-pagination");
+    if (!bar) {
+        return;
+    }
+    const pages = Math.max(totalPages || 1, 1);
+    state.disciplinaryDemotionTotalPages = pages;
+    bar.classList.toggle("hidden", !totalElements);
+    const current = state.disciplinaryDemotionPage || 0;
+    const pageInput = document.getElementById("disciplinary-demotion-page-input");
+    const totalPagesEl = document.getElementById("disciplinary-demotion-total-pages");
+    const totalCountEl = document.getElementById("disciplinary-demotion-total-count");
+    if (totalPagesEl) {
+        totalPagesEl.textContent = String(pages);
+    }
+    if (totalCountEl) {
+        totalCountEl.textContent = String(totalElements || 0);
+    }
+    if (pageInput) {
+        pageInput.value = String(current + 1);
+        pageInput.max = String(pages);
+        pageInput.disabled = !totalElements;
+    }
+    const noData = !totalElements;
+    document.getElementById("disciplinary-demotion-first").disabled = noData || current <= 0;
+    document.getElementById("disciplinary-demotion-prev").disabled = noData || current <= 0;
+    document.getElementById("disciplinary-demotion-next").disabled = noData || current >= pages - 1;
+    document.getElementById("disciplinary-demotion-last").disabled = noData || current >= pages - 1;
+}
+
+async function loadDisciplinaryDemotionPromotions() {
+    const organizationCode = selectedOrganizationCode("disciplinary-demotion-organization-code");
+    const keyword = document.getElementById("disciplinary-demotion-keyword").value.trim();
+    const page = String(state.disciplinaryDemotionPage || 0);
+    const size = "20";
+    const params = new URLSearchParams({ page, size });
+    if (!document.getElementById("disciplinary-demotion-include-apply")?.checked) {
+        params.set("includeApply", "false");
+    }
+    if (!document.getElementById("disciplinary-demotion-include-processed")?.checked) {
+        params.set("includeProcessed", "false");
+    }
+    if (organizationCode) {
+        params.set("organizationCode", organizationCode);
+    }
+    if (keyword) {
+        params.set("keyword", keyword);
+    }
+    const status = document.getElementById("disciplinary-demotion-status");
+    const rows = document.getElementById("disciplinary-demotion-rows");
+    status.className = "status";
+    status.textContent = "正在查询处分降职试算...";
+    rows.innerHTML = "";
+    try {
+        const result = await getJson(`/api/payroll/disciplinary-demotion-promotions?${params}`);
+        const total = result.totalElements || 0;
+        const totalPages = Math.max(result.totalPages || 1, 1);
+        if (total > 0 && state.disciplinaryDemotionPage >= totalPages) {
+            state.disciplinaryDemotionPage = Math.max(totalPages - 1, 0);
+            await loadDisciplinaryDemotionPromotions();
+            return;
+        }
+        state.disciplinaryDemotionPage = result.page || 0;
+        const canWrite = hasPayrollFeatureWrite("DISCIPLINARY_DEMOTION_PROMOTION_WRITE");
+        document.getElementById("disciplinary-demotion-select-all").checked = false;
+        rows.innerHTML = (result.content || []).map(row => {
+            const canApply = Boolean(row.applyEligible);
+            const canRollback = Boolean(row.rollbackEligible);
+            const applyButton = canWrite
+                ? `<button class="row-action" data-disciplinary-demotion-apply="${escapeHtml(row.payrollHistoryId)}" type="button" ${canApply ? "" : "disabled"}>处理</button>`
+                : "";
+            const rollbackButton = canWrite
+                ? `<button class="row-action danger-button" data-disciplinary-demotion-rollback="${escapeHtml(row.payrollHistoryId)}" type="button" ${canRollback ? "" : "disabled"}>还原</button>`
+                : "";
+            return `
+            <tr class="${canRollback ? "highlight-row" : ""}">
+                <td class="col-select${canWrite ? "" : " hidden"}"><input type="checkbox" data-disciplinary-demotion-select="${escapeHtml(row.payrollHistoryId)}" data-disciplinary-demotion-eligible="${canApply ? "true" : "false"}" data-disciplinary-demotion-rollback="${canRollback ? "true" : "false"}" ${canWrite && (canApply || canRollback) ? "" : "disabled"} aria-label="选择${escapeHtml(row.name)}"></td>
+                <td class="col-org">${escapeHtml(row.organizationName || row.organizationCode || "")}</td>
+                <td class="col-code">${escapeHtml(row.personCode)}</td>
+                <td class="col-name">${escapeHtml(row.name)}</td>
+                <td class="col-position" title="${escapeHtml(row.currentPositionCode || "")}">${escapeHtml(row.currentPositionName || "")}</td>
+                <td class="col-position" title="${escapeHtml(row.newPositionCode || "")}">${escapeHtml(row.newPositionName || "")}</td>
+                <td class="col-change">${escapeHtml(row.positionChangeReason || "")}</td>
+                <td class="col-change">${canRollback ? "已处理" : ""}</td>
+                <td class="col-period">${escapeHtml(row.positionStartYearMonth || "")}</td>
+                <td class="col-period">${escapeHtml(row.effectivePeriod || "")}</td>
+                <td class="col-level">${escapeHtml(row.currentLevel || "")}</td>
+                <td class="col-grade">${escapeHtml(row.currentStep || "")}</td>
+                <td class="col-level">${escapeHtml(row.promotedLevel || "")}</td>
+                <td class="col-grade">${escapeHtml(row.promotedStep || "")}</td>
+                <td class="col-money">${money(row.totalIncrease)}</td>
+                <td class="col-note">${escapeHtml(row.note || "")}</td>
+                <td class="col-action">
+                    <button class="row-action" data-disciplinary-demotion-detail="${escapeHtml(row.payrollHistoryId)}" type="button">明细</button>
+                    ${applyButton}
+                    ${rollbackButton}
+                </td>
+            </tr>
+        `;
+        }).join("");
+        rows.querySelectorAll("button[data-disciplinary-demotion-detail]").forEach(button => {
+            button.addEventListener("click", () => openDisciplinaryDemotionDetailModal(button.dataset.disciplinaryDemotionDetail));
+        });
+        rows.querySelectorAll("button[data-disciplinary-demotion-apply]").forEach(button => {
+            button.addEventListener("click", () => applyDisciplinaryDemotionAction(button.dataset.disciplinaryDemotionApply));
+        });
+        rows.querySelectorAll("button[data-disciplinary-demotion-rollback]").forEach(button => {
+            button.addEventListener("click", () => rollbackDisciplinaryDemotionAction(button.dataset.disciplinaryDemotionRollback));
+        });
+        renderDisciplinaryDemotionPagination(total, totalPages);
+        status.textContent = total
+            ? `共 ${total} 条试算记录，第 ${state.disciplinaryDemotionPage + 1} / ${totalPages} 页`
+            : "未查询到处分降职试算记录";
+    } catch (error) {
+        renderDisciplinaryDemotionPagination(0, 1);
+        showError(status, error);
+    }
+}
+
+async function applySelectedDisciplinaryDemotions() {
+    if (!ensurePayrollFeatureWrite("DISCIPLINARY_DEMOTION_PROMOTION_WRITE", "处分降职办理")) {
+        return;
+    }
+    const selectedIds = Array.from(document.querySelectorAll("[data-disciplinary-demotion-select]:checked"))
+        .filter(checkbox => checkbox.dataset.disciplinaryDemotionEligible === "true")
+        .map(checkbox => checkbox.dataset.disciplinaryDemotionSelect)
+        .filter(Boolean);
+    const status = document.getElementById("disciplinary-demotion-status");
+    if (!selectedIds.length) {
+        status.className = "status error";
+        status.textContent = "请先勾选需要处理的处分降职记录。";
+        return;
+    }
+    if (!confirm(`确认批量处理勾选的 ${selectedIds.length} 条处分降职记录？`)) {
+        return;
+    }
+    status.className = "status";
+    status.textContent = `正在批量处理 0 / ${selectedIds.length}...`;
+    let successCount = 0;
+    const failures = [];
+    for (const id of selectedIds) {
+        try {
+            await postJson(`/api/payroll/disciplinary-demotion-promotions/${encodeURIComponent(id)}/apply`, {});
+            successCount++;
+            status.textContent = `正在批量处理 ${successCount} / ${selectedIds.length}...`;
+        } catch (error) {
+            failures.push(error.message);
+        }
+    }
+    status.className = failures.length ? "status error" : "status";
+    status.textContent = failures.length
+        ? `批量处理完成：成功 ${successCount} 条，失败 ${failures.length} 条。${failures[0] || ""}`
+        : `批量处理完成：成功 ${successCount} 条。`;
+    await loadDisciplinaryDemotionPromotions();
+}
+
+async function rollbackSelectedDisciplinaryDemotions() {
+    if (!ensurePayrollFeatureWrite("DISCIPLINARY_DEMOTION_PROMOTION_WRITE", "处分降职办理")) {
+        return;
+    }
+    const selectedIds = Array.from(document.querySelectorAll("[data-disciplinary-demotion-select]:checked"))
+        .filter(checkbox => checkbox.dataset.disciplinaryDemotionRollback === "true")
+        .map(checkbox => checkbox.dataset.disciplinaryDemotionSelect)
+        .filter(Boolean);
+    const status = document.getElementById("disciplinary-demotion-status");
+    if (!selectedIds.length) {
+        status.className = "status error";
+        status.textContent = "请先勾选需要还原的已处理处分降职记录。";
+        return;
+    }
+    if (!confirm(`确认批量还原勾选的 ${selectedIds.length} 条处分降职记录？`)) {
+        return;
+    }
+    status.className = "status";
+    status.textContent = `正在批量还原 0 / ${selectedIds.length}...`;
+    let successCount = 0;
+    const failures = [];
+    for (const id of selectedIds) {
+        try {
+            await postJson(`/api/payroll/disciplinary-demotion-promotions/${encodeURIComponent(id)}/rollback`, {});
+            successCount++;
+            status.textContent = `正在批量还原 ${successCount} / ${selectedIds.length}...`;
+        } catch (error) {
+            failures.push(error.message);
+        }
+    }
+    status.className = failures.length ? "status error" : "status";
+    status.textContent = failures.length
+        ? `批量还原完成：成功 ${successCount} 条，失败 ${failures.length} 条。${failures[0] || ""}`
+        : `批量还原完成：成功 ${successCount} 条。`;
+    await loadDisciplinaryDemotionPromotions();
+}
+
+async function applyDisciplinaryDemotionAction(payrollHistoryId) {
+    if (!ensurePayrollFeatureWrite("DISCIPLINARY_DEMOTION_PROMOTION_WRITE", "处分降职办理")) {
+        return;
+    }
+    if (!confirm("确认按当前试算结果办理处分降职？系统会新增一条降资处分工资变动记录。")) {
+        return;
+    }
+    const status = document.getElementById("disciplinary-demotion-status");
+    status.className = "status";
+    status.textContent = "正在办理处分降职...";
+    try {
+        const result = await postJson(`/api/payroll/disciplinary-demotion-promotions/${encodeURIComponent(payrollHistoryId)}/apply`, {});
+        status.textContent = (result && result.message) || "处分降职办理完成";
+        await loadDisciplinaryDemotionPromotions();
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+async function rollbackDisciplinaryDemotionAction(payrollHistoryId) {
+    if (!ensurePayrollFeatureWrite("DISCIPLINARY_DEMOTION_PROMOTION_WRITE", "处分降职办理")) {
+        return;
+    }
+    if (!confirm("确认还原当前处分降职工资变动？系统会删除当前链头记录，并恢复上一条工资记录。")) {
+        return;
+    }
+    const status = document.getElementById("disciplinary-demotion-status");
+    status.className = "status";
+    status.textContent = "正在还原处分降职...";
+    try {
+        const result = await postJson(`/api/payroll/disciplinary-demotion-promotions/${encodeURIComponent(payrollHistoryId)}/rollback`, {});
+        status.textContent = (result && result.message) || "处分降职已还原";
+        await loadDisciplinaryDemotionPromotions();
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function closeDisciplinaryDemotionDetailModal() {
+    document.getElementById("disciplinary-demotion-detail-modal")?.classList.add("hidden");
+}
+
+async function openDisciplinaryDemotionDetailModal(payrollHistoryId) {
+    const modal = document.getElementById("disciplinary-demotion-detail-modal");
+    const content = document.getElementById("disciplinary-demotion-detail-content");
+    const summary = document.getElementById("disciplinary-demotion-detail-summary");
+    if (!modal || !content) {
+        return;
+    }
+    content.innerHTML = "<p>正在加载明细...</p>";
+    modal.classList.remove("hidden");
+    try {
+        const row = await getJson(`/api/payroll/disciplinary-demotion-promotions/${encodeURIComponent(payrollHistoryId)}`);
+        summary.textContent = `${row.name || ""}（${row.personCode || ""}）处分降职试算明细`;
+        const lines = Array.isArray(row.explanationLines) ? row.explanationLines : [];
+        content.innerHTML = `
+            <table class="detail-table">
+                <tbody>
+                    <tr><th>原职务</th><td>${escapeHtml(row.currentPositionName || "")}</td><th>新职务</th><td>${escapeHtml(row.newPositionName || "")}</td></tr>
+                    <tr><th>变动原因</th><td>${escapeHtml(row.positionChangeReason || "")}</td><th>关联奖惩</th><td>${escapeHtml(row.linkedAwardId ?? "")}</td></tr>
+                    <tr><th>任职年月</th><td>${escapeHtml(row.positionStartYearMonth || "")}</td><th>执行年月</th><td>${escapeHtml(row.effectivePeriod || "")}</td></tr>
+                    <tr><th>原级别档次</th><td>${escapeHtml(row.currentLevel || "")} / ${escapeHtml(row.currentStep || "")}</td><th>试算级别档次</th><td>${escapeHtml(row.promotedLevel || "")} / ${escapeHtml(row.promotedStep || "")}</td></tr>
+                    <tr><th>合计变动</th><td colspan="3">${money(row.totalIncrease)}</td></tr>
+                    <tr><th>说明</th><td colspan="3">${escapeHtml(row.note || "")}</td></tr>
+                </tbody>
+            </table>
+            ${lines.length ? `<div class="detail-explanation"><strong>推算说明</strong><ul>${lines.map(line => `<li>${escapeHtml(line)}</li>`).join("")}</ul></div>` : ""}
+        `;
+    } catch (error) {
+        content.innerHTML = `<p class="status error">${escapeHtml(error.message || "加载失败")}</p>`;
     }
 }
 
@@ -15388,6 +19098,7 @@ function renderOtherPayrollChangeCompare(detail, calc) {
         { key: "changeType", id: "other-payroll-change-type", label: "变动类别", before: detail.currentChangeType, after: after.changeType || "", required: true, datalist: "other-payroll-change-type-options", placeholder: "如：奖惩、特殊调整" },
         { key: "positionName", id: "other-payroll-change-position-name", label: "岗位", before: detail.currentPositionName || detail.currentPositionCode, after: after.positionName || after.positionCode || "", picker: true, required: true },
         { key: "positionCode", id: "other-payroll-change-position-code", label: "岗位编码", before: detail.currentPositionCode, after: after.positionCode || "", required: true, hidden: true },
+        { key: "rankName", id: "other-payroll-change-rank-name", label: "警衔、法检、监察等级", before: detail.currentRankName, after: detail.currentRankName, readonly: true },
         { key: "level", id: "other-payroll-change-level", label: "级别", before: detail.currentLevel, after: after.gradeSalaryLevel || "" },
         { key: "step", id: "other-payroll-change-step", label: "档次/薪级", before: detail.currentStep, after: after.positionSalaryGrade || "" },
         { key: "salaryStandard", id: "other-payroll-change-salary-standard", label: "工资标准年月", before: detail.currentSalaryStandardYearMonth, after: after.salaryStandardYearMonth || "" },
@@ -15515,18 +19226,14 @@ function bindOtherPayrollChangeCompareInteractions() {
         input.addEventListener("input", scheduleOtherPayrollChangePreview);
         input.addEventListener("change", scheduleOtherPayrollChangePreview);
     });
-    form.querySelectorAll("[data-other-picker]").forEach(button => {
-        button.addEventListener("click", () => {
-            openDictionaryPicker("other-payroll-change-position-name", {
-                fieldName: "xzzw",
-                caption: "执行工资职务",
-                dictionaryPrefix: "051",
-                dictionaryFieldKey: "xzzw",
-                linkedCodeInputId: "other-payroll-change-position-code",
-                useFullDictionaryCode: true,
-                codeMaxLength: 4,
-            });
-        });
+    bindDictionaryPickerInput("other-payroll-change-position-name", {
+        fieldName: "xzzw",
+        caption: "执行工资职务",
+        dictionaryPrefix: "051",
+        dictionaryFieldKey: "xzzw",
+        linkedCodeInputId: "other-payroll-change-position-code",
+        useFullDictionaryCode: true,
+        codeMaxLength: 4,
     });
 }
 
@@ -15708,6 +19415,7 @@ function baseSalarySourceName(source) {
 function basicStandardUsesPositionCategory(standardType) {
     return standardType === "position"
         || standardType === "position-grade"
+        || standardType === "judicial-grade"
         || standardType === "salary-level";
 }
 
@@ -16840,6 +20548,18 @@ function renderBasicStandardActionCell(standardType, values) {
                 data-code="${escapeHtml(values.jb)}">编辑</button>
         </td>`;
     }
+    if (standardType === "police-grade") {
+        return `<td class="standard-write-col">
+            <button class="row-action" type="button"
+                data-basic-action="police-grade-edit"
+                data-year="${escapeHtml(values.tbnd)}"
+                data-code="${escapeHtml(values.jb)}">编辑</button>
+            <button class="row-action" type="button"
+                data-basic-action="police-grade-delete"
+                data-year="${escapeHtml(values.tbnd)}"
+                data-code="${escapeHtml(values.jb)}">删除</button>
+        </td>`;
+    }
     if (standardType === "position-grade") {
         return `<td class="standard-write-col">
             <button class="row-action" type="button"
@@ -16848,6 +20568,18 @@ function renderBasicStandardActionCell(standardType, values) {
                 data-code="${escapeHtml(values.zwbm)}">编辑</button>
             <button class="row-action" type="button"
                 data-basic-action="position-grade-delete"
+                data-year="${escapeHtml(values.tbnd)}"
+                data-code="${escapeHtml(values.zwbm)}">删除</button>
+        </td>`;
+    }
+    if (standardType === "judicial-grade") {
+        return `<td class="standard-write-col">
+            <button class="row-action" type="button"
+                data-basic-action="judicial-grade-edit"
+                data-year="${escapeHtml(values.tbnd)}"
+                data-code="${escapeHtml(values.zwbm)}">编辑</button>
+            <button class="row-action" type="button"
+                data-basic-action="judicial-grade-delete"
                 data-year="${escapeHtml(values.tbnd)}"
                 data-code="${escapeHtml(values.zwbm)}">删除</button>
         </td>`;
@@ -16882,7 +20614,15 @@ function bindBasicStandardActions(body, standardType, records) {
                 openGradeStandardModal("edit", "grade", {
                     standardYearMonth: button.dataset.year,
                     code: button.dataset.code,
-                    gradeSteps: extractGradeSteps(values),
+                    gradeSteps: extractGradeSteps(values, 20),
+                });
+                return;
+            }
+            if (action === "police-grade-edit") {
+                openGradeStandardModal("edit", "police-grade", {
+                    standardYearMonth: button.dataset.year,
+                    code: button.dataset.code,
+                    gradeSteps: extractGradeSteps(values, 14),
                 });
                 return;
             }
@@ -16891,12 +20631,29 @@ function bindBasicStandardActions(body, standardType, records) {
                     standardYearMonth: button.dataset.year,
                     code: button.dataset.code,
                     technicalGradeSalary: Number(values.jsdjgz ?? 0),
-                    gradeSteps: extractGradeSteps(values),
+                    gradeSteps: extractGradeSteps(values, 20),
+                });
+                return;
+            }
+            if (action === "judicial-grade-edit") {
+                openGradeStandardModal("edit", "judicial-grade", {
+                    standardYearMonth: button.dataset.year,
+                    code: button.dataset.code,
+                    positionName: values.zwmc ?? values.ZWMC ?? "",
+                    gradeSteps: extractGradeSteps(values, 17),
                 });
                 return;
             }
             if (action === "position-grade-delete") {
                 deletePositionGradeSalaryStandard(button.dataset.year, button.dataset.code);
+                return;
+            }
+            if (action === "judicial-grade-delete") {
+                deleteJudicialPositionGradeSalaryStandard(button.dataset.year, button.dataset.code);
+                return;
+            }
+            if (action === "police-grade-delete") {
+                deletePoliceGradeSalaryStandard(button.dataset.year, button.dataset.code);
                 return;
             }
             if (action === "salary-level-edit") {
@@ -18542,6 +22299,10 @@ async function loadOperationLogs() {
             page: document.getElementById("operation-log-page")?.value || "0",
             size: document.getElementById("operation-log-size")?.value || "50",
         });
+        const actionPrefix = document.getElementById("operation-log-action-prefix")?.value?.trim() || "";
+        if (actionPrefix) {
+            params.set("actionPrefix", actionPrefix);
+        }
         const page = await getJson(`/api/operation-logs/page?${params}`);
         const logs = page.content || [];
         rows.innerHTML = logs.map(log => `
@@ -18638,7 +22399,7 @@ async function importLicensePackage() {
 async function exportLicenseOrgsForOps() {
     const status = document.getElementById("license-orgs-export-status");
     if (!status) return;
-    status.textContent = "正在导出单位目录...";
+    status.textContent = "正在导出签发种子...";
     try {
         const response = await fetch("/api/license/orgs-export", {
             method: "GET",
@@ -18654,12 +22415,12 @@ async function exportLicenseOrgsForOps() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = "license-orgs-v1.json";
+        link.download = "license-seed-v2.json";
         document.body.appendChild(link);
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
-        status.textContent = "已下载 license-orgs-v1.json，请在 rsgzgl-ops「单位目录」中导入。";
+        status.textContent = "已下载 license-seed-v2.json，请在 rsgzgl-ops「单位目录」中导入（含本地工资政策）。";
     } catch (error) {
         showError(status, error);
     }
@@ -18718,16 +22479,17 @@ async function refreshLicenseIssuePreview() {
             ? ` 等共 ${data.organizationCount} 个`
             : `（共 ${data.organizationCount} 个）`;
         const cityLabel = data.city ? `；所在城市 ${data.city}` : "；所在城市（cyxx.szds）未填写";
+        const policyLabel = "；同时携带本地工资政策参数（奖金结余、舍入方式等）";
         if (includeAll && !data.city) {
-            preview.textContent = `签约主体「${subjectLabel}」；初始种子为本地全部单位：${sample}${more}${cityLabel}。全部单位签发时城市必填，请先在本地政策中维护。`;
+            preview.textContent = `签约主体「${subjectLabel}」；初始种子为本地全部单位：${sample}${more}${cityLabel}${policyLabel}。全部单位签发时城市必填，请先在本地政策中维护。`;
             return;
         }
         if (includeAll) {
-            preview.textContent = `签约主体「${subjectLabel}」；初始种子为本地全部单位：${sample}${more}${cityLabel}`;
+            preview.textContent = `签约主体「${subjectLabel}」；初始种子为本地全部单位：${sample}${more}${cityLabel}${policyLabel}`;
         } else if (includeSubordinates) {
-            preview.textContent = `签约主体「${subjectLabel}」；按编码前缀含下属：${sample}${more}${cityLabel}`;
+            preview.textContent = `签约主体「${subjectLabel}」；按编码前缀含下属：${sample}${more}${cityLabel}${policyLabel}`;
         } else {
-            preview.textContent = `签约主体「${subjectLabel}」；选定范围：${sample}${more}${cityLabel}`;
+            preview.textContent = `签约主体「${subjectLabel}」；选定范围：${sample}${more}${cityLabel}${policyLabel}`;
         }
     } catch (error) {
         preview.textContent = error.message || "预览失败";
@@ -19199,6 +22961,17 @@ async function inspectDataBackup() {
     }
 }
 
+function formatRestoreDuration(durationMs) {
+    if (durationMs == null || durationMs < 0) {
+        return "";
+    }
+    if (durationMs < 1000) {
+        return `${durationMs} 毫秒`;
+    }
+    const seconds = durationMs / 1000;
+    return seconds >= 10 ? `${Math.round(seconds)} 秒` : `${seconds.toFixed(1)} 秒`;
+}
+
 async function restoreDataBackup() {
     const status = document.getElementById("data-backup-status");
     const fileInput = document.getElementById("data-backup-file");
@@ -19241,11 +23014,24 @@ async function restoreDataBackup() {
         status.textContent = data.message || "恢复完成";
         const summary = document.getElementById("data-backup-inspect-summary");
         summary.classList.remove("hidden");
+        const durationText = data.durationMs != null && data.durationMs >= 0
+            ? `<p>耗时 ${escapeHtml(formatRestoreDuration(data.durationMs))}</p>`
+            : "";
         const restored = (data.restoredTables || []).map(name => `<li>${escapeHtml(name)}：${escapeHtml((data.rowCounts || {})[name] ?? 0)} 行</li>`).join("");
         const skipped = (data.skippedTables || []).map(name => `<li>${escapeHtml(name)}</li>`).join("");
+        const chainRepairs = (data.chainRepairs || []).map(item => {
+            const before = `${escapeHtml(item.multiTipPersonsBefore ?? 0)} 人多链头 / ${escapeHtml(item.brokenSidRefsBefore ?? 0)} 条悬空 sid / ${escapeHtml(item.nullSidTipsBefore ?? 0)} 条 NULL 链头`;
+            const after = `${escapeHtml(item.multiTipPersonsAfter ?? 0)} 人多链头 / ${escapeHtml(item.brokenSidRefsAfter ?? 0)} 条悬空 sid / ${escapeHtml(item.nullSidTipsAfter ?? 0)} 条 NULL 链头`;
+            return `<li>${escapeHtml(item.tableName)}：修复前 ${before} → 修复后 ${after}（重建 ${escapeHtml(item.rowsRebuilt ?? item.rowsUpdated ?? 0)} 行，NULL→'' ${escapeHtml(item.nullTipsNormalized ?? 0)} 条）</li>`;
+        }).join("");
+        const chainRepairText = chainRepairs
+            ? `<h4>工资历史链表</h4><ul>${chainRepairs}</ul>`
+            : "";
         summary.innerHTML = `
             <p><strong>${escapeHtml(data.formatLabel || data.format)}</strong> — ${escapeHtml(data.message || "")}</p>
             <p>已恢复 ${escapeHtml(data.tablesRestored)} 张表 / ${escapeHtml(data.rowsRestored)} 行</p>
+            ${durationText}
+            ${chainRepairText}
             <h4>已恢复</h4><ul>${restored || "<li>无</li>"}</ul>
             <h4>跳过</h4><ul>${skipped || "<li>无</li>"}</ul>
         `;
@@ -19278,8 +23064,12 @@ function wireBackupScopeExclusiveChecks() {
     });
 }
 
-async function postJson(url, body) {
-    return writeJson("POST", url, body);
+async function postJson(url, body, options = {}) {
+    return writeJson("POST", url, body, options);
+}
+
+async function postJsonLong(url, body) {
+    return writeJson("POST", url, body, { timeoutMs: 3600000 });
 }
 
 async function putJson(url, body) {
@@ -19296,42 +23086,58 @@ async function deleteJson(url) {
     return null;
 }
 
-async function writeJson(method, url, body) {
-    const response = await fetch(url, {
-        method,
-        headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-        },
-        credentials: "same-origin",
-        body: JSON.stringify(body),
-    });
-    await ensureAuthenticatedApiResponse(response, "请求失败");
-    const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("json")) {
-        // void 接口常返回 200/204 空 body，不能当成登录失效
+async function writeJson(method, url, body, options = {}) {
+    const timeoutMs = Number(options.timeoutMs) || 0;
+    const controller = timeoutMs > 0 ? new AbortController() : null;
+    const timer = controller
+        ? setTimeout(() => controller.abort(), timeoutMs)
+        : null;
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+            },
+            credentials: "same-origin",
+            body: JSON.stringify(body),
+            signal: controller?.signal,
+        });
+        await ensureAuthenticatedApiResponse(response, "请求失败");
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("json")) {
+            const text = await response.text();
+            if (!text.trim()) {
+                return null;
+            }
+            if (isLoginRedirectResponse(response) || looksLikeLoginPage(text)) {
+                window.location.href = "/login.html";
+                throw new Error("登录已失效，请重新登录后再操作。");
+            }
+            try {
+                return JSON.parse(text);
+            } catch (_error) {
+                throw new Error(text);
+            }
+        }
+        if (response.status === 204) {
+            return null;
+        }
         const text = await response.text();
         if (!text.trim()) {
             return null;
         }
-        if (isLoginRedirectResponse(response) || looksLikeLoginPage(text)) {
-            window.location.href = "/login.html";
-            throw new Error("登录已失效，请重新登录后再操作。");
+        return JSON.parse(text);
+    } catch (error) {
+        if (error?.name === "AbortError") {
+            throw new Error("请求超时，数据包可能较大，请缩小人员范围后重试。");
         }
-        try {
-            return JSON.parse(text);
-        } catch (_error) {
-            throw new Error(text);
+        throw error;
+    } finally {
+        if (timer) {
+            clearTimeout(timer);
         }
     }
-    if (response.status === 204) {
-        return null;
-    }
-    const text = await response.text();
-    if (!text.trim()) {
-        return null;
-    }
-    return JSON.parse(text);
 }
 
 function looksLikeLoginPage(text) {
@@ -19344,16 +23150,24 @@ function isLoginRedirectResponse(response) {
 }
 
 function isAuthenticationFailure(response, bodyText) {
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
         return true;
     }
     if (isLoginRedirectResponse(response)) {
         return true;
     }
-    const text = String(bodyText || "").trim().toLowerCase();
-    return text === "authentication required"
-            || text.includes("full authentication is required")
-            || text.includes("access denied");
+    const text = String(bodyText || "").trim();
+    const lowered = text.toLowerCase();
+    if (lowered.includes("登录已失效") || lowered.includes("请重新登录")) {
+        return true;
+    }
+    if (lowered === "authentication required" || lowered.includes("full authentication is required")) {
+        return true;
+    }
+    if (response.status === 403) {
+        return isGenericForbiddenMessage(text);
+    }
+    return false;
 }
 
 async function ensureAuthenticatedApiResponse(response, fallbackLabel) {
@@ -19474,6 +23288,7 @@ const DATA_EXCHANGE_GROUPS = {
     submission: ["submission-export", "submission-review"],
     approval: ["approval-dispatch", "approval-receive"],
     export: ["personnel", "personnel-import", "annual"],
+    inbox: ["exchange-inbox"],
 };
 
 function dataExchangeGroupForTab(tab) {
@@ -19495,6 +23310,7 @@ function showDataExchangeTab(tab) {
         personnel: "data-exchange-personnel-panel",
         "personnel-import": "data-exchange-personnel-import-panel",
         annual: "data-exchange-annual-panel",
+        "exchange-inbox": "data-exchange-exchange-inbox-panel",
     };
     const group = dataExchangeGroupForTab(tab);
     document.querySelectorAll("[data-exchange-group]").forEach(button => {
@@ -19512,6 +23328,193 @@ function showDataExchangeTab(tab) {
     Object.entries(panels).forEach(([key, id]) => {
         document.getElementById(id)?.classList.toggle("hidden", key !== tab);
     });
+    if (tab === "exchange-inbox") {
+        void loadExchangeInbox();
+    }
+}
+
+const EXCHANGE_INBOX_HINT = "已写入交换待办，可在「交换待办」查看。";
+
+function appendExchangeInboxHint(message) {
+    const base = message || "";
+    if (!base) {
+        return EXCHANGE_INBOX_HINT;
+    }
+    if (base.includes("交换待办")) {
+        return base;
+    }
+    return `${base} ${EXCHANGE_INBOX_HINT}`;
+}
+
+function notifyExchangeInboxUpdated() {
+    void refreshExchangeNotificationUnreadCount();
+}
+
+const EXCHANGE_NOTIFICATION_TYPE_LABELS = {
+    SUBMISSION_PENDING: "申报待处理",
+    SUBMISSION_RECEIVED: "收到申报包",
+    SUBMISSION_APPROVED: "申报已审核",
+    APPROVAL_DISPATCHED: "审批已下发",
+    APPROVAL_RECEIVED: "收到审批包",
+    APPROVAL_APPLIED: "审批已接收",
+    PERSONNEL_SUBMITTED: "人员待审核",
+    PERSONNEL_APPROVED: "人员已通过",
+    PERSONNEL_RETURNED: "人员已退回",
+    PAYROLL_WORKFLOW_PENDING: "工资变动待办",
+    PAYROLL_WORKFLOW_STARTED: "进入工资变动办理",
+    PAYROLL_WORKFLOW_DONE: "工资变动已完成",
+};
+
+const EXCHANGE_NOTIFICATION_DIRECTION_LABELS = {
+    INTERNAL: "系统内",
+    OUTBOUND: "已发出",
+    INBOUND: "已收到",
+};
+
+function renderExchangeUnreadBadge(count) {
+    const text = count > 99 ? "99+" : String(count);
+    ["data-exchange-unread-badge", "data-exchange-inbox-tab-badge"].forEach(id => {
+        const badge = document.getElementById(id);
+        if (!badge) {
+            return;
+        }
+        if (count > 0) {
+            badge.textContent = text;
+            badge.classList.remove("hidden");
+        } else {
+            badge.textContent = "";
+            badge.classList.add("hidden");
+        }
+    });
+}
+
+async function refreshExchangeNotificationUnreadCount() {
+    if (!hasMenu("DATA_EXCHANGE")) {
+        return;
+    }
+    try {
+        const data = await getJson("/api/exchange-notifications/unread-count");
+        renderExchangeUnreadBadge(Number(data.count || 0));
+    } catch (error) {
+        if (!isAuthFailure(error)) {
+            console.warn("交换待办未读数刷新失败", error);
+        }
+    }
+}
+
+function startExchangeNotificationPolling() {
+    if (state.exchangeNotificationPollTimer) {
+        clearInterval(state.exchangeNotificationPollTimer);
+    }
+    void refreshExchangeNotificationUnreadCount();
+    state.exchangeNotificationPollTimer = setInterval(() => {
+        if (document.hidden) {
+            return;
+        }
+        void refreshExchangeNotificationUnreadCount();
+    }, 30000);
+}
+
+function openExchangeNotificationTarget(actionTab) {
+    if (!actionTab) {
+        return;
+    }
+    if (actionTab === "personnel-approval-tracking") {
+        window.location.hash = "#personnel-approval-tracking";
+        applyRoute();
+        return;
+    }
+    if (actionTab === "payroll-workflow-center") {
+        window.location.hash = "#payroll-workflow-center";
+        applyRoute();
+        return;
+    }
+    if (actionTab === "payroll-workflow-status") {
+        window.location.hash = "#payroll-workflow-status";
+        applyRoute();
+        return;
+    }
+    const payrollModuleHash = PAYROLL_WORKFLOW_MODULE_HASHES[actionTab];
+    if (payrollModuleHash) {
+        window.location.hash = payrollModuleHash;
+        applyRoute();
+        return;
+    }
+    window.location.hash = "#data-exchange";
+    applyRoute();
+    const group = dataExchangeGroupForTab(actionTab);
+    showDataExchangeGroup(group, actionTab);
+}
+
+async function loadExchangeInbox() {
+    const status = document.getElementById("data-exchange-inbox-status");
+    const rows = document.getElementById("data-exchange-inbox-rows");
+    const filter = document.getElementById("data-exchange-inbox-filter");
+    if (!status || !rows) {
+        return;
+    }
+    status.className = "status";
+    status.textContent = "正在加载交换待办...";
+    rows.innerHTML = "";
+    try {
+        const statusFilter = filter?.value || "unread";
+        const page = await getJson(`/api/exchange-notifications?status=${encodeURIComponent(statusFilter)}&page=0&size=100`);
+        const content = page.content || [];
+        rows.innerHTML = content.map(item => `
+            <tr data-exchange-notification-id="${item.id}" class="${item.status === "UNREAD" ? "exchange-inbox-unread" : ""}">
+                <td>${escapeHtml(formatExchangeNotificationTime(item.createdAt))}</td>
+                <td>${escapeHtml(EXCHANGE_NOTIFICATION_TYPE_LABELS[item.notificationType] || item.notificationType || "")}</td>
+                <td>${escapeHtml(EXCHANGE_NOTIFICATION_DIRECTION_LABELS[item.direction] || item.direction || "")}</td>
+                <td>${escapeHtml(item.organizationCode || item.sourceOrgCode || "")}</td>
+                <td>${escapeHtml(String(item.personCount ?? ""))}</td>
+                <td>${escapeHtml(item.summary || "")}</td>
+                <td>${item.status === "UNREAD" ? "未读" : "已读"}</td>
+                <td><button type="button" class="row-action" data-open-exchange-notification="${escapeHtml(String(item.id))}" data-action-tab="${escapeHtml(item.actionTab || "")}">查看</button></td>
+            </tr>
+        `).join("");
+        rows.querySelectorAll("[data-open-exchange-notification]").forEach(button => {
+            button.addEventListener("click", async () => {
+                const id = button.dataset.openExchangeNotification;
+                const actionTab = button.dataset.actionTab;
+                try {
+                    await postJson(`/api/exchange-notifications/${encodeURIComponent(id)}/read`, {});
+                } catch (error) {
+                    console.warn("标记已读失败", error);
+                }
+                openExchangeNotificationTarget(actionTab);
+                void refreshExchangeNotificationUnreadCount();
+                void loadExchangeInbox();
+            });
+        });
+        status.textContent = content.length ? `共 ${content.length} 条待办（当前筛选：${statusFilter === "unread" ? "未读" : "全部"}）` : "暂无待办。";
+        void refreshExchangeNotificationUnreadCount();
+    } catch (error) {
+        showError(status, error);
+    }
+}
+
+function formatExchangeNotificationTime(value) {
+    if (!value) {
+        return "";
+    }
+    return String(value).replace("T", " ").slice(0, 16);
+}
+
+async function markAllExchangeNotificationsRead() {
+    const status = document.getElementById("data-exchange-inbox-status");
+    try {
+        const result = await postJson("/api/exchange-notifications/read-all", {});
+        if (status) {
+            status.className = "status";
+            status.textContent = `已将 ${result.updated ?? 0} 条标记为已读。`;
+        }
+        void refreshExchangeNotificationUnreadCount();
+        void loadExchangeInbox();
+    } catch (error) {
+        if (status) {
+            showError(status, error);
+        }
+    }
 }
 
 function renderDataExchangeDispatchOrganizations() {
@@ -19743,7 +23746,8 @@ async function downloadSubmissionPackage() {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        status.textContent = `申报包已生成，共 ${payload.selectedPersonnel?.length || state.dataExchangeSubmissionRows.length || 0} 人，并已标记为“申报”。`;
+        status.textContent = appendExchangeInboxHint(`申报包已生成，共 ${payload.selectedPersonnel?.length || state.dataExchangeSubmissionRows.length || 0} 人，并已标记为“申报”。`);
+        notifyExchangeInboxUpdated();
         await loadSubmissionPackagePreview();
     } catch (error) {
         showError(status, error);
@@ -19849,7 +23853,8 @@ async function previewDataExchangeSubmissionReview() {
         }
         summary.innerHTML = renderSubmissionReviewSummary(result.summary);
         summary.classList.remove("hidden");
-        status.textContent = result.message || `审核 ${result.totalRecords} 人`;
+        status.textContent = appendExchangeInboxHint(result.message || `审核 ${result.totalRecords} 人`);
+        notifyExchangeInboxUpdated();
     } catch (error) {
         showError(status, error);
     }
@@ -19882,7 +23887,8 @@ async function applyDataExchangeSubmissionReview(decision, dryRun = false) {
             selectedPersonnel: selected,
             dryRun,
         });
-        status.textContent = result.message || `已处理 ${result.processedRecords || 0} 人`;
+        status.textContent = appendExchangeInboxHint(result.message || `已处理 ${result.processedRecords || 0} 人`);
+        notifyExchangeInboxUpdated();
         if (!dryRun && decision === "APPROVE") {
             await previewDataExchangeSubmissionReview();
         }
@@ -19995,7 +24001,8 @@ async function downloadApprovalPackage() {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        status.textContent = `审批包已生成，共 ${payload.selectedPersonnel?.length || state.dataExchangeApprovalRows.length || 0} 人，并已标记为“已下发”。`;
+        status.textContent = appendExchangeInboxHint(`审批包已生成，共 ${payload.selectedPersonnel?.length || state.dataExchangeApprovalRows.length || 0} 人，并已标记为“已下发”。`);
+        notifyExchangeInboxUpdated();
         await loadApprovalPackagePreview();
     } catch (error) {
         showError(status, error);
@@ -20077,6 +24084,8 @@ function buildApprovalRequestPayload(onlySelected) {
 async function onDataExchangeApprovalReceiveFileSelected(event) {
     const file = event.target.files && event.target.files[0];
     const status = document.getElementById("data-exchange-approval-receive-status");
+    dataExchangeApprovalReceivePreviewReady = false;
+    updateApprovalReceiveApplyButton();
     if (!file) {
         document.getElementById("data-exchange-approval-receive-json").value = "";
         return;
@@ -20086,7 +24095,8 @@ async function onDataExchangeApprovalReceiveFileSelected(event) {
         JSON.parse(text);
         document.getElementById("data-exchange-approval-receive-json").value = text;
         status.className = "status";
-        status.textContent = `已选择审批包：${file.name}，可点击“预览接收”。`;
+        const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+        status.textContent = `已选择审批包：${file.name}（${sizeMb} MB），请先点「预览接收」。`;
     } catch (error) {
         document.getElementById("data-exchange-approval-receive-json").value = "";
         status.className = "status error";
@@ -20094,15 +24104,36 @@ async function onDataExchangeApprovalReceiveFileSelected(event) {
     }
 }
 
+let dataExchangeApprovalReceivePreviewReady = false;
+let dataExchangeApprovalReceiveTotalRecords = 0;
+
+function updateApprovalReceiveApplyButton() {
+    const button = document.getElementById("data-exchange-approval-receive-apply");
+    if (!button) {
+        return;
+    }
+    button.disabled = !dataExchangeApprovalReceivePreviewReady;
+    button.title = dataExchangeApprovalReceivePreviewReady
+        ? ""
+        : "请先点击「预览接收」后再确认接收";
+}
+
 async function onDataExchangeApprovalReceivePreview(event) {
     event.preventDefault();
     await previewDataExchangeApprovalReceive();
+}
+
+function selectedApprovalReceiveMode() {
+    const selected = document.querySelector('input[name="approval-receive-mode"]:checked');
+    return selected?.value || "UPDATE";
 }
 
 async function previewDataExchangeApprovalReceive() {
     const status = document.getElementById("data-exchange-approval-receive-status");
     const rows = document.getElementById("data-exchange-approval-receive-rows");
     const summary = document.getElementById("data-exchange-approval-receive-summary");
+    dataExchangeApprovalReceivePreviewReady = false;
+    updateApprovalReceiveApplyButton();
     status.className = "status";
     status.textContent = "正在解析审批包...";
     rows.innerHTML = "";
@@ -20113,10 +24144,11 @@ async function previewDataExchangeApprovalReceive() {
         if (!packageJson) {
             throw new Error("请先选择审批包文件。");
         }
-        const result = await postJson("/api/data-exchange/approval/receive/preview", {
+        const result = await postJsonLong("/api/data-exchange/approval/receive/preview", {
             packageJson,
             selectedPersonnel: [],
             dryRun: null,
+            mode: selectedApprovalReceiveMode(),
         });
         rows.innerHTML = (result.previewRows || []).map(row => `
             <tr>
@@ -20134,7 +24166,19 @@ async function previewDataExchangeApprovalReceive() {
         `).join("");
         summary.innerHTML = renderSubmissionReviewSummary(result.summary);
         summary.classList.remove("hidden");
-        status.textContent = result.message || `预览 ${result.totalRecords} 人`;
+        dataExchangeApprovalReceivePreviewReady = true;
+        dataExchangeApprovalReceiveTotalRecords = Number(result.totalRecords) || 0;
+        updateApprovalReceiveApplyButton();
+        const total = dataExchangeApprovalReceiveTotalRecords;
+        const shown = (result.previewRows || []).length;
+        let hint = result.message || `预览 ${total} 人`;
+        if (total > shown) {
+            hint += `（列表显示 ${shown} 人）。不勾选任何人可接收全部 ${total} 人。`;
+        } else {
+            hint += "。确认无误后可点「确认接收」。";
+        }
+        status.textContent = appendExchangeInboxHint(hint);
+        notifyExchangeInboxUpdated();
     } catch (error) {
         showError(status, error);
     }
@@ -20143,30 +24187,52 @@ async function previewDataExchangeApprovalReceive() {
 async function applyDataExchangeApprovalReceive(dryRun = false) {
     const status = document.getElementById("data-exchange-approval-receive-status");
     status.className = "status";
-    const selected = selectedExchangeKeys("[data-approval-receive-select]:checked");
+    if (!dryRun && !dataExchangeApprovalReceivePreviewReady) {
+        status.className = "status error";
+        status.textContent = "请先点击「预览接收」，确认人员列表无误后再确认接收。";
+        return;
+    }
+    const checked = selectedExchangeKeys("[data-approval-receive-select]:checked");
+    const visibleCount = document.querySelectorAll("[data-approval-receive-select]").length;
+    const total = dataExchangeApprovalReceiveTotalRecords || visibleCount || checked.length;
+    let selected = checked;
+    if (checked.length > 0 && checked.length === visibleCount && total > visibleCount) {
+        const receiveAll = window.confirm(
+            `列表仅显示前 ${visibleCount} 人，审批包内共 ${total} 人。\n\n`
+            + `点「确定」接收全部 ${total} 人；\n点「取消」仅接收已勾选的 ${checked.length} 人。`);
+        if (receiveAll) {
+            selected = [];
+        }
+    }
+    const mode = selectedApprovalReceiveMode();
     if (!dryRun) {
-        const confirmMessage = selected.length
-            ? `将接收 ${selected.length} 条审批记录并替换本地工资变动数据，是否继续？`
-            : "将接收审批包中的全部审批记录并替换本地工资变动数据，是否继续？";
+        const targetCount = selected.length > 0 ? selected.length : total;
+        const confirmMessage = mode === "REPLACE"
+            ? (selected.length
+                ? `将删除 ${targetCount} 名人员的本地全部关联数据（含 jx/dtgxx 等），再写入审批包数据，是否继续？`
+                : `将删除审批包中全部 ${targetCount} 名人员的本地关联数据（含 jx/dtgxx 等），再写入审批包数据，是否继续？`)
+            : (selected.length
+                ? `将用审批包更新 ${targetCount} 名人员的本地基础信息与全部关联表，是否继续？`
+                : `将用审批包更新全部 ${targetCount} 名人员的本地基础信息与全部关联表，是否继续？`);
         if (!window.confirm(confirmMessage)) {
             return;
         }
     }
-    status.textContent = dryRun ? "正在试运行审批接收..." : "正在确认接收审批数据...";
+    status.textContent = dryRun ? "正在试运行审批接收..." : "正在确认接收审批数据，大包可能需要数分钟，请勿关闭页面...";
     try {
         const packageJson = document.getElementById("data-exchange-approval-receive-json").value;
         if (!packageJson) {
             throw new Error("请先选择审批包文件。");
         }
-        const result = await postJson("/api/data-exchange/approval/receive/apply", {
+        const result = await postJsonLong("/api/data-exchange/approval/receive/apply", {
             packageJson,
             selectedPersonnel: selected,
             dryRun,
+            mode,
         });
-        status.textContent = result.message || `已处理 ${result.processedRecords || 0} 条审批记录`;
-        if (!dryRun) {
-            await previewDataExchangeApprovalReceive();
-        }
+        status.className = "status success";
+        status.textContent = appendExchangeInboxHint(result.message || `已处理 ${result.processedRecords || 0} 条审批记录`);
+        notifyExchangeInboxUpdated();
     } catch (error) {
         showError(status, error);
     }
@@ -20536,11 +24602,89 @@ async function downloadPersonnelPackage() {
     }
 }
 
+function isLegacyPersonnelImportFile(file) {
+    if (!file || !file.name) {
+        return false;
+    }
+    const name = file.name.toLowerCase();
+    return name.endsWith(".zl") || name.endsWith(".zip");
+}
+
+function buildLegacyPersonnelImportFormData(file, mode, targetOrganizationCode, selectedPersonnel) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("mode", mode);
+    if (targetOrganizationCode) {
+        form.append("targetOrganizationCode", targetOrganizationCode);
+    }
+    form.append("selectedPersonnel", JSON.stringify(selectedPersonnel || []));
+    return form;
+}
+
+async function postLegacyPersonnelImport(url, file, mode, targetOrganizationCode, selectedPersonnel, dryRun) {
+    const form = buildLegacyPersonnelImportFormData(file, mode, targetOrganizationCode, selectedPersonnel);
+    if (dryRun != null) {
+        form.append("dryRun", String(dryRun));
+    }
+    const response = await fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        body: form,
+    });
+    await ensureAuthenticatedApiResponse(response, "旧系统人员包处理失败");
+    return response.json();
+}
+
+function renderDataExchangePersonnelImportPreview(result, appendMode) {
+    const status = document.getElementById("data-exchange-personnel-import-status");
+    const rows = document.getElementById("data-exchange-personnel-import-rows");
+    const summary = document.getElementById("data-exchange-personnel-import-summary");
+    const selectAll = document.getElementById("data-exchange-personnel-import-select-all");
+    state.dataExchangePersonnelImportRows = result.rows || [];
+    const previewRows = result.previewRows || [];
+    rows.innerHTML = state.dataExchangePersonnelImportRows.map(row => {
+        const preview = previewRows.find(item => item.organizationCode === row.organizationCode && item.personCode === row.personCode) || {};
+        return `
+            <tr>
+                <td><input type="checkbox" data-personnel-import-select value="${escapeHtml(row.organizationCode)}|${escapeHtml(row.personCode)}" checked></td>
+                <td>${escapeHtml(row.organizationName || row.organizationCode)}</td>
+                <td>${escapeHtml(row.personCode)}</td>
+                <td>${escapeHtml(row.name)}</td>
+                <td>${escapeHtml(maskIdCardClient(row.idCard))}</td>
+                <td>${escapeHtml(row.currentJob || "")}</td>
+                <td>${escapeHtml(row.currentGrade || "")}</td>
+                <td>${escapeHtml(preview.action || "")}</td>
+                <td>${escapeHtml(preview.targetOrganizationCode || "")}</td>
+                <td>${escapeHtml(preview.targetPersonCode || "")}</td>
+                <td>${preview.targetOrganizationExists === false ? "否" : "是"}</td>
+                <td>${formatTableCounts(preview.relatedCounts || [])}</td>
+            </tr>
+        `;
+    }).join("");
+    if (selectAll) {
+        selectAll.checked = true;
+    }
+    summary.innerHTML = renderReceiveSummary(result.summary);
+    summary.classList.remove("hidden");
+    const hint = appendMode
+        ? ""
+        : "（未选导入单位：仅预览包内容；确认导入前请选择目标单位）";
+    status.textContent = `${result.message || `预览 ${result.totalRecords} 人`}${hint}`;
+}
+
 async function onDataExchangePersonnelImportFileSelected(event) {
     const file = event.target.files && event.target.files[0];
     const status = document.getElementById("data-exchange-personnel-import-status");
+    state.dataExchangePersonnelImportFile = file || null;
+    state.dataExchangePersonnelImportLegacy = isLegacyPersonnelImportFile(file);
     if (!file) {
         document.getElementById("data-exchange-personnel-import-json").value = "";
+        return;
+    }
+    if (state.dataExchangePersonnelImportLegacy) {
+        document.getElementById("data-exchange-personnel-import-json").value = "";
+        status.className = "status";
+        status.textContent = `已选择旧系统备份包：${file.name}，可先预览；确认导入前需选择目标单位。`;
         return;
     }
     try {
@@ -20551,6 +24695,7 @@ async function onDataExchangePersonnelImportFileSelected(event) {
         status.textContent = `已选择人员包：${file.name}，可先预览；确认导入前需选择目标单位。`;
     } catch (error) {
         document.getElementById("data-exchange-personnel-import-json").value = "";
+        state.dataExchangePersonnelImportFile = null;
         status.className = "status error";
         status.textContent = `人员包文件格式错误：${error.message}`;
     }
@@ -20575,48 +24720,34 @@ async function previewDataExchangePersonnelImport() {
         selectAll.checked = false;
     }
     try {
-        const packageJson = document.getElementById("data-exchange-personnel-import-json").value;
-        if (!packageJson) {
-            throw new Error("请先选择人员包文件。");
-        }
         const targetOrganizationCode = selectedOrganizationCode("data-exchange-personnel-import-target-organization");
         const appendMode = Boolean(targetOrganizationCode);
-        const result = await postJson("/api/data-exchange/receive/preview", {
-            packageJson,
-            mode: appendMode ? "APPEND" : "REPLACE",
-            targetOrganizationCode: targetOrganizationCode || null,
-            selectedPersonnel: [],
-        });
-        state.dataExchangePersonnelImportRows = result.rows || [];
-        const previewRows = result.previewRows || [];
-        rows.innerHTML = state.dataExchangePersonnelImportRows.map(row => {
-            const preview = previewRows.find(item => item.organizationCode === row.organizationCode && item.personCode === row.personCode) || {};
-            return `
-            <tr>
-                <td><input type="checkbox" data-personnel-import-select value="${escapeHtml(row.organizationCode)}|${escapeHtml(row.personCode)}" checked></td>
-                <td>${escapeHtml(row.organizationName || row.organizationCode)}</td>
-                <td>${escapeHtml(row.personCode)}</td>
-                <td>${escapeHtml(row.name)}</td>
-                <td>${escapeHtml(maskIdCardClient(row.idCard))}</td>
-                <td>${escapeHtml(row.currentJob || "")}</td>
-                <td>${escapeHtml(row.currentGrade || "")}</td>
-                <td>${escapeHtml(preview.action || "")}</td>
-                <td>${escapeHtml(preview.targetOrganizationCode || "")}</td>
-                <td>${escapeHtml(preview.targetPersonCode || "")}</td>
-                <td>${preview.targetOrganizationExists === false ? "否" : "是"}</td>
-                <td>${formatTableCounts(preview.relatedCounts || [])}</td>
-            </tr>
-        `;
-        }).join("");
-        if (selectAll) {
-            selectAll.checked = true;
+        let result;
+        if (state.dataExchangePersonnelImportLegacy) {
+            const file = state.dataExchangePersonnelImportFile;
+            if (!file) {
+                throw new Error("请先选择旧系统备份文件。");
+            }
+            result = await postLegacyPersonnelImport(
+                "/api/data-exchange/receive/legacy/preview",
+                file,
+                appendMode ? "APPEND" : "REPLACE",
+                targetOrganizationCode || null,
+                []
+            );
+        } else {
+            const packageJson = document.getElementById("data-exchange-personnel-import-json").value;
+            if (!packageJson) {
+                throw new Error("请先选择人员包文件。");
+            }
+            result = await postJson("/api/data-exchange/receive/preview", {
+                packageJson,
+                mode: appendMode ? "APPEND" : "REPLACE",
+                targetOrganizationCode: targetOrganizationCode || null,
+                selectedPersonnel: [],
+            });
         }
-        summary.innerHTML = renderReceiveSummary(result.summary);
-        summary.classList.remove("hidden");
-        const hint = appendMode
-            ? ""
-            : "（未选导入单位：仅预览包内容；确认导入前请选择目标单位）";
-        status.textContent = `${result.message || `预览 ${result.totalRecords} 人`}${hint}`;
+        renderDataExchangePersonnelImportPreview(result, appendMode);
     } catch (error) {
         showError(status, error);
     }
@@ -20655,17 +24786,33 @@ async function confirmDataExchangePersonnelImport() {
     }
     status.textContent = "正在导入人员...";
     try {
-        const packageJson = document.getElementById("data-exchange-personnel-import-json").value;
-        if (!packageJson) {
-            throw new Error("请先选择人员包文件。");
+        let result;
+        if (state.dataExchangePersonnelImportLegacy) {
+            const file = state.dataExchangePersonnelImportFile;
+            if (!file) {
+                throw new Error("请先选择旧系统备份文件。");
+            }
+            result = await postLegacyPersonnelImport(
+                "/api/data-exchange/receive/legacy/apply",
+                file,
+                "APPEND",
+                targetOrganizationCode,
+                selected,
+                false
+            );
+        } else {
+            const packageJson = document.getElementById("data-exchange-personnel-import-json").value;
+            if (!packageJson) {
+                throw new Error("请先选择人员包文件。");
+            }
+            result = await postJson("/api/data-exchange/receive/apply", {
+                packageJson,
+                mode: "APPEND",
+                targetOrganizationCode,
+                selectedPersonnel: selected,
+                dryRun: false,
+            });
         }
-        const result = await postJson("/api/data-exchange/receive/apply", {
-            packageJson,
-            mode: "APPEND",
-            targetOrganizationCode,
-            selectedPersonnel: selected,
-            dryRun: false,
-        });
         const mappingText = (result.codeMappings || []).map(item =>
             `${escapeHtml(item.name)}：${escapeHtml(item.sourceOrganizationCode)}-${escapeHtml(item.sourcePersonCode)} -> ${escapeHtml(item.targetOrganizationCode)}-${escapeHtml(item.targetPersonCode)}`
         ).join("；");
@@ -20767,4 +24914,199 @@ async function downloadAnnualExcel() {
     } catch (error) {
         showError(status, error);
     }
+}
+
+const PAYROLL_WORKFLOW_MODULE_HASHES = {
+    "new-personnel-salary": "#new-personnel-salary",
+    "education-promotion": "#education-promotion",
+    "position-change-promotion": "#position-change-promotion",
+    "normal-promotion": "#normal-promotion",
+    "level-promotion": "#level-promotion",
+    "police-rank-change-promotion": "#police-rank-change-promotion",
+    "prosecution-rank-change-promotion": "#prosecution-rank-change-promotion",
+    "judicial-rank-change-promotion": "#judicial-rank-change-promotion",
+    "supervision-rank-change-promotion": "#supervision-rank-change-promotion",
+    "regularization": "#regularization",
+};
+
+const PAYROLL_WORKFLOW_MODULE_LABELS = {
+    NEW_PERSONNEL_SALARY: "新增人员定资",
+    EDUCATION_PROMOTION: "学历晋升",
+    POSITION_CHANGE_PROMOTION: "职务变化",
+    NORMAL_PROMOTION: "正常档次/薪级",
+    LEVEL_PROMOTION: "正常级别",
+    POLICE_RANK_CHANGE_PROMOTION: "警衔变化",
+    PROSECUTION_RANK_CHANGE_PROMOTION: "检察等级",
+    JUDICIAL_RANK_CHANGE_PROMOTION: "法官等级",
+    SUPERVISION_RANK_CHANGE_PROMOTION: "监察等级",
+    REGULARIZATION: "转正定级",
+};
+
+const PAYROLL_WORKFLOW_SOURCE_LABELS = {
+    MAIN: "人员基本信息",
+    EDUCATION: "学历",
+    POSITION: "任职",
+    ASSESSMENT: "考核",
+    AWARD: "获奖",
+    RANK: "警衔/等级",
+};
+
+const PAYROLL_WORKFLOW_STATUS_LABELS = {
+    PAYROLL_PENDING: "待办理",
+    PAYROLL_DONE: "已办理",
+    NO_PAYROLL: "无需办理",
+    CANCELLED: "已关闭",
+};
+
+async function loadWorkflowConfig() {
+    try {
+        state.workflowConfig = await getJson("/api/config/workflow");
+        applyWorkflowUiConfig();
+    } catch (error) {
+        state.workflowConfig = { enabled: false, sharedDatabase: false, hideDataExchange: false };
+        console.warn("工作流配置加载失败", error);
+    }
+}
+
+function applyWorkflowUiConfig() {
+    const hideExchange = Boolean(state.workflowConfig?.hideDataExchange);
+    document.querySelectorAll("[data-exchange-group]").forEach(button => {
+        const group = button.dataset.exchangeGroup;
+        const hide = hideExchange && group !== "inbox";
+        button.classList.toggle("hidden", hide);
+    });
+    if (hideExchange) {
+        const inboxButton = document.querySelector('[data-exchange-group="inbox"]');
+        if (inboxButton && inboxButton.childNodes.length && inboxButton.childNodes[0].nodeType === Node.TEXT_NODE) {
+            inboxButton.childNodes[0].textContent = "业务待办 ";
+        }
+    }
+}
+
+function renderPayrollWorkflowPendingBadge(count) {
+    const badge = document.getElementById("payroll-workflow-pending-badge");
+    if (!badge) {
+        return;
+    }
+    if (count > 0) {
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.classList.remove("hidden");
+    } else {
+        badge.textContent = "";
+        badge.classList.add("hidden");
+    }
+}
+
+async function refreshPayrollWorkflowPendingCount() {
+    if (!hasMenu("PAYROLL_WORKFLOW_CENTER")) {
+        return;
+    }
+    try {
+        const data = await getJson("/api/payroll-workflows/pending-count");
+        renderPayrollWorkflowPendingBadge(Number(data.count || 0));
+    } catch (error) {
+        if (!isAuthFailure(error)) {
+            console.warn("待办工资变动计数刷新失败", error);
+        }
+    }
+}
+
+async function loadPayrollWorkflowCenter() {
+    const message = document.getElementById("payroll-workflow-center-message");
+    const rows = document.getElementById("payroll-workflow-center-rows");
+    if (!message || !rows) {
+        return;
+    }
+    message.className = "status";
+    message.textContent = "正在加载待办工资变动...";
+    rows.innerHTML = "";
+    try {
+        const status = document.getElementById("payroll-workflow-center-status")?.value || "PAYROLL_PENDING";
+        const org = document.getElementById("payroll-workflow-center-organization-code")?.value?.trim() || "";
+        const keyword = document.getElementById("payroll-workflow-center-keyword")?.value?.trim() || "";
+        const params = new URLSearchParams({ page: "0", size: "100", status });
+        if (org) {
+            params.set("organizationCode", org);
+        }
+        if (keyword) {
+            params.set("keyword", keyword);
+        }
+        const page = await getJson(`/api/payroll-workflows?${params.toString()}`);
+        const content = page.content || [];
+        rows.innerHTML = content.map(item => `
+            <tr>
+                <td>${escapeHtml(formatExchangeNotificationTime(item.personnelApprovedAt))}</td>
+                <td>${escapeHtml(item.organizationCode || "")}</td>
+                <td>${escapeHtml(item.personName || "")} (${escapeHtml(item.personCode || "")})</td>
+                <td>${escapeHtml(PAYROLL_WORKFLOW_SOURCE_LABELS[item.sourceType] || item.sourceType || "")}</td>
+                <td>${escapeHtml(PAYROLL_WORKFLOW_MODULE_LABELS[item.payrollModule] || item.payrollModule || "")}</td>
+                <td>${escapeHtml(item.expectedJslb || "")}</td>
+                <td>${escapeHtml(PAYROLL_WORKFLOW_STATUS_LABELS[item.status] || item.status || "")}</td>
+                <td>${escapeHtml(item.summary || "")}</td>
+                <td>${item.status === "PAYROLL_PENDING"
+                    ? `<button type="button" class="row-action" data-open-payroll-workflow="${escapeHtml(String(item.id))}" data-payroll-module="${escapeHtml(item.payrollModule || "")}" data-person-uid="${escapeHtml(String(item.uid || ""))}">去办理</button>`
+                    : ""}</td>
+            </tr>
+        `).join("");
+        rows.querySelectorAll("[data-open-payroll-workflow]").forEach(button => {
+            button.addEventListener("click", () => {
+                openPayrollWorkflowTarget(button.dataset.payrollModule, button.dataset.personUid);
+            });
+        });
+        message.textContent = content.length ? `共 ${content.length} 条` : "暂无待办。";
+        void refreshPayrollWorkflowPendingCount();
+    } catch (error) {
+        showError(message, error);
+    }
+}
+
+async function loadPayrollWorkflowStatus() {
+    const message = document.getElementById("payroll-workflow-status-message");
+    const rows = document.getElementById("payroll-workflow-status-rows");
+    if (!message || !rows) {
+        return;
+    }
+    message.className = "status";
+    message.textContent = "正在加载工资变动进度...";
+    rows.innerHTML = "";
+    try {
+        const status = document.getElementById("payroll-workflow-status-filter")?.value || "PAYROLL_PENDING";
+        const params = new URLSearchParams({ page: "0", size: "100", status });
+        const page = await getJson(`/api/payroll-workflows?${params.toString()}`);
+        const content = page.content || [];
+        rows.innerHTML = content.map(item => {
+            const time = item.payrollCompletedAt || item.personnelApprovedAt;
+            return `
+            <tr>
+                <td>${escapeHtml(formatExchangeNotificationTime(time))}</td>
+                <td>${escapeHtml(item.personName || "")}</td>
+                <td>${escapeHtml(PAYROLL_WORKFLOW_SOURCE_LABELS[item.sourceType] || item.sourceType || "")}</td>
+                <td>${escapeHtml(item.expectedJslb || "")}</td>
+                <td>${escapeHtml(PAYROLL_WORKFLOW_STATUS_LABELS[item.status] || item.status || "")}</td>
+                <td>${escapeHtml(item.summary || "")}</td>
+            </tr>`;
+        }).join("");
+        message.textContent = content.length ? `共 ${content.length} 条` : "暂无记录。";
+    } catch (error) {
+        showError(message, error);
+    }
+}
+
+function openPayrollWorkflowTarget(payrollModule, personUid) {
+    const moduleHashMap = {
+        NEW_PERSONNEL_SALARY: "#new-personnel-salary",
+        EDUCATION_PROMOTION: "#education-promotion",
+        POSITION_CHANGE_PROMOTION: "#position-change-promotion",
+        NORMAL_PROMOTION: "#normal-promotion",
+        LEVEL_PROMOTION: "#level-promotion",
+        POLICE_RANK_CHANGE_PROMOTION: "#police-rank-change-promotion",
+        PROSECUTION_RANK_CHANGE_PROMOTION: "#prosecution-rank-change-promotion",
+        JUDICIAL_RANK_CHANGE_PROMOTION: "#judicial-rank-change-promotion",
+        SUPERVISION_RANK_CHANGE_PROMOTION: "#supervision-rank-change-promotion",
+        REGULARIZATION: "#regularization",
+    };
+    const hash = moduleHashMap[payrollModule] || "#payroll-workflow-center";
+    state.pendingPayrollWorkflowUid = personUid ? Number(personUid) : null;
+    window.location.hash = hash;
+    applyRoute();
 }

@@ -3,10 +3,10 @@ set -euo pipefail
 cp -a /opt/rsgzgl-ops/app.jar "/opt/rsgzgl-ops/app.jar.bak.$(date +%Y%m%d%H%M%S)"
 install -o rsgzgl -g rsgzgl -m 644 /tmp/rsgzgl-ops-app-new.jar /opt/rsgzgl-ops/app.jar
 if ! grep -q '^RSGZGL_OPS_MONITOR_UNITS=' /opt/rsgzgl-ops/app.env; then
-  echo 'RSGZGL_OPS_MONITOR_UNITS=rsgzgl,rsgzgl@demo,rsgzgl@pq' >> /opt/rsgzgl-ops/app.env
+  echo 'RSGZGL_OPS_MONITOR_UNITS=rsgzgl,rsgzgl@demo,rsgzgl@pq,rsgzgl@xyzzb' >> /opt/rsgzgl-ops/app.env
 fi
 if ! grep -q '^RSGZGL_OPS_MONITOR_CERT_HOSTS=' /opt/rsgzgl-ops/app.env; then
-  echo 'RSGZGL_OPS_MONITOR_CERT_HOSTS=renshi.dxsoft.cn,pq.dxsoft.cn,shpr.dxsoft.cn' >> /opt/rsgzgl-ops/app.env
+  echo 'RSGZGL_OPS_MONITOR_CERT_HOSTS=renshi.dxsoft.cn,pq.dxsoft.cn,shpr.dxsoft.cn,xyzzb.dxsoft.cn' >> /opt/rsgzgl-ops/app.env
 fi
 systemctl restart rsgzgl-ops
 for i in $(seq 1 30); do
